@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ElectroPlan — проектирование электрики</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark"><span>EP</span></div>
+      <div><strong>ElectroPlan Pro</strong><span>инженерная система проектирования</span></div>
+    </div>
+    <div class="top-actions">
+      <button class="btn ghost" id="demoBtn">Демо-проект</button>
+      <button class="btn ghost" id="saveProjectBtn">Сохранить проект</button>
+      <button class="btn primary" id="pdfBtn">Коммерческое предложение PDF</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <aside class="sidebar left-panel">
+      <section class="plan-section">
+        <div class="section-head"><h3>Исходный план</h3><span class="status-dot" id="planStatusDot"></span></div>
+        <label class="upload-btn">
+          <input id="planUpload" type="file" accept="image/*" hidden>
+          <span class="upload-icon">↑</span>
+          <span><b>Загрузить план</b><small>PNG, JPG или WEBP</small></span>
+        </label>
+        <div class="trace-panel">
+          <button class="btn primary full" id="autoTraceBtn" disabled>Автоматически обрисовать</button>
+          <label class="range-label">
+            <span>Чувствительность</span><b id="traceSensitivityValue">62%</b>
+            <input id="traceSensitivity" type="range" min="35" max="85" value="62">
+          </label>
+          <button class="text-action" id="clearAutoTraceBtn">Очистить автообрисовку</button>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><h3>Инструменты</h3></div>
+        <div class="tool-grid">
+          <button class="tool active" data-tool="select">↖<span>Выбор</span></button>
+          <button class="tool" data-tool="wall">╱<span>Стены</span></button>
+          <button class="tool" data-tool="room">T<span>Комната</span></button>
+          <button class="tool danger" data-tool="delete">×<span>Удалить</span></button>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><h3>Одиночные элементы</h3><span class="count-pill" id="catalogCount">0</span></div>
+        <div class="search-box"><input id="catalogSearch" placeholder="Найти элемент"></div>
+        <div class="catalog" id="catalog"></div>
+      </section>
+
+      <section>
+        <div class="section-head"><h3>Готовые посты</h3><button class="link-btn" id="newPostBtn">+ Создать</button></div>
+        <div class="post-library" id="postLibrary"></div>
+      </section>
+    </aside>
+
+    <section class="main-panel">
+      <div class="canvas-toolbar">
+        <div class="zoom-controls">
+          <button class="icon-btn" id="zoomOut">−</button>
+          <button class="zoom-value" id="zoomReset">100%</button>
+          <button class="icon-btn" id="zoomIn">+</button>
+        </div>
+        <div class="status" id="status">Выберите инструмент или элемент</div>
+        <button class="btn ghost small" id="clearBtn">Очистить холст</button>
+      </div>
+
+      <div class="canvas-scroll">
+        <div class="canvas" id="canvas">
+          <img id="planImage" alt="">
+          <svg id="wallsSvg"></svg>
+          <div class="canvas-empty" id="canvasEmpty">
+            <div class="empty-icon">⌁</div>
+            <strong>Добавьте план помещения</strong>
+            <span>или откройте демонстрационный проект</span>
+          </div>
+          <div class="hover-card" id="hoverCard"></div>
+          <canvas id="analysisCanvas" hidden></canvas>
+        </div>
+      </div>
+
+      <div class="canvas-footer">
+        <span>Объекты отображаются компактными пиктограммами</span>
+        <span>Наведите курсор, чтобы увидеть полный состав</span>
+      </div>
+    </section>
+
+    <aside class="sidebar right-panel">
+      <section>
+        <div class="section-head"><h3>Свойства</h3></div>
+        <div id="properties" class="empty-properties">Выберите объект на плане</div>
+      </section>
+
+      <section>
+        <div class="section-head"><h3>Стоимость проекта</h3></div>
+        <div class="price-card">
+          <span>Оборудование</span><strong id="equipmentTotal">0 ₽</strong>
+        </div>
+        <div class="price-card">
+          <span>Монтажные материалы</span><strong id="materialsTotal">0 ₽</strong>
+        </div>
+        <div class="price-card">
+          <span>Работы</span><strong id="workTotal">0 ₽</strong>
+        </div>
+        <div class="grand-total">
+          <span>Итого</span><strong id="grandTotal">0 ₽</strong>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><h3>Спецификация</h3><span class="count-pill" id="objectCount">0</span></div>
+        <div class="spec-list" id="specList"></div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="postModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div><span class="eyebrow">Конструктор</span><h2 id="postModalTitle">Новый электрический пост</h2></div>
+      <button class="modal-close" id="closePostModal">×</button>
+    </div>
+
+    <div class="builder-layout">
+      <div class="builder-preview-area">
+        <div class="post-preview-large" id="postPreview"></div>
+        <div class="builder-note">
+          <strong>Подрозетники обязательны</strong>
+          <span>Один подрозетник автоматически добавляется под каждое место.</span>
+        </div>
+      </div>
+
+      <div class="builder-form">
+        <label>Название поста<input id="postName" value="Пост 3 места"></label>
+        <div class="form-row">
+          <label>Количество мест
+            <select id="postSlotCount"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
+          </label>
+          <label>Рамка
+            <select id="postFrameSelect"></select>
+          </label>
+        </div>
+        <div class="builder-slots" id="builderSlots"></div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn ghost" id="cancelPost">Отмена</button>
+      <button class="btn primary" id="savePost">Сохранить пост</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="js/data.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
