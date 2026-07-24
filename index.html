@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=20260723.8">
 </head>
 <body>
 <div class="app">
@@ -24,11 +24,30 @@
     <aside class="sidebar left-panel">
       <section class="plan-section">
         <div class="section-head"><h3>Исходный план</h3><span class="status-dot" id="planStatusDot"></span></div>
-        <label class="upload-btn">
-          <input id="planUpload" type="file" accept="image/*" hidden>
-          <span class="upload-icon">↑</span>
-          <span><b>Загрузить план</b><small>PNG, JPG или WEBP</small></span>
-        </label>
+        <div class="upload-control">
+          <label class="upload-btn">
+            <input id="planUpload" type="file" accept=".png,.svg,.pdf,.dxf,.dwg,image/png,image/svg+xml,application/pdf,application/dxf,application/acad,application/x-autocad,image/vnd.dwg,image/vnd.dxf" hidden>
+            <span class="upload-icon">↑</span>
+            <span><b>Загрузить план</b><small>PNG · SVG · PDF · DXF · DWG</small></span>
+          </label>
+          <button class="upload-help-btn" id="planUploadHelp" type="button" aria-label="Требования к файлу плана" aria-expanded="false" aria-controls="planUploadPopover">?</button>
+          <div class="upload-popover" id="planUploadPopover" role="dialog" aria-labelledby="planUploadPopoverTitle" hidden>
+            <div class="upload-popover-head">
+              <strong id="planUploadPopoverTitle">Как подготовить чертёж</strong>
+              <button id="closePlanUploadPopover" type="button" aria-label="Закрыть">×</button>
+            </div>
+            <div class="upload-format-row"><span>Поддерживаются</span><b>PNG · SVG · PDF · DXF · DWG</b></div>
+            <ul>
+              <li>Предпочтительны векторные PDF, SVG, DXF и DWG</li>
+              <li>В многостраничном PDF можно выбрать нужную страницу</li>
+              <li>DXF импортируется из model space; DWG — версии R13–R2018</li>
+              <li>PNG шириной 2000–4000 px, желательно 300–600 dpi</li>
+              <li>Один этаж, без наклона, перспективы, штампа и таблиц</li>
+              <li>Самая тонкая перегородка — не менее 3–5 пикселей</li>
+            </ul>
+            <p>JPG и WEBP исключены из-за артефактов сжатия. Файлы обрабатываются локально и не отправляются во внешние сервисы.</p>
+          </div>
+        </div>
         <div class="trace-panel">
           <button class="btn primary full" id="autoTraceBtn" disabled>Автоматически обрисовать</button>
           <label class="range-label">
@@ -36,6 +55,11 @@
             <input id="traceSensitivity" type="range" min="35" max="85" value="62">
           </label>
           <button class="text-action" id="clearAutoTraceBtn">Очистить автообрисовку</button>
+          <button class="btn full" id="detectRoomsBtn" disabled style="margin-top:8px">Определить комнаты</button>
+          <small class="hint-line">Быстро, OpenCV — для чётких чертежей</small>
+          <button class="btn full" id="annotateBtn" disabled style="margin-top:8px">Распознать элементы (ML)</button>
+          <small class="hint-line">Стены, двери, окна нейросетью (~100 МБ при первом запуске)</small>
+          <button class="text-action" id="clearAnnotateBtn" hidden>Убрать разметку</button>
         </div>
       </section>
 
@@ -75,7 +99,10 @@
       <div class="canvas-scroll">
         <div class="canvas" id="canvas">
           <img id="planImage" alt="">
+          <svg id="roomsSvg"></svg>
+          <svg id="detectSvg"></svg>
           <svg id="wallsSvg"></svg>
+          <div class="detect-legend" id="detectLegend" hidden></div>
           <div class="canvas-empty" id="canvasEmpty">
             <div class="empty-icon">⌁</div>
             <strong>Добавьте план помещения</strong>
@@ -123,7 +150,7 @@
 </div>
 
 <div class="modal-backdrop" id="postModal">
-  <div class="modal">
+  <div class="modal post-builder-modal">
     <div class="modal-header">
       <div><span class="eyebrow">Конструктор</span><h2 id="postModalTitle">Новый электрический пост</h2></div>
       <button class="modal-close" id="closePostModal">×</button>
@@ -141,13 +168,14 @@
       <div class="builder-form">
         <label>Название поста<input id="postName" value="Пост 3 места"></label>
         <div class="form-row">
-          <label>Количество мест
+          <label>Количество модулей рамки
             <select id="postSlotCount"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
           </label>
           <label>Рамка
             <select id="postFrameSelect"></select>
           </label>
         </div>
+        <div class="builder-capacity" id="builderCapacity"></div>
         <div class="builder-slots" id="builderSlots"></div>
       </div>
     </div>
@@ -159,9 +187,30 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="pdfPageModal" role="dialog" aria-modal="true" aria-labelledby="pdfPageModalTitle">
+  <div class="modal pdf-import-modal">
+    <div class="modal-header">
+      <div><span class="eyebrow">Импорт PDF</span><h2 id="pdfPageModalTitle">Выберите страницу с планом</h2></div>
+      <button class="modal-close" id="closePdfPageModal" type="button" aria-label="Закрыть">×</button>
+    </div>
+    <p class="pdf-page-copy" id="pdfPageFileName"></p>
+    <label class="pdf-page-form">Страница
+      <select id="pdfPageSelect"></select>
+    </label>
+    <div class="modal-footer">
+      <button class="btn ghost" id="cancelPdfPage" type="button">Отмена</button>
+      <button class="btn primary" id="confirmPdfPage" type="button">Импортировать страницу</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
-<script src="js/data.js"></script>
-<script src="js/store.js"></script>
-<script src="js/app.js"></script>
+  <script src="js/catalog-vimar.js?v=20260723.9"></script>
+  <script src="js/data.js?v=20260723.8"></script>
+<script src="js/store.js?v=20260723"></script>
+<script src="js/roomSegmentation.js?v=20260723"></script>
+<script src="js/floorplanML.js?v=20260723.3"></script>
+<script src="js/planImport.js?v=20260723"></script>
+  <script src="js/app.js?v=20260723.9"></script>
 </body>
 </html>

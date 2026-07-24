@@ -1,0 +1,16 @@
+# Вендорные бинарники (восстанавливаются отдельно, велики для git)
+vendor/models/
+vendor/ort/
+vendor/opencv.js
+vendor/pdfjs/
+vendor/dxf-parser/
+vendor/dwgdxf/
+
+# Экспериментальные артефакты и образцы планов
+seg-preview/
+chertez/
+.tmp-*/
+outputs/
+
+# IDE
+.idea/

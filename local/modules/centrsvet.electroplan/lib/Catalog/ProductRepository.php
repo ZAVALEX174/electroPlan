@@ -10,7 +10,8 @@ use Bitrix\Main\Config\Option;
  *
  * Заменяет window.EP_DATA.products из прототипа (js/data.js).
  * Формат элемента, ожидаемый фронтом (см. js/app.js):
- *   { id, code, name, kind, icon, price, unit, active }
+ *   { id, code, name, kind, icon, price, unit, compatibility, mountRect, active,
+ *     imageUrl, previewImageUrl, detailImageUrl }
  *   kind ∈ mechanism | frame | socket_box | standalone
  */
 class ProductRepository
@@ -40,23 +41,37 @@ class ProductRepository
         }
 
         $select = [
-            'ID', 'NAME', 'CODE',
+            'ID', 'NAME', 'CODE', 'PREVIEW_PICTURE', 'DETAIL_PICTURE',
             'PROPERTY_KIND', 'PROPERTY_ICON', 'PROPERTY_UNIT',
+            'PROPERTY_COMPATIBILITY', 'PROPERTY_MOUNT_RECT',
             'CATALOG_GROUP_1', // базовая цена из модуля catalog
         ];
 
         $result = [];
         $rs = \CIBlockElement::GetList(['SORT' => 'ASC', 'NAME' => 'ASC'], $filter, false, false, $select);
         while ($row = $rs->GetNext()) {
+            $previewImageUrl = !empty($row['PREVIEW_PICTURE'])
+                ? (string)\CFile::GetPath((int)$row['PREVIEW_PICTURE'])
+                : '';
+            $detailImageUrl = !empty($row['DETAIL_PICTURE'])
+                ? (string)\CFile::GetPath((int)$row['DETAIL_PICTURE'])
+                : '';
+            $mountRect = json_decode((string)($row['PROPERTY_MOUNT_RECT_VALUE'] ?? ''), true);
+
             $result[] = [
-                'id'     => (int)$row['ID'],
-                'code'   => $row['CODE'] ?: ('EP-' . $row['ID']),
-                'name'   => $row['NAME'],
-                'kind'   => $row['PROPERTY_KIND_VALUE'] ?: 'mechanism',
-                'icon'   => $row['PROPERTY_ICON_VALUE'] ?: '?',
-                'price'  => (float)($row['CATALOG_PRICE_1'] ?? 0),
-                'unit'   => $row['PROPERTY_UNIT_VALUE'] ?: 'шт.',
-                'active' => true,
+                'id'              => (int)$row['ID'],
+                'code'            => $row['CODE'] ?: ('EP-' . $row['ID']),
+                'name'            => $row['NAME'],
+                'kind'            => $row['PROPERTY_KIND_VALUE'] ?: 'mechanism',
+                'icon'            => $row['PROPERTY_ICON_VALUE'] ?: '?',
+                'price'           => (float)($row['CATALOG_PRICE_1'] ?? 0),
+                'unit'            => $row['PROPERTY_UNIT_VALUE'] ?: 'шт.',
+                'compatibility'   => $row['PROPERTY_COMPATIBILITY_VALUE'] ?: '',
+                'mountRect'       => is_array($mountRect) ? $mountRect : null,
+                'active'          => true,
+                'imageUrl'        => $detailImageUrl ?: $previewImageUrl,
+                'previewImageUrl' => $previewImageUrl ?: $detailImageUrl,
+                'detailImageUrl'  => $detailImageUrl ?: $previewImageUrl,
             ];
         }
         return $result;

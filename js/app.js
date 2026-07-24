@@ -9,11 +9,150 @@ const state={
 };
 const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const money=n=>new Intl.NumberFormat("ru-RU").format(Math.round(n))+" ₽";
+const money=(n,currency=EP_DATA.settings.currency||"EUR")=>new Intl.NumberFormat("ru-RU",{
+  style:"currency",currency,minimumFractionDigits:2,maximumFractionDigits:2
+}).format(Number(n)||0);
 const product=id=>state.products.find(x=>Number(x.id)===Number(id));
 const byKind=kind=>state.products.filter(x=>x.kind===kind&&x.active);
 const socketBox=()=>byKind("socket_box")[0];
 const frameProduct=id=>product(id);
+const productMoney=item=>money(item?.price,item?.currency||EP_DATA.settings.currency);
+const productOptionLabel=item=>`[${item?.code||"без артикула"}] ${item?.name||"Без названия"} — ${productMoney(item)}`;
+const moduleWord=count=>`${count} ${count===1?"модуль":count>=2&&count<=4?"модуля":"модулей"}`;
+function mechanismSpan(item){
+  if(!item)return 0;
+  const explicit=Number(item.moduleSpan??item.module_span??item.modules??item.moduleCount??item.properties?.moduleSpan);
+  if(Number.isInteger(explicit)&&explicit>=1&&explicit<=8)return explicit;
+  const match=String(item.name||"").match(/(?:^|[\s,(])([1-8])\s*(?:модул|modules?|mod\b)/i);
+  return match?Number(match[1]):1;
+}
+const mechanismModulesTotal=ids=>ids.reduce((sum,id)=>sum+mechanismSpan(product(id)),0);
+const mechanismOptionLabel=item=>`${productOptionLabel(item)} · ${moduleWord(mechanismSpan(item))}`;
+const productSeries=item=>{
+  const raw=item?.series??item?.properties?.series??item?.compatibility;
+  if(Array.isArray(raw))return raw.map(String).filter(Boolean);
+  return String(raw||"").split(/[,;|]/).map(x=>x.trim()).filter(Boolean);
+};
+function compatibleMechanisms(frame,mechanisms){
+  const frameSeries=productSeries(frame).map(x=>x.toLocaleLowerCase("ru-RU"));
+  if(!frameSeries.length)return mechanisms;
+  const compatible=mechanisms.filter(item=>{
+    const series=productSeries(item).map(x=>x.toLocaleLowerCase("ru-RU"));
+    return series.some(value=>frameSeries.includes(value));
+  });
+  return compatible.length?compatible:mechanisms;
+}
+const mechanismGroupLabels={
+  500:"Выключатели и кнопки",
+  600:"Диммеры и управление светом",
+  300:"Силовые розетки",
+  400:"USB, TV и слаботочные интерфейсы",
+  700:"Термостаты и датчики",
+  800:"Умный дом",
+  900:"Монтажные аксессуары",
+  1000:"Прочее"
+};
+function mechanismOptions(items,selectedId,{maxSpan=Infinity,emptyLabel=""}={}){
+  const groups=new Map();
+  items.filter(item=>mechanismSpan(item)<=maxSpan).forEach(item=>{
+    const label=mechanismGroupLabels[Number(item.categoryId)]||"Прочее";
+    if(!groups.has(label))groups.set(label,[]);
+    groups.get(label).push(item);
+  });
+  const empty=emptyLabel?`<option value="">${esc(emptyLabel)}</option>`:"";
+  return empty+[...groups].map(([label,products])=>`<optgroup label="${esc(label)}">${products.map(item=>
+    `<option value="${item.id}" ${Number(item.id)===Number(selectedId)?"selected":""}>${esc(mechanismOptionLabel(item))}</option>`
+  ).join("")}</optgroup>`).join("");
+}
+function frameOptions(items,selectedId){
+  const groups=new Map();
+  items.forEach(item=>{
+    const label=productSeries(item).join(", ")||"Другие серии";
+    if(!groups.has(label))groups.set(label,[]);
+    groups.get(label).push(item);
+  });
+  return [...groups].map(([label,products])=>`<optgroup label="${esc(label)}">${products.map(item=>
+    `<option value="${item.id}" ${Number(item.id)===Number(selectedId)?"selected":""}>${esc(productOptionLabel(item))}</option>`
+  ).join("")}</optgroup>`).join("");
+}
+function fitMechanismIds(ids,items,capacity){
+  const allowed=new Set(items.map(item=>Number(item.id)));
+  const result=[];
+  let occupied=0;
+  ids.forEach(id=>{
+    const numericId=Number(id),item=product(numericId),span=mechanismSpan(item);
+    if(!allowed.has(numericId)||!span||occupied+span>capacity)return;
+    result.push(numericId);
+    occupied+=span;
+  });
+  return result;
+}
+function fitMechanismIdsPreserving(ids,items,capacity,pinnedIndex){
+  const allowed=new Set(items.map(item=>Number(item.id)));
+  const result=ids.map(Number).filter(id=>allowed.has(id));
+  let pinned=Math.min(Math.max(0,pinnedIndex),Math.max(0,result.length-1));
+  while(mechanismModulesTotal(result)>capacity&&result.length>1){
+    let removeIndex=result.length-1;
+    if(removeIndex===pinned)removeIndex-=1;
+    if(removeIndex<0)break;
+    result.splice(removeIndex,1);
+    if(removeIndex<pinned)pinned-=1;
+  }
+  return result.filter(id=>mechanismSpan(product(id))<=capacity);
+}
+function frameSlotCount(item){
+  if(!item)return null;
+  const explicit=Number(item.slotCount??item.slots??item.placeCount);
+  if(Number.isInteger(explicit)&&explicit>=1&&explicit<=5)return explicit;
+  const text=[item.name,item.compatibility,item.properties?.compatibility].filter(Boolean).join(" ");
+  const match=text.match(/(?:на|для)?\s*([1-5])\s*(?:модул|мест|пост|module|slot|[mf]\b)/i);
+  return match?Number(match[1]):null;
+}
+const defaultPostName=count=>`Пост на ${moduleWord(count)}`;
+const defaultFrameOpenings={
+  1:{left:37.5,top:23.5,width:25,height:53.5,aspect:1},
+  2:{left:24,top:23,width:52,height:51.5,aspect:1},
+  3:{left:21.5,top:23,width:57,height:53.5,aspect:1.39},
+  4:{left:18.7,top:23,width:62.5,height:52.5,aspect:1.66},
+  5:{left:13,top:23,width:74,height:55.5,aspect:2.02}
+};
+function frameOpening(item,count){
+  let custom=item?.mountRect??item?.mount_rect??item?.frameOpening??item?.frame_opening;
+  if(typeof custom==="string"){
+    try{custom=JSON.parse(custom)}catch{custom=null}
+  }
+  const fallback=defaultFrameOpenings[count]||defaultFrameOpenings[3];
+  if(!custom||typeof custom!=="object")return fallback;
+  const rect={
+    left:Number(custom.left??custom.x),
+    top:Number(custom.top??custom.y),
+    width:Number(custom.width??custom.w),
+    height:Number(custom.height??custom.h),
+    aspect:Number(custom.aspect??fallback.aspect)
+  };
+  const valid=[rect.left,rect.top,rect.width,rect.height].every(Number.isFinite)
+    &&rect.left>=0&&rect.top>=0&&rect.width>0&&rect.height>0
+    &&rect.left+rect.width<=100&&rect.top+rect.height<=100;
+  return valid?rect:fallback;
+}
+const productImage=(item,{detail=false}={})=>{
+  if(!item)return "";
+  const preview=item.previewImageUrl||item.preview_image_url||"";
+  const full=item.detailImageUrl||item.detail_image_url||item.imageUrl||item.image_url||"";
+  return detail?(full||preview):(preview||full);
+};
+function productPicture(item,{className="",detail=false,label="",eager=false,style=""}={}){
+  const imageUrl=productImage(item,{detail});
+  return `<span class="product-picture ${className}${imageUrl?" has-image":""}"${style?` style="${esc(style)}"`:""}>
+    ${imageUrl?`<img src="${esc(imageUrl)}" alt="${esc(label||item?.name||"Изображение товара")}" loading="${eager?"eager":"lazy"}" decoding="async" data-product-picture>`:""}
+    <span class="product-picture-fallback" aria-hidden="true">${esc(item?.icon||"?")}</span>
+  </span>`;
+}
+function bindProductPictureFallbacks(root){
+  root.querySelectorAll("img[data-product-picture]").forEach(img=>{
+    img.addEventListener("error",()=>img.closest(".product-picture")?.classList.remove("has-image"),{once:true});
+  });
+}
 
 function toast(text){const e=$("toast");e.textContent=text;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),1800)}
 function postCost(p){return p.mechanismIds.reduce((s,id)=>s+(product(id)?.price||0),0)+(socketBox()?.price||0)*p.mechanismIds.length+(frameProduct(p.frameId)?.price||0)}
@@ -34,8 +173,9 @@ function renderCatalog(filter=""){
   const standalone=state.products.filter(x=>["standalone","mechanism"].includes(x.kind)&&x.active&&x.name.toLowerCase().includes(filter.toLowerCase()));
   $("catalogCount").textContent=standalone.length;
   $("catalog").innerHTML=standalone.map(p=>`<div class="catalog-item">
-    <div class="catalog-symbol">${esc(p.icon)}</div><div><strong>${esc(p.name)}</strong><small>${money(p.price)} / ${esc(p.unit)}</small></div>
+    <div class="catalog-symbol">${productPicture(p,{label:p.name})}</div><div><strong>${esc(p.name)}</strong><small>${productMoney(p)} / ${esc(p.unit)}</small></div>
     <button class="add-btn" data-add-product="${p.id}">+</button></div>`).join("");
+  bindProductPictureFallbacks($("catalog"));
   document.querySelectorAll("[data-add-product]").forEach(b=>b.onclick=()=>{
     state.pending={type:"device",productId:Number(b.dataset.addProduct)};canvas.classList.add("placing");
     updateStatus("Кликните на плане для размещения элемента");
@@ -46,9 +186,10 @@ function renderTemplates(){
   if(!state.templates.length){list.innerHTML='<div class="library-empty">Сохранённых постов пока нет</div>';return}
   list.innerHTML=state.templates.map(t=>`<div class="library-card">
     <div class="library-title"><strong>${esc(t.name)}</strong><span>${t.mechanismIds.length} места</span></div>
-    <div class="library-icons">${t.mechanismIds.map(id=>`<i>${esc(product(id)?.icon||"?")}</i>`).join("")}</div>
+    <div class="library-icons">${t.mechanismIds.map(id=>`<i>${productPicture(product(id),{label:product(id)?.name})}</i>`).join("")}</div>
     <div class="library-actions"><button class="place" data-place-template="${t.id}">Разместить</button><button data-edit-template="${t.id}">✎</button><button data-delete-template="${t.id}">×</button></div>
   </div>`).join("");
+  bindProductPictureFallbacks(list);
   document.querySelectorAll("[data-place-template]").forEach(b=>b.onclick=()=>{
     state.pending={type:"post",templateId:b.dataset.placeTemplate};canvas.classList.add("placing");
     updateStatus("Кликните на плане для размещения готового поста");
@@ -74,14 +215,23 @@ function renderDevices(){canvas.querySelectorAll(".plan-icon.device-only").forEa
 function renderPosts(){canvas.querySelectorAll(".plan-icon.post").forEach(e=>e.remove());state.posts.forEach(p=>{const el=compactIcon(p,"post");el.ondblclick=e=>{e.stopPropagation();openPostBuilder({placedId:p.id})};canvas.appendChild(el)})}
 function renderRooms(){
   canvas.querySelectorAll(".room-label").forEach(e=>e.remove());
+  const svg=$("roomsSvg");if(svg)svg.innerHTML="";
   state.rooms.forEach(r=>{
+    const isPoly=r.polygon&&r.polygon.length>2;
+    if(svg&&isPoly){
+      const sel=state.selected?.kind==="room"&&state.selected.id===r.id;
+      const pg=document.createElementNS("http://www.w3.org/2000/svg","polygon");
+      pg.setAttribute("points",r.polygon.map(p=>p.x+","+p.y).join(" "));
+      pg.setAttribute("class","room-poly"+(sel?" selected":""));
+      svg.appendChild(pg);
+    }
     const count=getObjectsInRoom(r.id).length;
     const el=document.createElement("div");
     el.className="room-label "+(state.selected?.kind==="room"&&state.selected.id===r.id?"selected":"");
     el.style.left=r.x+"px";el.style.top=r.y+"px";
     el.innerHTML=`<span class="room-title">${esc(r.name)}</span>${r.area?`<small>${esc(r.area)}</small>`:""}<span class="room-object-count">${count} объект.</span>`;
     el.onclick=e=>{e.stopPropagation();state.tool==="delete"?removeEntity("room",r.id):selectEntity("room",r.id)};
-    makeDraggable(el,r,"room");
+    if(!isPoly)makeDraggable(el,r,"room");
     canvas.appendChild(el);
   });
 }
@@ -96,6 +246,111 @@ function removeWall(id){
   state.autoWalls=state.autoWalls.filter(w=>w.id!==id);
   if(state.selected?.kind==="wall")state.selected=null;
   recalculateRoomAssignments();renderAll();renderProperties();renderSummary();
+}
+
+/* ---- Определение комнат (OpenCV.js, ленивая загрузка) ---- */
+function polygonCentroid(poly){let x=0,y=0;poly.forEach(p=>{x+=p.x;y+=p.y});return{x:x/poly.length,y:y/poly.length}}
+function pointInPolygon(x,y,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i].x,yi=poly[i].y,xj=poly[j].x,yj=poly[j].y;if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))inside=!inside}return inside}
+let _cvPromise=null;
+function loadOpenCv(){
+  if(window.cv&&window.cv.Mat)return Promise.resolve();
+  if(_cvPromise)return _cvPromise;
+  _cvPromise=new Promise((resolve,reject)=>{
+    const waitReady=()=>{const t0=Date.now();(function chk(){if(window.cv&&window.cv.Mat)resolve();else if(Date.now()-t0>60000)reject(new Error("Таймаут инициализации OpenCV"));else setTimeout(chk,80)})()};
+    const s=document.createElement("script");
+    s.src="vendor/opencv.js";
+    s.onload=()=>{if(window.cv&&typeof window.cv.then==="function")window.cv.then(()=>waitReady());waitReady()};
+    s.onerror=()=>reject(new Error("Не удалось загрузить vendor/opencv.js"));
+    document.head.appendChild(s);
+  });
+  return _cvPromise;
+}
+async function detectRooms(){
+  const img=$("planImage");
+  if(!state.planLoaded||!img.naturalWidth){toast("Сначала загрузите план");return}
+  showTraceProgress(true,"Загрузка модуля распознавания");
+  try{
+    await loadOpenCv();
+    showTraceProgress(true,"Определение комнат");
+    await new Promise(r=>setTimeout(r,40));
+    const res=EPRoomSeg.segment(img);
+    const cw=canvas.clientWidth,ch=canvas.clientHeight;
+    state.rooms=state.rooms.filter(r=>!r.autoPolygon);
+    res.rooms.forEach((rm,i)=>{
+      const poly=EPRoomSeg.mapPolygon(rm.polygon,res,cw,ch);
+      const c=polygonCentroid(poly);
+      state.rooms.push({id:uid("room_"),name:"Комната "+(i+1),area:"",polygon:poly,autoPolygon:true,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16});
+    });
+    recalculateRoomAssignments();renderAll();renderProperties();renderSummary();
+    showTraceProgress(false);
+    toast(res.rooms.length?`Найдено комнат: ${res.rooms.length}`:"Комнаты не найдены");
+    updateStatus(`Комнат определено: ${res.rooms.length}`);
+  }catch(e){console.error(e);showTraceProgress(false);toast(e.message||"Не удалось определить комнаты")}
+}
+/* ---- Авторазметка плана нейросетью (детекция стен/дверей/окон) ---- */
+const ANNOT_STYLE={
+  "Wall":{color:"#1e5fd0",ru:"Стены"},
+  "Curtain Wall":{color:"#0f9b9b",ru:"Витражные стены"},
+  "Window":{color:"#17b3d6",ru:"Окна"},
+  "Door":{color:"#e23b3b",ru:"Двери"},
+  "Sliding Door":{color:"#f08a24",ru:"Раздв. двери"},
+  "Column":{color:"#8b46c8",ru:"Колонны"},
+  "Stair Case":{color:"#2fa050",ru:"Лестницы"},
+  "Railing":{color:"#a9702f",ru:"Ограждения"},
+  "Dimension":{color:"#9aa7b4",ru:"Размеры",hidden:true}
+};
+function mapBoxToCanvas(box,natW,natH,cw,ch){
+  const disp=Math.min(cw/natW,ch/natH),dispW=natW*disp,dispH=natH*disp,offX=(cw-dispW)/2,offY=(ch-dispH)/2;
+  return {x:offX+box[0]/natW*dispW,y:offY+box[1]/natH*dispH,w:(box[2]-box[0])/natW*dispW,h:(box[3]-box[1])/natH*dispH};
+}
+function clearAnnotations(){
+  const svg=$("detectSvg");if(svg)svg.innerHTML="";
+  const lg=$("detectLegend");if(lg){lg.hidden=true;lg.innerHTML=""}
+  $("clearAnnotateBtn").hidden=true;
+  state.detections=null;
+}
+function renderAnnotations(){
+  const svg=$("detectSvg");if(!svg)return;svg.innerHTML="";
+  if(!state.detections||!state.detections.list.length)return;
+  const {list,natW,natH}=state.detections;
+  const cw=canvas.clientWidth,ch=canvas.clientHeight,counts={};
+  list.forEach(d=>{
+    const st=ANNOT_STYLE[d.name]||{color:"#20b040"};
+    counts[d.name]=(counts[d.name]||0)+1;
+    if(st.hidden)return;
+    const m=mapBoxToCanvas(d.box,natW,natH,cw,ch);
+    const r=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    r.setAttribute("x",m.x);r.setAttribute("y",m.y);r.setAttribute("width",Math.max(1,m.w));r.setAttribute("height",Math.max(1,m.h));
+    r.setAttribute("class","detect-box");r.setAttribute("stroke",st.color);r.setAttribute("fill",st.color);
+    svg.appendChild(r);
+  });
+  const lg=$("detectLegend");
+  lg.innerHTML=Object.keys(counts).sort((a,b)=>counts[b]-counts[a]).map(name=>{
+    const st=ANNOT_STYLE[name]||{color:"#20b040",ru:name};
+    const dim=st.hidden?' style="opacity:.5"':'';
+    return `<span class="lg-item"${dim}><span class="lg-swatch" style="background:${st.color}"></span>${esc(st.ru||name)} <span class="lg-count">${counts[name]}</span></span>`;
+  }).join("");
+  lg.hidden=false;
+}
+async function annotatePlan(){
+  const img=$("planImage");
+  if(!state.planLoaded||!img.naturalWidth){toast("Сначала загрузите план");return}
+  const btn=$("annotateBtn");btn.disabled=true;
+  showTraceProgress(true,"Распознавание (нейросеть)","Подготовка модели…");
+  try{
+    await EPFloorplanML.ensureReady({onProgress:msg=>showTraceProgress(true,"Распознавание (нейросеть)",msg)});
+    showTraceProgress(true,"Распознавание (нейросеть)","Анализ плана…");
+    await new Promise(r=>setTimeout(r,40));
+    const res=await EPFloorplanML.detect(img,{conf:0.22,onProgress:msg=>showTraceProgress(true,"Распознавание (нейросеть)",msg)});
+    state.detections={list:res.detections,natW:res.natW,natH:res.natH};
+    renderAnnotations();
+    $("clearAnnotateBtn").hidden=false;
+    showTraceProgress(false);
+    const shown=res.detections.filter(d=>!(ANNOT_STYLE[d.name]||{}).hidden).length;
+    toast(shown?`Распознано элементов: ${shown} (${EPFloorplanML.backend||"—"})`:"Элементы не распознаны");
+    updateStatus(`Распознано элементов: ${shown}`);
+  }catch(e){console.error(e);showTraceProgress(false);toast(e.message||"Не удалось распознать план")}
+  finally{btn.disabled=false}
 }
 
 function distancePointToSegment(px,py,ax,ay,bx,by){
@@ -166,10 +421,14 @@ function componentAt(map,x,y){
 
 function getRoomForPoint(x,y,map=null){
   if(!state.rooms.length)return null;
+  const poly=state.rooms.find(r=>r.polygon&&r.polygon.length>2&&pointInPolygon(x,y,r.polygon));
+  if(poly)return poly;
+  const gridRooms=state.rooms.filter(r=>!(r.polygon&&r.polygon.length>2));
+  if(!gridRooms.length)return null;
   map=map||buildSpaceComponents();
   const target=componentAt(map,x,y);
   if(target<0)return null;
-  for(const room of state.rooms){
+  for(const room of gridRooms){
     const rx=(room.seedX??room.x+55),ry=(room.seedY??room.y+18);
     if(componentAt(map,rx,ry)===target)return room;
   }
@@ -183,14 +442,17 @@ function updateObjectRoom(entity){
 }
 
 function recalculateRoomAssignments(){
-  const map=buildSpaceComponents();
-  state.rooms.forEach(r=>{
-    if(r.seedX==null){r.seedX=r.x+55;r.seedY=r.y+18}
-    r.componentId=componentAt(map,r.seedX,r.seedY);
-  });
+  const polyRooms=state.rooms.filter(r=>r.polygon&&r.polygon.length>2);
+  const gridRooms=state.rooms.filter(r=>!(r.polygon&&r.polygon.length>2));
+  let map=null;
+  if(gridRooms.length){
+    map=buildSpaceComponents();
+    gridRooms.forEach(r=>{if(r.seedX==null){r.seedX=r.x+55;r.seedY=r.y+18}r.componentId=componentAt(map,r.seedX,r.seedY)});
+  }
   [...state.devices,...state.posts].forEach(obj=>{
-    const component=componentAt(map,obj.x+12,obj.y+12);
-    const room=state.rooms.find(r=>r.componentId===component);
+    const cx=obj.x+12,cy=obj.y+12;
+    let room=polyRooms.find(r=>pointInPolygon(cx,cy,r.polygon));
+    if(!room&&map){const component=componentAt(map,cx,cy);room=gridRooms.find(r=>r.componentId===component)}
     obj.roomId=room?.id||null;
   });
 }
@@ -209,7 +471,7 @@ function renderAll(){
 function showHover(kind,obj,e){
   if(kind==="device"){
     const p=product(obj.productId);
-    hover.innerHTML=`<h4>${esc(p.name)}</h4><dl><dt>Артикул</dt><dd>${esc(p.code)}</dd><dt>Цена</dt><dd>${money(p.price)}</dd><dt>Высота</dt><dd>${esc(obj.height||"не указана")}</dd></dl>`;
+    hover.innerHTML=`<h4>${esc(p.name)}</h4><dl><dt>Артикул</dt><dd>${esc(p.code)}</dd><dt>Цена</dt><dd>${productMoney(p)}</dd><dt>Высота</dt><dd>${esc(obj.height||"не указана")}</dd></dl>`;
   }else{
     const frame=frameProduct(obj.frameId),box=socketBox();
     hover.innerHTML=`<h4>${esc(obj.name)}</h4><div class="hover-composition">${obj.mechanismIds.map(id=>`<span class="hover-chip">${esc(product(id)?.name)}</span>`).join("")}</div>
@@ -254,7 +516,7 @@ function renderProperties(){
     props.innerHTML=`<label>Элемент<input value="${esc(p.name)}" disabled></label>
     <label>Комната<input value="${esc(room?.name||"Не назначена")}" disabled></label>
     <label>Высота установки<input id="propHeight" value="${esc(d.height||"300 мм")}"></label>
-    <label>Цена<input value="${money(p.price)}" disabled></label>
+    <label>Цена<input value="${productMoney(p)}" disabled></label>
     <div class="property-actions"><button class="btn ghost" id="removeSelected">Удалить</button></div>`;
     $("propHeight").oninput=e=>d.height=e.target.value;$("removeSelected").onclick=()=>removeEntity(kind,id);
   }else if(kind==="post"){
@@ -314,20 +576,85 @@ function openPostBuilder({templateId=null,placedId=null}={}){
   let src;
   if(placedId){src=state.posts.find(x=>x.id===placedId);$("postModalTitle").textContent="Редактирование поста на плане"}
   else if(templateId){src=state.templates.find(x=>x.id===templateId);$("postModalTitle").textContent="Редактирование шаблона поста"}
-  else{src={name:"Пост 3 места",frameId:byKind("frame")[0]?.id,mechanismIds:byKind("mechanism").slice(0,3).map(x=>x.id)};$("postModalTitle").textContent="Новый электрический пост"}
-  $("postName").value=src.name;$("postSlotCount").value=String(src.mechanismIds.length);state.builder.mechanismIds=[...src.mechanismIds];
-  $("postFrameSelect").innerHTML=byKind("frame").map(f=>`<option value="${f.id}" ${Number(f.id)===Number(src.frameId)?"selected":""}>${esc(f.name)} — ${money(f.price)}</option>`).join("");
+  else{
+    const defaultFrame=byKind("frame").find(frame=>frameSlotCount(frame)===3)||byKind("frame")[0];
+    src={name:defaultPostName(3),frameId:defaultFrame?.id,mechanismIds:[]};
+    $("postModalTitle").textContent="Новый электрический пост";
+  }
+  const sourceMechanismIds=Array.isArray(src.mechanismIds)?src.mechanismIds:[];
+  const capacity=frameSlotCount(frameProduct(src.frameId))||Math.max(1,Math.min(5,mechanismModulesTotal(sourceMechanismIds)||3));
+  $("postName").value=src.name;$("postSlotCount").value=String(capacity);state.builder.mechanismIds=[...sourceMechanismIds];
+  $("postFrameSelect").dataset.preferredFrameId=String(src.frameId??"");
   renderBuilder();$("postModal").classList.add("open");
 }
 function renderBuilder(){
-  const count=Number($("postSlotCount").value),mechs=byKind("mechanism");
-  while(state.builder.mechanismIds.length<count)state.builder.mechanismIds.push(mechs[0]?.id);
-  state.builder.mechanismIds=state.builder.mechanismIds.slice(0,count);
-  $("postPreview").innerHTML=`<div class="preview-frame">${state.builder.mechanismIds.map(id=>`<div class="preview-place">${esc(product(id)?.icon)}<br>${esc(product(id)?.name)}</div>`).join("")}</div>`;
-  $("builderSlots").innerHTML=state.builder.mechanismIds.map((id,i)=>`<div class="builder-slot"><div class="slot-number">${i+1}</div><select data-builder-slot="${i}">${mechs.map(m=>`<option value="${m.id}" ${Number(m.id)===Number(id)?"selected":""}>${esc(m.name)} — ${money(m.price)}</option>`).join("")}</select></div>`).join("");
-  document.querySelectorAll("[data-builder-slot]").forEach(s=>s.onchange=()=>{state.builder.mechanismIds[Number(s.dataset.builderSlot)]=Number(s.value);renderBuilder()});
+  const count=Number($("postSlotCount").value),allMechanisms=byKind("mechanism");
+  const frameSelect=$("postFrameSelect"),allFrames=byKind("frame");
+  const matchingFrames=allFrames.filter(frame=>frameSlotCount(frame)===count);
+  const frames=matchingFrames.length?matchingFrames:allFrames;
+  const preferredFrameId=Number(frameSelect.value||frameSelect.dataset.preferredFrameId);
+  const selectedFrameId=frames.some(frame=>Number(frame.id)===preferredFrameId)?preferredFrameId:frames[0]?.id;
+  frameSelect.innerHTML=frames.length
+    ?frameOptions(frames,selectedFrameId)
+    :'<option value="">Рамки не загружены</option>';
+  frameSelect.value=selectedFrameId==null?"":String(selectedFrameId);
+  delete frameSelect.dataset.preferredFrameId;
+  const selectedFrame=frameProduct(frameSelect.value);
+  const mechs=compatibleMechanisms(selectedFrame,allMechanisms);
+  state.builder.mechanismIds=fitMechanismIds(state.builder.mechanismIds,mechs,count);
+  const occupied=mechanismModulesTotal(state.builder.mechanismIds);
+  const remaining=Math.max(0,count-occupied);
+  const frameImage=productImage(selectedFrame,{detail:true});
+  const opening=frameOpening(selectedFrame,count);
+  $("postPreview").innerHTML=`<div class="preview-assembly" style="--preview-slots:${count}">
+    <div class="preview-frame-caption"><span>Рамка</span><strong>${esc(selectedFrame?`[${selectedFrame.code}] ${selectedFrame.name}`:"не выбрана")}</strong></div>
+    <div class="preview-frame-stage${frameImage?" has-image":""}" style="--opening-left:${opening.left}%;--opening-top:${opening.top}%;--opening-width:${opening.width}%;--opening-height:${opening.height}%;--frame-aspect:${opening.aspect}">
+      ${frameImage?`<img src="${esc(frameImage)}" alt="${esc(selectedFrame?.name||"Выбранная рамка")}" loading="eager" decoding="async" data-frame-picture>`:""}
+      <div class="preview-frame-fallback" aria-hidden="true"></div>
+      <div class="preview-opening" aria-label="Собранный электрический пост">${state.builder.mechanismIds.map(id=>{
+        const item=product(id);
+        return productPicture(item,{className:"preview-installed-product",label:item?.name,eager:true,style:`--module-span:${mechanismSpan(item)}`});
+      }).join("")}${Array.from({length:remaining},()=>'<span class="preview-empty-module" aria-label="Свободный модуль"></span>').join("")}</div>
+    </div>
+  </div>`;
+  bindProductPictureFallbacks($("postPreview"));
+  $("postPreview").querySelectorAll("img[data-frame-picture]").forEach(img=>{
+    img.addEventListener("error",()=>img.closest(".preview-frame-stage")?.classList.remove("has-image"),{once:true});
+  });
+  $("builderCapacity").innerHTML=`<div class="builder-capacity-head"><strong>Заполнение рамки</strong><span>Занято ${occupied} из ${count} · ${remaining?`свободно ${moduleWord(remaining)}`:"рамка заполнена"}</span></div>
+    <div class="module-meter" style="--module-count:${count}" aria-label="Занято ${occupied} из ${count} модулей">${Array.from({length:count},(_,index)=>`<span class="${index<occupied?"occupied":""}"></span>`).join("")}</div>`;
+  let moduleCursor=1;
+  const selectedRows=state.builder.mechanismIds.map((id,index)=>{
+    const item=product(id),span=mechanismSpan(item),start=moduleCursor,end=start+span-1;
+    moduleCursor=end+1;
+    return `<div class="builder-slot"><div class="slot-number" title="${moduleWord(span)}">${start===end?start:`${start}–${end}`}</div><select data-builder-slot="${index}" aria-label="Элемент в модулях ${start}${start===end?"":`–${end}`}">${mechs.length
+      ?mechanismOptions(mechs,id,{maxSpan:count,emptyLabel:"Убрать элемент"})
+      :'<option value="">Механизмы не загружены</option>'}</select></div>`;
+  }).join("");
+  const addRow=remaining?`<div class="builder-slot is-empty"><div class="slot-number">+</div><select data-builder-slot="${state.builder.mechanismIds.length}" aria-label="Добавить элемент в свободные модули">${mechs.length
+    ?mechanismOptions(mechs,null,{maxSpan:remaining,emptyLabel:`Выберите элемент · свободно ${moduleWord(remaining)}`})
+    :'<option value="">Механизмы не загружены</option>'}</select></div>`:"";
+  $("builderSlots").innerHTML=selectedRows+addRow;
+  document.querySelectorAll("[data-builder-slot]").forEach(s=>s.onchange=()=>{
+    const index=Number(s.dataset.builderSlot);
+    if(!s.value)state.builder.mechanismIds.splice(index,1);
+    else if(index>=state.builder.mechanismIds.length)state.builder.mechanismIds.push(Number(s.value));
+    else{
+      state.builder.mechanismIds[index]=Number(s.value);
+      state.builder.mechanismIds=fitMechanismIdsPreserving(state.builder.mechanismIds,mechs,count,index);
+    }
+    renderBuilder();
+  });
+  $("savePost").disabled=remaining!==0;
+}
+function changePostSlotCount(){
+  const currentName=$("postName").value.trim();
+  if(/^Пост (?:на )?\d+ (?:мест|место|места|модул)/i.test(currentName))$("postName").value=defaultPostName(Number($("postSlotCount").value));
+  renderBuilder();
 }
 async function savePostBuilder(){
+  const frameCapacity=frameSlotCount(frameProduct($("postFrameSelect").value))||Number($("postSlotCount").value);
+  if(mechanismModulesTotal(state.builder.mechanismIds)!==frameCapacity){toast("Заполните все модули рамки");return}
   const base={name:$("postName").value.trim()||"Пост",frameId:Number($("postFrameSelect").value),mechanismIds:[...state.builder.mechanismIds],socketBoxProductId:socketBox()?.id};
   if(state.builder.editingPlacedId){
     Object.assign(state.posts.find(x=>x.id===state.builder.editingPlacedId),base);renderAll();renderProperties();renderSummary();toast("Пост на плане обновлён");
@@ -422,14 +749,14 @@ function generateCommercialOffer(){
 }
 
 
-function showTraceProgress(show,message="Анализ линий плана"){
+function showTraceProgress(show,message="Анализ линий плана",detail="Поиск горизонтальных и вертикальных стен…"){
   let overlay=document.getElementById("traceProgress");
   if(show){
     if(!overlay){
       overlay=document.createElement("div");overlay.id="traceProgress";overlay.className="trace-progress";
-      overlay.innerHTML=`<div class="trace-progress-box"><strong>${esc(message)}</strong><span>Поиск горизонтальных и вертикальных стен…</span></div>`;
       canvas.appendChild(overlay);
     }
+    overlay.innerHTML=`<div class="trace-progress-box"><strong>${esc(message)}</strong><span>${esc(detail)}</span></div>`;
   }else overlay?.remove();
 }
 
@@ -618,33 +945,94 @@ canvas.onclick=e=>{
     setTool("select");renderAll();renderProperties();renderSummary();
     toast("Комната создана. Оборудование внутри привязано автоматически");
   }
-  else if(e.target===canvas||e.target===$("wallsSvg")){state.selected=null;renderAll();renderProperties()}
+  else if(e.target===canvas||e.target===$("wallsSvg")||e.target===$("roomsSvg")){
+    const room=state.rooms.find(r=>r.polygon&&r.polygon.length>2&&pointInPolygon(x,y,r.polygon));
+    if(room&&state.tool==="delete"){removeEntity("room",room.id)}
+    else if(room){selectEntity("room",room.id)}
+    else{state.selected=null;renderAll();renderProperties()}
+  }
 };
 document.querySelectorAll("[data-tool]").forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
 $("catalogSearch").oninput=e=>renderCatalog(e.target.value);
 $("newPostBtn").onclick=()=>openPostBuilder();
 $("closePostModal").onclick=$("cancelPost").onclick=closePostBuilder;
-$("savePost").onclick=savePostBuilder;$("postSlotCount").onchange=renderBuilder;
+$("savePost").onclick=savePostBuilder;$("postSlotCount").onchange=changePostSlotCount;$("postFrameSelect").onchange=renderBuilder;
 $("postModal").onclick=e=>{if(e.target===$("postModal"))closePostBuilder()};
 $("zoomIn").onclick=()=>{state.scale=Math.min(2,state.scale+.1);canvas.style.transform=`scale(${state.scale})`;updateStatus(`Масштаб ${Math.round(state.scale*100)}%`)};
 $("zoomOut").onclick=()=>{state.scale=Math.max(.5,state.scale-.1);canvas.style.transform=`scale(${state.scale})`;updateStatus(`Масштаб ${Math.round(state.scale*100)}%`)};
 $("zoomReset").onclick=()=>{state.scale=1;canvas.style.transform="scale(1)";updateStatus()};
-$("planUpload").onchange=e=>{
-  const f=e.target.files[0];if(!f)return;
-  const reader=new FileReader();
-  reader.onload=x=>{
-    const img=$("planImage");
+
+const uploadHelp=$("planUploadHelp"),uploadPopover=$("planUploadPopover");
+function setUploadPopover(open,returnFocus=false){
+  uploadPopover.hidden=!open;uploadHelp.setAttribute("aria-expanded",String(open));
+  if(open)$("closePlanUploadPopover").focus();else if(returnFocus)uploadHelp.focus();
+}
+uploadHelp.onclick=e=>{e.stopPropagation();setUploadPopover(uploadPopover.hidden)};
+$("closePlanUploadPopover").onclick=()=>setUploadPopover(false,true);
+document.addEventListener("click",e=>{if(!uploadPopover.hidden&&!e.target.closest(".upload-control"))setUploadPopover(false)});
+
+let pdfPageResolve=null;
+function finishPdfPageSelection(page){
+  if(!pdfPageResolve)return;
+  const resolve=pdfPageResolve;pdfPageResolve=null;
+  $("pdfPageModal").classList.remove("open");resolve(page);
+}
+function choosePdfPage(total,fileName){
+  if(pdfPageResolve)finishPdfPageSelection(null);
+  $("pdfPageFileName").textContent=`${fileName} · страниц: ${total}`;
+  $("pdfPageSelect").innerHTML=Array.from({length:total},(_,index)=>`<option value="${index+1}">Страница ${index+1}</option>`).join("");
+  $("pdfPageModal").classList.add("open");
+  setTimeout(()=>$("pdfPageSelect").focus(),0);
+  return new Promise(resolve=>{pdfPageResolve=resolve});
+}
+$("confirmPdfPage").onclick=()=>finishPdfPageSelection(Number($("pdfPageSelect").value));
+$("cancelPdfPage").onclick=$("closePdfPageModal").onclick=()=>finishPdfPageSelection(null);
+$("pdfPageModal").onclick=e=>{if(e.target===$("pdfPageModal"))finishPdfPageSelection(null)};
+
+function applyImportedPlan(file,result){
+  return new Promise((resolve,reject)=>{
+    const img=$("planImage"),previousSrc=img.src;
     img.onload=()=>{
-      state.planLoaded=true;$("autoTraceBtn").disabled=false;
+      img.onload=null;img.onerror=null;
+      state.planLoaded=true;$("autoTraceBtn").disabled=false;$("detectRoomsBtn").disabled=false;$("annotateBtn").disabled=false;clearAnnotations();
       $("planStatusDot").classList.add("ready");markCanvasUsed();
-      updateStatus(`План загружен: ${f.name}`);
+      const suffix=result.detail?` · ${result.detail}`:"";
+      updateStatus(`План загружен (${result.format}): ${file.name}${suffix}`);resolve();
     };
-    img.src=x.target.result;
-  };
-  reader.readAsDataURL(f);
+    img.onerror=()=>{
+      img.onload=null;img.onerror=null;
+      if(previousSrc)img.src=previousSrc;
+      reject(new Error("Не удалось отобразить импортированный план"));
+    };
+    img.src=result.dataUrl;
+  });
+}
+
+$("planUpload").onchange=async e=>{
+  const input=e.target,f=input.files[0];if(!f)return;
+  const ext=f.name.split(".").pop()?.toLowerCase()||"";
+  const format=ext.toUpperCase();
+  setUploadPopover(false);
+  showTraceProgress(true,`Импорт ${format}`,ext==="pdf"?"Чтение страниц документа…":ext==="dwg"?"Преобразование DWG и подготовка геометрии…":ext==="dxf"?"Разбор векторной геометрии…":"Подготовка изображения…");
+  try{
+    if(!window.EPPlanImport)throw new Error("Модуль импорта не загружен");
+    const result=await EPPlanImport.importFile(f,{selectPdfPage:choosePdfPage});
+    showTraceProgress(true,`Импорт ${format}`,"Подготовка изображения плана…");
+    await applyImportedPlan(f,result);
+    toast(`${result.format} импортирован`);
+  }catch(error){
+    if(error?.name!=="AbortError"){
+      console.error(error);toast(error?.message||"Не удалось импортировать план");
+    }
+  }finally{
+    showTraceProgress(false);input.value="";
+  }
 };
-$("clearBtn").onclick=()=>{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.selected=null;renderAll();renderProperties();renderSummary()};
+$("clearBtn").onclick=()=>{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.selected=null;clearAnnotations();renderAll();renderProperties();renderSummary()};
 $("autoTraceBtn").onclick=autoTracePlan;
+$("detectRoomsBtn").onclick=detectRooms;
+$("annotateBtn").onclick=annotatePlan;
+$("clearAnnotateBtn").onclick=()=>{clearAnnotations();toast("Разметка убрана")};
 $("clearAutoTraceBtn").onclick=()=>{state.autoWalls=[];recalculateRoomAssignments();drawWalls();renderRooms();renderProperties();renderSummary();toast("Автоматические линии удалены")};
 $("traceSensitivity").oninput=e=>$("traceSensitivityValue").textContent=e.target.value+"%";
 $("saveProjectBtn").onclick=saveProject;$("pdfBtn").onclick=generateCommercialOffer;
@@ -662,6 +1050,14 @@ $("demoBtn").onclick=()=>{
   const template=state.templates[0];if(template)state.posts=[{id:uid("post_"),templateId:template.id,x:610,y:510,name:template.name,frameId:template.frameId,mechanismIds:[...template.mechanismIds],socketBoxProductId:template.socketBoxProductId}];
   drawWalls();renderAll();renderSummary();
 };
-document.onkeydown=e=>{if(e.key==="Escape"){setTool("select");closePostBuilder()}if(e.key==="Enter"&&state.tool==="wall")setTool("select");if(e.key==="Delete"&&state.selected)removeEntity(state.selected.kind,state.selected.id)};
+document.onkeydown=e=>{
+  if(e.key==="Escape"){
+    if($("pdfPageModal").classList.contains("open")){finishPdfPageSelection(null);return}
+    if(!uploadPopover.hidden)setUploadPopover(false,true);
+    setTool("select");closePostBuilder();
+  }
+  if(e.key==="Enter"&&state.tool==="wall")setTool("select");
+  if(e.key==="Delete"&&state.selected)removeEntity(state.selected.kind,state.selected.id);
+};
 init();
 })();
