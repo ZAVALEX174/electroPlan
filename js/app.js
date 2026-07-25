@@ -400,6 +400,34 @@ async function detectRooms(){
       :`Комнат определено: ${res.rooms.length}`);
   }catch(e){console.error(e);showTraceProgress(false);toast(e.message||"Не удалось определить комнаты")}
 }
+/* ---- Определение комнат нейросетью (точная обводка стен, мебель не учитывается) ---- */
+async function detectRoomsML(){
+  const img=$("planImage");
+  if(!state.planLoaded||!img.naturalWidth){toast("Сначала загрузите план");return}
+  showTraceProgress(true,"Распознавание плана","Загрузка модели (~100 МБ при первом запуске)…");
+  try{
+    const res=await EPFloorplanML.segmentRooms(img,{
+      onProgress:msg=>showTraceProgress(true,"Распознавание плана",msg||"Анализ чертежа…")
+    });
+    const cw=canvas.clientWidth,ch=canvas.clientHeight;
+    /* вручную поправленные контуры сохраняем, как и в OpenCV-режиме */
+    state.rooms=state.rooms.filter(r=>!r.autoPolygon);
+    const kept=state.rooms.length;
+    let next=state.rooms.reduce((max,r)=>{const m=/^Комната\s+(\d+)$/.exec(r.name||"");return m?Math.max(max,Number(m[1])):max},0);
+    res.rooms.forEach(rm=>{
+      const poly=EPFloorplanML.mapPolygon(rm.polygon,res,cw,ch);
+      const c=polygonCentroid(poly);
+      state.rooms.push({id:uid("room_"),name:"Комната "+(++next),area:"",polygon:poly,autoPolygon:true,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16});
+    });
+    recalculateRoomAssignments();renderAll();renderProperties();renderSummary();
+    showTraceProgress(false);
+    toast(res.rooms.length?`Найдено комнат: ${res.rooms.length}`:"Комнаты не найдены");
+    updateStatus(kept
+      ?`Комнат определено: ${res.rooms.length} · сохранено ручных контуров: ${kept}`
+      :`Комнат определено: ${res.rooms.length}`);
+  }catch(e){console.error(e);showTraceProgress(false);toast(e.message||"Не удалось определить комнаты")}
+}
+
 /* ---- Масштаб плана в реальных единицах (px/м) ---- */
 function renderScaleRuler(){
   const svg=$("scaleSvg");if(!svg)return;
@@ -1209,7 +1237,7 @@ function applyImportedPlan(file,result){
     const img=$("planImage"),previousSrc=img.src;
     img.onload=()=>{
       img.onload=null;img.onerror=null;
-      state.planLoaded=true;$("autoTraceBtn").disabled=false;$("detectRoomsBtn").disabled=false;$("annotateBtn").disabled=false;clearAnnotations();
+      state.planLoaded=true;$("autoTraceBtn").disabled=false;$("detectRoomsBtn").disabled=false;$("detectRoomsMlBtn").disabled=false;$("annotateBtn").disabled=false;clearAnnotations();
       $("planStatusDot").classList.add("ready");markCanvasUsed();
       const suffix=result.detail?` · ${result.detail}`:"";
       updateStatus(`План загружен (${result.format}): ${file.name}${suffix}`);resolve();
@@ -1246,6 +1274,7 @@ $("planUpload").onchange=async e=>{
 $("clearBtn").onclick=()=>{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.selected=null;clearAnnotations();renderAll();renderProperties();renderSummary()};
 $("autoTraceBtn").onclick=autoTracePlan;
 $("detectRoomsBtn").onclick=detectRooms;
+$("detectRoomsMlBtn").onclick=detectRoomsML;
 $("annotateBtn").onclick=annotatePlan;
 $("clearAnnotateBtn").onclick=()=>{clearAnnotations();toast("Разметка убрана")};
 $("scaleBtn").onclick=()=>{setTool("scale");toast("Проведите отрезок известной длины: два клика по плану")};

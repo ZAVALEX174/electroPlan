@@ -57,6 +57,8 @@
           <button class="text-action" id="clearAutoTraceBtn">Очистить автообрисовку</button>
           <button class="btn full" id="detectRoomsBtn" disabled style="margin-top:8px">Определить комнаты</button>
           <small class="hint-line">Быстро, OpenCV — для чётких чертежей</small>
+          <button class="btn full" id="detectRoomsMlBtn" disabled style="margin-top:8px">Определить комнаты (ML)</button>
+          <small class="hint-line">Точная обводка стен, мебель не учитывается</small>
           <button class="btn full" id="annotateBtn" disabled style="margin-top:8px">Распознать элементы (ML)</button>
           <small class="hint-line">Стены, двери, окна нейросетью (~100 МБ при первом запуске)</small>
           <button class="text-action" id="clearAnnotateBtn" hidden>Убрать разметку</button>
@@ -233,8 +235,8 @@
   <script src="js/data.js?v=20260723.8"></script>
 <script src="js/store.js?v=20260723"></script>
 <script src="js/roomSegmentation.js?v=20260723"></script>
-<script src="js/floorplanML.js?v=20260723.3"></script>
+<script src="js/floorplanML.js?v=20260726.1"></script>
 <script src="js/planImport.js?v=20260723"></script>
-  <script src="js/app.js?v=20260724.3"></script>
+  <script src="js/app.js?v=20260726.1"></script>
 </body>
 </html>

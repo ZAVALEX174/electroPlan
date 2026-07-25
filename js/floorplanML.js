@@ -32,20 +32,31 @@
     : new URL("js/floorplanML.js", document.baseURI);
   const assetBaseUrl = new URL("../", scriptUrl);
   const IMGSZ = 1024;               // фиксированный вход модели
-  const BASE_CONF = 0.10;           // низкий порог на детекции; отсев — per-class ниже
+  const BASE_CONF = 0.05;           // низкий порог на детекции; отсев — per-class ниже
   const NMS_IOU = 0.45;
 
   // Пороги уверенности по классам (из отладки .tmp-yolo-rooms.py) — конструктив.
-  const CLASS_CONF = { Wall: 0.12, Door: 0.24, "Sliding Door": 0.20, Window: 0.15, Column: 0.18, "Curtain Wall": 0.15, Railing: 0.20 };
+  // Wall намеренно низкий: боксы стен служат лишь «зоной внимания», точные границы
+  // берутся из пикселей чертежа. На conf 0.20 YOLO находит ~21 стену и обводка рвётся,
+  // на 0.05 — 42-49 стен и контур почти сплошной (проверено на chertez/639).
+  const CLASS_CONF = { Wall: 0.05, Door: 0.24, "Sliding Door": 0.20, Window: 0.15, Column: 0.18, "Curtain Wall": 0.15, Railing: 0.20 };
 
   const DEFAULTS = {
-    analysisW: 1000,     // ширина растеризации барьерной карты
-    clusterGap: 50,      // склейка близких боксов конструктива в одну «сеть» (доля от 1000px)
+    analysisW: 1000,     // ширина растеризации
+    clusterGap: 50,      // склейка близких боксов конструктива в одну «сеть»
+                         // (используется ниже как o.clusterGap — не удалять)
+    pad: 8,              // расширение бокса стены при построении зоны внимания
+    extendFrac: 0.05,    // продление зоны вдоль оси стены (доля большей стороны листа)
+    minWallArea: 60,     // мин. площадь куска стены (отсев засечек и обрывков текста)
+    minHit: 20,          // мин. контакт куска с подтверждённой стеной, px
+    minHitFrac: 0.05,    // и мин. доля этого контакта
+    bridgeFrac: 0.012,   // длина ядра для замыкания разрывов вдоль стены
+    peakFrac: 0.012,     // радиус поиска локальных максимумов (затравки комнат)
+    mergeThr: 0.5,       // доля общей границы на стене, ниже которой области сливаются
+    minEdge: 6,          // мин. длина общей границы, чтобы судить о слиянии
+    leakGuard: 0.35,     // порог отката, если заливка «улицы» просочилась внутрь
     roiPad: 34,          // отступ ROI вокруг конструктива
-    doorThick: 10,       // толщина «запечатывающей» линии дверного проёма
-    closeK: 14,          // морфология барьера: замыкание разрывов стен
-    dilateK: 5,          // утолщение барьера
-    minRoomFrac: 0.006,  // мин. площадь комнаты (доля площади ROI)
+    minRoomFrac: 0.008,  // мин. площадь комнаты (доля площади ROI)
     openK: 9,            // сглаживание маски комнаты (наросты)
     closeK2: 17,         // и заполнение выемок
     wallLineFrac: 0.12,  // доля для «линии стены» при ортогонализации
@@ -118,7 +129,16 @@
       const waitReady = () => { const t0 = Date.now(); (function chk() { if (window.cv && window.cv.Mat) resolve(); else if (Date.now() - t0 > 60000) reject(new Error("Таймаут инициализации OpenCV")); else setTimeout(chk, 80); })(); };
       const s = document.createElement("script");
       s.src = assetUrl(OPENCV_URL, true).href;
-      s.onload = () => { if (window.cv && typeof window.cv.then === "function") window.cv.then(() => waitReady()); waitReady(); };
+      // сборка отдаёт Promise модуля: его надо дождаться и подменить window.cv
+      // результатом, иначе cv.Mat остаётся undefined и сегментация падает
+      s.onload = () => {
+        if (window.cv && typeof window.cv.then === "function") {
+          window.cv.then((mod) => { if (mod) window.cv = mod; waitReady(); },
+            (err) => reject(err instanceof Error ? err : new Error("Не удалось инициализировать OpenCV")));
+          return;
+        }
+        waitReady();
+      };
       s.onerror = () => reject(new Error("Не удалось загрузить vendor/opencv.js"));
       document.head.appendChild(s);
     });
@@ -254,7 +274,22 @@
     return Math.hypot(dx, dy);
   }
 
-  // ---- сборка комнат из детекций (порт .tmp-yolo-rooms.py) ----
+  // растеризация плана в масштабе анализа — нужны реальные пиксели чертежа
+  function rasterize(imageEl, W, H) {
+    const c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+    ctx.drawImage(imageEl, 0, 0, W, H);
+    return c;
+  }
+
+  // ---- сборка комнат: YOLO задаёт «где стены», геометрия берётся из пикселей чертежа ----
+  //
+  // Почему так. Классический CV не отличает стену от дивана (одинаковая толщина и
+  // контраст), а YOLO даёт лишь грубые прямоугольники вместо геометрии. Комбинация
+  // снимает обе слабости: мебель отсекается, потому что лежит вне зон стен, а линия
+  // точная, потому что это пиксели самого рисунка.
   async function segmentRooms(imageEl, opts) {
     const o = Object.assign({}, DEFAULTS, opts || {});
     const onProgress = opts && opts.onProgress;
@@ -292,50 +327,165 @@
     const mats = [];
     const M = (m) => { mats.push(m); return m; };
     try {
-      // барьерная карта: боксы стен/окон/колонн — заливка; двери — «запечатывающая» линия
-      const barrier = M(new cv.Mat.zeros(H, W, cv.CV_8UC1));
-      const walls = structural.filter((d) => d.name === "Wall" || d.name === "Curtain Wall");
-      const wallMask = new Uint8Array(N);
+      // --- 1. тёмные пиксели чертежа (стены + мебель + текст + размеры) ---
+      const src = M(cv.imread(rasterize(imageEl, W, H)));
+      const gray = M(new cv.Mat()); cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+      const dark = M(new cv.Mat()); cv.threshold(gray, dark, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
+
+      // --- 2. зона внимания из боксов стен + её продление вдоль оси каждой стены ---
+      const zone = M(cv.Mat.zeros(H, W, cv.CV_8UC1));
+      const zoneExt = M(cv.Mat.zeros(H, W, cv.CV_8UC1));
+      const openBoxes = [];
+      const E = Math.round(o.extendFrac * Math.max(W, H));
       structural.forEach((d) => {
-        if (["Wall", "Window", "Column", "Curtain Wall", "Railing"].includes(d.name)) {
-          const bx1 = Math.round(d.box[0]), by1 = Math.round(d.box[1]), bx2 = Math.round(d.box[2]), by2 = Math.round(d.box[3]);
-          cv.rectangle(barrier, new cv.Point(bx1, by1), new cv.Point(bx2, by2), new cv.Scalar(255), -1);
-          if (d.name === "Wall" || d.name === "Curtain Wall") {
-            for (let y = Math.max(0, by1); y < Math.min(H, by2); y++) for (let x = Math.max(0, bx1); x < Math.min(W, bx2); x++) wallMask[y * W + x] = 1;
-          }
+        const [bx1, by1, bx2, by2] = d.box;
+        if (["Wall", "Curtain Wall", "Column"].includes(d.name)) {
+          cv.rectangle(zone, new cv.Point(Math.max(0, bx1 - o.pad), Math.max(0, by1 - o.pad)),
+            new cv.Point(Math.min(W, bx2 + o.pad), Math.min(H, by2 + o.pad)), new cv.Scalar(255), -1);
+          // стена продолжается в своём направлении — там же лежат пропуски YOLO.
+          // Штамп и экспликация в стороне от осей стен и в зону не попадают.
+          const horiz = (bx2 - bx1) >= (by2 - by1);
+          const e1 = horiz ? new cv.Point(Math.max(0, bx1 - E), Math.max(0, by1 - o.pad)) : new cv.Point(Math.max(0, bx1 - o.pad), Math.max(0, by1 - E));
+          const e2 = horiz ? new cv.Point(Math.min(W, bx2 + E), Math.min(H, by2 + o.pad)) : new cv.Point(Math.min(W, bx2 + o.pad), Math.min(H, by2 + E));
+          cv.rectangle(zoneExt, e1, e2, new cv.Scalar(255), -1);
+        } else if (["Door", "Sliding Door", "Window"].includes(d.name)) {
+          openBoxes.push([bx1, by1, bx2, by2]);
         }
       });
-      // двери — линия поперёк проёма (ориентация по ближайшей стене)
-      structural.forEach((d) => {
-        if (d.name !== "Door" && d.name !== "Sliding Door") return;
-        const [bx1, by1, bx2, by2] = d.box, cx = (bx1 + bx2) / 2, cy = (by1 + by2) / 2;
-        let bestH = 1e9, bestV = 1e9;
-        walls.forEach((w) => {
-          const wcx = (w.box[0] + w.box[2]) / 2, wcy = (w.box[1] + w.box[3]) / 2;
-          if (w.box[0] < bx2 + 30 && w.box[2] > bx1 - 30) bestH = Math.min(bestH, Math.abs(wcy - cy));
-          if (w.box[1] < by2 + 30 && w.box[3] > by1 - 30) bestV = Math.min(bestV, Math.abs(wcx - cx));
-        });
-        if (bestH <= bestV) cv.line(barrier, new cv.Point(Math.round(bx1), Math.round(cy)), new cv.Point(Math.round(bx2), Math.round(cy)), new cv.Scalar(255), o.doorThick);
-        else cv.line(barrier, new cv.Point(Math.round(cx), Math.round(by1)), new cv.Point(Math.round(cx), Math.round(by2)), new cv.Scalar(255), o.doorThick);
-      });
-      cv.morphologyEx(barrier, barrier, cv.MORPH_CLOSE, M(cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(o.closeK, o.closeK))));
-      cv.dilate(barrier, barrier, M(cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(o.dilateK, o.dilateK))));
-      const BAR = barrier.data;
 
-      // свободное пространство внутри ROI
-      const free = M(new cv.Mat.zeros(H, W, cv.CV_8UC1)); const FR = free.data;
-      for (let y = ry1; y < ry2; y++) { const base = y * W; for (let x = rx1; x < rx2; x++) FR[base + x] = BAR[base + x] ? 0 : 255; }
+      // --- 3. точные пиксели стен + добор пропущенных ---
+      const confirmed = M(new cv.Mat()); cv.bitwise_and(dark, zone, confirmed);
+      const cand = M(new cv.Mat()); cv.bitwise_and(dark, zoneExt, cand);
+      const cl = M(new cv.Mat()), cs = M(new cv.Mat()), cc = M(new cv.Mat());
+      const cn = cv.connectedComponentsWithStats(cand, cl, cs, cc);
+      const CL = cl.data32S, CONF = confirmed.data;
+      const cArea = new Int32Array(cn), cHit = new Int32Array(cn);
+      for (let p = 0; p < N; p++) { const l = CL[p]; if (l > 0) { cArea[l]++; if (CONF[p]) cHit[l]++; } }
+      const keepC = new Uint8Array(cn);
+      for (let i = 1; i < cn; i++) {
+        if (cArea[i] >= o.minWallArea && cHit[i] >= o.minHit && cHit[i] / cArea[i] >= o.minHitFrac) keepC[i] = 1;
+      }
+      const walls8 = M(cv.Mat.zeros(H, W, cv.CV_8UC1)); const WD = walls8.data;
+      for (let p = 0; p < N; p++) { const l = CL[p]; if (l > 0 && keepC[l]) WD[p] = 255; }
 
-      const lab = M(new cv.Mat()), stats = M(new cv.Mat()), cent = M(new cv.Mat());
-      const nc = cv.connectedComponentsWithStats(free, lab, stats, cent, 4);
-      const LB = lab.data32S;
-      const roiArea = (rx2 - rx1) * (ry2 - ry1);
+      // --- 4. замыкание разрывов: направленное закрытие, не утолщает стену поперёк ---
+      const K = Math.max(5, Math.round(o.bridgeFrac * Math.max(W, H)));
+      const bridged = M(walls8.clone());
+      const kH = M(cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(K, 1)));
+      const kV = M(cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(1, K)));
+      const tH = M(new cv.Mat()), tV = M(new cv.Mat());
+      cv.morphologyEx(walls8, tH, cv.MORPH_CLOSE, kH);
+      cv.morphologyEx(walls8, tV, cv.MORPH_CLOSE, kV);
+      cv.bitwise_or(bridged, tH, bridged); cv.bitwise_or(bridged, tV, bridged);
+      const BR = bridged.data;
+      const wallMask = new Uint8Array(N);
+      for (let p = 0; p < N; p++) wallMask[p] = BR[p] ? 1 : 0;
+
+      // --- 5. перемычки в проёмах толщиной со стену (бокс двери шире стены и,
+      //        залитый целиком, торчал бы внутрь комнаты, искажая её контур) ---
+      const distW = M(new cv.Mat()); cv.distanceTransform(bridged, distW, cv.DIST_L2, 3);
+      const DW = distW.data32F, tSam = [];
+      for (let p = 0; p < N; p++) if (BR[p] && DW[p] > 0) tSam.push(DW[p]);
+      tSam.sort((a, b) => a - b);
+      const halfT = tSam.length ? tSam[Math.floor(tSam.length * 0.75)] : 2;
+      const bars = M(cv.Mat.zeros(H, W, cv.CV_8UC1));
+      const at = (x, y) => (x >= 0 && y >= 0 && x < W && y < H) ? BR[y * W + x] : 0;
+      for (const [bx1, by1, bx2, by2] of openBoxes) {
+        const R = Math.round(Math.max(6, halfT * 4)), t = Math.max(2, Math.round(halfT * 2));
+        let left = 0, right = 0, up = 0, down = 0, sumY = 0, cy = 0, sumX = 0, cx = 0;
+        for (let y = Math.max(0, by1 | 0); y < Math.min(H, by2 | 0); y++) for (let d = 1; d <= R; d++) {
+          if (at((bx1 | 0) - d, y)) { left++; sumY += y; cy++; }
+          if (at((bx2 | 0) + d, y)) { right++; sumY += y; cy++; }
+        }
+        for (let x = Math.max(0, bx1 | 0); x < Math.min(W, bx2 | 0); x++) for (let d = 1; d <= R; d++) {
+          if (at(x, (by1 | 0) - d)) { up++; sumX += x; cx++; }
+          if (at(x, (by2 | 0) + d)) { down++; sumX += x; cx++; }
+        }
+        const hz = left + right, vt = up + down;
+        if (hz < 8 && vt < 8) {
+          // соседних стен не нашли — ориентацию определить нечем. Запечатываем бокс
+          // целиком: дыра, через которую сольются два помещения, хуже лишнего угла.
+          cv.rectangle(bars, new cv.Point(bx1, by1), new cv.Point(bx2, by2), new cv.Scalar(255), -1);
+        } else if (hz >= vt && cy) {
+          const yc = Math.round(sumY / cy);
+          cv.rectangle(bars, new cv.Point(bx1, yc - t / 2), new cv.Point(bx2, yc + t / 2), new cv.Scalar(255), -1);
+        } else if (cx) {
+          const xc = Math.round(sumX / cx);
+          cv.rectangle(bars, new cv.Point(xc - t / 2, by1), new cv.Point(xc + t / 2, by2), new cv.Scalar(255), -1);
+        }
+      }
+
+      // --- 6. свободное пространство, «улица», ROI ---
+      const barrier = M(new cv.Mat()); cv.bitwise_or(bridged, bars, barrier);
+      const free = M(new cv.Mat()); cv.bitwise_not(barrier, free);
+      const FR = free.data;
+      const freeBefore = FR.slice();
+      // ПОРЯДОК ВАЖЕН: заливка «улицы» от края листа идёт ДО обрезки по ROI —
+      // иначе край уже обнулён и заливке неоткуда стартовать.
+      const seen = new Uint8Array(N), st = [];
+      const push = (p) => { if (FR[p] && !seen[p]) st.push(p); };
+      for (let x = 0; x < W; x++) { push(x); push((H - 1) * W + x); }
+      for (let y = 0; y < H; y++) { push(y * W); push(y * W + W - 1); }
+      while (st.length) {
+        const p = st.pop(); if (seen[p]) continue; seen[p] = 1;
+        const x = p % W, y = (p - x) / W;
+        if (x > 0) push(p - 1); if (x < W - 1) push(p + 1);
+        if (y > 0) push(p - W); if (y < H - 1) push(p + W);
+      }
+      for (let p = 0; p < N; p++) if (seen[p]) FR[p] = 0;
+      // если наружная стена разорвана, заливка уходит внутрь и съедает все комнаты —
+      // откатываемся: лишние куски улицы по краям лучше, чем ноль помещений
+      let inB = 0, inA = 0;
+      for (let y = ry1; y < ry2; y++) for (let x = rx1; x < rx2; x++) { const p = y * W + x; if (freeBefore[p]) inB++; if (FR[p]) inA++; }
+      if (inA < inB * o.leakGuard) FR.set(freeBefore);
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (x < rx1 || x > rx2 || y < ry1 || y > ry2) FR[y * W + x] = 0;
+
+      // --- 7. деление по проёмам (watershed): часть дверей — арки без полотна,
+      //        YOLO их не находит, одних перемычек мало ---
+      const fd = M(new cv.Mat()); cv.distanceTransform(free, fd, cv.DIST_L2, 5);
+      const peakR = Math.max(6, Math.round(o.peakFrac * Math.max(W, H)));
+      const kk = M(cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(peakR * 2 + 1, peakR * 2 + 1)));
+      const dil = M(new cv.Mat()); cv.dilate(fd, dil, kk);
+      const minPeak = Math.max(4, halfT * 2);
+      const peaks = M(cv.Mat.zeros(H, W, cv.CV_8UC1));
+      const FD = fd.data32F, DI = dil.data32F, PK = peaks.data;
+      for (let p = 0; p < N; p++) if (FR[p] && FD[p] >= DI[p] - 0.01 && FD[p] >= minPeak) PK[p] = 255;
+      const mk = M(new cv.Mat()); cv.connectedComponents(peaks, mk);
+      const lab = M(new cv.Mat(H, W, cv.CV_32S));
+      const MK = mk.data32S, LB = lab.data32S;
+      for (let p = 0; p < N; p++) LB[p] = !FR[p] ? 1 : (MK[p] > 0 ? MK[p] + 1 : 0);
+      const img3 = M(new cv.Mat()); cv.cvtColor(gray, img3, cv.COLOR_GRAY2RGB);
+      cv.watershed(img3, lab);
+
+      // --- 8. слияние областей, между которыми нет стены (watershed режет по каждому
+      //        узкому месту и дробит комнату; настоящая граница идёт по стене) ---
+      const BARD = barrier.data;
+      const parent = new Map();
+      const find = (x) => { let r = x; while (parent.get(r) !== r) r = parent.get(r); while (parent.get(x) !== r) { const nx = parent.get(x); parent.set(x, r); x = nx; } return r; };
+      const uni2 = (a, b) => { a = find(a); b = find(b); if (a !== b) parent.set(b, a); };
+      for (let p = 0; p < N; p++) { const l = LB[p]; if (l > 1 && !parent.has(l)) parent.set(l, l); }
+      const adj = new Map();
+      for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+        const p = y * W + x; if (LB[p] !== -1) continue;
+        let a = 0, b = 0, bad = false;
+        for (const q of [p - 1, p + 1, p - W, p + W]) {
+          const l = LB[q]; if (l <= 1) continue;
+          if (!a || a === l) a = l; else if (!b || b === l) b = l; else { bad = true; break; }
+        }
+        if (bad || !a || !b) continue;
+        const k = a < b ? a + "_" + b : b + "_" + a;
+        let e = adj.get(k); if (!e) { e = { tot: 0, wall: 0, a, b }; adj.set(k, e); }
+        e.tot++; if (BARD[p]) e.wall++;
+      }
+      for (const e of adj.values()) if (e.tot >= o.minEdge && e.wall / e.tot < o.mergeThr) uni2(e.a, e.b);
+
+      const roiArea = Math.max(1, (rx2 - rx1) * (ry2 - ry1));
+      const areaBy = new Map();
+      for (let p = 0; p < N; p++) { const l = LB[p]; if (l > 1) { const r = find(l); areaBy.set(r, (areaBy.get(r) || 0) + 1); } }
       const roomLabels = [];
-      for (let i = 1; i < nc; i++) {
-        const sx = stats.intAt(i, cv.CC_STAT_LEFT), sy = stats.intAt(i, cv.CC_STAT_TOP);
-        const sw = stats.intAt(i, cv.CC_STAT_WIDTH), sh = stats.intAt(i, cv.CC_STAT_HEIGHT), area = stats.intAt(i, cv.CC_STAT_AREA);
-        const touches = sx <= rx1 + 1 || sy <= ry1 + 1 || sx + sw >= rx2 - 1 || sy + sh >= ry2 - 1;
-        if (!touches && area >= roiArea * o.minRoomFrac) roomLabels.push({ label: i, area });
+      for (const [label, area] of areaBy) {
+        if (area < roiArea * o.minRoomFrac || area > roiArea * 0.92) continue;
+        roomLabels.push({ label, area });
       }
 
       // линии стен для ортогонализации контуров
@@ -347,7 +497,8 @@
       const closeKernel2 = M(cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(o.closeK2, o.closeK2)));
       roomLabels.sort((a, b) => b.area - a.area).forEach(({ label, area }) => {
         const md = maskMat.data;
-        for (let p = 0; p < N; p++) md[p] = (LB[p] === label) ? 255 : 0;
+        // label — корень union-find, поэтому сравниваем через find()
+        for (let p = 0; p < N; p++) { const l = LB[p]; md[p] = (l > 1 && find(l) === label) ? 255 : 0; }
         cv.morphologyEx(maskMat, maskMat, cv.MORPH_CLOSE, closeKernel2);
         cv.morphologyEx(maskMat, maskMat, cv.MORPH_OPEN, openKernel);
         const cnts = new cv.MatVector(), hi = new cv.Mat();
@@ -365,7 +516,11 @@
         cnts.delete(); hi.delete();
       });
 
-      return { natW, natH, W, H, rooms, detections };
+      return { natW, natH, W, H, rooms, detections,
+        debug: { roiArea, roi: [rx1, ry1, rx2, ry2], halfT,
+          wallPx: cv.countNonZero(bridged), barrierPx: cv.countNonZero(barrier),
+          openings: openBoxes.length, labels: roomLabels.length,
+          labelAreas: roomLabels.map((r) => r.area).slice(0, 12) } };
     } finally {
       mats.forEach((m) => { try { m.delete(); } catch (e) {} });
     }
