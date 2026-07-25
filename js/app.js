@@ -5,6 +5,7 @@ const canvas=$("canvas"), hover=$("hoverCard"), props=$("properties");
 const state={
   tool:"select",scale:1,pending:null,selected:null,
   products:[],templates:[],devices:[],posts:[],rooms:[],walls:[],autoWalls:[],wallPoints:[],planLoaded:false,
+  pxPerMeter:null,scaleSegment:null,scalePoints:[],
   builder:{editingTemplateId:null,editingPlacedId:null,mechanismIds:[]}
 };
 const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -158,8 +159,17 @@ function toast(text){const e=$("toast");e.textContent=text;e.classList.add("show
 function postCost(p){return p.mechanismIds.reduce((s,id)=>s+(product(id)?.price||0),0)+(socketBox()?.price||0)*p.mechanismIds.length+(frameProduct(p.frameId)?.price||0)}
 function setTool(tool){
   state.tool=tool;state.pending=null;state.wallPoints=[];canvas.classList.remove("placing");
+  if(tool!=="scale")state.scalePoints=[];
   document.querySelectorAll("[data-tool]").forEach(b=>b.classList.toggle("active",b.dataset.tool===tool));
-  drawWalls();updateStatus();
+  canvas.classList.toggle("measuring",tool==="scale");
+  drawWalls();renderRooms();renderScaleRuler();updateStatus();
+  if(tool==="vertex"){
+    const room=state.selected?.kind==="room"?state.rooms.find(r=>r.id===state.selected.id):null;
+    updateStatus(room?.polygon?.length>2
+      ?"Правка контура: тяните вершины · синие точки добавляют · Alt+клик удаляет"
+      :"Правка контура: выберите комнату с автоматическим контуром");
+  }
+  if(tool==="scale")updateStatus("Отметьте две точки отрезка известной длины");
 }
 function updateStatus(text){$("status").textContent=text||`Элементов: ${state.devices.length} · Постов: ${state.posts.length} · Комнат: ${state.rooms.length}`}
 function markCanvasUsed(){$("canvasEmpty").style.display="none"}
@@ -167,7 +177,7 @@ function markCanvasUsed(){$("canvasEmpty").style.display="none"}
 async function init(){
   state.products=await DataService.getProducts();
   state.templates=await DataService.getSavedPosts();
-  renderCatalog();renderTemplates();renderAll();renderSummary();
+  renderCatalog();renderTemplates();renderAll();renderSummary();updateScaleUi();
 }
 function renderCatalog(filter=""){
   const standalone=state.products.filter(x=>["standalone","mechanism"].includes(x.kind)&&x.active&&x.name.toLowerCase().includes(filter.toLowerCase()));
@@ -218,22 +228,95 @@ function renderRooms(){
   const svg=$("roomsSvg");if(svg)svg.innerHTML="";
   state.rooms.forEach(r=>{
     const isPoly=r.polygon&&r.polygon.length>2;
+    const sel=state.selected?.kind==="room"&&state.selected.id===r.id;
     if(svg&&isPoly){
-      const sel=state.selected?.kind==="room"&&state.selected.id===r.id;
+      const editing=state.tool==="vertex"&&sel;
       const pg=document.createElementNS("http://www.w3.org/2000/svg","polygon");
       pg.setAttribute("points",r.polygon.map(p=>p.x+","+p.y).join(" "));
-      pg.setAttribute("class","room-poly"+(sel?" selected":""));
+      pg.setAttribute("class","room-poly"+(editing?" editing":sel?" selected":""));
+      pg.dataset.roomId=r.id;
       svg.appendChild(pg);
+      if(editing)renderVertexHandles(svg,r);
     }
     const count=getObjectsInRoom(r.id).length;
+    const areaText=roomDisplayArea(r);
     const el=document.createElement("div");
-    el.className="room-label "+(state.selected?.kind==="room"&&state.selected.id===r.id?"selected":"");
+    el.className="room-label "+(sel?"selected":"");
     el.style.left=r.x+"px";el.style.top=r.y+"px";
-    el.innerHTML=`<span class="room-title">${esc(r.name)}</span>${r.area?`<small>${esc(r.area)}</small>`:""}<span class="room-object-count">${count} объект.</span>`;
+    el.innerHTML=`<span class="room-title">${esc(r.name)}</span>${areaText?`<small>${esc(areaText)}</small>`:""}<span class="room-object-count">${count} объект.</span>`;
     el.onclick=e=>{e.stopPropagation();state.tool==="delete"?removeEntity("room",r.id):selectEntity("room",r.id)};
     if(!isPoly)makeDraggable(el,r,"room");
     canvas.appendChild(el);
   });
+}
+
+/* ---- Ручная правка полигонов комнат (инструмент «Правка комнат») ---- */
+const SVG_NS="http://www.w3.org/2000/svg";
+function svgTitle(node,text){const t=document.createElementNS(SVG_NS,"title");t.textContent=text;node.appendChild(t)}
+/* правка делает комнату «ручной»: она переживает повторное авто-определение */
+function markRoomEdited(room){room.autoPolygon=false;room.edited=true}
+function refreshRoomAfterEdit(room){
+  const c=polygonCentroid(room.polygon);
+  room.seedX=c.x;room.seedY=c.y;room.x=c.x-45;room.y=c.y-16;
+  recalculateRoomAssignments();renderRooms();renderProperties();renderSummary();
+  ProjectStore.save(projectSnapshot());
+}
+function renderVertexHandles(svg,room){
+  const poly=room.polygon;
+  /* середины рёбер — клик добавляет вершину */
+  poly.forEach((p,i)=>{
+    const next=poly[(i+1)%poly.length];
+    const mid=document.createElementNS(SVG_NS,"circle");
+    mid.setAttribute("cx",(p.x+next.x)/2);mid.setAttribute("cy",(p.y+next.y)/2);mid.setAttribute("r",4);
+    mid.setAttribute("class","vertex-mid");
+    svgTitle(mid,"Добавить вершину");
+    mid.onpointerdown=e=>{
+      e.preventDefault();e.stopPropagation();
+      poly.splice(i+1,0,{x:(p.x+next.x)/2,y:(p.y+next.y)/2});
+      markRoomEdited(room);refreshRoomAfterEdit(room);
+      updateStatus(`Вершина добавлена · всего ${poly.length}`);
+    };
+    svg.appendChild(mid);
+  });
+  /* вершины — перетаскивание, Alt+клик удаляет */
+  poly.forEach((p,i)=>{
+    const h=document.createElementNS(SVG_NS,"circle");
+    h.setAttribute("cx",p.x);h.setAttribute("cy",p.y);h.setAttribute("r",6);
+    h.setAttribute("class","vertex-handle");
+    svgTitle(h,"Перетащите вершину · Alt+клик удаляет");
+    h.onpointerdown=e=>{
+      e.preventDefault();e.stopPropagation();
+      if(e.altKey){
+        if(poly.length<=3){toast("В полигоне должно остаться не менее трёх вершин");return}
+        poly.splice(i,1);markRoomEdited(room);refreshRoomAfterEdit(room);
+        updateStatus(`Вершина удалена · осталось ${poly.length}`);
+        return;
+      }
+      dragVertex(room,i,e);
+    };
+    svg.appendChild(h);
+  });
+}
+function dragVertex(room,index,startEvent){
+  const svg=$("roomsSvg");
+  const pg=svg.querySelector(`polygon[data-room-id="${room.id}"]`);
+  const handle=svg.querySelectorAll(".vertex-handle")[index];
+  const rect=canvas.getBoundingClientRect();
+  const point=room.polygon[index];
+  const move=e=>{
+    point.x=Math.max(0,Math.min(canvas.clientWidth,(e.clientX-rect.left)/state.scale));
+    point.y=Math.max(0,Math.min(canvas.clientHeight,(e.clientY-rect.top)/state.scale));
+    if(pg)pg.setAttribute("points",room.polygon.map(p=>p.x+","+p.y).join(" "));
+    if(handle){handle.setAttribute("cx",point.x);handle.setAttribute("cy",point.y)}
+  };
+  const up=()=>{
+    document.removeEventListener("pointermove",move);document.removeEventListener("pointerup",up);
+    markRoomEdited(room);refreshRoomAfterEdit(room);
+    const m2=roomAreaM2(room);
+    updateStatus(m2?`Контур изменён · площадь ${formatArea(m2)}`:"Контур комнаты изменён");
+  };
+  document.addEventListener("pointermove",move);document.addEventListener("pointerup",up);
+  move(startEvent);
 }
 
 function allWalls(){
@@ -250,6 +333,22 @@ function removeWall(id){
 
 /* ---- Определение комнат (OpenCV.js, ленивая загрузка) ---- */
 function polygonCentroid(poly){let x=0,y=0;poly.forEach(p=>{x+=p.x;y+=p.y});return{x:x/poly.length,y:y/poly.length}}
+/* площадь замкнутого полигона в px² (формула шнурков) */
+function polygonAreaPx(poly){
+  if(!poly||poly.length<3)return 0;
+  let sum=0;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++)sum+=poly[j].x*poly[i].y-poly[i].x*poly[j].y;
+  return Math.abs(sum)/2;
+}
+/* площадь комнаты в м² — только если задан масштаб плана */
+function roomAreaM2(room){
+  if(!state.pxPerMeter||!room?.polygon||room.polygon.length<3)return null;
+  return polygonAreaPx(room.polygon)/(state.pxPerMeter*state.pxPerMeter);
+}
+const formatArea=m2=>m2.toFixed(1).replace(".",",")+" м²";
+function roomAutoAreaText(room){const m2=roomAreaM2(room);return m2?formatArea(m2):""}
+/* что показывать: ручное значение приоритетнее авторасчёта */
+function roomDisplayArea(room){return room.area?.trim()?room.area.trim():roomAutoAreaText(room)}
 function pointInPolygon(x,y,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i].x,yi=poly[i].y,xj=poly[j].x,yj=poly[j].y;if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))inside=!inside}return inside}
 let _cvPromise=null;
 function loadOpenCv(){
@@ -259,7 +358,15 @@ function loadOpenCv(){
     const waitReady=()=>{const t0=Date.now();(function chk(){if(window.cv&&window.cv.Mat)resolve();else if(Date.now()-t0>60000)reject(new Error("Таймаут инициализации OpenCV"));else setTimeout(chk,80)})()};
     const s=document.createElement("script");
     s.src="vendor/opencv.js";
-    s.onload=()=>{if(window.cv&&typeof window.cv.then==="function")window.cv.then(()=>waitReady());waitReady()};
+    /* сборка отдаёт Promise модуля: его нужно дождаться и подменить window.cv
+       результатом — иначе cv.Mat остаётся undefined и сегментация падает */
+    s.onload=()=>{
+      if(window.cv&&typeof window.cv.then==="function"){
+        window.cv.then(mod=>{if(mod)window.cv=mod;waitReady()},err=>reject(err instanceof Error?err:new Error("Не удалось инициализировать OpenCV")));
+        return;
+      }
+      waitReady();
+    };
     s.onerror=()=>reject(new Error("Не удалось загрузить vendor/opencv.js"));
     document.head.appendChild(s);
   });
@@ -275,18 +382,108 @@ async function detectRooms(){
     await new Promise(r=>setTimeout(r,40));
     const res=EPRoomSeg.segment(img);
     const cw=canvas.clientWidth,ch=canvas.clientHeight;
+    /* вручную поправленные контуры (autoPolygon=false) сохраняются */
     state.rooms=state.rooms.filter(r=>!r.autoPolygon);
-    res.rooms.forEach((rm,i)=>{
+    const kept=state.rooms.length;
+    /* нумеруем дальше существующих, чтобы имена не дублировались */
+    let next=state.rooms.reduce((max,r)=>{const m=/^Комната\s+(\d+)$/.exec(r.name||"");return m?Math.max(max,Number(m[1])):max},0);
+    res.rooms.forEach(rm=>{
       const poly=EPRoomSeg.mapPolygon(rm.polygon,res,cw,ch);
       const c=polygonCentroid(poly);
-      state.rooms.push({id:uid("room_"),name:"Комната "+(i+1),area:"",polygon:poly,autoPolygon:true,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16});
+      state.rooms.push({id:uid("room_"),name:"Комната "+(++next),area:"",polygon:poly,autoPolygon:true,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16});
     });
     recalculateRoomAssignments();renderAll();renderProperties();renderSummary();
     showTraceProgress(false);
     toast(res.rooms.length?`Найдено комнат: ${res.rooms.length}`:"Комнаты не найдены");
-    updateStatus(`Комнат определено: ${res.rooms.length}`);
+    updateStatus(kept
+      ?`Комнат определено: ${res.rooms.length} · сохранено ручных контуров: ${kept}`
+      :`Комнат определено: ${res.rooms.length}`);
   }catch(e){console.error(e);showTraceProgress(false);toast(e.message||"Не удалось определить комнаты")}
 }
+/* ---- Масштаб плана в реальных единицах (px/м) ---- */
+function renderScaleRuler(){
+  const svg=$("scaleSvg");if(!svg)return;
+  svg.innerHTML="";
+  const pts=state.scalePoints;
+  /* точка, уже поставленная в режиме измерения */
+  if(state.tool==="scale"&&pts.length===1){
+    const dot=document.createElementNS(SVG_NS,"circle");
+    dot.setAttribute("cx",pts[0].x);dot.setAttribute("cy",pts[0].y);dot.setAttribute("r",4);
+    dot.setAttribute("class","scale-dot");svg.appendChild(dot);
+    return;
+  }
+  const seg=state.scaleSegment;
+  if(!seg)return;
+  const line=document.createElementNS(SVG_NS,"line");
+  line.setAttribute("x1",seg.a.x);line.setAttribute("y1",seg.a.y);
+  line.setAttribute("x2",seg.b.x);line.setAttribute("y2",seg.b.y);
+  line.setAttribute("class","scale-line");svg.appendChild(line);
+  /* засечки на концах, перпендикулярно отрезку */
+  const dx=seg.b.x-seg.a.x,dy=seg.b.y-seg.a.y,len=Math.hypot(dx,dy)||1;
+  const nx=-dy/len*6,ny=dx/len*6;
+  [seg.a,seg.b].forEach(p=>{
+    const cap=document.createElementNS(SVG_NS,"line");
+    cap.setAttribute("x1",p.x-nx);cap.setAttribute("y1",p.y-ny);
+    cap.setAttribute("x2",p.x+nx);cap.setAttribute("y2",p.y+ny);
+    cap.setAttribute("class","scale-cap");svg.appendChild(cap);
+  });
+  const label=document.createElementNS(SVG_NS,"text");
+  label.setAttribute("x",(seg.a.x+seg.b.x)/2);label.setAttribute("y",(seg.a.y+seg.b.y)/2-9);
+  label.setAttribute("text-anchor","middle");label.setAttribute("class","scale-text");
+  label.textContent=`${String(seg.meters).replace(".",",")} м`;
+  svg.appendChild(label);
+}
+function updateScaleUi(){
+  const hint=$("scaleHint"),btn=$("scaleBtn"),clear=$("clearScaleBtn");
+  if(state.pxPerMeter){
+    hint.textContent=`1 м = ${state.pxPerMeter.toFixed(1)} px · площадь комнат считается в м²`;
+    hint.classList.add("is-set");btn.textContent="Задать масштаб заново";clear.hidden=false;
+  }else{
+    hint.textContent="Масштаб не задан — площадь считается в пикселях";
+    hint.classList.remove("is-set");btn.textContent="Задать масштаб";clear.hidden=true;
+  }
+  renderScaleRuler();
+}
+let scaleResolve=null;
+function askScaleLength(pixels){
+  $("scaleSegmentInfo").textContent=`Длина отрезка на холсте: ${Math.round(pixels)} px. Укажите, скольким метрам он соответствует.`;
+  $("scaleModal").classList.add("open");
+  setTimeout(()=>{const input=$("scaleLengthInput");input.focus();input.select()},0);
+  return new Promise(resolve=>{scaleResolve=resolve});
+}
+function finishScaleInput(meters){
+  if(!scaleResolve)return;
+  const resolve=scaleResolve;scaleResolve=null;
+  $("scaleModal").classList.remove("open");resolve(meters);
+}
+async function addScalePoint(x,y){
+  state.scalePoints.push({x,y});
+  if(state.scalePoints.length===1){
+    renderScaleRuler();
+    updateStatus("Отметьте вторую точку эталонного отрезка");
+    return;
+  }
+  const [a,b]=state.scalePoints;
+  state.scalePoints=[];
+  const pixels=Math.hypot(b.x-a.x,b.y-a.y);
+  if(pixels<12){renderScaleRuler();toast("Отрезок слишком короткий — отметьте точки дальше друг от друга");return}
+  const meters=await askScaleLength(pixels);
+  if(!meters){renderScaleRuler();setTool("select");updateStatus("Задание масштаба отменено");return}
+  state.pxPerMeter=pixels/meters;
+  state.scaleSegment={a,b,meters};
+  setTool("select");
+  updateScaleUi();renderRooms();renderProperties();
+  ProjectStore.save(projectSnapshot());
+  toast(`Масштаб задан: 1 м = ${state.pxPerMeter.toFixed(1)} px`);
+  updateStatus(`Масштаб задан · площади комнат пересчитаны`);
+}
+function clearScale(){
+  state.pxPerMeter=null;state.scaleSegment=null;state.scalePoints=[];
+  updateScaleUi();renderRooms();renderProperties();
+  ProjectStore.save(projectSnapshot());
+  toast("Масштаб сброшен");
+}
+
 /* ---- Авторазметка плана нейросетью (детекция стен/дверей/окон) ---- */
 const ANNOT_STYLE={
   "Wall":{color:"#1e5fd0",ru:"Стены"},
@@ -538,8 +735,16 @@ function renderProperties(){
   }else{
     const r=state.rooms.find(x=>x.id===id);
     const roomObjects=getObjectsInRoom(r.id);
+    const isPoly=r.polygon&&r.polygon.length>2;
+    const autoArea=roomAutoAreaText(r);
+    const areaHint=!isPoly?"Контур не определён — площадь задаётся вручную"
+      :state.pxPerMeter?`Расчёт по контуру: ${autoArea}`
+      :`Задайте масштаб плана, чтобы получить м². Сейчас контур: ${Math.round(polygonAreaPx(r.polygon)).toLocaleString("ru-RU")} px²`;
     props.innerHTML=`<label>Название комнаты<input id="roomName" value="${esc(r.name)}" autocomplete="off"></label>
-    <label>Площадь<input id="roomArea" value="${esc(r.area||"")}" placeholder="Например, 18,6 м²" autocomplete="off"></label>
+    <label>Площадь<input id="roomArea" value="${esc(r.area||"")}" placeholder="${esc(autoArea||"Например, 18,6 м²")}" autocomplete="off"></label>
+    <small class="prop-hint">${esc(areaHint)}${r.area?.trim()?" · сейчас показано ручное значение":""}</small>
+    ${isPoly?`<div class="prop-hint-row"><span>Вершин контура: <b>${r.polygon.length}</b>${r.edited?" · контур правился вручную":""}</span>
+      <button class="link-btn" id="editRoomPolygon">Править контур</button></div>`:""}
     <div class="room-equipment-box"><div class="room-equipment-head"><span>Оборудование комнаты</span><b>${roomObjects.length}</b></div>
       ${roomObjects.length?roomObjects.map(o=>`<div class="room-equipment-row"><span>${esc(o.name)}</span><small>${o.kind==="post"?"Пост":"Элемент"}</small></div>`).join(""):'<div class="room-equipment-empty">В этой комнате пока нет оборудования</div>'}
     </div>
@@ -553,6 +758,8 @@ function renderProperties(){
       ProjectStore.save(projectSnapshot());
     };
     $("saveRoomProps").onclick=saveRoom;
+    const editPolygonBtn=$("editRoomPolygon");
+    if(editPolygonBtn)editPolygonBtn.onclick=()=>setTool("vertex");
     ["roomName","roomArea"].forEach(field=>{
       $(field).onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();saveRoom()}};
       $(field).onblur=saveRoom;
@@ -725,7 +932,7 @@ function drawWalls(){
   state.walls.forEach(appendLine);
 }
 
-function projectSnapshot(){return{name:"Проект электроснабжения",savedAt:new Date().toISOString(),devices:state.devices,posts:state.posts,rooms:state.rooms,walls:state.walls,autoWalls:state.autoWalls}}
+function projectSnapshot(){return{name:"Проект электроснабжения",savedAt:new Date().toISOString(),devices:state.devices,posts:state.posts,rooms:state.rooms,walls:state.walls,autoWalls:state.autoWalls,pxPerMeter:state.pxPerMeter,scaleSegment:state.scaleSegment}}
 function saveProject(){ProjectStore.save(projectSnapshot());toast("Проект сохранён в браузере")}
 function generateCommercialOffer(){
   const equipment=state.devices.reduce((s,d)=>s+(product(d.productId)?.price||0),0)+state.posts.reduce((s,p)=>s+postCost(p),0);
@@ -937,7 +1144,15 @@ function autoTracePlan(){
 canvas.onclick=e=>{
   const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/state.scale,y=(e.clientY-r.top)/state.scale;
   if(state.pending)addPending(x,y);
+  else if(state.tool==="scale"){addScalePoint(x,y);return}
   else if(state.tool==="wall")addWallPoint(e);
+  else if(state.tool==="vertex"){
+    /* в режиме правки клик по контуру выбирает комнату, показывая её вершины */
+    const room=state.rooms.find(r=>r.polygon&&r.polygon.length>2&&pointInPolygon(x,y,r.polygon));
+    if(room)selectEntity("room",room.id);
+    else{state.selected=null;renderAll();renderProperties()}
+    setTool("vertex");
+  }
   else if(state.tool==="room"){
     markCanvasUsed();
     const room={id:uid("room_"),x:x-55,y:y-18,seedX:x,seedY:y,name:"Новая комната",area:""};
@@ -1033,6 +1248,16 @@ $("autoTraceBtn").onclick=autoTracePlan;
 $("detectRoomsBtn").onclick=detectRooms;
 $("annotateBtn").onclick=annotatePlan;
 $("clearAnnotateBtn").onclick=()=>{clearAnnotations();toast("Разметка убрана")};
+$("scaleBtn").onclick=()=>{setTool("scale");toast("Проведите отрезок известной длины: два клика по плану")};
+$("clearScaleBtn").onclick=clearScale;
+$("confirmScale").onclick=()=>{
+  const meters=Number(String($("scaleLengthInput").value).replace(",","."));
+  if(!(meters>0)){toast("Введите длину больше нуля");return}
+  finishScaleInput(meters);
+};
+$("cancelScale").onclick=$("closeScaleModal").onclick=()=>finishScaleInput(null);
+$("scaleModal").onclick=e=>{if(e.target===$("scaleModal"))finishScaleInput(null)};
+$("scaleLengthInput").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();$("confirmScale").click()}};
 $("clearAutoTraceBtn").onclick=()=>{state.autoWalls=[];recalculateRoomAssignments();drawWalls();renderRooms();renderProperties();renderSummary();toast("Автоматические линии удалены")};
 $("traceSensitivity").oninput=e=>$("traceSensitivityValue").textContent=e.target.value+"%";
 $("saveProjectBtn").onclick=saveProject;$("pdfBtn").onclick=generateCommercialOffer;
