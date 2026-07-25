@@ -54,7 +54,10 @@
     peakFrac: 0.012,     // радиус поиска локальных максимумов (затравки комнат)
     mergeThr: 0.5,       // доля общей границы на стене, ниже которой области сливаются
     minEdge: 6,          // мин. длина общей границы, чтобы судить о слиянии
-    leakGuard: 0.35,     // порог отката, если заливка «улицы» просочилась внутрь
+    leakGuard: 0.35,     // доля интерьера, которая обязана уцелеть после отсечения
+                         // «улицы»; ниже — считаем, что заливка просочилась внутрь.
+                         // 0.55 пробовал — хуже: на 00b комнат 6→3, на 639 заклейка
+                         // переставала срабатывать вовсе
     roiPad: 34,          // отступ ROI вокруг конструктива
     minRoomFrac: 0.008,  // мин. площадь комнаты (доля площади ROI)
     openK: 9,            // сглаживание маски комнаты (наросты)
@@ -419,25 +422,44 @@
       const barrier = M(new cv.Mat()); cv.bitwise_or(bridged, bars, barrier);
       const free = M(new cv.Mat()); cv.bitwise_not(barrier, free);
       const FR = free.data;
-      const freeBefore = FR.slice();
       // ПОРЯДОК ВАЖЕН: заливка «улицы» от края листа идёт ДО обрезки по ROI —
       // иначе край уже обнулён и заливке неоткуда стартовать.
-      const seen = new Uint8Array(N), st = [];
-      const push = (p) => { if (FR[p] && !seen[p]) st.push(p); };
-      for (let x = 0; x < W; x++) { push(x); push((H - 1) * W + x); }
-      for (let y = 0; y < H; y++) { push(y * W); push(y * W + W - 1); }
-      while (st.length) {
-        const p = st.pop(); if (seen[p]) continue; seen[p] = 1;
-        const x = p % W, y = (p - x) / W;
-        if (x > 0) push(p - 1); if (x < W - 1) push(p + 1);
-        if (y > 0) push(p - W); if (y < H - 1) push(p + W);
+      const freeBefore = FR.slice();
+      let inB = 0;
+      for (let y = ry1; y < ry2; y++) for (let x = rx1; x < rx2; x++) if (freeBefore[y * W + x]) inB++;
+
+      // Наружная стена нередко разорвана (на chertez/639 — да), и заливка уходит
+      // внутрь, съедая все помещения. Поэтому «заклеиваем» барьер утолщением и
+      // подбираем минимальное, при котором заливка перестаёт течь внутрь.
+      // Утолщение живёт ТОЛЬКО здесь, для поиска улицы: геометрия стен и контуры
+      // комнат считаются по неутолщённому барьеру и не искажаются.
+      let street = null, sealK = 0;
+      for (const k of [0, 5, 11, 21, 35]) {
+        let pass = FR;
+        if (k > 0) {
+          const sealed = M(new cv.Mat());
+          cv.dilate(barrier, sealed, M(cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(k, k))));
+          const SD = sealed.data, tmp = new Uint8Array(N);
+          for (let p = 0; p < N; p++) tmp[p] = SD[p] ? 0 : 1;
+          pass = tmp;
+        }
+        const seen = new Uint8Array(N), st = [];
+        const push = (p) => { if (pass[p] && !seen[p]) st.push(p); };
+        for (let x = 0; x < W; x++) { push(x); push((H - 1) * W + x); }
+        for (let y = 0; y < H; y++) { push(y * W); push(y * W + W - 1); }
+        while (st.length) {
+          const p = st.pop(); if (seen[p]) continue; seen[p] = 1;
+          const x = p % W, y = (p - x) / W;
+          if (x > 0) push(p - 1); if (x < W - 1) push(p + 1);
+          if (y > 0) push(p - W); if (y < H - 1) push(p + W);
+        }
+        let inA = 0;
+        for (let y = ry1; y < ry2; y++) for (let x = rx1; x < rx2; x++) { const p = y * W + x; if (freeBefore[p] && !seen[p]) inA++; }
+        if (inA >= inB * o.leakGuard) { street = seen; sealK = k; break; }
       }
-      for (let p = 0; p < N; p++) if (seen[p]) FR[p] = 0;
-      // если наружная стена разорвана, заливка уходит внутрь и съедает все комнаты —
-      // откатываемся: лишние куски улицы по краям лучше, чем ноль помещений
-      let inB = 0, inA = 0;
-      for (let y = ry1; y < ry2; y++) for (let x = rx1; x < rx2; x++) { const p = y * W + x; if (freeBefore[p]) inB++; if (FR[p]) inA++; }
-      if (inA < inB * o.leakGuard) FR.set(freeBefore);
+      // если не помогло даже максимальное утолщение — оставляем улицу неотсечённой:
+      // лишние куски по краям лучше, чем ноль комнат
+      if (street) for (let p = 0; p < N; p++) if (street[p]) FR[p] = 0;
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (x < rx1 || x > rx2 || y < ry1 || y > ry2) FR[y * W + x] = 0;
 
       // --- 7. деление по проёмам (watershed): часть дверей — арки без полотна,
@@ -517,7 +539,7 @@
       });
 
       return { natW, natH, W, H, rooms, detections,
-        debug: { roiArea, roi: [rx1, ry1, rx2, ry2], halfT,
+        debug: { roiArea, roi: [rx1, ry1, rx2, ry2], halfT, sealK, streetCut: !!street,
           wallPx: cv.countNonZero(bridged), barrierPx: cv.countNonZero(barrier),
           openings: openBoxes.length, labels: roomLabels.length,
           labelAreas: roomLabels.map((r) => r.area).slice(0, 12) } };
