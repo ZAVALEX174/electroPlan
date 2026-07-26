@@ -1558,5 +1558,22 @@ document.onkeydown=e=>{
   if(e.key==="Enter"&&state.tool==="wall")setTool("select");
   if(e.key==="Delete"&&state.selected)removeEntity(state.selected.kind,state.selected.id);
 };
-init().catch(e=>console.error("init failed:",e));
+/* ---- Общий перехват ошибок (PLAN 7.2) ----
+   Сегодняшний разбор показал, что необработанное исключение внутри рендера или
+   промиса обрывает работу молча: интерфейс просто замирает на полпути, а
+   пользователь видит «ничего не произошло». Ловим оба вида и показываем факт
+   сбоя, полную диагностику оставляем в консоли. */
+let _lastErr=0;
+function reportFailure(what,err){
+  console.error(what,err);
+  const now=Date.now();
+  if(now-_lastErr<3000)return;   /* не заваливаем всплывашками при каскаде ошибок */
+  _lastErr=now;
+  const msg=(err&&(err.message||err.reason?.message))||"";
+  toast(msg?`Сбой: ${String(msg).slice(0,90)}`:"Произошёл сбой — подробности в консоли браузера");
+}
+window.addEventListener("error",e=>reportFailure("Необработанная ошибка:",e.error||e));
+window.addEventListener("unhandledrejection",e=>reportFailure("Необработанный промис:",e.reason||e));
+
+init().catch(e=>reportFailure("Инициализация не завершилась:",e));
 })();
