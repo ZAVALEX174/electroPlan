@@ -453,36 +453,16 @@ async function detectRoomsML(){
   }catch(e){console.error(e);showTraceProgress(false);toast(e.message||"Не удалось определить комнаты")}
 }
 
-/* ---- Курс евро ЦБ РФ ----
-   Официальный cbr.ru/scripts/XML_daily.asp НЕ отдаёт CORS-заголовки, поэтому из
-   браузера напрямую недоступен. Берём зеркало cbr-xml-daily.ru — те же данные ЦБ,
-   но с CORS. При переносе в Битрикс правильнее ходить на cbr.ru с сервера
-   (свой AJAX-контроллер модуля) и кэшировать курс на стороне бэкенда. */
-const RATE_URL="https://www.cbr-xml-daily.ru/daily_json.js";
-const RATE_CACHE="ep_eur_rate";
-function loadCachedRate(){
-  try{
-    const c=JSON.parse(localStorage.getItem(RATE_CACHE)||"null");
-    if(c&&c.rate>0){
-      EP_DATA.settings.eurRate=c.rate;EP_DATA.settings.rateDate=c.date;EP_DATA.settings.rateSource=c.source;
-      return c;
-    }
-  }catch(e){}
-  return null;
-}
-async function fetchEuroRate(){
-  const res=await fetch(RATE_URL,{cache:"no-store"});
-  if(!res.ok)throw new Error("ЦБ РФ не ответил ("+res.status+")");
-  const data=await res.json();
-  const v=data?.Valute?.EUR?.Value;
-  if(!(v>0))throw new Error("В ответе ЦБ РФ нет курса евро");
-  const rate=Math.round(v*10000)/10000;
-  const date=(data.Date||"").slice(0,10);
-  const entry={rate,date,source:"ЦБ РФ"};
-  EP_DATA.settings.eurRate=rate;EP_DATA.settings.rateDate=date;EP_DATA.settings.rateSource=entry.source;
-  try{localStorage.setItem(RATE_CACHE,JSON.stringify(entry))}catch(e){}
+/* ---- Курс евро: работа с сетью и кэшем вынесена в js/rates.js (EPRates),
+   здесь остаётся только применение курса к настройкам и интерфейс ---- */
+function applyRateEntry(entry){
+  if(!entry)return null;
+  EP_DATA.settings.eurRate=entry.rate;
+  EP_DATA.settings.rateDate=entry.date;
+  EP_DATA.settings.rateSource=entry.source;
   return entry;
 }
+function loadCachedRate(){return applyRateEntry(EPRates.loadCached())}
 function updateRateUi(){
   const s=EP_DATA.settings,info=$("rateInfo");
   $("currencySelect").value=s.displayCurrency||"EUR";
@@ -503,7 +483,7 @@ async function refreshRate(){
   const btn=$("rateRefreshBtn");
   btn.disabled=true;const prev=btn.textContent;btn.textContent="Загрузка…";
   try{
-    const e=await fetchEuroRate();
+    const e=applyRateEntry(await EPRates.fetchFresh());
     updateRateUi();renderCatalog($("catalogSearch").value);renderSummary();renderTemplates();scheduleSave();
     toast(`Курс ЦБ РФ: 1 € = ${e.rate.toFixed(4)} ₽`);
   }catch(err){
@@ -879,56 +859,15 @@ function renderProperties(){
     });
   }
 }
-/* ЕДИНСТВЕННЫЙ источник истины по смете (PLAN 2.4). И панель «Стоимость проекта», и
-   коммерческое предложение считают только через него. Раньше формулы были скопированы
-   в оба места и успели разойтись: панель пережила отсутствующий в каталоге товар,
-   а КП на нём падало.
-   Товар может отсутствовать штатно — проект восстановлен из хранилища, а прайс с тех
-   пор перезалили. Такая позиция остаётся в смете с нулевой ценой и явной пометкой,
-   чтобы её было видно, а не молча потерять. */
+/* Сам расчёт вынесен в js/estimate.js (EPEstimate) — чистая функция без state и DOM,
+   чтобы её можно было накрыть автотестами (PLAN 7.1). Здесь остаётся только
+   подстановка зависимостей приложения. */
 function buildEstimate(){
-  const lines=[],missing=[];
-  state.devices.forEach(d=>{
-    const p=product(d.productId);
-    if(!p)missing.push(d.productId);
-    lines.push({
-      key:p?"d"+p.id:"d?"+d.productId,
-      name:p?p.name:`Товар не найден (арт. ${d.productId})`,
-      composition:p?p.code:`артикул ${d.productId} отсутствует в каталоге`,
-      unit:p?.unit||"шт.",
-      price:p?.price||0
-    });
+  return EPEstimate.build({
+    devices:state.devices,posts:state.posts,
+    product,frameProduct,postCost,
+    settings:EP_DATA.settings
   });
-  state.posts.forEach(po=>{
-    lines.push({
-      key:"p"+po.name,
-      name:po.name,
-      composition:[frameProduct(po.frameId)?.name,`${po.mechanismIds.length} подрозетн.`,
-        ...po.mechanismIds.map(id=>product(id)?.name)].filter(Boolean).join(", "),
-      unit:"компл.",
-      price:postCost(po)
-    });
-  });
-  const groups=new Map();
-  lines.forEach(l=>{
-    const g=groups.get(l.key)||{name:l.name,composition:l.composition,unit:l.unit,count:0,sum:0};
-    g.count++;g.sum+=l.price;groups.set(l.key,g);
-  });
-  const s=EP_DATA.settings;
-  const equipment=lines.reduce((s2,l)=>s2+l.price,0);
-  /* скидка бьётся по оборудованию, а работы и материалы считаются уже от него —
-     иначе процент «отыгрывался» бы обратно через надбавки */
-  const discountPercent=Math.max(0,Math.min(100,Number(s.discountPercent)||0));
-  const discount=equipment*discountPercent/100;
-  const equipmentNet=equipment-discount;
-  const materials=equipmentNet*s.materialsPercent/100;
-  const work=equipmentNet*s.workPercent/100;
-  const subtotal=equipmentNet+materials+work;
-  const vatPercent=s.vatEnabled?(Number(s.vatPercent)||0):0;
-  const vat=subtotal*vatPercent/100;
-  return {groups:[...groups.values()],missing,
-    equipment,discountPercent,discount,equipmentNet,materials,work,
-    subtotal,vatPercent,vat,total:subtotal+vat};
 }
 function renderSummary(){
   const est=buildEstimate();
@@ -1530,9 +1469,7 @@ function applyCurrency(){
 $("currencySelect").onchange=applyCurrency;
 $("rateRefreshBtn").onclick=refreshRate;
 $("rateInput").oninput=()=>{
-  const v=Number($("rateInput").value);
-  if(!(v>0))return;
-  EP_DATA.settings.eurRate=v;EP_DATA.settings.rateSource="вручную";EP_DATA.settings.rateDate=new Date().toISOString().slice(0,10);
+  if(!applyRateEntry(EPRates.manual($("rateInput").value)))return;
   updateRateUi();renderCatalog($("catalogSearch").value);renderSummary();renderTemplates();scheduleSave();
 };
 $("demoBtn").onclick=()=>{
