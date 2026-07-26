@@ -9,7 +9,13 @@ window.EP_DATA = {
     materialsPercent: 7,
     discountPercent: 0,   // скидка на оборудование, задаётся в интерфейсе
     vatPercent: 20,       // ставка НДС
-    vatEnabled: true      // включать ли НДС в коммерческое предложение
+    vatEnabled: true,     // включать ли НДС в коммерческое предложение
+    // Прайс VIMAR в евро — это базовая валюта всех цен в каталоге.
+    // displayCurrency лишь меняет представление, сами цены не переписываются.
+    displayCurrency: "EUR",
+    eurRate: null,        // рублей за 1 евро (курс ЦБ РФ либо введён вручную)
+    rateDate: null,
+    rateSource: null
   },
   catalogMeta: window.EP_VIMAR_CATALOG?.meta || null,
   categories: [

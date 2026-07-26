@@ -73,6 +73,10 @@ button{cursor:pointer}
 .terms-row label{color:var(--muted);font-size:9px;font-weight:800}
 .terms-row input[type=number]{margin-top:3px;padding:6px 7px}
 .terms-check{grid-column:1/-1;display:flex!important;align-items:center;gap:6px}
+.rate-box{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.rate-box .hint-line{margin:0}
+.rate-box .hint-line.is-set{color:#14713b;font-weight:800}
+.rate-box button{flex:none;padding:5px 9px;font-size:9px}
 .terms-check input{width:auto!important;margin:0}
 .scale-modal{width:min(420px,100%)}
 .scale-modal-copy{margin:14px 0 0;color:var(--muted);font-size:11px;overflow-wrap:anywhere}

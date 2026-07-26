@@ -10,14 +10,27 @@ const state={
 };
 const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const money=(n,currency=EP_DATA.settings.currency||"EUR")=>new Intl.NumberFormat("ru-RU",{
-  style:"currency",currency,minimumFractionDigits:2,maximumFractionDigits:2
-}).format(Number(n)||0);
+/* Все суммы в приложении хранятся в базовой валюте каталога (евро прайса VIMAR).
+   money() отвечает только за ПРЕДСТАВЛЕНИЕ: если выбраны рубли и известен курс,
+   сумма пересчитывается на лету. Сами цены товаров не переписываются никогда —
+   иначе повторная конвертация после смены курса накапливала бы ошибку. */
+const baseCurrency=()=>EP_DATA.settings.currency||"EUR";
+function displayCurrency(){
+  const d=EP_DATA.settings.displayCurrency||baseCurrency();
+  /* без курса показывать рубли нечестно — откатываемся на евро */
+  return (d==="RUB"&&!(EP_DATA.settings.eurRate>0))?baseCurrency():d;
+}
+function displayRate(){
+  return displayCurrency()===baseCurrency()?1:(Number(EP_DATA.settings.eurRate)||1);
+}
+const money=(n)=>new Intl.NumberFormat("ru-RU",{
+  style:"currency",currency:displayCurrency(),minimumFractionDigits:2,maximumFractionDigits:2
+}).format((Number(n)||0)*displayRate());
 const product=id=>state.products.find(x=>Number(x.id)===Number(id));
 const byKind=kind=>state.products.filter(x=>x.kind===kind&&x.active);
 const socketBox=()=>byKind("socket_box")[0];
 const frameProduct=id=>product(id);
-const productMoney=item=>money(item?.price,item?.currency||EP_DATA.settings.currency);
+const productMoney=item=>money(item?.price);
 const productOptionLabel=item=>`[${item?.code||"без артикула"}] ${item?.name||"Без названия"} — ${productMoney(item)}`;
 const moduleWord=count=>`${count} ${count===1?"модуль":count>=2&&count<=4?"модуля":"модулей"}`;
 function mechanismSpan(item){
@@ -178,7 +191,8 @@ async function init(){
   state.products=await DataService.getProducts();
   state.templates=await DataService.getSavedPosts();
   const restored=await restoreProject();
-  renderCatalog();renderTemplates();renderAll();renderSummary();updateScaleUi();
+  loadCachedRate();
+  renderCatalog();renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();
   _autosaveOn=true;   /* включаем ПОСЛЕ восстановления, иначе пустой старт затрёт сохранённое */
   if(restored){
     const objects=state.devices.length+state.posts.length;
@@ -437,6 +451,65 @@ async function detectRoomsML(){
       ?`Комнат определено: ${res.rooms.length} · сохранено ручных контуров: ${kept}`
       :`Комнат определено: ${res.rooms.length}`);
   }catch(e){console.error(e);showTraceProgress(false);toast(e.message||"Не удалось определить комнаты")}
+}
+
+/* ---- Курс евро ЦБ РФ ----
+   Официальный cbr.ru/scripts/XML_daily.asp НЕ отдаёт CORS-заголовки, поэтому из
+   браузера напрямую недоступен. Берём зеркало cbr-xml-daily.ru — те же данные ЦБ,
+   но с CORS. При переносе в Битрикс правильнее ходить на cbr.ru с сервера
+   (свой AJAX-контроллер модуля) и кэшировать курс на стороне бэкенда. */
+const RATE_URL="https://www.cbr-xml-daily.ru/daily_json.js";
+const RATE_CACHE="ep_eur_rate";
+function loadCachedRate(){
+  try{
+    const c=JSON.parse(localStorage.getItem(RATE_CACHE)||"null");
+    if(c&&c.rate>0){
+      EP_DATA.settings.eurRate=c.rate;EP_DATA.settings.rateDate=c.date;EP_DATA.settings.rateSource=c.source;
+      return c;
+    }
+  }catch(e){}
+  return null;
+}
+async function fetchEuroRate(){
+  const res=await fetch(RATE_URL,{cache:"no-store"});
+  if(!res.ok)throw new Error("ЦБ РФ не ответил ("+res.status+")");
+  const data=await res.json();
+  const v=data?.Valute?.EUR?.Value;
+  if(!(v>0))throw new Error("В ответе ЦБ РФ нет курса евро");
+  const rate=Math.round(v*10000)/10000;
+  const date=(data.Date||"").slice(0,10);
+  const entry={rate,date,source:"ЦБ РФ"};
+  EP_DATA.settings.eurRate=rate;EP_DATA.settings.rateDate=date;EP_DATA.settings.rateSource=entry.source;
+  try{localStorage.setItem(RATE_CACHE,JSON.stringify(entry))}catch(e){}
+  return entry;
+}
+function updateRateUi(){
+  const s=EP_DATA.settings,info=$("rateInfo");
+  $("currencySelect").value=s.displayCurrency||"EUR";
+  const rubMode=(s.displayCurrency==="RUB");
+  $("rateBox").hidden=!rubMode;
+  if(!info)return;
+  if(s.eurRate>0){
+    const d=s.rateDate?new Date(s.rateDate).toLocaleDateString("ru-RU"):"";
+    info.textContent=`1 € = ${s.eurRate.toFixed(4)} ₽ · ${s.rateSource||"вручную"}${d?" от "+d:""}`;
+    info.classList.add("is-set");
+    if(document.activeElement!==$("rateInput"))$("rateInput").value=s.eurRate;
+  }else{
+    info.textContent="Курс не загружен — нажмите «Курс ЦБ» или введите вручную";
+    info.classList.remove("is-set");
+  }
+}
+async function refreshRate(){
+  const btn=$("rateRefreshBtn");
+  btn.disabled=true;const prev=btn.textContent;btn.textContent="Загрузка…";
+  try{
+    const e=await fetchEuroRate();
+    updateRateUi();renderCatalog($("catalogSearch").value);renderSummary();renderTemplates();scheduleSave();
+    toast(`Курс ЦБ РФ: 1 € = ${e.rate.toFixed(4)} ₽`);
+  }catch(err){
+    console.error(err);
+    toast("Не удалось получить курс ЦБ РФ — введите вручную");
+  }finally{btn.disabled=false;btn.textContent=prev}
 }
 
 /* ---- Масштаб плана в реальных единицах (px/м) ---- */
@@ -1034,7 +1107,10 @@ function projectSnapshot(){
     pxPerMeter:state.pxPerMeter,scaleSegment:state.scaleSegment,
     /* план кладём data-URL'ом — иначе после перезагрузки объекты повиснут над пустым холстом */
     plan:(state.planLoaded&&/^data:/.test(img.src||""))?img.src:null,
-    planLabel:state.planLabel||""};
+    planLabel:state.planLabel||"",
+    /* условия сделки и валюта — часть проекта, а не глобальная настройка приложения */
+    terms:(({discountPercent,vatPercent,vatEnabled,displayCurrency,eurRate,rateDate,rateSource})=>
+      ({discountPercent,vatPercent,vatEnabled,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
 }
 /* План может не влезть в LocalStorage (лимит ~5 МБ). Тогда сохраняем всё остальное,
    пометив, что чертёж придётся загрузить заново, — это лучше полной потери работы. */
@@ -1069,6 +1145,13 @@ async function restoreProject(){
   state.walls=p.walls||[];state.autoWalls=p.autoWalls||[];
   state.pxPerMeter=p.pxPerMeter??null;state.scaleSegment=p.scaleSegment||null;
   state.planLabel=p.planLabel||"";
+  if(p.terms){
+    Object.assign(EP_DATA.settings,Object.fromEntries(Object.entries(p.terms).filter(([,v])=>v!=null&&v!=="")));
+    $("discountInput").value=EP_DATA.settings.discountPercent??0;
+    $("vatInput").value=EP_DATA.settings.vatPercent??20;
+    $("vatEnabled").checked=EP_DATA.settings.vatEnabled!==false;
+    $("currencySelect").value=EP_DATA.settings.displayCurrency||"EUR";
+  }
   if(p.plan){
     await new Promise(done=>{
       const img=$("planImage");
@@ -1108,6 +1191,7 @@ function generateCommercialOffer(){
   <div><span>Монтажные материалы</span><b>${money(materials)}</b></div><div><span>Работы</span><b>${money(work)}</b></div>
   ${est.vat?`<div><span>Итого без НДС</span><b>${money(est.subtotal)}</b></div><div><span>НДС ${est.vatPercent}%</span><b>${money(est.vat)}</b></div>`:""}
   <div class="grand"><span>Итого${est.vat?" с НДС":""}</span><b>${money(total)}</b></div></div>
+  ${displayCurrency()==="RUB"?`<div class="footer">Пересчёт из евро по курсу 1 € = ${EP_DATA.settings.eurRate.toFixed(4)} ₽ (${esc(EP_DATA.settings.rateSource||"вручную")}${EP_DATA.settings.rateDate?" от "+new Date(EP_DATA.settings.rateDate).toLocaleDateString("ru-RU"):""}). Курс на дату выставления предложения.</div>`:""}
   <div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>
   <script>setTimeout(()=>window.print(),500)<\/script></body></html>`);
   win.document.close();
@@ -1431,6 +1515,22 @@ function applyTerms(){
 }
 ["discountInput","vatInput"].forEach(id=>{$(id).oninput=applyTerms});
 $("vatEnabled").onchange=applyTerms;
+/* валюта отображения и курс */
+function applyCurrency(){
+  EP_DATA.settings.displayCurrency=$("currencySelect").value;
+  updateRateUi();
+  renderCatalog($("catalogSearch").value);renderSummary();renderTemplates();renderProperties();
+  scheduleSave();
+  if(EP_DATA.settings.displayCurrency==="RUB"&&!(EP_DATA.settings.eurRate>0))refreshRate();
+}
+$("currencySelect").onchange=applyCurrency;
+$("rateRefreshBtn").onclick=refreshRate;
+$("rateInput").oninput=()=>{
+  const v=Number($("rateInput").value);
+  if(!(v>0))return;
+  EP_DATA.settings.eurRate=v;EP_DATA.settings.rateSource="вручную";EP_DATA.settings.rateDate=new Date().toISOString().slice(0,10);
+  updateRateUi();renderCatalog($("catalogSearch").value);renderSummary();renderTemplates();scheduleSave();
+};
 $("demoBtn").onclick=()=>{
   markCanvasUsed();state.autoWalls=[];state.walls=[
     makeWall({x:140,y:120},{x:900,y:120}),makeWall({x:900,y:120},{x:900,y:600}),

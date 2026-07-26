@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260726.8">
+  <link rel="stylesheet" href="css/styles.css?v=20260726.9">
 </head>
 <body>
 <div class="app">
@@ -158,6 +158,17 @@
           <label>Скидка, %<input id="discountInput" type="number" min="0" max="100" step="1" value="0"></label>
           <label>НДС, %<input id="vatInput" type="number" min="0" max="30" step="1" value="20"></label>
           <label class="terms-check"><input id="vatEnabled" type="checkbox" checked>Включать НДС в КП</label>
+          <label>Валюта
+            <select id="currencySelect">
+              <option value="EUR">Евро (прайс)</option>
+              <option value="RUB">Рубли</option>
+            </select>
+          </label>
+          <label>Курс, ₽ за €<input id="rateInput" type="number" min="0" step="0.0001"></label>
+          <div class="rate-box" id="rateBox" hidden>
+            <small class="hint-line" id="rateInfo">Курс не загружен</small>
+            <button class="btn ghost small" id="rateRefreshBtn" type="button">Курс ЦБ</button>
+          </div>
         </div>
       </section>
 
@@ -243,11 +254,11 @@
 
 <div class="toast" id="toast"></div>
   <script src="js/catalog-vimar.js?v=20260723.9"></script>
-  <script src="js/data.js?v=20260726.8"></script>
+  <script src="js/data.js?v=20260726.9"></script>
 <script src="js/store.js?v=20260723"></script>
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-  <script src="js/app.js?v=20260726.8"></script>
+  <script src="js/app.js?v=20260726.9"></script>
 </body>
 </html>
