@@ -1,0 +1,10 @@
+{
+  "name": "electroplan",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ElectroPlan Pro — веб-планировщик электрики. Прототип без сборщика (см. PLAN.md 2.2): зависимостей нет, npm нужен только для запуска автотестов.",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test tests/estimate.test.js"
+  }
+}
