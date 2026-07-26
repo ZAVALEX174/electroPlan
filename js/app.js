@@ -177,7 +177,18 @@ function markCanvasUsed(){$("canvasEmpty").style.display="none"}
 async function init(){
   state.products=await DataService.getProducts();
   state.templates=await DataService.getSavedPosts();
+  const restored=await restoreProject();
   renderCatalog();renderTemplates();renderAll();renderSummary();updateScaleUi();
+  _autosaveOn=true;   /* включаем ПОСЛЕ восстановления, иначе пустой старт затрёт сохранённое */
+  if(restored){
+    const objects=state.devices.length+state.posts.length;
+    const when=restored.savedAt?new Date(restored.savedAt).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
+    updateStatus(`Восстановлено: объектов ${objects}, комнат ${state.rooms.length}`);
+    /* с задержкой: иначе всплывашку затирают тосты, которые могли уйти в очередь при старте */
+    setTimeout(()=>toast(restored.planTooBig
+      ?"Проект восстановлен, но план не поместился — загрузите его заново"
+      :`Проект восстановлен${when?" от "+when:""}`),120);
+  }
 }
 function renderCatalog(filter=""){
   const standalone=state.products.filter(x=>["standalone","mechanism"].includes(x.kind)&&x.active&&x.name.toLowerCase().includes(filter.toLowerCase()));
@@ -259,7 +270,7 @@ function refreshRoomAfterEdit(room){
   const c=polygonCentroid(room.polygon);
   room.seedX=c.x;room.seedY=c.y;room.x=c.x-45;room.y=c.y-16;
   recalculateRoomAssignments();renderRooms();renderProperties();renderSummary();
-  ProjectStore.save(projectSnapshot());
+  persistProject();
 }
 function renderVertexHandles(svg,room){
   const poly=room.polygon;
@@ -501,14 +512,14 @@ async function addScalePoint(x,y){
   state.scaleSegment={a,b,meters};
   setTool("select");
   updateScaleUi();renderRooms();renderProperties();
-  ProjectStore.save(projectSnapshot());
+  persistProject();
   toast(`Масштаб задан: 1 м = ${state.pxPerMeter.toFixed(1)} px`);
   updateStatus(`Масштаб задан · площади комнат пересчитаны`);
 }
 function clearScale(){
   state.pxPerMeter=null;state.scaleSegment=null;state.scalePoints=[];
   updateScaleUi();renderRooms();renderProperties();
-  ProjectStore.save(projectSnapshot());
+  persistProject();
   toast("Масштаб сброшен");
 }
 
@@ -692,6 +703,7 @@ function getObjectsInRoom(roomId){
 function renderAll(){
   recalculateRoomAssignments();
   renderDevices();renderPosts();renderRooms();drawWalls();
+  scheduleSave();   /* renderAll идёт после каждой правки состояния — точка автосохранения */
 }
 function showHover(kind,obj,e){
   if(kind==="device"){
@@ -783,7 +795,7 @@ function renderProperties(){
       r.area=$("roomArea").value.trim();
       renderRooms();
       $("roomSaveState").textContent="Изменения сохранены";
-      ProjectStore.save(projectSnapshot());
+      persistProject();
     };
     $("saveRoomProps").onclick=saveRoom;
     const editPolygonBtn=$("editRoomPolygon");
@@ -800,7 +812,15 @@ function renderSummary(){
   $("equipmentTotal").textContent=money(equipment);$("materialsTotal").textContent=money(materials);$("workTotal").textContent=money(work);$("grandTotal").textContent=money(total);
   $("objectCount").textContent=state.devices.length+state.posts.length;
   const groups={};
-  state.devices.forEach(d=>{const p=product(d.productId),key="d"+p.id;groups[key]??={name:p.name,count:0,sum:0};groups[key].count++;groups[key].sum+=p.price});
+  /* товар может отсутствовать: восстановленный проект ссылается на артикул, которого
+     уже нет в каталоге (перезалили прайс, сменили источник). Раньше это роняло
+     renderSummary целиком, а вместе с ним и инициализацию приложения. */
+  state.devices.forEach(d=>{
+    const p=product(d.productId);
+    const key=p?"d"+p.id:"d?"+d.productId;
+    groups[key]??={name:p?p.name:`Товар не найден (арт. ${d.productId})`,count:0,sum:0};
+    groups[key].count++;groups[key].sum+=p?.price||0;
+  });
   state.posts.forEach(p=>{const key="p"+p.name;groups[key]??={name:p.name,count:0,sum:0};groups[key].count++;groups[key].sum+=postCost(p)});
   $("specList").innerHTML=Object.values(groups).length?Object.values(groups).map(g=>`<div class="spec-item"><div><strong>${esc(g.name)}</strong><span>${g.count} шт.</span></div><b>${money(g.sum)}</b></div>`).join(""):'<div class="library-empty">Проект пока пуст</div>';
   updateStatus();
@@ -960,8 +980,64 @@ function drawWalls(){
   state.walls.forEach(appendLine);
 }
 
-function projectSnapshot(){return{name:"Проект электроснабжения",savedAt:new Date().toISOString(),devices:state.devices,posts:state.posts,rooms:state.rooms,walls:state.walls,autoWalls:state.autoWalls,pxPerMeter:state.pxPerMeter,scaleSegment:state.scaleSegment}}
-function saveProject(){ProjectStore.save(projectSnapshot());toast("Проект сохранён в браузере")}
+function projectSnapshot(){
+  const img=$("planImage");
+  return{name:"Проект электроснабжения",savedAt:new Date().toISOString(),
+    devices:state.devices,posts:state.posts,rooms:state.rooms,walls:state.walls,autoWalls:state.autoWalls,
+    pxPerMeter:state.pxPerMeter,scaleSegment:state.scaleSegment,
+    /* план кладём data-URL'ом — иначе после перезагрузки объекты повиснут над пустым холстом */
+    plan:(state.planLoaded&&/^data:/.test(img.src||""))?img.src:null,
+    planLabel:state.planLabel||""};
+}
+/* План может не влезть в LocalStorage (лимит ~5 МБ). Тогда сохраняем всё остальное,
+   пометив, что чертёж придётся загрузить заново, — это лучше полной потери работы. */
+function persistProject(){
+  const snap=projectSnapshot();
+  try{ProjectStore.save(snap);return "full"}
+  catch(e){
+    try{ProjectStore.save(Object.assign({},snap,{plan:null,planTooBig:true}));return "noplan"}
+    catch(e2){console.error(e2);return null}
+  }
+}
+/* var, а не let: init() вызывается выше по файлу, чем это объявление, и обращение
+   к let-переменной из scheduleSave() падало бы в temporal dead zone, обрывая renderAll */
+var _saveTimer=null,_autosaveOn=false;
+/* автосохранение с задержкой: правки идут пачками (перетаскивание, правка вершин) */
+function scheduleSave(){
+  if(!_autosaveOn)return;
+  clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(persistProject,700);
+}
+function saveProject(){
+  const r=persistProject();
+  toast(r==="full"?"Проект сохранён в браузере"
+    :r?"Проект сохранён, но план не поместился — загрузите его заново после перезагрузки"
+    :"Не удалось сохранить: в браузере кончилось место");
+}
+async function restoreProject(){
+  let p=null;
+  try{p=ProjectStore.load()}catch(e){return null}
+  if(!p)return null;
+  state.devices=p.devices||[];state.posts=p.posts||[];state.rooms=p.rooms||[];
+  state.walls=p.walls||[];state.autoWalls=p.autoWalls||[];
+  state.pxPerMeter=p.pxPerMeter??null;state.scaleSegment=p.scaleSegment||null;
+  state.planLabel=p.planLabel||"";
+  if(p.plan){
+    await new Promise(done=>{
+      const img=$("planImage");
+      img.onload=()=>{img.onload=null;img.onerror=null;done()};
+      img.onerror=()=>{img.onload=null;img.onerror=null;done()};
+      img.src=p.plan;
+    });
+    if($("planImage").naturalWidth){
+      state.planLoaded=true;
+      ["autoTraceBtn","detectRoomsBtn","detectRoomsMlBtn","annotateBtn"].forEach(id=>{$(id).disabled=false});
+      $("planStatusDot").classList.add("ready");
+    }
+  }
+  if(state.planLoaded||state.devices.length||state.posts.length||state.rooms.length||state.walls.length)markCanvasUsed();
+  return p;
+}
 function generateCommercialOffer(){
   const equipment=state.devices.reduce((s,d)=>s+(product(d.productId)?.price||0),0)+state.posts.reduce((s,p)=>s+postCost(p),0);
   const materials=equipment*EP_DATA.settings.materialsPercent/100,work=equipment*EP_DATA.settings.workPercent/100,total=equipment+materials+work;
@@ -1237,7 +1313,8 @@ function applyImportedPlan(file,result){
     const img=$("planImage"),previousSrc=img.src;
     img.onload=()=>{
       img.onload=null;img.onerror=null;
-      state.planLoaded=true;$("autoTraceBtn").disabled=false;$("detectRoomsBtn").disabled=false;$("detectRoomsMlBtn").disabled=false;$("annotateBtn").disabled=false;clearAnnotations();
+      state.planLoaded=true;state.planLabel=file.name;
+      $("autoTraceBtn").disabled=false;$("detectRoomsBtn").disabled=false;$("detectRoomsMlBtn").disabled=false;$("annotateBtn").disabled=false;clearAnnotations();
       $("planStatusDot").classList.add("ready");markCanvasUsed();
       const suffix=result.detail?` · ${result.detail}`:"";
       updateStatus(`План загружен (${result.format}): ${file.name}${suffix}`);resolve();
@@ -1313,5 +1390,5 @@ document.onkeydown=e=>{
   if(e.key==="Enter"&&state.tool==="wall")setTool("select");
   if(e.key==="Delete"&&state.selected)removeEntity(state.selected.kind,state.selected.id);
 };
-init();
+init().catch(e=>console.error("init failed:",e));
 })();
