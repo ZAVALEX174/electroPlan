@@ -822,6 +822,7 @@ function buildEstimate(){
       key:p?"d"+p.id:"d?"+d.productId,
       name:p?p.name:`Товар не найден (арт. ${d.productId})`,
       composition:p?p.code:`артикул ${d.productId} отсутствует в каталоге`,
+      unit:p?.unit||"шт.",
       price:p?.price||0
     });
   });
@@ -831,26 +832,43 @@ function buildEstimate(){
       name:po.name,
       composition:[frameProduct(po.frameId)?.name,`${po.mechanismIds.length} подрозетн.`,
         ...po.mechanismIds.map(id=>product(id)?.name)].filter(Boolean).join(", "),
+      unit:"компл.",
       price:postCost(po)
     });
   });
   const groups=new Map();
   lines.forEach(l=>{
-    const g=groups.get(l.key)||{name:l.name,composition:l.composition,count:0,sum:0};
+    const g=groups.get(l.key)||{name:l.name,composition:l.composition,unit:l.unit,count:0,sum:0};
     g.count++;g.sum+=l.price;groups.set(l.key,g);
   });
-  const equipment=lines.reduce((s,l)=>s+l.price,0);
-  const materials=equipment*EP_DATA.settings.materialsPercent/100;
-  const work=equipment*EP_DATA.settings.workPercent/100;
-  return {groups:[...groups.values()],equipment,materials,work,total:equipment+materials+work,missing};
+  const s=EP_DATA.settings;
+  const equipment=lines.reduce((s2,l)=>s2+l.price,0);
+  /* скидка бьётся по оборудованию, а работы и материалы считаются уже от него —
+     иначе процент «отыгрывался» бы обратно через надбавки */
+  const discountPercent=Math.max(0,Math.min(100,Number(s.discountPercent)||0));
+  const discount=equipment*discountPercent/100;
+  const equipmentNet=equipment-discount;
+  const materials=equipmentNet*s.materialsPercent/100;
+  const work=equipmentNet*s.workPercent/100;
+  const subtotal=equipmentNet+materials+work;
+  const vatPercent=s.vatEnabled?(Number(s.vatPercent)||0):0;
+  const vat=subtotal*vatPercent/100;
+  return {groups:[...groups.values()],missing,
+    equipment,discountPercent,discount,equipmentNet,materials,work,
+    subtotal,vatPercent,vat,total:subtotal+vat};
 }
 function renderSummary(){
   const est=buildEstimate();
   $("equipmentTotal").textContent=money(est.equipment);$("materialsTotal").textContent=money(est.materials);
   $("workTotal").textContent=money(est.work);$("grandTotal").textContent=money(est.total);
+  /* скидка и НДС показываются, только когда заданы — чтобы не мозолить нулями */
+  $("discountRow").hidden=!est.discount;
+  $("discountTotal").textContent="−"+money(est.discount)+` (${est.discountPercent}%)`;
+  $("vatRow").hidden=!est.vat;
+  $("vatTotal").textContent=money(est.vat)+` (${est.vatPercent}%)`;
   $("objectCount").textContent=state.devices.length+state.posts.length;
   $("specList").innerHTML=est.groups.length
-    ?est.groups.map(g=>`<div class="spec-item"><div><strong>${esc(g.name)}</strong><span>${g.count} шт.</span></div><b>${money(g.sum)}</b></div>`).join("")
+    ?est.groups.map(g=>`<div class="spec-item"><div><strong>${esc(g.name)}</strong><span>${g.count} ${esc(g.unit)}</span></div><b>${money(g.sum)}</b></div>`).join("")
     :'<div class="library-empty">Проект пока пуст</div>';
   updateStatus();
 }
@@ -1073,7 +1091,7 @@ function generateCommercialOffer(){
   const est=buildEstimate();
   const {equipment,materials,work,total}=est;
   /* позиции группируются, поэтому в КП появилось честное «Кол.» вместо жёсткой единицы */
-  const rows=est.groups.map(g=>({name:g.name,composition:g.composition,qty:g.count,
+  const rows=est.groups.map(g=>({name:g.name,composition:g.composition,qty:g.count,unit:g.unit,
     price:g.count?g.sum/g.count:0,sum:g.sum}));
   if(est.missing.length)toast(`Внимание: позиций без товара в каталоге — ${est.missing.length}`);
   const win=window.open("","_blank");
@@ -1082,10 +1100,14 @@ function generateCommercialOffer(){
   @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}@media print{button{display:none}}</style></head><body>
   <h1>Коммерческое предложение</h1><div class="sub">Проект электрики и комплектация электроустановочных изделий</div>
   <div class="meta"><div class="box"><b>Проект:</b> ElectroPlan<br><b>Дата:</b> ${new Date().toLocaleDateString("ru-RU")}</div><button onclick="window.print()">Сохранить в PDF</button></div>
-  <table><thead><tr><th>№</th><th>Наименование</th><th>Состав / артикул</th><th>Кол.</th><th class="right">Цена</th><th class="right">Сумма</th></tr></thead><tbody>
-  ${rows.map((r,i)=>`<tr><td>${i+1}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.composition)}</td><td>${r.qty}</td><td class="right">${money(r.price)}</td><td class="right">${money(r.sum)}</td></tr>`).join("")}
+  <table><thead><tr><th>№</th><th>Наименование</th><th>Состав / артикул</th><th>Кол.</th><th>Ед.</th><th class="right">Цена</th><th class="right">Сумма</th></tr></thead><tbody>
+  ${rows.map((r,i)=>`<tr><td>${i+1}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.composition)}</td><td>${r.qty}</td><td>${esc(r.unit)}</td><td class="right">${money(r.price)}</td><td class="right">${money(r.sum)}</td></tr>`).join("")}
   </tbody></table>
-  <div class="totals"><div><span>Оборудование</span><b>${money(equipment)}</b></div><div><span>Монтажные материалы</span><b>${money(materials)}</b></div><div><span>Работы</span><b>${money(work)}</b></div><div class="grand"><span>Итого</span><b>${money(total)}</b></div></div>
+  <div class="totals"><div><span>Оборудование</span><b>${money(est.equipment)}</b></div>
+  ${est.discount?`<div><span>Скидка ${est.discountPercent}%</span><b>−${money(est.discount)}</b></div>`:""}
+  <div><span>Монтажные материалы</span><b>${money(materials)}</b></div><div><span>Работы</span><b>${money(work)}</b></div>
+  ${est.vat?`<div><span>Итого без НДС</span><b>${money(est.subtotal)}</b></div><div><span>НДС ${est.vatPercent}%</span><b>${money(est.vat)}</b></div>`:""}
+  <div class="grand"><span>Итого${est.vat?" с НДС":""}</span><b>${money(total)}</b></div></div>
   <div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>
   <script>setTimeout(()=>window.print(),500)<\/script></body></html>`);
   win.document.close();
@@ -1399,6 +1421,16 @@ $("scaleLengthInput").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();$("co
 $("clearAutoTraceBtn").onclick=()=>{state.autoWalls=[];recalculateRoomAssignments();drawWalls();renderRooms();renderProperties();renderSummary();toast("Автоматические линии удалены")};
 $("traceSensitivity").oninput=e=>$("traceSensitivityValue").textContent=e.target.value+"%";
 $("saveProjectBtn").onclick=saveProject;$("pdfBtn").onclick=generateCommercialOffer;
+/* условия сделки: скидка, ставка НДС и его наличие в КП */
+function applyTerms(){
+  EP_DATA.settings.discountPercent=Math.max(0,Math.min(100,Number($("discountInput").value)||0));
+  EP_DATA.settings.vatPercent=Math.max(0,Math.min(30,Number($("vatInput").value)||0));
+  EP_DATA.settings.vatEnabled=$("vatEnabled").checked;
+  $("vatInput").disabled=!EP_DATA.settings.vatEnabled;
+  renderSummary();scheduleSave();
+}
+["discountInput","vatInput"].forEach(id=>{$(id).oninput=applyTerms});
+$("vatEnabled").onchange=applyTerms;
 $("demoBtn").onclick=()=>{
   markCanvasUsed();state.autoWalls=[];state.walls=[
     makeWall({x:140,y:120},{x:900,y:120}),makeWall({x:900,y:120},{x:900,y:600}),

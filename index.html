@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260724.1">
+  <link rel="stylesheet" href="css/styles.css?v=20260726.8">
 </head>
 <body>
 <div class="app">
@@ -145,8 +145,19 @@
         <div class="price-card">
           <span>Работы</span><strong id="workTotal">0 ₽</strong>
         </div>
+        <div class="price-card" id="discountRow" hidden>
+          <span>Скидка</span><strong id="discountTotal">0</strong>
+        </div>
+        <div class="price-card" id="vatRow" hidden>
+          <span>НДС</span><strong id="vatTotal">0</strong>
+        </div>
         <div class="grand-total">
           <span>Итого</span><strong id="grandTotal">0 ₽</strong>
+        </div>
+        <div class="terms-row">
+          <label>Скидка, %<input id="discountInput" type="number" min="0" max="100" step="1" value="0"></label>
+          <label>НДС, %<input id="vatInput" type="number" min="0" max="30" step="1" value="20"></label>
+          <label class="terms-check"><input id="vatEnabled" type="checkbox" checked>Включать НДС в КП</label>
         </div>
       </section>
 
@@ -232,11 +243,11 @@
 
 <div class="toast" id="toast"></div>
   <script src="js/catalog-vimar.js?v=20260723.9"></script>
-  <script src="js/data.js?v=20260723.8"></script>
+  <script src="js/data.js?v=20260726.8"></script>
 <script src="js/store.js?v=20260723"></script>
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-  <script src="js/app.js?v=20260726.7"></script>
+  <script src="js/app.js?v=20260726.8"></script>
 </body>
 </html>

@@ -6,7 +6,10 @@ window.EP_DATA = {
     apiBase: "/api",
     currency: window.EP_VIMAR_CATALOG?.meta?.currency || "EUR",
     workPercent: 18,
-    materialsPercent: 7
+    materialsPercent: 7,
+    discountPercent: 0,   // скидка на оборудование, задаётся в интерфейсе
+    vatPercent: 20,       // ставка НДС
+    vatEnabled: true      // включать ли НДС в коммерческое предложение
   },
   catalogMeta: window.EP_VIMAR_CATALOG?.meta || null,
   categories: [
