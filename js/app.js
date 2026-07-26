@@ -806,23 +806,52 @@ function renderProperties(){
     });
   }
 }
-function renderSummary(){
-  const equipment=state.devices.reduce((s,d)=>s+(product(d.productId)?.price||0),0)+state.posts.reduce((s,p)=>s+postCost(p),0);
-  const materials=equipment*EP_DATA.settings.materialsPercent/100,work=equipment*EP_DATA.settings.workPercent/100,total=equipment+materials+work;
-  $("equipmentTotal").textContent=money(equipment);$("materialsTotal").textContent=money(materials);$("workTotal").textContent=money(work);$("grandTotal").textContent=money(total);
-  $("objectCount").textContent=state.devices.length+state.posts.length;
-  const groups={};
-  /* товар может отсутствовать: восстановленный проект ссылается на артикул, которого
-     уже нет в каталоге (перезалили прайс, сменили источник). Раньше это роняло
-     renderSummary целиком, а вместе с ним и инициализацию приложения. */
+/* ЕДИНСТВЕННЫЙ источник истины по смете (PLAN 2.4). И панель «Стоимость проекта», и
+   коммерческое предложение считают только через него. Раньше формулы были скопированы
+   в оба места и успели разойтись: панель пережила отсутствующий в каталоге товар,
+   а КП на нём падало.
+   Товар может отсутствовать штатно — проект восстановлен из хранилища, а прайс с тех
+   пор перезалили. Такая позиция остаётся в смете с нулевой ценой и явной пометкой,
+   чтобы её было видно, а не молча потерять. */
+function buildEstimate(){
+  const lines=[],missing=[];
   state.devices.forEach(d=>{
     const p=product(d.productId);
-    const key=p?"d"+p.id:"d?"+d.productId;
-    groups[key]??={name:p?p.name:`Товар не найден (арт. ${d.productId})`,count:0,sum:0};
-    groups[key].count++;groups[key].sum+=p?.price||0;
+    if(!p)missing.push(d.productId);
+    lines.push({
+      key:p?"d"+p.id:"d?"+d.productId,
+      name:p?p.name:`Товар не найден (арт. ${d.productId})`,
+      composition:p?p.code:`артикул ${d.productId} отсутствует в каталоге`,
+      price:p?.price||0
+    });
   });
-  state.posts.forEach(p=>{const key="p"+p.name;groups[key]??={name:p.name,count:0,sum:0};groups[key].count++;groups[key].sum+=postCost(p)});
-  $("specList").innerHTML=Object.values(groups).length?Object.values(groups).map(g=>`<div class="spec-item"><div><strong>${esc(g.name)}</strong><span>${g.count} шт.</span></div><b>${money(g.sum)}</b></div>`).join(""):'<div class="library-empty">Проект пока пуст</div>';
+  state.posts.forEach(po=>{
+    lines.push({
+      key:"p"+po.name,
+      name:po.name,
+      composition:[frameProduct(po.frameId)?.name,`${po.mechanismIds.length} подрозетн.`,
+        ...po.mechanismIds.map(id=>product(id)?.name)].filter(Boolean).join(", "),
+      price:postCost(po)
+    });
+  });
+  const groups=new Map();
+  lines.forEach(l=>{
+    const g=groups.get(l.key)||{name:l.name,composition:l.composition,count:0,sum:0};
+    g.count++;g.sum+=l.price;groups.set(l.key,g);
+  });
+  const equipment=lines.reduce((s,l)=>s+l.price,0);
+  const materials=equipment*EP_DATA.settings.materialsPercent/100;
+  const work=equipment*EP_DATA.settings.workPercent/100;
+  return {groups:[...groups.values()],equipment,materials,work,total:equipment+materials+work,missing};
+}
+function renderSummary(){
+  const est=buildEstimate();
+  $("equipmentTotal").textContent=money(est.equipment);$("materialsTotal").textContent=money(est.materials);
+  $("workTotal").textContent=money(est.work);$("grandTotal").textContent=money(est.total);
+  $("objectCount").textContent=state.devices.length+state.posts.length;
+  $("specList").innerHTML=est.groups.length
+    ?est.groups.map(g=>`<div class="spec-item"><div><strong>${esc(g.name)}</strong><span>${g.count} шт.</span></div><b>${money(g.sum)}</b></div>`).join("")
+    :'<div class="library-empty">Проект пока пуст</div>';
   updateStatus();
 }
 
@@ -1039,11 +1068,14 @@ async function restoreProject(){
   return p;
 }
 function generateCommercialOffer(){
-  const equipment=state.devices.reduce((s,d)=>s+(product(d.productId)?.price||0),0)+state.posts.reduce((s,p)=>s+postCost(p),0);
-  const materials=equipment*EP_DATA.settings.materialsPercent/100,work=equipment*EP_DATA.settings.workPercent/100,total=equipment+materials+work;
-  const rows=[];
-  state.devices.forEach(d=>{const p=product(d.productId);rows.push({name:p.name,composition:p.code,qty:1,price:p.price,sum:p.price})});
-  state.posts.forEach(p=>rows.push({name:p.name,composition:[frameProduct(p.frameId)?.name,`${p.mechanismIds.length} подрозетн.`,...p.mechanismIds.map(id=>product(id)?.name)].join(", "),qty:1,price:postCost(p),sum:postCost(p)}));
+  /* считаем тем же buildEstimate, что и панель справа: раньше здесь лежала копия
+     формул, и на товаре, которого нет в каталоге, КП падало на p.name у undefined */
+  const est=buildEstimate();
+  const {equipment,materials,work,total}=est;
+  /* позиции группируются, поэтому в КП появилось честное «Кол.» вместо жёсткой единицы */
+  const rows=est.groups.map(g=>({name:g.name,composition:g.composition,qty:g.count,
+    price:g.count?g.sum/g.count:0,sum:g.sum}));
+  if(est.missing.length)toast(`Внимание: позиций без товара в каталоге — ${est.missing.length}`);
   const win=window.open("","_blank");
   if(!win){toast("Разрешите всплывающие окна для формирования PDF");return}
   win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Коммерческое предложение</title><style>
