@@ -433,10 +433,31 @@
       // подбираем минимальное, при котором заливка перестаёт течь внутрь.
       // Утолщение живёт ТОЛЬКО здесь, для поиска улицы: геометрия стен и контуры
       // комнат считаются по неутолщённому барьеру и не искажаются.
-      let street = null, sealK = 0;
-      for (const k of [0, 5, 11, 21, 35]) {
+      // Попытки идут от самой бережной к самой грубой; берётся первая, при которой
+      // заливка не течёт внутрь. «hull» — обводка выпуклой оболочки стеновой сети:
+      // замыкает разрыв наружного контура, почти не залезая в помещения, в отличие
+      // от утолщения всего барьера (оно съедает интерьер вдоль каждой стены).
+      const sealAttempts = ["none", "hull", 5, 11, 21, 35];
+      let street = null, sealK = 0, sealMode = "none";
+      for (const mode of sealAttempts) {
         let pass = FR;
-        if (k > 0) {
+        if (mode === "hull") {
+          const cnts = new cv.MatVector(), hi = M(new cv.Mat());
+          cv.findContours(bridged, cnts, hi, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+          let bi = -1, ba = 0;
+          for (let i = 0; i < cnts.size(); i++) { const a = cv.contourArea(cnts.get(i)); if (a > ba) { ba = a; bi = i; } }
+          if (bi < 0) { cnts.delete(); continue; }
+          const hull = M(new cv.Mat());
+          cv.convexHull(cnts.get(bi), hull, false, true);
+          const hv = new cv.MatVector(); hv.push_back(hull);
+          const sealedH = M(barrier.clone());
+          cv.drawContours(sealedH, hv, 0, new cv.Scalar(255), Math.max(3, Math.round(halfT * 2)));
+          hv.delete(); cnts.delete();
+          const HD = sealedH.data, tmp = new Uint8Array(N);
+          for (let p = 0; p < N; p++) tmp[p] = HD[p] ? 0 : 1;
+          pass = tmp;
+        } else if (mode !== "none") {
+          const k = mode;
           const sealed = M(new cv.Mat());
           cv.dilate(barrier, sealed, M(cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(k, k))));
           const SD = sealed.data, tmp = new Uint8Array(N);
@@ -455,7 +476,11 @@
         }
         let inA = 0;
         for (let y = ry1; y < ry2; y++) for (let x = rx1; x < rx2; x++) { const p = y * W + x; if (freeBefore[p] && !seen[p]) inA++; }
-        if (inA >= inB * o.leakGuard) { street = seen; sealK = k; break; }
+        if (inA >= inB * o.leakGuard) {
+          street = seen; sealMode = String(mode);
+          sealK = typeof mode === "number" ? mode : 0;
+          break;
+        }
       }
       // если не помогло даже максимальное утолщение — оставляем улицу неотсечённой:
       // лишние куски по краям лучше, чем ноль комнат
@@ -539,7 +564,7 @@
       });
 
       return { natW, natH, W, H, rooms, detections,
-        debug: { roiArea, roi: [rx1, ry1, rx2, ry2], halfT, sealK, streetCut: !!street,
+        debug: { roiArea, roi: [rx1, ry1, rx2, ry2], halfT, sealK, sealMode, streetCut: !!street,
           wallPx: cv.countNonZero(bridged), barrierPx: cv.countNonZero(barrier),
           openings: openBoxes.length, labels: roomLabels.length,
           labelAreas: roomLabels.map((r) => r.area).slice(0, 12) } };
