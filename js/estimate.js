@@ -85,5 +85,9 @@ function build(input) {
   };
 }
 
-window.EPEstimate = { build };
+/* Двойной экспорт: в браузере — глобальный namespace (сборщика в проекте нет,
+   см. PLAN 2.2), в Node — module.exports, чтобы автотесты (PLAN 7.1) могли
+   подключить расчёт напрямую, не поднимая приложение и DOM. */
+if (typeof window !== "undefined") window.EPEstimate = { build };
+if (typeof module !== "undefined" && module.exports) module.exports = { build };
 })();
