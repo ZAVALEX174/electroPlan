@@ -1109,8 +1109,8 @@ function projectSnapshot(){
     plan:(state.planLoaded&&/^data:/.test(img.src||""))?img.src:null,
     planLabel:state.planLabel||"",
     /* условия сделки и валюта — часть проекта, а не глобальная настройка приложения */
-    terms:(({discountPercent,vatPercent,vatEnabled,displayCurrency,eurRate,rateDate,rateSource})=>
-      ({discountPercent,vatPercent,vatEnabled,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
+    terms:(({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,displayCurrency,eurRate,rateDate,rateSource})=>
+      ({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
 }
 /* План может не влезть в LocalStorage (лимит ~5 МБ). Тогда сохраняем всё остальное,
    пометив, что чертёж придётся загрузить заново, — это лучше полной потери работы. */
@@ -1147,6 +1147,8 @@ async function restoreProject(){
   state.planLabel=p.planLabel||"";
   if(p.terms){
     Object.assign(EP_DATA.settings,Object.fromEntries(Object.entries(p.terms).filter(([,v])=>v!=null&&v!=="")));
+    $("workInput").value=EP_DATA.settings.workPercent??18;
+    $("materialsInput").value=EP_DATA.settings.materialsPercent??7;
     $("discountInput").value=EP_DATA.settings.discountPercent??0;
     $("vatInput").value=EP_DATA.settings.vatPercent??20;
     $("vatEnabled").checked=EP_DATA.settings.vatEnabled!==false;
@@ -1507,13 +1509,15 @@ $("traceSensitivity").oninput=e=>$("traceSensitivityValue").textContent=e.target
 $("saveProjectBtn").onclick=saveProject;$("pdfBtn").onclick=generateCommercialOffer;
 /* условия сделки: скидка, ставка НДС и его наличие в КП */
 function applyTerms(){
+  EP_DATA.settings.workPercent=Math.max(0,Math.min(200,Number($("workInput").value)||0));
+  EP_DATA.settings.materialsPercent=Math.max(0,Math.min(200,Number($("materialsInput").value)||0));
   EP_DATA.settings.discountPercent=Math.max(0,Math.min(100,Number($("discountInput").value)||0));
   EP_DATA.settings.vatPercent=Math.max(0,Math.min(30,Number($("vatInput").value)||0));
   EP_DATA.settings.vatEnabled=$("vatEnabled").checked;
   $("vatInput").disabled=!EP_DATA.settings.vatEnabled;
   renderSummary();scheduleSave();
 }
-["discountInput","vatInput"].forEach(id=>{$(id).oninput=applyTerms});
+["workInput","materialsInput","discountInput","vatInput"].forEach(id=>{$(id).oninput=applyTerms});
 $("vatEnabled").onchange=applyTerms;
 /* валюта отображения и курс */
 function applyCurrency(){
