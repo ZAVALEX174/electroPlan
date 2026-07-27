@@ -1,17 +1,7 @@
-/* Generated from the VIMAR price list dated 2026-07-01.
-   Пересобирается: npm run build:catalog (tools/build-catalog.mjs).
-   Состав — из tools/data/catalog-curation.json. РУЧНЫЕ ПРАВКИ ЗДЕСЬ ТЕРЯЮТСЯ. */
-window.EP_VIMAR_CATALOG = {
-  "meta": {
-    "source": "Прайс VIMAR Евро 01.07.26 (2) (2).xls",
-    "sourceDate": "2026-07-01",
-    "currency": "EUR",
-    "generatedAt": "2026-07-27",
-    "mechanisms": 340,
-    "verifiedModuleSpans": 340,
-    "frames": 58,
-    "socketBoxes": 1
-  },
+{
+  "note": "Кураторский снимок каталога VIMAR для ElectroPlan: полный набор позиций и их СТАБИЛЬНЫХ атрибутов (тип, категория, иконка, серия, геометрия slotCount/mountRect, module span). Извлечено из js/catalog-vimar.js 2026-07-27. Изменчивые поля (name, price, packQty, id, картинки) конвертер обновляет из прайса — их значения здесь лишь базовый снимок. Добавляйте/удаляйте позиции здесь; правьте геометрию/тип здесь.",
+  "extractedAt": "2026-07-27",
+  "count": 399,
   "products": [
     {
       "id": 100766,
@@ -12330,4 +12320,4 @@ window.EP_VIMAR_CATALOG = {
       }
     }
   ]
-};
+}
