@@ -30,32 +30,14 @@ const product=id=>state.products.find(x=>Number(x.id)===Number(id));
 const byKind=kind=>state.products.filter(x=>x.kind===kind&&x.active);
 const socketBox=()=>byKind("socket_box")[0];
 const frameProduct=id=>product(id);
+/* Чистая доменная логика каталога (модули/серии/совместимость/рамки/картинки)
+   вынесена в js/catalog.js (EPCatalog) — PLAN 2.1; берём её алиасами. Accessor'ы
+   product/byKind над state и генерация HTML/DOM остаются в этом файле. */
+const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,defaultPostName,frameOpening,productImage}=EPCatalog;
 const productMoney=item=>money(item?.price);
 const productOptionLabel=item=>`[${item?.code||"без артикула"}] ${item?.name||"Без названия"} — ${productMoney(item)}`;
-const moduleWord=count=>`${count} ${count===1?"модуль":count>=2&&count<=4?"модуля":"модулей"}`;
-function mechanismSpan(item){
-  if(!item)return 0;
-  const explicit=Number(item.moduleSpan??item.module_span??item.modules??item.moduleCount??item.properties?.moduleSpan);
-  if(Number.isInteger(explicit)&&explicit>=1&&explicit<=8)return explicit;
-  const match=String(item.name||"").match(/(?:^|[\s,(])([1-8])\s*(?:модул|modules?|mod\b)/i);
-  return match?Number(match[1]):1;
-}
 const mechanismModulesTotal=ids=>ids.reduce((sum,id)=>sum+mechanismSpan(product(id)),0);
 const mechanismOptionLabel=item=>`${productOptionLabel(item)} · ${moduleWord(mechanismSpan(item))}`;
-const productSeries=item=>{
-  const raw=item?.series??item?.properties?.series??item?.compatibility;
-  if(Array.isArray(raw))return raw.map(String).filter(Boolean);
-  return String(raw||"").split(/[,;|]/).map(x=>x.trim()).filter(Boolean);
-};
-function compatibleMechanisms(frame,mechanisms){
-  const frameSeries=productSeries(frame).map(x=>x.toLocaleLowerCase("ru-RU"));
-  if(!frameSeries.length)return mechanisms;
-  const compatible=mechanisms.filter(item=>{
-    const series=productSeries(item).map(x=>x.toLocaleLowerCase("ru-RU"));
-    return series.some(value=>frameSeries.includes(value));
-  });
-  return compatible.length?compatible:mechanisms;
-}
 const mechanismGroupLabels={
   500:"Выключатели и кнопки",
   600:"Диммеры и управление светом",
@@ -89,72 +71,11 @@ function frameOptions(items,selectedId){
     `<option value="${item.id}" ${Number(item.id)===Number(selectedId)?"selected":""}>${esc(productOptionLabel(item))}</option>`
   ).join("")}</optgroup>`).join("");
 }
-function fitMechanismIds(ids,items,capacity){
-  const allowed=new Set(items.map(item=>Number(item.id)));
-  const result=[];
-  let occupied=0;
-  ids.forEach(id=>{
-    const numericId=Number(id),item=product(numericId),span=mechanismSpan(item);
-    if(!allowed.has(numericId)||!span||occupied+span>capacity)return;
-    result.push(numericId);
-    occupied+=span;
-  });
-  return result;
-}
-function fitMechanismIdsPreserving(ids,items,capacity,pinnedIndex){
-  const allowed=new Set(items.map(item=>Number(item.id)));
-  const result=ids.map(Number).filter(id=>allowed.has(id));
-  let pinned=Math.min(Math.max(0,pinnedIndex),Math.max(0,result.length-1));
-  while(mechanismModulesTotal(result)>capacity&&result.length>1){
-    let removeIndex=result.length-1;
-    if(removeIndex===pinned)removeIndex-=1;
-    if(removeIndex<0)break;
-    result.splice(removeIndex,1);
-    if(removeIndex<pinned)pinned-=1;
-  }
-  return result.filter(id=>mechanismSpan(product(id))<=capacity);
-}
-function frameSlotCount(item){
-  if(!item)return null;
-  const explicit=Number(item.slotCount??item.slots??item.placeCount);
-  if(Number.isInteger(explicit)&&explicit>=1&&explicit<=5)return explicit;
-  const text=[item.name,item.compatibility,item.properties?.compatibility].filter(Boolean).join(" ");
-  const match=text.match(/(?:на|для)?\s*([1-5])\s*(?:модул|мест|пост|module|slot|[mf]\b)/i);
-  return match?Number(match[1]):null;
-}
-const defaultPostName=count=>`Пост на ${moduleWord(count)}`;
-const defaultFrameOpenings={
-  1:{left:37.5,top:23.5,width:25,height:53.5,aspect:1},
-  2:{left:24,top:23,width:52,height:51.5,aspect:1},
-  3:{left:21.5,top:23,width:57,height:53.5,aspect:1.39},
-  4:{left:18.7,top:23,width:62.5,height:52.5,aspect:1.66},
-  5:{left:13,top:23,width:74,height:55.5,aspect:2.02}
-};
-function frameOpening(item,count){
-  let custom=item?.mountRect??item?.mount_rect??item?.frameOpening??item?.frame_opening;
-  if(typeof custom==="string"){
-    try{custom=JSON.parse(custom)}catch{custom=null}
-  }
-  const fallback=defaultFrameOpenings[count]||defaultFrameOpenings[3];
-  if(!custom||typeof custom!=="object")return fallback;
-  const rect={
-    left:Number(custom.left??custom.x),
-    top:Number(custom.top??custom.y),
-    width:Number(custom.width??custom.w),
-    height:Number(custom.height??custom.h),
-    aspect:Number(custom.aspect??fallback.aspect)
-  };
-  const valid=[rect.left,rect.top,rect.width,rect.height].every(Number.isFinite)
-    &&rect.left>=0&&rect.top>=0&&rect.width>0&&rect.height>0
-    &&rect.left+rect.width<=100&&rect.top+rect.height<=100;
-  return valid?rect:fallback;
-}
-const productImage=(item,{detail=false}={})=>{
-  if(!item)return "";
-  const preview=item.previewImageUrl||item.preview_image_url||"";
-  const full=item.detailImageUrl||item.detail_image_url||item.imageUrl||item.image_url||"";
-  return detail?(full||preview):(preview||full);
-};
+/* Логика сборки поста (стоимость, упаковка механизмов в рамку) вынесена в
+   js/posts.js (EPPosts) — PLAN 2.1; здесь тонкие обёртки с доступом к каталогу,
+   как buildEstimate() над EPEstimate. */
+const fitMechanismIds=(ids,items,capacity)=>EPPosts.fitMechanismIds(ids,items,capacity,{product,mechanismSpan});
+const fitMechanismIdsPreserving=(ids,items,capacity,pinnedIndex)=>EPPosts.fitMechanismIdsPreserving(ids,items,capacity,pinnedIndex,{product,mechanismSpan});
 function productPicture(item,{className="",detail=false,label="",eager=false,style=""}={}){
   const imageUrl=productImage(item,{detail});
   return `<span class="product-picture ${className}${imageUrl?" has-image":""}"${style?` style="${esc(style)}"`:""}>
@@ -169,7 +90,7 @@ function bindProductPictureFallbacks(root){
 }
 
 function toast(text){const e=$("toast");e.textContent=text;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),1800)}
-function postCost(p){return p.mechanismIds.reduce((s,id)=>s+(product(id)?.price||0),0)+(socketBox()?.price||0)*p.mechanismIds.length+(frameProduct(p.frameId)?.price||0)}
+const postCost=p=>EPPosts.postCost(p,{product,socketBox,frameProduct});
 function setTool(tool){
   state.tool=tool;state.pending=null;state.wallPoints=[];canvas.classList.remove("placing");
   if(tool!=="scale")state.scalePoints=[];
@@ -356,15 +277,11 @@ function removeWall(id){
   recalculateRoomAssignments();renderAll();renderProperties();renderSummary();
 }
 
-/* ---- Определение комнат (OpenCV.js, ленивая загрузка) ---- */
-function polygonCentroid(poly){let x=0,y=0;poly.forEach(p=>{x+=p.x;y+=p.y});return{x:x/poly.length,y:y/poly.length}}
-/* площадь замкнутого полигона в px² (формула шнурков) */
-function polygonAreaPx(poly){
-  if(!poly||poly.length<3)return 0;
-  let sum=0;
-  for(let i=0,j=poly.length-1;i<poly.length;j=i++)sum+=poly[j].x*poly[i].y-poly[i].x*poly[j].y;
-  return Math.abs(sum)/2;
-}
+/* ---- Определение комнат (OpenCV.js, ленивая загрузка) ----
+   Чистая геометрия (полигоны, площади, флуд-фолл свободного пространства) вынесена
+   в js/geometry.js (EPGeom) — см. PLAN 2.1; здесь берём её через алиасы, а привязка
+   к state/DOM остаётся в этом файле. */
+const {polygonCentroid,polygonAreaPx,pointInPolygon,componentAt}=EPGeom;
 /* площадь комнаты в м² — только если задан масштаб плана */
 function roomAreaM2(room){
   if(!state.pxPerMeter||!room?.polygon||room.polygon.length<3)return null;
@@ -374,7 +291,6 @@ const formatArea=m2=>m2.toFixed(1).replace(".",",")+" м²";
 function roomAutoAreaText(room){const m2=roomAreaM2(room);return m2?formatArea(m2):""}
 /* что показывать: ручное значение приоритетнее авторасчёта */
 function roomDisplayArea(room){return room.area?.trim()?room.area.trim():roomAutoAreaText(room)}
-function pointInPolygon(x,y,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i].x,yi=poly[i].y,xj=poly[j].x,yj=poly[j].y;if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))inside=!inside}return inside}
 let _cvPromise=null;
 function loadOpenCv(){
   if(window.cv&&window.cv.Mat)return Promise.resolve();
@@ -642,71 +558,9 @@ async function annotatePlan(){
   finally{btn.disabled=false}
 }
 
-function distancePointToSegment(px,py,ax,ay,bx,by){
-  const dx=bx-ax,dy=by-ay;
-  if(dx===0&&dy===0)return Math.hypot(px-ax,py-ay);
-  const t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/(dx*dx+dy*dy)));
-  return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
-}
-
-function buildSpaceComponents(){
-  const cell=10,cols=Math.ceil(canvas.clientWidth/cell),rows=Math.ceil(canvas.clientHeight/cell);
-  const blocked=new Uint8Array(cols*rows);
-  const walls=allWalls();
-
-  for(let gy=0;gy<rows;gy++){
-    for(let gx=0;gx<cols;gx++){
-      const cx=gx*cell+cell/2,cy=gy*cell+cell/2;
-      for(const w of walls){
-        if(distancePointToSegment(cx,cy,w.a.x,w.a.y,w.b.x,w.b.y)<=7){
-          blocked[gy*cols+gx]=1;break;
-        }
-      }
-    }
-  }
-
-  const component=new Int32Array(cols*rows);component.fill(-1);
-  let nextId=0;
-  const qx=new Int32Array(cols*rows),qy=new Int32Array(cols*rows);
-  for(let sy=0;sy<rows;sy++){
-    for(let sx=0;sx<cols;sx++){
-      const start=sy*cols+sx;
-      if(blocked[start]||component[start]!==-1)continue;
-      let head=0,tail=0;qx[tail]=sx;qy[tail++]=sy;component[start]=nextId;
-      while(head<tail){
-        const x=qx[head],y=qy[head++];
-        const neighbors=[[x+1,y],[x-1,y],[x,y+1],[x,y-1]];
-        for(const [nx,ny] of neighbors){
-          if(nx<0||ny<0||nx>=cols||ny>=rows)continue;
-          const idx=ny*cols+nx;
-          if(blocked[idx]||component[idx]!==-1)continue;
-          component[idx]=nextId;qx[tail]=nx;qy[tail++]=ny;
-        }
-      }
-      nextId++;
-    }
-  }
-  return {cell,cols,rows,blocked,component};
-}
-
-function componentAt(map,x,y){
-  const gx=Math.max(0,Math.min(map.cols-1,Math.floor(x/map.cell)));
-  const gy=Math.max(0,Math.min(map.rows-1,Math.floor(y/map.cell)));
-  const idx=gy*map.cols+gx;
-  if(!map.blocked[idx])return map.component[idx];
-
-  for(let radius=1;radius<=3;radius++){
-    for(let oy=-radius;oy<=radius;oy++){
-      for(let ox=-radius;ox<=radius;ox++){
-        const nx=gx+ox,ny=gy+oy;
-        if(nx<0||ny<0||nx>=map.cols||ny>=map.rows)continue;
-        const nidx=ny*map.cols+nx;
-        if(!map.blocked[nidx])return map.component[nidx];
-      }
-    }
-  }
-  return -1;
-}
+/* строит карту связных «свободных» областей плана; сам флуд-фолл — в EPGeom,
+   здесь подставляем размеры холста и текущие стены */
+function buildSpaceComponents(){return EPGeom.buildSpaceComponents(canvas.clientWidth,canvas.clientHeight,allWalls())}
 
 function getRoomForPoint(x,y,map=null){
   if(!state.rooms.length)return null;
@@ -1109,32 +963,14 @@ async function restoreProject(){
   if(state.planLoaded||state.devices.length||state.posts.length||state.rooms.length||state.walls.length)markCanvasUsed();
   return p;
 }
+/* Оркестратор КП: считаем ту же смету, что и панель справа (единый buildEstimate —
+   PLAN 2.4), открываем окно печати, а саму вёрстку документа собирает EPOfferPdf. */
 function generateCommercialOffer(){
-  /* считаем тем же buildEstimate, что и панель справа: раньше здесь лежала копия
-     формул, и на товаре, которого нет в каталоге, КП падало на p.name у undefined */
   const est=buildEstimate();
-  const {equipment,materials,work,total}=est;
-  /* позиции группируются, поэтому в КП появилось честное «Кол.» вместо жёсткой единицы */
-  const rows=est.groups.map(g=>({name:g.name,composition:g.composition,qty:g.count,unit:g.unit,
-    price:g.count?g.sum/g.count:0,sum:g.sum}));
   if(est.missing.length)toast(`Внимание: позиций без товара в каталоге — ${est.missing.length}`);
   const win=window.open("","_blank");
   if(!win){toast("Разрешите всплывающие окна для формирования PDF");return}
-  win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Коммерческое предложение</title><style>
-  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}@media print{button{display:none}}</style></head><body>
-  <h1>Коммерческое предложение</h1><div class="sub">Проект электрики и комплектация электроустановочных изделий</div>
-  <div class="meta"><div class="box"><b>Проект:</b> ElectroPlan<br><b>Дата:</b> ${new Date().toLocaleDateString("ru-RU")}</div><button onclick="window.print()">Сохранить в PDF</button></div>
-  <table><thead><tr><th>№</th><th>Наименование</th><th>Состав / артикул</th><th>Кол.</th><th>Ед.</th><th class="right">Цена</th><th class="right">Сумма</th></tr></thead><tbody>
-  ${rows.map((r,i)=>`<tr><td>${i+1}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.composition)}</td><td>${r.qty}</td><td>${esc(r.unit)}</td><td class="right">${money(r.price)}</td><td class="right">${money(r.sum)}</td></tr>`).join("")}
-  </tbody></table>
-  <div class="totals"><div><span>Оборудование</span><b>${money(est.equipment)}</b></div>
-  ${est.discount?`<div><span>Скидка ${est.discountPercent}%</span><b>−${money(est.discount)}</b></div>`:""}
-  <div><span>Монтажные материалы</span><b>${money(materials)}</b></div><div><span>Работы</span><b>${money(work)}</b></div>
-  ${est.vat?`<div><span>Итого без НДС</span><b>${money(est.subtotal)}</b></div><div><span>НДС ${est.vatPercent}%</span><b>${money(est.vat)}</b></div>`:""}
-  <div class="grand"><span>Итого${est.vat?" с НДС":""}</span><b>${money(total)}</b></div></div>
-  ${displayCurrency()==="RUB"?`<div class="footer">Пересчёт из евро по курсу 1 € = ${EP_DATA.settings.eurRate.toFixed(4)} ₽ (${esc(EP_DATA.settings.rateSource||"вручную")}${EP_DATA.settings.rateDate?" от "+new Date(EP_DATA.settings.rateDate).toLocaleDateString("ru-RU"):""}). Курс на дату выставления предложения.</div>`:""}
-  <div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>
-  <script>setTimeout(()=>window.print(),500)<\/script></body></html>`);
+  win.document.write(EPOfferPdf.buildHtml(est,{money,esc,displayCurrency,settings:EP_DATA.settings}));
   win.document.close();
 }
 
@@ -1150,129 +986,10 @@ function showTraceProgress(show,message="Анализ линий плана",det
   }else overlay?.remove();
 }
 
-function mergeSegments(segments,orientation,tolerance=5,gap=18){
-  const result=[];
-  const sorted=[...segments].sort((a,b)=>
-    orientation==="h" ? (a.y-b.y || a.x1-b.x1) : (a.x-b.x || a.y1-b.y1)
-  );
-  for(const s of sorted){
-    const last=result.at(-1);
-    if(!last){result.push({...s});continue}
-    if(orientation==="h"){
-      if(Math.abs(last.y-s.y)<=tolerance && s.x1-last.x2<=gap){
-        last.x2=Math.max(last.x2,s.x2);last.y=(last.y+s.y)/2;
-      }else result.push({...s});
-    }else{
-      if(Math.abs(last.x-s.x)<=tolerance && s.y1-last.y2<=gap){
-        last.y2=Math.max(last.y2,s.y2);last.x=(last.x+s.x)/2;
-      }else result.push({...s});
-    }
-  }
-  return result;
-}
-
-/* ---- Автообрисовка: детекция стен по толщине (этапы 1–3) ---- */
-function binarize(data,w,h,threshold){
-  const dark=new Uint8Array(w*h);
-  for(let i=0,p=0;i<data.length;i+=4,p++){
-    const gray=.299*data[i]+.587*data[i+1]+.114*data[i+2];
-    dark[p]=gray<threshold?1:0;
-  }
-  return dark;
-}
-// Бинарные морфологические операции (сепарабельные: сначала по X, затем по Y).
-function dilate(src,w,h,r){
-  const tmp=new Uint8Array(w*h),out=new Uint8Array(w*h);
-  for(let y=0;y<h;y++){const row=y*w;for(let x=0;x<w;x++){let v=0;for(let k=-r;k<=r&&!v;k++){const xx=x+k;if(xx>=0&&xx<w&&src[row+xx])v=1;}tmp[row+x]=v;}}
-  for(let x=0;x<w;x++){for(let y=0;y<h;y++){let v=0;for(let k=-r;k<=r&&!v;k++){const yy=y+k;if(yy>=0&&yy<h&&tmp[yy*w+x])v=1;}out[y*w+x]=v;}}
-  return out;
-}
-function erode(src,w,h,r){
-  const tmp=new Uint8Array(w*h),out=new Uint8Array(w*h);
-  for(let y=0;y<h;y++){const row=y*w;for(let x=0;x<w;x++){let v=1;for(let k=-r;k<=r&&v;k++){const xx=x+k;if(xx<0||xx>=w||!src[row+xx])v=0;}tmp[row+x]=v;}}
-  for(let x=0;x<w;x++){for(let y=0;y<h;y++){let v=1;for(let k=-r;k<=r&&v;k++){const yy=y+k;if(yy<0||yy>=h||!tmp[yy*w+x])v=0;}out[y*w+x]=v;}}
-  return out;
-}
-// Замыкание (dilate→erode) заполняет мелкие белые промежутки штриховки, превращая стену в сплошную полосу.
-function closeBinary(src,w,h,r){return erode(dilate(src,w,h,r),w,h,r);}
-
-// Оставляет только крупные связные компоненты (сеть стён тянется через весь план),
-// убирая текст, мебель, сантехнику и размерные подписи (мелкие отдельные кляксы).
-function keepWallComponents(src,w,h,minSpan,minAreaFrac){
-  const n=w*h,label=new Int32Array(n),stack=new Int32Array(n),keepComp=[];
-  const minArea=w*h*minAreaFrac;let comp=0;
-  for(let i=0;i<n;i++){
-    if(!src[i]||label[i])continue;
-    comp++;let sp=0;stack[sp++]=i;label[i]=comp;
-    let count=0,minx=w,maxx=0,miny=h,maxy=0;
-    while(sp){
-      const p=stack[--sp],x=p%w,y=(p/w)|0;
-      count++;if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;
-      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
-        if(!dx&&!dy)continue;
-        const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=w||ny>=h)continue;
-        const np=ny*w+nx;if(src[np]&&!label[np]){label[np]=comp;stack[sp++]=np;}
-      }
-    }
-    const spanW=(maxx-minx+1)/w,spanH=(maxy-miny+1)/h;
-    keepComp[comp]=((spanW>=minSpan||spanH>=minSpan)&&count>=minArea)?1:0;
-  }
-  const out=new Uint8Array(n);
-  for(let i=0;i<n;i++)if(src[i]&&keepComp[label[i]])out[i]=1;
-  return out;
-}
-
-// Осевые точки горизонтальных стен: вертикальные тёмные полосы толщиной [tMin;tMax].
-// Тонкие размерные/выносные линии (толщина 1–2px) отсекаются, двойной контур схлопывается в ось.
-function horizontalCandidates(dark,w,h,tMin,tMax){
-  const cand=new Uint8Array(w*h);
-  for(let x=0;x<w;x++){
-    let run=0;
-    for(let y=0;y<=h;y++){
-      const on=y<h&&dark[y*w+x];
-      if(on){run++;}
-      else{if(run>=tMin&&run<=tMax){const c=((y-run)+(y-1))>>1;cand[c*w+x]=1;}run=0;}
-    }
-  }
-  return cand;
-}
-function verticalCandidates(dark,w,h,tMin,tMax){
-  const cand=new Uint8Array(w*h);
-  for(let y=0;y<h;y++){
-    const row=y*w;let run=0;
-    for(let x=0;x<=w;x++){
-      const on=x<w&&dark[row+x];
-      if(on){run++;}
-      else{if(run>=tMin&&run<=tMax){const c=((x-run)+(x-1))>>1;cand[row+c]=1;}run=0;}
-    }
-  }
-  return cand;
-}
-function runsAlongRows(cand,w,h,minRun,gap){
-  const segs=[];
-  for(let y=0;y<h;y++){
-    const row=y*w;let start=-1,last=-1;
-    for(let x=0;x<w;x++){
-      if(cand[row+x]){if(start<0)start=x;last=x;}
-      else if(start>=0&&x-last>gap){if(last-start>=minRun)segs.push({x1:start,x2:last,y});start=-1;}
-    }
-    if(start>=0&&last-start>=minRun)segs.push({x1:start,x2:last,y});
-  }
-  return segs;
-}
-function runsAlongCols(cand,w,h,minRun,gap){
-  const segs=[];
-  for(let x=0;x<w;x++){
-    let start=-1,last=-1;
-    for(let y=0;y<h;y++){
-      if(cand[y*w+x]){if(start<0)start=y;last=y;}
-      else if(start>=0&&y-last>gap){if(last-start>=minRun)segs.push({y1:start,y2:last,x});start=-1;}
-    }
-    if(start>=0&&last-start>=minRun)segs.push({y1:start,y2:last,x});
-  }
-  return segs;
-}
-
+/* ---- Автообрисовка: детекция стен по толщине (этапы 1–3).
+   Алгоритмы (бинаризация, морфология, поиск и сшивка осевых линий) вынесены
+   в js/planTrace.js (EPPlanTrace) — здесь остаётся только оркестратор: чтение
+   канваса, привязка к отображаемому плану и отрисовка. ---- */
 function autoTracePlan(){
   if(!state.planLoaded || !$("planImage").src){toast("Сначала загрузите изображение плана");return}
   showTraceProgress(true);
@@ -1288,12 +1005,12 @@ function autoTracePlan(){
 
       const sensitivity=Number($("traceSensitivity").value);
       const threshold=255-(sensitivity/100)*155;
-      let dark=binarize(data,w,h,threshold);
+      let dark=EPPlanTrace.binarize(data,w,h,threshold);
 
       const minDim=Math.min(w,h);
       const closeR=Math.max(3,Math.round(minDim*.010));      // этап 3: заполнение штриховки (склеивает две грани стены в полосу)
-      dark=closeBinary(dark,w,h,closeR);
-      dark=keepWallComponents(dark,w,h,.33,.004);            // выделение сети стён: убирает текст/мебель/подписи
+      dark=EPPlanTrace.closeBinary(dark,w,h,closeR);
+      dark=EPPlanTrace.keepWallComponents(dark,w,h,.33,.004); // выделение сети стён: убирает текст/мебель/подписи
 
       const tMin=Math.max(4,Math.round(minDim*.006));        // толщина стены в px анализа
       const tMax=Math.max(tMin+4,Math.round(minDim*.05));
@@ -1301,10 +1018,10 @@ function autoTracePlan(){
       // текст уже убран выделением компонентов — можно смелее сшивать обрывки осевых линий стен
       const gap=Math.max(6,Math.round(minRun*.6));
 
-      const hCand=horizontalCandidates(dark,w,h,tMin,tMax);  // этап 2: отбор по толщине
-      const vCand=verticalCandidates(dark,w,h,tMin,tMax);
-      const mergedH=mergeSegments(runsAlongRows(hCand,w,h,minRun,gap),"h").filter(s=>s.x2-s.x1>=minRun);
-      const mergedV=mergeSegments(runsAlongCols(vCand,w,h,minRun,gap),"v").filter(s=>s.y2-s.y1>=minRun);
+      const hCand=EPPlanTrace.horizontalCandidates(dark,w,h,tMin,tMax);  // этап 2: отбор по толщине
+      const vCand=EPPlanTrace.verticalCandidates(dark,w,h,tMin,tMax);
+      const mergedH=EPPlanTrace.mergeSegments(EPPlanTrace.runsAlongRows(hCand,w,h,minRun,gap),"h").filter(s=>s.x2-s.x1>=minRun);
+      const mergedV=EPPlanTrace.mergeSegments(EPPlanTrace.runsAlongCols(vCand,w,h,minRun,gap),"v").filter(s=>s.y2-s.y1>=minRun);
 
       // этап 1: привязка к фактически отображаемому плану (object-fit:contain — единый масштаб + смещение)
       const iw=image.naturalWidth,ih=image.naturalHeight,cw=canvas.clientWidth,ch=canvas.clientHeight;
