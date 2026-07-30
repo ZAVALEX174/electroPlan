@@ -141,6 +141,41 @@ button{cursor:pointer}
 .builder-form{min-width:0}.builder-form label{display:block;min-width:0;color:var(--muted);font-size:10px;font-weight:800}.builder-form label input,.builder-form label select{margin-top:5px}.builder-form select{width:100%;min-width:0;max-width:100%;text-overflow:ellipsis}.form-row{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;margin-top:10px}.form-row>*{min-width:0}
 .builder-capacity{margin-top:12px;padding:10px;border:1px solid #d5e4f0;border-radius:10px;background:#f7fbfe}.builder-capacity-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px}.builder-capacity-head span{color:var(--muted);text-align:right}.module-meter{display:grid;grid-template-columns:repeat(var(--module-count),minmax(0,1fr));gap:4px;margin-top:7px}.module-meter span{height:6px;border-radius:999px;background:#dbe7f0}.module-meter span.occupied{background:var(--blue)}
 .builder-slots{display:flex;min-width:0;flex-direction:column;gap:7px;margin-top:10px}.builder-slot{display:grid;min-width:0;grid-template-columns:36px minmax(0,1fr);gap:8px;align-items:center}.builder-slot select{width:100%;min-width:0;max-width:100%;padding:7px 30px 7px 9px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font-size:12px;text-overflow:ellipsis}.builder-slot.is-empty select{border-style:dashed;color:var(--blue-dark);background:#f7fbfe}.slot-number{width:36px;height:28px;border-radius:8px;display:grid;place-items:center;color:var(--blue-dark);background:var(--blue-soft);font-size:10px;font-weight:900}
+/* EPPicker — кастомный выпадающий список с миниатюрами (js/picker.js). Нативный <select>
+   скрыт, но остаётся в DOM носителем значения — не убираем display:none-элемент из потока. */
+.epk-native{display:none}
+.epk{position:relative;width:100%;min-width:0}
+.builder-form label .epk{margin-top:5px}
+.epk-button{display:grid;grid-template-columns:26px minmax(0,1fr) 12px;align-items:center;gap:8px;width:100%;min-width:0;max-width:100%;padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font-size:12px;text-align:left}
+.epk-button.is-empty{grid-template-columns:minmax(0,1fr) 12px;border-style:dashed;color:var(--blue-dark);background:#f7fbfe}
+.epk-button:hover{border-color:#9ac7ef}
+.epk-btn-label{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.epk-caret{width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid #6388a9}
+.epk-thumb{position:relative;display:block;border-radius:6px;overflow:hidden;background:#eef4fa}
+.epk-button .epk-thumb{width:26px;height:26px}
+.epk-thumb .product-picture{border-radius:6px}
+/* popup живёт в <body> (position:fixed) — модалка с overflow его не обрезает */
+.epk-pop{position:fixed;z-index:200;display:flex;flex-direction:column;min-height:0;border:1px solid #acd0ef;border-radius:12px;background:#fff;box-shadow:0 24px 60px rgba(0,45,86,.28);overflow:hidden}
+.epk-search-wrap{padding:8px;border-bottom:1px solid var(--line);background:#f7fbfe}
+.epk-search{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font-size:12px}
+.epk-list{min-height:0;overflow-y:auto;overflow-x:hidden;padding:4px}
+.epk-group{padding:8px 8px 3px;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+.epk-group[hidden]{display:none}
+/* content-visibility — дешёвая «виртуализация»: строки вне вьюпорта списка не считают
+   раскладку/не красятся; intrinsic-size держит корректную высоту скролла на 340 строках */
+.epk-option{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 8px;border-radius:9px;cursor:pointer;content-visibility:auto;contain-intrinsic-size:auto 42px}
+.epk-option[hidden]{display:none}
+.epk-option .epk-thumb{width:34px;height:34px}
+.epk-otext{min-width:0}
+.epk-ocode{display:block;font-size:9px;font-weight:800;color:var(--blue-dark)}
+.epk-oname{display:block;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.epk-ometa{text-align:right;white-space:nowrap}
+.epk-oprice{display:block;font-size:11px;font-weight:800}
+.epk-omod{display:block;font-size:9px;color:var(--muted)}
+.epk-option.active,.epk-option:hover{background:var(--blue-soft)}
+.epk-option[aria-selected="true"]{box-shadow:inset 0 0 0 1px var(--blue)}
+.epk-option.is-empty{grid-template-columns:minmax(0,1fr);color:var(--blue-dark);font-weight:700}
+.epk-empty-msg{padding:16px;text-align:center;color:var(--muted);font-size:11px}
 .wall-type-step{margin:0 0 12px;padding:10px;border:1px solid #d5e4f0;border-radius:10px;background:#f7fbfe}.wall-type-step legend{padding:0 5px;color:var(--muted);font-size:10px;font-weight:800}.wall-type-options{display:grid;grid-template-columns:1fr 1fr;gap:7px}.wall-type-option{padding:9px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font-size:11px;font-weight:700;cursor:pointer;text-align:center}.wall-type-option.active{border-color:var(--blue);background:var(--blue-soft);color:var(--blue-dark);box-shadow:inset 0 0 0 1px var(--blue)}.wall-type-hint{display:block;margin-top:6px;color:var(--muted);font-size:10px}
 .builder-composition{margin-top:12px;padding:10px;border:1px solid #d5e4f0;border-radius:10px;background:#fff}.composition-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px;margin-bottom:6px}.composition-head span{color:var(--muted);text-align:right}.composition-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px dashed #e2ecf4;font-size:11px}.composition-row span{color:var(--muted)}.composition-row b{text-align:right}.composition-row.is-missing b{color:#c0492f}.composition-row.total b{color:var(--blue-dark);font-size:13px}.composition-note{margin-top:6px;color:#c0492f;font-size:10px}
 .modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}

@@ -108,6 +108,31 @@ function bindProductPictureFallbacks(root){
     img.addEventListener("error",()=>img.closest(".product-picture")?.classList.remove("has-image"),{once:true});
   });
 }
+/* Кастомный список EPPicker (js/picker.js) заменяет нативные <select> накладки и слотов
+   на строки с миниатюрой товара. Виджет — надстройка над скрытым <select> (носитель
+   значения), поэтому логику выбора менять не пришлось. Данные строки готовит оркестратор:
+   money()/esc()/productPicture() остаются здесь (конвенции 3–5), виджет лишь размещает
+   готовые куски. meta возвращает null для пустой опции («Убрать элемент»/плейсхолдер) —
+   её виджет рисует простой строкой без картинки. */
+function pickerMeta(value){
+  const item=product(value);
+  if(!item)return null;
+  return{
+    picture:productPicture(item,{label:item.name}),
+    code:item.code||"без артикула",
+    name:item.name||"Без названия",
+    priceText:productMoney(item),
+    metaText:item.kind==="mechanism"?moduleWord(mechanismSpan(item)):"",
+    searchText:`${item.code||""} ${item.name||""}`
+  };
+}
+function enhancePicker(selectEl){
+  EPPicker.enhance(selectEl,{
+    esc,meta:pickerMeta,
+    searchPlaceholder:"Поиск по артикулу или названию",
+    onRender:root=>bindProductPictureFallbacks(root)
+  });
+}
 
 function toast(text){const e=$("toast");e.textContent=text;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),1800)}
 /* Подбор коробки/суппорта — тонкие обёртки над чистым EPPostFit (js/postfit.js):
@@ -826,6 +851,7 @@ function renderBuilder(){
     :'<option value="">Рамки не загружены</option>';
   frameSelect.value=selectedFrameId==null?"":String(selectedFrameId);
   delete frameSelect.dataset.preferredFrameId;
+  enhancePicker(frameSelect);   /* накладка: <select> → кастомный список с миниатюрами */
   const selectedFrame=frameProduct(frameSelect.value);
   const mechs=compatibleMechanisms(selectedFrame,allMechanisms);
   state.builder.mechanismIds=fitMechanismIds(state.builder.mechanismIds,mechs,count);
@@ -872,6 +898,8 @@ function renderBuilder(){
     }
     renderBuilder();
   });
+  /* слоты механизмов: те же скрытые <select>, поверх — кастомный список с миниатюрами */
+  document.querySelectorAll("[data-builder-slot]").forEach(enhancePicker);
   renderBuilderComposition(selectedFrame);
   $("savePost").disabled=remaining!==0;
 }
