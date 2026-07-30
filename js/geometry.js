@@ -40,6 +40,63 @@ function distancePointToSegment(px, py, ax, ay, bx, by) {
   return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
+/* ---- Магниты разметки помещений (PLAN 3.1): чистая геометрия привязки.
+   Отрезки приходят в виде {a:{x,y}, b:{x,y}} — та же форма, что у стен и линий
+   разметки, — чтобы функции годились и для магнита, и для будущего поиска граней
+   планарного графа (Этап 3). Радиус привязки задаёт вызывающий (EPConfig), сюда
+   он приходит аргументом — модуль не знает про конфиг и остаётся тестируемым. */
+
+/* Точка пересечения двух отрезков или null, если они параллельны/коллинеарны или
+   пересекаются вне своих границ. Параметрический метод: t,u ∈ [0;1] — касание
+   концами тоже считаем пересечением (концы всё равно ловит nearestEndpoint). */
+function segmentsIntersection(p1, p2, p3, p4) {
+  const x1 = p1.x, y1 = p1.y, x2 = p2.x, y2 = p2.y;
+  const x3 = p3.x, y3 = p3.y, x4 = p4.x, y4 = p4.y;
+  const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+  if (denom === 0) return null; // параллельны или совпадают по направлению
+  const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+  const u = ((x1 - x3) * (y1 - y2) - (y1 - y3) * (x1 - x2)) / denom;
+  if (t < 0 || t > 1 || u < 0 || u > 1) return null;
+  return { x: x1 + t * (x2 - x1), y: y1 + t * (y2 - y1) };
+}
+
+/* Все попарные пересечения набора отрезков (O(n²) — для разметки помещений число
+   линий небольшое). Возвращает список точек {x,y}; тот же приём переиспользует
+   Этап 3 для разрезания линий перед поиском граней. */
+function allIntersections(segments) {
+  const out = [];
+  for (let i = 0; i < segments.length; i++) {
+    for (let j = i + 1; j < segments.length; j++) {
+      const p = segmentsIntersection(segments[i].a, segments[i].b, segments[j].a, segments[j].b);
+      if (p) out.push(p);
+    }
+  }
+  return out;
+}
+
+/* Ближайший конец отрезка к точке в пределах радиуса — {x,y,dist} или null.
+   Ловит привязку к уже поставленным вершинам разметки. */
+function nearestEndpoint(point, segments, radius) {
+  let best = null, bestDist = radius;
+  for (const s of segments) {
+    for (const end of [s.a, s.b]) {
+      const d = Math.hypot(point.x - end.x, point.y - end.y);
+      if (d <= bestDist) { bestDist = d; best = { x: end.x, y: end.y, dist: d }; }
+    }
+  }
+  return best;
+}
+
+/* Ближайшее пересечение линий к точке в пределах радиуса — {x,y,dist} или null. */
+function nearestIntersection(point, segments, radius) {
+  let best = null, bestDist = radius;
+  for (const p of allIntersections(segments)) {
+    const d = Math.hypot(point.x - p.x, point.y - p.y);
+    if (d <= bestDist) { bestDist = d; best = { x: p.x, y: p.y, dist: d }; }
+  }
+  return best;
+}
+
 /* Карта связных «свободных» областей плана: холст режется на ячейки cell px,
    ячейка ближе wallRadius px к любой стене помечается заблокированной, остальное
    разбивается флуд-фолл'ом (BFS) на компоненты. Комнаты без ручного контура потом
@@ -107,7 +164,9 @@ function componentAt(map, x, y) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { polygonCentroid, polygonAreaPx, pointInPolygon, distancePointToSegment, buildSpaceComponents, componentAt };
+const api = { polygonCentroid, polygonAreaPx, pointInPolygon, distancePointToSegment,
+  segmentsIntersection, allIntersections, nearestEndpoint, nearestIntersection,
+  buildSpaceComponents, componentAt };
 if (typeof window !== "undefined") window.EPGeom = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

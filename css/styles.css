@@ -51,7 +51,20 @@ button{cursor:pointer}
 .status{margin:auto;color:var(--muted);font-size:11px}
 .canvas-scroll{min-height:0;overflow:auto;padding:0;background:#cfd7df}
 .canvas{position:relative;width:100%;height:100%;min-width:100%;min-height:100%;transform-origin:top left;overflow:hidden;border-radius:0;background-color:#fff;background-image:linear-gradient(#edf4fb 1px,transparent 1px),linear-gradient(90deg,#edf4fb 1px,transparent 1px);background-size:25px 25px;box-shadow:none}
-.canvas.placing{cursor:crosshair}#planImage{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:.58;pointer-events:none}#wallsSvg,#roomsSvg,#detectSvg,#scaleSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.canvas.placing{cursor:crosshair}#planImage{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:.58;pointer-events:none;transition:opacity .15s ease}#wallsSvg,#roomsSvg,#detectSvg,#markupSvg,#scaleSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+/* линии разметки помещений: намеренно отличаются от стен (auto — синий пунктир,
+   ручные — тёмно-синие сплошные) — фиолетовым штрихом, чтобы слои не путались */
+.room-line{stroke:#7b3fe4;stroke-width:2.5;stroke-linecap:round;stroke-dasharray:7 4}
+.room-line-preview{stroke:#7b3fe4;stroke-width:2;stroke-linecap:round;stroke-dasharray:4 4;opacity:.6}
+.room-line-dot{fill:#7b3fe4}
+.room-line-start{fill:#fff;stroke:#7b3fe4;stroke-width:2}
+/* индикатор точки, к которой сейчас притянется курсор (магнит) — по типу привязки */
+.snap-indicator{fill:none;stroke-width:2}
+.snap-endpoint{stroke:#1f9b52}
+.snap-intersection{stroke:#e08a1e}
+.snap-grid{stroke:#7b3fe4;opacity:.5}
+.snap-close{fill:rgba(31,155,82,.25);stroke:#1f9b52;stroke-width:2.5}
+.canvas.drawing{cursor:crosshair}
 .room-poly{fill:none;stroke:#102a43;stroke-width:3;stroke-linejoin:miter}
 .room-poly.selected{stroke:#bf3f4e;stroke-width:4}
 .room-poly.editing{stroke:#1872ad;stroke-width:4;stroke-dasharray:none}

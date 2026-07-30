@@ -5,6 +5,12 @@ const canvas=$("canvas"), hover=$("hoverCard"), props=$("properties");
 const state={
   tool:"select",scale:1,pending:null,selected:null,
   products:[],templates:[],devices:[],posts:[],rooms:[],walls:[],autoWalls:[],wallPoints:[],planLoaded:false,
+  /* линии разметки помещений — отдельный слой (решение владельца): не смешиваются
+     ни с ручными стенами (walls), ни с автообрисовкой (autoWalls). roomLinePoints —
+     точки текущей рисуемой цепочки, roomLineIds — id её сегментов (для Backspace),
+     roomLineHover — подсвеченная точка притяжения курсора. */
+  roomLines:[],roomLinePoints:[],roomLineIds:[],roomLineHover:null,
+  planVisibility:"show",   /* видимость подложки: show | dim | hide (Этап 1) */
   pxPerMeter:null,scaleSegment:null,scalePoints:[],
   builder:{editingTemplateId:null,editingPlacedId:null,mechanismIds:[]}
 };
@@ -93,10 +99,14 @@ function toast(text){const e=$("toast");e.textContent=text;e.classList.add("show
 const postCost=p=>EPPosts.postCost(p,{product,socketBox,frameProduct});
 function setTool(tool){
   state.tool=tool;state.pending=null;state.wallPoints=[];canvas.classList.remove("placing");
+  /* выход из режима разметки сбрасывает незавершённую цепочку и подсветку */
+  state.roomLinePoints=[];state.roomLineIds=[];state.roomLineHover=null;
   if(tool!=="scale")state.scalePoints=[];
   document.querySelectorAll("[data-tool]").forEach(b=>b.classList.toggle("active",b.dataset.tool===tool));
   canvas.classList.toggle("measuring",tool==="scale");
-  drawWalls();renderRooms();renderScaleRuler();updateStatus();
+  canvas.classList.toggle("drawing",tool==="roomline");
+  drawWalls();drawRoomLines();renderRooms();renderScaleRuler();updateStatus();
+  if(tool==="roomline")updateStatus("Разметка: клик — точка · Shift — свободный угол · клик по первой точке замыкает контур · Backspace — отмена точки");
   if(tool==="vertex"){
     const room=state.selected?.kind==="room"?state.rooms.find(r=>r.id===state.selected.id):null;
     updateStatus(room?.polygon?.length>2
@@ -113,7 +123,7 @@ async function init(){
   state.templates=await DataService.getSavedPosts();
   const restored=await restoreProject();
   loadCachedRate();
-  renderCatalog();renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();
+  renderCatalog();renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();
   _autosaveOn=true;   /* включаем ПОСЛЕ восстановления, иначе пустой старт затрёт сохранённое */
   if(restored){
     const objects=state.devices.length+state.posts.length;
@@ -265,8 +275,12 @@ function dragVertex(room,index,startEvent){
   move(startEvent);
 }
 
+/* Всё, что делит пространство на связные области: автообрисовка, ручные стены и
+   линии разметки помещений. Линии разметки участвуют в делении сразу (требование
+   Этапа 2), поэтому нарисованная перегородка тут же меняет привязку оборудования.
+   Точное построение полигонов помещений по этим линиям — задача Этапа 3. */
 function allWalls(){
-  return [...state.autoWalls,...state.walls];
+  return [...state.autoWalls,...state.walls,...state.roomLines];
 }
 function makeWall(a,b,auto){return {id:uid("wall_"),a:{x:a.x,y:a.y},b:{x:b.x,y:b.y},auto:!!auto}}
 function selectWall(id){state.selected={kind:"wall",id};renderAll();renderProperties()}
@@ -560,7 +574,7 @@ async function annotatePlan(){
 
 /* строит карту связных «свободных» областей плана; сам флуд-фолл — в EPGeom,
    здесь подставляем размеры холста и текущие стены */
-function buildSpaceComponents(){return EPGeom.buildSpaceComponents(canvas.clientWidth,canvas.clientHeight,allWalls())}
+function buildSpaceComponents(){return EPGeom.buildSpaceComponents(canvas.clientWidth,canvas.clientHeight,allWalls(),EPConfig.spaceCell,EPConfig.wallCellRadius)}
 
 function getRoomForPoint(x,y,map=null){
   if(!state.rooms.length)return null;
@@ -609,7 +623,7 @@ function getObjectsInRoom(roomId){
 
 function renderAll(){
   recalculateRoomAssignments();
-  renderDevices();renderPosts();renderRooms();drawWalls();
+  renderDevices();renderPosts();renderRooms();drawWalls();drawRoomLines();
   scheduleSave();   /* renderAll идёт после каждой правки состояния — точка автосохранения */
 }
 function showHover(kind,obj,e){
@@ -852,8 +866,9 @@ function addPending(x,y){
   const room=state.rooms.find(r=>r.id===created.roomId);
   setTool("select");renderAll();renderSummary();toast(room?`Объект добавлен в комнату «${room.name}»`:"Объект размещён вне комнаты");
 }
-const GRID=25;
-function snapToGrid(v){return Math.round(v/GRID)*GRID}
+/* шаг сетки берём из EPConfig (PLAN 2.3), значение по умолчанию совпадает с
+   прежним const GRID=25 — поведение сетки не меняется */
+function snapToGrid(v){const g=EPConfig.grid;return Math.round(v/g)*g}
 function addWallPoint(e){
   const r=canvas.getBoundingClientRect();
   let x=snapToGrid((e.clientX-r.left)/state.scale),y=snapToGrid((e.clientY-r.top)/state.scale);
@@ -893,10 +908,155 @@ function drawWalls(){
   state.walls.forEach(appendLine);
 }
 
+/* ---- Линии разметки помещений (Этап 2): отдельный слой #markupSvg.
+   Чистая геометрия магнитов и пересечений — в EPGeom (тестируется), здесь только
+   работа с DOM/state и оркестровка рисования цепочки. ---- */
+function makeRoomLine(a,b){return {id:uid("rline_"),a:{x:a.x,y:a.y},b:{x:b.x,y:b.y}}}
+
+/* Магнит: сперва к концам уже нарисованных линий, затем к их пересечениям.
+   Радиус — из EPConfig, не зашит в код (PLAN 2.3). null — если рядом ничего нет. */
+function roomLineMagnet(x,y,radius){
+  const pt={x,y};
+  const ep=EPGeom.nearestEndpoint(pt,state.roomLines,radius);
+  if(ep)return {x:ep.x,y:ep.y,kind:"endpoint"};
+  const ix=EPGeom.nearestIntersection(pt,state.roomLines,radius);
+  if(ix)return {x:ix.x,y:ix.y,kind:"intersection"};
+  return null;
+}
+/* Единая точка расчёта итоговой точки клика/курсора — чтобы превью и фактическая
+   постановка совпадали. Приоритет: замыкание контура → магнит к линиям → сетка.
+   Ортогональность по умолчанию, при зажатом Shift — свободный угол (PLAN 3.1). */
+function resolveRoomLinePoint(rawX,rawY,shiftKey){
+  const R=EPConfig.snapRadius,pts=state.roomLinePoints;
+  /* замыкание: рядом с первой точкой цепочки (нужно ≥3 точек, чтобы вышел контур) */
+  if(pts.length>=3){
+    const first=pts[0];
+    if(Math.hypot(rawX-first.x,rawY-first.y)<=R)return {x:first.x,y:first.y,kind:"close",closing:true};
+  }
+  /* привязка к существующим линиям перебивает и сетку, и ортогональность:
+     пользователь целится в конкретную вершину/пересечение */
+  const snap=roomLineMagnet(rawX,rawY,R);
+  if(snap)return {x:snap.x,y:snap.y,kind:snap.kind,closing:false};
+  /* иначе — сетка; короткую ось выравниваем на ортогональность, если не Shift */
+  let x=snapToGrid(rawX),y=snapToGrid(rawY);
+  const prev=pts.at(-1);
+  if(prev&&!shiftKey){if(Math.abs(x-prev.x)<=Math.abs(y-prev.y))x=prev.x;else y=prev.y}
+  return {x,y,kind:"grid",closing:false};
+}
+function finishRoomLineChain(){state.roomLinePoints=[];state.roomLineIds=[];state.roomLineHover=null}
+function addRoomLinePoint(e){
+  const r=canvas.getBoundingClientRect();
+  const raw={x:(e.clientX-r.left)/state.scale,y:(e.clientY-r.top)/state.scale};
+  const p=resolveRoomLinePoint(raw.x,raw.y,e.shiftKey);
+  markCanvasUsed();
+  if(p.closing){
+    const first=state.roomLinePoints[0],last=state.roomLinePoints.at(-1);
+    if(last&&(last.x!==first.x||last.y!==first.y))state.roomLines.push(makeRoomLine(last,first));
+    finishRoomLineChain();
+    recalculateRoomAssignments();drawRoomLines();renderRooms();renderProperties();renderSummary();scheduleSave();
+    updateStatus("Контур замкнут — линии разметки готовы для определения помещений");
+    return;
+  }
+  const prev=state.roomLinePoints.at(-1);
+  if(prev&&prev.x===p.x&&prev.y===p.y)return; /* защита от нулевого сегмента */
+  state.roomLinePoints.push({x:p.x,y:p.y});
+  if(state.roomLinePoints.length>1){
+    const line=makeRoomLine(state.roomLinePoints.at(-2),p);
+    state.roomLines.push(line);state.roomLineIds.push(line.id);
+    recalculateRoomAssignments();renderRooms();renderSummary();scheduleSave();
+  }
+  state.roomLineHover=null;
+  drawRoomLines();
+}
+/* Backspace во время рисования — снять последнюю точку и её сегмент */
+function removeLastRoomLinePoint(){
+  if(!state.roomLinePoints.length)return;
+  state.roomLinePoints.pop();
+  const id=state.roomLineIds.pop();
+  if(id)state.roomLines=state.roomLines.filter(l=>l.id!==id);
+  recalculateRoomAssignments();drawRoomLines();renderRooms();renderSummary();scheduleSave();
+  updateStatus(state.roomLinePoints.length?`Точка снята · в цепочке ${state.roomLinePoints.length}`:"Цепочка очищена — поставьте первую точку");
+}
+function removeRoomLine(id){
+  state.roomLines=state.roomLines.filter(l=>l.id!==id);
+  recalculateRoomAssignments();drawRoomLines();renderRooms();renderSummary();scheduleSave();
+}
+function clearRoomLines(){
+  state.roomLines=[];finishRoomLineChain();
+  recalculateRoomAssignments();drawRoomLines();renderRooms();renderProperties();renderSummary();scheduleSave();
+  toast("Разметка помещений очищена");
+}
+function drawRoomLines(){
+  const svg=$("markupSvg");if(!svg)return;
+  svg.innerHTML="";
+  const interactive=state.tool==="delete";   /* удаление отдельной линии — только инструментом «Удалить» */
+  state.roomLines.forEach(w=>{
+    if(interactive){
+      const hit=document.createElementNS(SVG_NS,"line");
+      hit.setAttribute("x1",w.a.x);hit.setAttribute("y1",w.a.y);hit.setAttribute("x2",w.b.x);hit.setAttribute("y2",w.b.y);
+      hit.setAttribute("stroke","transparent");hit.setAttribute("stroke-width","14");
+      hit.style.pointerEvents="stroke";hit.style.cursor="pointer";
+      hit.onclick=ev=>{ev.stopPropagation();removeRoomLine(w.id)};
+      svg.appendChild(hit);
+    }
+    const l=document.createElementNS(SVG_NS,"line");
+    l.setAttribute("x1",w.a.x);l.setAttribute("y1",w.a.y);l.setAttribute("x2",w.b.x);l.setAttribute("y2",w.b.y);
+    l.setAttribute("class","room-line");l.style.pointerEvents="none";
+    svg.appendChild(l);
+  });
+  if(state.tool==="roomline")drawRoomLineChain(svg);
+}
+/* Рисуемая цепочка: вершины, «резинка»-превью к курсору и индикатор притяжения */
+function drawRoomLineChain(svg){
+  const pts=state.roomLinePoints,hover=state.roomLineHover;
+  pts.forEach((p,i)=>{
+    const dot=document.createElementNS(SVG_NS,"circle");
+    dot.setAttribute("cx",p.x);dot.setAttribute("cy",p.y);dot.setAttribute("r",i===0?4.5:3);
+    dot.setAttribute("class",i===0?"room-line-start":"room-line-dot");
+    svg.appendChild(dot);
+  });
+  const last=pts.at(-1);
+  if(last&&hover){
+    const pv=document.createElementNS(SVG_NS,"line");
+    pv.setAttribute("x1",last.x);pv.setAttribute("y1",last.y);pv.setAttribute("x2",hover.x);pv.setAttribute("y2",hover.y);
+    pv.setAttribute("class","room-line-preview");
+    svg.appendChild(pv);
+  }
+  if(hover){
+    const ring=document.createElementNS(SVG_NS,"circle");
+    ring.setAttribute("cx",hover.x);ring.setAttribute("cy",hover.y);
+    ring.setAttribute("r",hover.closing?7:hover.kind==="endpoint"?6:5);
+    ring.setAttribute("class","snap-indicator snap-"+(hover.closing?"close":hover.kind));
+    svg.appendChild(ring);
+  }
+}
+
+/* ---- Видимость подложки (Этап 1): показать → бледная → скрыть.
+   Меняется только прозрачность #planImage — линии, комнаты, посты, подписи и
+   масштабная линейка остаются на месте. Уровень «бледности» — из EPConfig. ---- */
+const PLAN_VIS_MODES=["show","dim","hide"];
+const PLAN_VIS_LABEL={show:"Подложка: показана",dim:"Подложка: бледная",hide:"Подложка: скрыта"};
+const PLAN_VIS_NEXT={show:"Нажмите, чтобы сделать бледной",dim:"Нажмите, чтобы скрыть",hide:"Нажмите, чтобы показать"};
+function applyPlanVisibility(){
+  const img=$("planImage"),mode=state.planVisibility||"show";
+  /* show — прежняя прозрачность из CSS (.58); dim — из конфига; hide — 0 */
+  img.style.opacity=mode==="hide"?"0":mode==="dim"?String(EPConfig.planDimOpacity):"";
+  const btn=$("planVisibilityBtn");
+  if(btn){btn.textContent=PLAN_VIS_LABEL[mode];btn.title=PLAN_VIS_NEXT[mode];btn.disabled=!state.planLoaded}
+}
+function cyclePlanVisibility(){
+  if(!state.planLoaded){toast("Сначала загрузите план");return}
+  const i=PLAN_VIS_MODES.indexOf(state.planVisibility||"show");
+  state.planVisibility=PLAN_VIS_MODES[(i+1)%PLAN_VIS_MODES.length];
+  applyPlanVisibility();persistProject();
+  toast(PLAN_VIS_LABEL[state.planVisibility]);
+}
+
 function projectSnapshot(){
   const img=$("planImage");
   return{name:"Проект электроснабжения",savedAt:new Date().toISOString(),
     devices:state.devices,posts:state.posts,rooms:state.rooms,walls:state.walls,autoWalls:state.autoWalls,
+    roomLines:state.roomLines,planVisibility:state.planVisibility,
     pxPerMeter:state.pxPerMeter,scaleSegment:state.scaleSegment,
     /* план кладём data-URL'ом — иначе после перезагрузки объекты повиснут над пустым холстом */
     plan:(state.planLoaded&&/^data:/.test(img.src||""))?img.src:null,
@@ -922,7 +1082,7 @@ var _saveTimer=null,_autosaveOn=false;
 function scheduleSave(){
   if(!_autosaveOn)return;
   clearTimeout(_saveTimer);
-  _saveTimer=setTimeout(persistProject,700);
+  _saveTimer=setTimeout(persistProject,EPConfig.autosaveDelay);   /* задержка — из EPConfig (было 700 мс) */
 }
 function saveProject(){
   const r=persistProject();
@@ -936,6 +1096,9 @@ async function restoreProject(){
   if(!p)return null;
   state.devices=p.devices||[];state.posts=p.posts||[];state.rooms=p.rooms||[];
   state.walls=p.walls||[];state.autoWalls=p.autoWalls||[];
+  /* старые проекты без разметки и без флага видимости открываются штатно:
+     roomLines → [], planVisibility → "show" (обратная совместимость) */
+  state.roomLines=p.roomLines||[];state.planVisibility=p.planVisibility||"show";
   state.pxPerMeter=p.pxPerMeter??null;state.scaleSegment=p.scaleSegment||null;
   state.planLabel=p.planLabel||"";
   if(p.terms){
@@ -1046,6 +1209,7 @@ canvas.onclick=e=>{
   if(state.pending)addPending(x,y);
   else if(state.tool==="scale"){addScalePoint(x,y);return}
   else if(state.tool==="wall")addWallPoint(e);
+  else if(state.tool==="roomline"){addRoomLinePoint(e);return}
   else if(state.tool==="vertex"){
     /* в режиме правки клик по контуру выбирает комнату, показывая её вершины */
     const room=state.rooms.find(r=>r.polygon&&r.polygon.length>2&&pointInPolygon(x,y,r.polygon));
@@ -1067,7 +1231,16 @@ canvas.onclick=e=>{
     else{state.selected=null;renderAll();renderProperties()}
   }
 };
+/* превью «резинки» и подсветка точки притяжения при рисовании разметки */
+canvas.addEventListener("pointermove",e=>{
+  if(state.tool!=="roomline")return;
+  const r=canvas.getBoundingClientRect();
+  state.roomLineHover=resolveRoomLinePoint((e.clientX-r.left)/state.scale,(e.clientY-r.top)/state.scale,e.shiftKey);
+  drawRoomLines();
+});
 document.querySelectorAll("[data-tool]").forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+$("clearRoomLinesBtn").onclick=clearRoomLines;
+$("planVisibilityBtn").onclick=cyclePlanVisibility;
 $("catalogSearch").oninput=e=>renderCatalog(e.target.value);
 $("newPostBtn").onclick=()=>openPostBuilder();
 $("closePostModal").onclick=$("cancelPost").onclick=closePostBuilder;
@@ -1111,6 +1284,8 @@ function applyImportedPlan(file,result){
       img.onload=null;img.onerror=null;
       state.planLoaded=true;state.planLabel=file.name;
       $("autoTraceBtn").disabled=false;$("detectRoomsBtn").disabled=false;$("detectRoomsMlBtn").disabled=false;$("annotateBtn").disabled=false;clearAnnotations();
+      /* новый чертёж показываем целиком, иначе после «скрыть» пользователь увидит пустоту */
+      state.planVisibility="show";applyPlanVisibility();
       $("planStatusDot").classList.add("ready");markCanvasUsed();
       const suffix=result.detail?` · ${result.detail}`:"";
       updateStatus(`План загружен (${result.format}): ${file.name}${suffix}`);resolve();
@@ -1144,7 +1319,7 @@ $("planUpload").onchange=async e=>{
     showTraceProgress(false);input.value="";
   }
 };
-$("clearBtn").onclick=()=>{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.selected=null;clearAnnotations();renderAll();renderProperties();renderSummary()};
+$("clearBtn").onclick=()=>{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.roomLines=[];finishRoomLineChain();state.selected=null;clearAnnotations();renderAll();renderProperties();renderSummary()};
 $("autoTraceBtn").onclick=autoTracePlan;
 $("detectRoomsBtn").onclick=detectRooms;
 $("detectRoomsMlBtn").onclick=detectRoomsML;
@@ -1190,7 +1365,7 @@ $("rateInput").oninput=()=>{
   updateRateUi();renderCatalog($("catalogSearch").value);renderSummary();renderTemplates();scheduleSave();
 };
 $("demoBtn").onclick=()=>{
-  markCanvasUsed();state.autoWalls=[];state.walls=[
+  markCanvasUsed();state.autoWalls=[];state.roomLines=[];finishRoomLineChain();state.walls=[
     makeWall({x:140,y:120},{x:900,y:120}),makeWall({x:900,y:120},{x:900,y:600}),
     makeWall({x:900,y:600},{x:140,y:600}),makeWall({x:140,y:600},{x:140,y:120}),
     makeWall({x:520,y:120},{x:520,y:600})
@@ -1204,13 +1379,19 @@ $("demoBtn").onclick=()=>{
   drawWalls();renderAll();renderSummary();
 };
 document.onkeydown=e=>{
+  /* горячие клавиши не должны срабатывать во время ввода в поля (имя комнаты и т.п.) */
+  const typing=/^(input|textarea|select)$/i.test(e.target.tagName)||e.target.isContentEditable;
   if(e.key==="Escape"){
     if($("pdfPageModal").classList.contains("open")){finishPdfPageSelection(null);return}
     if(!uploadPopover.hidden)setUploadPopover(false,true);
     setTool("select");closePostBuilder();
   }
-  if(e.key==="Enter"&&state.tool==="wall")setTool("select");
+  if(e.key==="Enter"&&(state.tool==="wall"||state.tool==="roomline"))setTool("select");
   if(e.key==="Delete"&&state.selected)removeEntity(state.selected.kind,state.selected.id);
+  /* Backspace во время рисования разметки — снять последнюю точку (Esc — выход из режима) */
+  if(e.key==="Backspace"&&state.tool==="roomline"&&!typing&&state.roomLinePoints.length){e.preventDefault();removeLastRoomLinePoint()}
+  /* B — переключение видимости подложки (независимо от раскладки, по физической клавише) */
+  if(e.code==="KeyB"&&!typing&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();cyclePlanVisibility()}
 };
 /* ---- Общий перехват ошибок (PLAN 7.2) ----
    Сегодняшний разбор показал, что необработанное исключение внутри рендера или

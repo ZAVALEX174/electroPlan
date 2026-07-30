@@ -5,7 +5,7 @@
   "description": "ElectroPlan Pro — веб-планировщик электрики. Прототип без сборщика (см. PLAN.md 2.2): рантайм-зависимостей нет. npm нужен для автотестов и тулинга (пересборка каталога из прайса VIMAR).",
   "type": "commonjs",
   "scripts": {
-    "test": "node --test tests/estimate.test.js",
+    "test": "node --test \"tests/*.test.js\"",
     "build:catalog": "node tools/build-catalog.mjs"
   },
   "devDependencies": {
