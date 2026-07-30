@@ -32,7 +32,11 @@ function displayCurrency(){
   return (d==="RUB"&&!(EP_DATA.settings.eurRate>0))?baseCurrency():d;
 }
 function displayRate(){
-  return displayCurrency()===baseCurrency()?1:(Number(EP_DATA.settings.eurRate)||1);
+  if(displayCurrency()===baseCurrency())return 1;
+  /* пересчёт в рубли идёт по ЭФФЕКТИВНОМУ курсу (курс ЦБ + надбавка) — единая
+     формула в EPRates.effectiveRate, а не копия здесь. ||1 — страховка на случай
+     нулевого курса (displayCurrency сюда с RUB без курса не пустит). */
+  return EPRates.effectiveRate(EP_DATA.settings)||1;
 }
 const money=(n)=>new Intl.NumberFormat("ru-RU",{
   style:"currency",currency:displayCurrency(),minimumFractionDigits:2,maximumFractionDigits:2
@@ -407,7 +411,16 @@ function updateRateUi(){
   if(!info)return;
   if(s.eurRate>0){
     const d=s.rateDate?new Date(s.rateDate).toLocaleDateString("ru-RU"):"";
-    info.textContent=`1 € = ${s.eurRate.toFixed(4)} ₽ · ${s.rateSource||"вручную"}${d?" от "+d:""}`;
+    const isManual=s.rateSource===EPRates.SRC_MANUAL;
+    const pct=Number(s.rateSurchargePercent)||0;
+    let txt=`1 € = ${s.eurRate.toFixed(4)} ₽ · ${s.rateSource||"вручную"}${d?" от "+d:""}`;
+    /* показываем обе величины: официальный курс ЦБ и итоговый с надбавкой.
+       Для ручного курса надбавка не применяется — сообщаем об этом явно, чтобы
+       пользователь понимал, почему +% не влияет на пересчёт. textContent —
+       экранирование не требуется (не innerHTML), значения свои. */
+    if(!isManual&&pct>0)txt+=` + ${pct}% = ${EPRates.effectiveRate(s).toFixed(4)} ₽`;
+    else if(isManual&&pct>0)txt+=` · надбавка +${pct}% к ручному курсу не применяется`;
+    info.textContent=txt;
     info.classList.add("is-set");
     if(document.activeElement!==$("rateInput"))$("rateInput").value=s.eurRate;
   }else{
@@ -1145,8 +1158,8 @@ function projectSnapshot(){
     plan:(state.planLoaded&&/^data:/.test(img.src||""))?img.src:null,
     planLabel:state.planLabel||"",
     /* условия сделки и валюта — часть проекта, а не глобальная настройка приложения */
-    terms:(({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,displayCurrency,eurRate,rateDate,rateSource})=>
-      ({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
+    terms:(({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,displayCurrency,eurRate,rateDate,rateSource})=>
+      ({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
 }
 /* План может не влезть в LocalStorage (лимит ~5 МБ). Тогда сохраняем всё остальное,
    пометив, что чертёж придётся загрузить заново, — это лучше полной потери работы. */
@@ -1192,10 +1205,16 @@ async function restoreProject(){
   state.planLabel=p.planLabel||"";
   if(p.terms){
     Object.assign(EP_DATA.settings,Object.fromEntries(Object.entries(p.terms).filter(([,v])=>v!=null&&v!=="")));
+    /* Старый проект без поля надбавки открываем с 0, а НЕ с дефолтной 3: иначе
+       ранее сохранённые сметы задним числом подорожали бы на надбавку, и этого
+       никто бы не заметил. Проект, сохранённый уже с полем (в т.ч. 0), приходит
+       через Object.assign выше и остаётся как есть. */
+    if(p.terms.rateSurchargePercent==null)EP_DATA.settings.rateSurchargePercent=0;
     $("workInput").value=EP_DATA.settings.workPercent??18;
     $("materialsInput").value=EP_DATA.settings.materialsPercent??7;
     $("discountInput").value=EP_DATA.settings.discountPercent??0;
     $("vatInput").value=EP_DATA.settings.vatPercent??20;
+    $("surchargeInput").value=EP_DATA.settings.rateSurchargePercent??0;
     $("vatEnabled").checked=EP_DATA.settings.vatEnabled!==false;
     $("currencySelect").value=EP_DATA.settings.displayCurrency||"EUR";
   }
@@ -1222,7 +1241,7 @@ function generateCommercialOffer(){
   if(est.missing.length)toast(`Внимание: позиций без товара в каталоге — ${est.missing.length}`);
   const win=window.open("","_blank");
   if(!win){toast("Разрешите всплывающие окна для формирования PDF");return}
-  win.document.write(EPOfferPdf.buildHtml(est,{money,esc,displayCurrency,settings:EP_DATA.settings}));
+  win.document.write(EPOfferPdf.buildHtml(est,{money,esc,displayCurrency,effectiveRate:EPRates.effectiveRate,settings:EP_DATA.settings}));
   win.document.close();
 }
 
@@ -1471,6 +1490,16 @@ $("rateInput").oninput=()=>{
   if(!applyRateEntry(EPRates.manual($("rateInput").value)))return;
   updateRateUi();renderCatalog($("catalogSearch").value);renderSummary();renderTemplates();scheduleSave();
 };
+/* Надбавка к курсу — часть условий сделки, но влияет и на рублёвое представление
+   каталога/сметы/шаблонов/свойств, поэтому перерисовываем их так же, как applyCurrency
+   при смене валюты (в EUR-режиме money() всё равно вернёт евро — перерисовка безвредна). */
+function applySurcharge(){
+  EP_DATA.settings.rateSurchargePercent=Math.max(0,Math.min(100,Number($("surchargeInput").value)||0));
+  updateRateUi();
+  renderCatalog($("catalogSearch").value);renderSummary();renderTemplates();renderProperties();
+  scheduleSave();
+}
+$("surchargeInput").oninput=applySurcharge;
 $("demoBtn").onclick=()=>{
   markCanvasUsed();state.autoWalls=[];state.roomLines=[];finishRoomLineChain();state.walls=[
     makeWall({x:140,y:120},{x:900,y:120}),makeWall({x:900,y:120},{x:900,y:600}),

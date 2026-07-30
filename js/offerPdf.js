@@ -9,7 +9,7 @@
 "use strict";
 
 /* est   — результат EPEstimate.build (groups, equipment, discount, vat, total, …)
-   deps  — { money(n), esc(s), displayCurrency(), settings }
+   deps  — { money(n), esc(s), displayCurrency(), effectiveRate(settings), settings }
    Возвращает строку полного HTML-документа с авто-печатью. */
 function buildHtml(est, deps) {
   const money = deps.money;
@@ -17,6 +17,23 @@ function buildHtml(est, deps) {
   const displayCurrency = deps.displayCurrency;
   const s = deps.settings || {};
   const { materials, work, total } = est;
+
+  /* Подвал с курсом печатаем честно. Суммы в КП уже пересчитаны money() по
+     эффективному курсу; здесь важно не выдать курс с надбавкой за официальный
+     курс ЦБ РФ — документ уходит клиенту. Показываем обе величины, а при
+     надбавке 0 (или ручном курсе, где надбавка не применяется) — как раньше. */
+  const rateFooter = () => {
+    const base = Number(s.eurRate) || 0;
+    const eff = deps.effectiveRate ? deps.effectiveRate(s) : base;
+    const isManual = s.rateSource === "вручную";
+    const pct = Number(s.rateSurchargePercent) || 0;
+    const src = esc(s.rateSource || "вручную");
+    const dateNote = s.rateDate ? " от " + new Date(s.rateDate).toLocaleDateString("ru-RU") : "";
+    const body = (!isManual && pct > 0)
+      ? `по курсу ${src} ${base.toFixed(4)} ₽ + ${pct}% = ${eff.toFixed(4)} ₽ за 1 €`
+      : `по курсу 1 € = ${eff.toFixed(4)} ₽ (${src}${dateNote})`;
+    return `<div class="footer">Пересчёт из евро ${body}. Курс на дату выставления предложения.</div>`;
+  };
 
   /* позиции группируются, поэтому в КП честное «Кол.» вместо жёсткой единицы */
   const rows = est.groups.map(g => ({
@@ -36,7 +53,7 @@ function buildHtml(est, deps) {
   <div><span>Монтажные материалы</span><b>${money(materials)}</b></div><div><span>Работы</span><b>${money(work)}</b></div>
   ${est.vat ? `<div><span>Итого без НДС</span><b>${money(est.subtotal)}</b></div><div><span>НДС ${est.vatPercent}%</span><b>${money(est.vat)}</b></div>` : ""}
   <div class="grand"><span>Итого${est.vat ? " с НДС" : ""}</span><b>${money(total)}</b></div></div>
-  ${displayCurrency() === "RUB" ? `<div class="footer">Пересчёт из евро по курсу 1 € = ${s.eurRate.toFixed(4)} ₽ (${esc(s.rateSource || "вручную")}${s.rateDate ? " от " + new Date(s.rateDate).toLocaleDateString("ru-RU") : ""}). Курс на дату выставления предложения.</div>` : ""}
+  ${displayCurrency() === "RUB" ? rateFooter() : ""}
   <div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>
   <script>setTimeout(()=>window.print(),500)<\/script></body></html>`;
 }
