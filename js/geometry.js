@@ -97,6 +97,31 @@ function nearestIntersection(point, segments, radius) {
   return best;
 }
 
+/* Итоговая точка постановки с учётом режимов «привязка к сетке» и «ортогонально».
+   Магниты к концам/пересечениям линий сюда НЕ входят — они всегда перебивают этот
+   расчёт на уровне вызывающего (иначе контуры не замкнутся), поэтому здесь только
+   сетка и выравнивание к предыдущей точке. Держим чисто (без state/DOM/конфига),
+   чтобы покрыть тестами выбор точки под всеми комбинациями режимов.
+
+   opts:
+     grid     — шаг сетки, px (влияет только при snapGrid);
+     snapGrid — округлять ли к узлам сетки (false → точка ставится ровно под курсор);
+     ortho    — выравнивать ли короткую ось к prev (строго H/V-сегмент).
+   prev — предыдущая точка цепочки (или null для первой точки).
+
+   Порядок «сначала сетка, затем ортогональность» сохранён из прежнего кода: prev
+   уже лежит на сетке, поэтому подтяжка оси к prev не сбивает точку с узла. */
+function snapPlanPoint(rawX, rawY, prev, opts) {
+  opts = opts || {};
+  const grid = opts.grid > 0 ? opts.grid : 1;
+  let x = rawX, y = rawY;
+  if (opts.snapGrid) { x = Math.round(rawX / grid) * grid; y = Math.round(rawY / grid) * grid; }
+  if (opts.ortho && prev) {
+    if (Math.abs(x - prev.x) <= Math.abs(y - prev.y)) x = prev.x; else y = prev.y;
+  }
+  return { x, y };
+}
+
 /* Карта связных «свободных» областей плана: холст режется на ячейки cell px,
    ячейка ближе wallRadius px к любой стене помечается заблокированной, остальное
    разбивается флуд-фолл'ом (BFS) на компоненты. Комнаты без ручного контура потом
@@ -166,7 +191,7 @@ function componentAt(map, x, y) {
    Node — module.exports для автотестов (PLAN 7.1). */
 const api = { polygonCentroid, polygonAreaPx, pointInPolygon, distancePointToSegment,
   segmentsIntersection, allIntersections, nearestEndpoint, nearestIntersection,
-  buildSpaceComponents, componentAt };
+  snapPlanPoint, buildSpaceComponents, componentAt };
 if (typeof window !== "undefined") window.EPGeom = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

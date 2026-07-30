@@ -10,6 +10,11 @@ const state={
      точки текущей рисуемой цепочки, roomLineIds — id её сегментов (для Backspace),
      roomLineHover — подсвеченная точка притяжения курсора. */
   roomLines:[],roomLinePoints:[],roomLineIds:[],roomLineHover:null,
+  /* режимы разметки (решение владельца): переключатели в панели инструментов.
+     orthoMode — рисовать строго ортогонально (Shift временно инвертирует режим);
+     snapGrid  — привязывать точки к узлам сетки (магниты к линиям работают всегда);
+     gridStep  — шаг сетки, px: влияет и на привязку, и на фоновую сетку холста. */
+  orthoMode:true,snapGrid:true,gridStep:EPConfig.gridDefault,
   planVisibility:"show",   /* видимость подложки: show | dim | hide (Этап 1) */
   pxPerMeter:null,scaleSegment:null,scalePoints:[],
   builder:{editingTemplateId:null,editingPlacedId:null,mechanismIds:[]}
@@ -106,7 +111,7 @@ function setTool(tool){
   canvas.classList.toggle("measuring",tool==="scale");
   canvas.classList.toggle("drawing",tool==="roomline");
   drawWalls();drawRoomLines();renderRooms();renderScaleRuler();updateStatus();
-  if(tool==="roomline")updateStatus("Разметка: клик — точка · Shift — свободный угол · клик по первой точке замыкает контур · Backspace — отмена точки");
+  if(tool==="roomline")updateStatus("Разметка: клик — точка · Shift — временно инвертировать ортогональность · клик по первой точке замыкает контур · Backspace — отмена точки");
   if(tool==="vertex"){
     const room=state.selected?.kind==="room"?state.rooms.find(r=>r.id===state.selected.id):null;
     updateStatus(room?.polygon?.length>2
@@ -124,6 +129,7 @@ async function init(){
   const restored=await restoreProject();
   loadCachedRate();
   renderCatalog();renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();
+  applyGridStyle();syncMarkupControls();updateZoomUi();   /* сетка/переключатели/подпись зума — из state (в т.ч. восстановленного) */
   _autosaveOn=true;   /* включаем ПОСЛЕ восстановления, иначе пустой старт затрёт сохранённое */
   if(restored){
     const objects=state.devices.length+state.posts.length;
@@ -866,9 +872,9 @@ function addPending(x,y){
   const room=state.rooms.find(r=>r.id===created.roomId);
   setTool("select");renderAll();renderSummary();toast(room?`Объект добавлен в комнату «${room.name}»`:"Объект размещён вне комнаты");
 }
-/* шаг сетки берём из EPConfig (PLAN 2.3), значение по умолчанию совпадает с
-   прежним const GRID=25 — поведение сетки не меняется */
-function snapToGrid(v){const g=EPConfig.grid;return Math.round(v/g)*g}
+/* Шаг сетки теперь настройка проекта (state.gridStep), а не константа: владелец
+   просил уметь менять его. Фолбэк на дефолт — для устойчивости, если поле пустое. */
+function snapToGrid(v){const g=state.gridStep||EPConfig.gridDefault;return Math.round(v/g)*g}
 function addWallPoint(e){
   const r=canvas.getBoundingClientRect();
   let x=snapToGrid((e.clientX-r.left)/state.scale),y=snapToGrid((e.clientY-r.top)/state.scale);
@@ -925,7 +931,8 @@ function roomLineMagnet(x,y,radius){
 }
 /* Единая точка расчёта итоговой точки клика/курсора — чтобы превью и фактическая
    постановка совпадали. Приоритет: замыкание контура → магнит к линиям → сетка.
-   Ортогональность по умолчанию, при зажатом Shift — свободный угол (PLAN 3.1). */
+   Режим ортогональности и привязки — из state (переключатели в панели), Shift даёт
+   временную инверсию ортогональности (стандарт CAD). */
 function resolveRoomLinePoint(rawX,rawY,shiftKey){
   const R=EPConfig.snapRadius,pts=state.roomLinePoints;
   /* замыкание: рядом с первой точкой цепочки (нужно ≥3 точек, чтобы вышел контур) */
@@ -933,15 +940,17 @@ function resolveRoomLinePoint(rawX,rawY,shiftKey){
     const first=pts[0];
     if(Math.hypot(rawX-first.x,rawY-first.y)<=R)return {x:first.x,y:first.y,kind:"close",closing:true};
   }
-  /* привязка к существующим линиям перебивает и сетку, и ортогональность:
-     пользователь целится в конкретную вершину/пересечение */
+  /* Магниты к концам/пересечениям линий перебивают и сетку, и ортогональность и
+     работают ВСЕГДА, даже когда привязка к сетке выключена: без них контуры не
+     замкнутся (владелец: отключать привязку к сетке, а не все магниты). */
   const snap=roomLineMagnet(rawX,rawY,R);
   if(snap)return {x:snap.x,y:snap.y,kind:snap.kind,closing:false};
-  /* иначе — сетка; короткую ось выравниваем на ортогональность, если не Shift */
-  let x=snapToGrid(rawX),y=snapToGrid(rawY);
-  const prev=pts.at(-1);
-  if(prev&&!shiftKey){if(Math.abs(x-prev.x)<=Math.abs(y-prev.y))x=prev.x;else y=prev.y}
-  return {x,y,kind:"grid",closing:false};
+  /* Иначе — сетка/ортогональность по режимам. Shift — ВРЕМЕННАЯ инверсия текущего
+     режима ортогональности: XOR галочки и Shift (галочка вкл + Shift → свободно;
+     галочка выкл + Shift → ровно). Сетку Shift не трогает — только угол. */
+  const ortho=(!!state.orthoMode)!==(!!shiftKey);
+  const p=EPGeom.snapPlanPoint(rawX,rawY,pts.at(-1)||null,{grid:state.gridStep,snapGrid:state.snapGrid!==false,ortho});
+  return {x:p.x,y:p.y,kind:"grid",closing:false};
 }
 function finishRoomLineChain(){state.roomLinePoints=[];state.roomLineIds=[];state.roomLineHover=null}
 function addRoomLinePoint(e){
@@ -954,6 +963,7 @@ function addRoomLinePoint(e){
     if(last&&(last.x!==first.x||last.y!==first.y))state.roomLines.push(makeRoomLine(last,first));
     finishRoomLineChain();
     recalculateRoomAssignments();drawRoomLines();renderRooms();renderProperties();renderSummary();scheduleSave();
+    scheduleRoomsFromLines();   /* контур замкнулся — авто-пересчёт помещений с задержкой */
     updateStatus("Контур замкнут — линии разметки готовы для определения помещений");
     return;
   }
@@ -964,6 +974,7 @@ function addRoomLinePoint(e){
     const line=makeRoomLine(state.roomLinePoints.at(-2),p);
     state.roomLines.push(line);state.roomLineIds.push(line.id);
     recalculateRoomAssignments();renderRooms();renderSummary();scheduleSave();
+    scheduleRoomsFromLines();   /* линия добавлена — авто-пересчёт (сработает, когда контур замкнётся) */
   }
   state.roomLineHover=null;
   drawRoomLines();
@@ -975,11 +986,13 @@ function removeLastRoomLinePoint(){
   const id=state.roomLineIds.pop();
   if(id)state.roomLines=state.roomLines.filter(l=>l.id!==id);
   recalculateRoomAssignments();drawRoomLines();renderRooms();renderSummary();scheduleSave();
+  scheduleRoomsFromLines();   /* линия снята — авто-пересчёт помещений */
   updateStatus(state.roomLinePoints.length?`Точка снята · в цепочке ${state.roomLinePoints.length}`:"Цепочка очищена — поставьте первую точку");
 }
 function removeRoomLine(id){
   state.roomLines=state.roomLines.filter(l=>l.id!==id);
   recalculateRoomAssignments();drawRoomLines();renderRooms();renderSummary();scheduleSave();
+  scheduleRoomsFromLines();   /* отдельная линия удалена — авто-пересчёт помещений */
 }
 function clearRoomLines(){
   state.roomLines=[];finishRoomLineChain();
@@ -1031,6 +1044,58 @@ function drawRoomLineChain(svg){
   }
 }
 
+/* ---- Помещения из линий разметки (Этап 3): грани планарного графа.
+   Вся геометрия — в чистом EPRoomsFromLines (тестируется), здесь оркестровка:
+   чтение state.roomLines, сохранение ручных контуров, нумерация, перерисовка.
+   opts.silent — авто-режим: не сыпать сообщения во время рисования. ---- */
+function buildRoomsFromLines(opts){
+  opts=opts||{};
+  const silent=opts.silent===true;
+  const lines=state.roomLines;
+  if(!lines||!lines.length){if(!silent)toast("Нет линий разметки — нарисуйте контур инструментом «Разметка»");return}
+  const res=EPRoomsFromLines.roomsFromLines(lines,{
+    geom:EPGeom,tol:EPConfig.roomWeldTol,minArea:EPConfig.roomMinAreaPx,
+    maxSegments:EPConfig.roomMaxSegments,maxFaces:EPConfig.roomMaxFaces,
+    width:canvas.clientWidth,height:canvas.clientHeight,
+    cell:EPConfig.spaceCell,wallRadius:EPConfig.wallCellRadius,simplifyEps:EPConfig.roomSimplifyEps
+  });
+  if(res.method==="skipped-limit"){if(!silent)toast(`Слишком много линий разметки (>${EPConfig.roomMaxSegments}) — пересчёт помещений пропущен`);return}
+  if(!res.rooms.length){
+    /* честно сообщаем: замкнутых контуров нет. В авто-режиме молчим, чтобы не
+       мешать рисованию — сообщение появится только по кнопке. Существующие
+       комнаты НЕ трогаем: нечего заменять, а ручные тем более сохраняем. */
+    if(!silent){toast("Контур не замкнут — помещение не определено");updateStatus("Контур не замкнут — помещение не определено")}
+    return;
+  }
+  /* ручные контуры (autoPolygon===false) переживают пересчёт — как в detectRooms* */
+  state.rooms=state.rooms.filter(r=>!r.autoPolygon);
+  const kept=state.rooms.length;
+  /* нумеруем «Помещение N» дальше существующих одноимённых, чтобы имена не дублировались */
+  let next=state.rooms.reduce((max,r)=>{const m=/^Помещение\s+(\d+)$/.exec(r.name||"");return m?Math.max(max,Number(m[1])):max},0);
+  res.rooms.forEach(rm=>{
+    const poly=rm.polygon,c=polygonCentroid(poly);
+    /* roomSource — признак способа получения контура (по линиям/по сетке): запасной
+       проход не подменяет основной молча, источник виден и в state, и в отчётах */
+    state.rooms.push({id:uid("room_"),name:"Помещение "+(++next),area:"",polygon:poly,autoPolygon:true,roomSource:rm.source,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16});
+  });
+  recalculateRoomAssignments();renderAll();renderProperties();renderSummary();persistProject();
+  if(!silent){
+    const byGrid=res.rooms.filter(r=>r.source==="grid").length;
+    const note=res.method==="grid"?" (по сетке — контур приблизительный)":byGrid?` (из них по сетке: ${byGrid})`:"";
+    toast(`Помещений по линиям: ${res.rooms.length}${note}`);
+    updateStatus(kept?`Помещений по линиям: ${res.rooms.length} · сохранено ручных контуров: ${kept}`:`Помещений по линиям: ${res.rooms.length}`);
+  }
+}
+/* Автопересчёт с задержкой после правки линий (решение владельца №3: «по кнопке +
+   авто, чтобы не мешало рисовать»). Гейт _autosaveOn — тот же, что у scheduleSave:
+   не дёргаем во время восстановления проекта. Авто-режим молчалив. */
+var _roomsTimer=null;
+function scheduleRoomsFromLines(){
+  if(!_autosaveOn)return;
+  clearTimeout(_roomsTimer);
+  _roomsTimer=setTimeout(()=>buildRoomsFromLines({silent:true}),EPConfig.roomAutoDelay);
+}
+
 /* ---- Видимость подложки (Этап 1): показать → бледная → скрыть.
    Меняется только прозрачность #planImage — линии, комнаты, посты, подписи и
    масштабная линейка остаются на месте. Уровень «бледности» — из EPConfig. ---- */
@@ -1043,6 +1108,22 @@ function applyPlanVisibility(){
   img.style.opacity=mode==="hide"?"0":mode==="dim"?String(EPConfig.planDimOpacity):"";
   const btn=$("planVisibilityBtn");
   if(btn){btn.textContent=PLAN_VIS_LABEL[mode];btn.title=PLAN_VIS_NEXT[mode];btn.disabled=!state.planLoaded}
+}
+
+/* Фоновая сетка холста задаётся из JS, а не зашита в CSS: её шаг обязан совпадать
+   с фактическим шагом привязки (state.gridStep), иначе визуальная сетка «врёт»
+   относительно узлов. Меняем только background-size — рисунок линий остаётся в CSS. */
+function applyGridStyle(){
+  const step=state.gridStep||EPConfig.gridDefault;
+  canvas.style.backgroundSize=step+"px "+step+"px";
+}
+/* Синхронизация переключателей панели с состоянием (при старте/восстановлении).
+   Значения ставим программно — это не вызывает onchange, лишнего сохранения нет. */
+function syncMarkupControls(){
+  const o=$("orthoToggle"),s=$("snapGridToggle"),g=$("gridStepSelect");
+  if(o)o.checked=state.orthoMode!==false;
+  if(s)s.checked=state.snapGrid!==false;
+  if(g)g.value=String(state.gridStep||EPConfig.gridDefault);
 }
 function cyclePlanVisibility(){
   if(!state.planLoaded){toast("Сначала загрузите план");return}
@@ -1057,6 +1138,8 @@ function projectSnapshot(){
   return{name:"Проект электроснабжения",savedAt:new Date().toISOString(),
     devices:state.devices,posts:state.posts,rooms:state.rooms,walls:state.walls,autoWalls:state.autoWalls,
     roomLines:state.roomLines,planVisibility:state.planVisibility,
+    /* режимы разметки — часть проекта: восстанавливаются вместе с ним */
+    orthoMode:state.orthoMode,snapGrid:state.snapGrid,gridStep:state.gridStep,
     pxPerMeter:state.pxPerMeter,scaleSegment:state.scaleSegment,
     /* план кладём data-URL'ом — иначе после перезагрузки объекты повиснут над пустым холстом */
     plan:(state.planLoaded&&/^data:/.test(img.src||""))?img.src:null,
@@ -1099,6 +1182,12 @@ async function restoreProject(){
   /* старые проекты без разметки и без флага видимости открываются штатно:
      roomLines → [], planVisibility → "show" (обратная совместимость) */
   state.roomLines=p.roomLines||[];state.planVisibility=p.planVisibility||"show";
+  /* режимы разметки с фолбэками: старый проект без этих полей открывается как
+     ортогонально=вкл, привязка=вкл, шаг=умолчание (10 px). !==false даёт true для
+     undefined; шаг валидируем по списку — чужое значение откатываем на дефолт. */
+  state.orthoMode=p.orthoMode!==false;
+  state.snapGrid=p.snapGrid!==false;
+  state.gridStep=EPConfig.gridSteps.includes(p.gridStep)?p.gridStep:EPConfig.gridDefault;
   state.pxPerMeter=p.pxPerMeter??null;state.scaleSegment=p.scaleSegment||null;
   state.planLabel=p.planLabel||"";
   if(p.terms){
@@ -1239,6 +1328,15 @@ canvas.addEventListener("pointermove",e=>{
   drawRoomLines();
 });
 document.querySelectorAll("[data-tool]").forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+/* Переключатели режимов разметки. Сохраняем сразу (как cyclePlanVisibility): это
+   настройка проекта, а не пачка мелких правок — задержка автосейва тут не нужна. */
+$("orthoToggle").onchange=e=>{state.orthoMode=e.target.checked;persistProject()};
+$("snapGridToggle").onchange=e=>{state.snapGrid=e.target.checked;persistProject()};
+$("gridStepSelect").onchange=e=>{
+  const s=Number(e.target.value);
+  state.gridStep=EPConfig.gridSteps.includes(s)?s:EPConfig.gridDefault;
+  applyGridStyle();persistProject();   /* фоновая сетка должна сразу перерисоваться под новый шаг */
+};
 $("clearRoomLinesBtn").onclick=clearRoomLines;
 $("planVisibilityBtn").onclick=cyclePlanVisibility;
 $("catalogSearch").oninput=e=>renderCatalog(e.target.value);
@@ -1246,9 +1344,17 @@ $("newPostBtn").onclick=()=>openPostBuilder();
 $("closePostModal").onclick=$("cancelPost").onclick=closePostBuilder;
 $("savePost").onclick=savePostBuilder;$("postSlotCount").onchange=changePostSlotCount;$("postFrameSelect").onchange=renderBuilder;
 $("postModal").onclick=e=>{if(e.target===$("postModal"))closePostBuilder()};
-$("zoomIn").onclick=()=>{state.scale=Math.min(2,state.scale+.1);canvas.style.transform=`scale(${state.scale})`;updateStatus(`Масштаб ${Math.round(state.scale*100)}%`)};
-$("zoomOut").onclick=()=>{state.scale=Math.max(.5,state.scale-.1);canvas.style.transform=`scale(${state.scale})`;updateStatus(`Масштаб ${Math.round(state.scale*100)}%`)};
-$("zoomReset").onclick=()=>{state.scale=1;canvas.style.transform="scale(1)";updateStatus()};
+/* Единый апдейт индикаторов масштаба: подпись на кнопке #zoomReset и (по флагу)
+   строка статуса. Раньше три обработчика писали число врозь, а кнопку не трогали
+   вовсе — она вечно висела на «100%». Держим в одном месте, чтобы не разъезжались. */
+function updateZoomUi(showInStatus){
+  const pct=Math.round(state.scale*100);
+  $("zoomReset").textContent=pct+"%";
+  if(showInStatus)updateStatus(`Масштаб ${pct}%`);
+}
+$("zoomIn").onclick=()=>{state.scale=Math.min(2,state.scale+.1);canvas.style.transform=`scale(${state.scale})`;updateZoomUi(true)};
+$("zoomOut").onclick=()=>{state.scale=Math.max(.5,state.scale-.1);canvas.style.transform=`scale(${state.scale})`;updateZoomUi(true)};
+$("zoomReset").onclick=()=>{state.scale=1;canvas.style.transform="scale(1)";updateZoomUi(true)};
 
 const uploadHelp=$("planUploadHelp"),uploadPopover=$("planUploadPopover");
 function setUploadPopover(open,returnFocus=false){
@@ -1323,6 +1429,7 @@ $("clearBtn").onclick=()=>{state.devices=[];state.posts=[];state.rooms=[];state.
 $("autoTraceBtn").onclick=autoTracePlan;
 $("detectRoomsBtn").onclick=detectRooms;
 $("detectRoomsMlBtn").onclick=detectRoomsML;
+$("roomsFromLinesBtn").onclick=()=>buildRoomsFromLines();   /* явный запуск — не в silent-режиме */
 $("annotateBtn").onclick=annotatePlan;
 $("clearAnnotateBtn").onclick=()=>{clearAnnotations();toast("Разметка убрана")};
 $("scaleBtn").onclick=()=>{setTool("scale");toast("Проведите отрезок известной длины: два клика по плану")};

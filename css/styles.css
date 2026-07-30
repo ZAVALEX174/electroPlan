@@ -25,6 +25,13 @@ button{cursor:pointer}
 .count-pill{min-width:24px;padding:4px 7px;border-radius:999px;text-align:center;font-size:10px;font-weight:900;color:var(--blue-dark);background:var(--blue-soft)}
 .upload-btn{display:block;text-align:center;padding:11px;border:1px dashed #8fc2ef;border-radius:12px;color:var(--blue-dark);font-weight:800;background:#f4faff;cursor:pointer}
 .tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.tool{display:flex;align-items:center;gap:8px;padding:9px;border:1px solid var(--line);border-radius:11px;background:#fff;color:#42627f;font-size:15px}.tool span{font-size:11px;font-weight:800}.tool.active{color:var(--blue-dark);border-color:#91c5f1;background:var(--blue-soft)}.tool.danger{color:var(--danger)}
+/* Переключатели режимов разметки: компактный ряд под инструментами, состояние
+   видно без наведения (галочки + текущий шаг в списке) */
+.markup-controls{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:8px;padding:8px 9px;border:1px solid var(--line);border-radius:11px;background:#fff}
+.markup-check{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#42627f;cursor:pointer}
+.markup-check input{width:14px;height:14px;cursor:pointer}
+.markup-step{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#42627f}
+.markup-step select{padding:3px 6px;border:1px solid var(--line);border-radius:8px;background:#fff;color:#42627f;font-size:12px;font-weight:700;cursor:pointer}
 .search-box input,label input,label select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:#fff;color:var(--text)}
 .catalog{display:flex;flex-direction:column;gap:7px;margin-top:8px;max-height:300px;overflow:auto}
 .catalog-item{display:grid;grid-template-columns:34px 1fr 30px;gap:8px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:12px;background:var(--panel-soft)}
@@ -50,7 +57,9 @@ button{cursor:pointer}
 .zoom-controls{display:flex;gap:5px}.icon-btn,.zoom-value{height:32px;border:1px solid var(--line);background:#fff}.icon-btn{width:32px;border-radius:9px;font-size:18px}.zoom-value{min-width:56px;border-radius:9px;font-size:11px;font-weight:800}
 .status{margin:auto;color:var(--muted);font-size:11px}
 .canvas-scroll{min-height:0;overflow:auto;padding:0;background:#cfd7df}
-.canvas{position:relative;width:100%;height:100%;min-width:100%;min-height:100%;transform-origin:top left;overflow:hidden;border-radius:0;background-color:#fff;background-image:linear-gradient(#edf4fb 1px,transparent 1px),linear-gradient(90deg,#edf4fb 1px,transparent 1px);background-size:25px 25px;box-shadow:none}
+/* background-size НЕ задаём тут: шаг фоновой сетки выставляет JS (applyGridStyle) по
+   state.gridStep, иначе визуальная сетка разойдётся с фактической привязкой */
+.canvas{position:relative;width:100%;height:100%;min-width:100%;min-height:100%;transform-origin:top left;overflow:hidden;border-radius:0;background-color:#fff;background-image:linear-gradient(#edf4fb 1px,transparent 1px),linear-gradient(90deg,#edf4fb 1px,transparent 1px);box-shadow:none}
 .canvas.placing{cursor:crosshair}#planImage{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:.58;pointer-events:none;transition:opacity .15s ease}#wallsSvg,#roomsSvg,#detectSvg,#markupSvg,#scaleSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 /* линии разметки помещений: намеренно отличаются от стен (auto — синий пунктир,
    ручные — тёмно-синие сплошные) — фиолетовым штрихом, чтобы слои не путались */

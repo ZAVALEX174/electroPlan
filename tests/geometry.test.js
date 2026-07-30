@@ -5,7 +5,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   segmentsIntersection, allIntersections, nearestEndpoint, nearestIntersection,
-  distancePointToSegment, polygonAreaPx, pointInPolygon
+  distancePointToSegment, polygonAreaPx, pointInPolygon, snapPlanPoint
 } = require("../js/geometry.js");
 
 /* отрезок из двух точек в форме {a,b} — как хранятся стены и линии разметки */
@@ -92,4 +92,47 @@ test("pointInPolygon: внутри и снаружи квадрата", () => {
   const sq = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
   assert.equal(pointInPolygon(5, 5, sq), true, "центр внутри");
   assert.equal(pointInPolygon(15, 5, sq), false, "точка снаружи");
+});
+
+/* Выбор точки постановки под режимами «привязка к сетке» и «ортогонально».
+   Магниты к линиям в snapPlanPoint не входят — они перебивают её у вызывающего. */
+test("snapPlanPoint: привязка вкл — округляет к узлу сетки", () => {
+  const p = snapPlanPoint(23, 27, null, { grid: 10, snapGrid: true, ortho: false });
+  near(p.x, 20, "23 → 20 при шаге 10");
+  near(p.y, 30, "27 → 30 при шаге 10");
+});
+
+test("snapPlanPoint: привязка выкл — точка ровно под курсором", () => {
+  const p = snapPlanPoint(23.4, 27.9, null, { grid: 10, snapGrid: false, ortho: false });
+  near(p.x, 23.4, "x не округлён");
+  near(p.y, 27.9, "y не округлён");
+});
+
+test("snapPlanPoint: разный шаг сетки даёт разные узлы", () => {
+  near(snapPlanPoint(23, 0, null, { grid: 5, snapGrid: true }).x, 25, "шаг 5: 23 → 25");
+  near(snapPlanPoint(23, 0, null, { grid: 50, snapGrid: true }).x, 0, "шаг 50: 23 → 0");
+});
+
+test("snapPlanPoint: ортогональность подтягивает короткую ось к prev", () => {
+  /* сегмент почти горизонтальный (dx>dy) → выравниваем y к prev.y */
+  const horiz = snapPlanPoint(100, 8, { x: 0, y: 0 }, { grid: 10, snapGrid: false, ortho: true });
+  near(horiz.x, 100, "x остаётся");
+  near(horiz.y, 0, "y притянут к prev — строго горизонтально");
+  /* сегмент почти вертикальный (dy>dx) → выравниваем x к prev.x */
+  const vert = snapPlanPoint(8, 100, { x: 0, y: 0 }, { grid: 10, snapGrid: false, ortho: true });
+  near(vert.x, 0, "x притянут к prev — строго вертикально");
+  near(vert.y, 100, "y остаётся");
+});
+
+test("snapPlanPoint: ортогональность без prev (первая точка) ничего не выравнивает", () => {
+  const p = snapPlanPoint(23, 27, null, { grid: 10, snapGrid: true, ortho: true });
+  near(p.x, 20, "первая точка — только сетка");
+  near(p.y, 30, "первая точка — только сетка");
+});
+
+test("snapPlanPoint: сетка и ортогональность вместе — узел, затем выравнивание оси", () => {
+  /* prev на узле (10,10); сырой (43,12): сетка → (40,10), почти горизонтально → y=prev.y=10 */
+  const p = snapPlanPoint(43, 12, { x: 10, y: 10 }, { grid: 10, snapGrid: true, ortho: true });
+  near(p.x, 40, "x на узле сетки");
+  near(p.y, 10, "y выровнен к prev, остаётся на узле");
 });
