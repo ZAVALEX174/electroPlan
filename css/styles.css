@@ -56,11 +56,20 @@ button{cursor:pointer}
 .canvas-toolbar{border-bottom:1px solid var(--line)}.canvas-footer{justify-content:space-between;border-top:1px solid var(--line);color:var(--muted);font-size:11px}
 .zoom-controls{display:flex;gap:5px}.icon-btn,.zoom-value{height:32px;border:1px solid var(--line);background:#fff}.icon-btn{width:32px;border-radius:9px;font-size:18px}.zoom-value{min-width:56px;border-radius:9px;font-size:11px;font-weight:800}
 .status{margin:auto;color:var(--muted);font-size:11px}
-.canvas-scroll{min-height:0;overflow:auto;padding:0;background:#cfd7df}
+/* Бесконечный холст: .canvas-scroll — ОКНО вида (клипует), нативный скролл выключен,
+   панораму/зум даёт CSS-трансформация .canvas (translate+scale из applyView).
+   pan-ready — зажат пробел (курсор «рука»), panning — идёт перетаскивание вида. */
+.canvas-scroll{min-height:0;overflow:hidden;padding:0;background:#cfd7df}
+.canvas-scroll.pan-ready,.canvas-scroll.pan-ready *{cursor:grab}
+.canvas-scroll.panning,.canvas-scroll.panning *{cursor:grabbing}
 /* background-size НЕ задаём тут: шаг фоновой сетки выставляет JS (applyGridStyle) по
    state.gridStep, иначе визуальная сетка разойдётся с фактической привязкой */
-.canvas{position:relative;width:100%;height:100%;min-width:100%;min-height:100%;transform-origin:top left;overflow:hidden;border-radius:0;background-color:#fff;background-image:linear-gradient(#edf4fb 1px,transparent 1px),linear-gradient(90deg,#edf4fb 1px,transparent 1px);box-shadow:none}
-.canvas.placing{cursor:crosshair}#planImage{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:.58;pointer-events:none;transition:opacity .15s ease}#wallsSvg,#roomsSvg,#detectSvg,#markupSvg,#scaleSvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+/* overflow:visible — объекты за пределами листа НЕ обрезаются (границы бесконечны);
+   реальную обрезку по окну делает .canvas-scroll. transform ставит applyView. */
+.canvas{position:relative;width:100%;height:100%;min-width:100%;min-height:100%;transform-origin:top left;overflow:visible;border-radius:0;background-color:#fff;background-image:linear-gradient(#edf4fb 1px,transparent 1px),linear-gradient(90deg,#edf4fb 1px,transparent 1px);box-shadow:none}
+/* overflow:visible на слоях — линии/полигоны за пределами блока рендерятся (иначе
+   SVG клипует их своим вьюпортом, и нарисованное вне листа пропадает при панораме) */
+.canvas.placing{cursor:crosshair}#planImage{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:.58;pointer-events:none;transition:opacity .15s ease}#wallsSvg,#roomsSvg,#detectSvg,#markupSvg,#scaleSvg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
 /* линии разметки помещений: намеренно отличаются от стен (auto — синий пунктир,
    ручные — тёмно-синие сплошные) — фиолетовым штрихом, чтобы слои не путались */
 .room-line{stroke:#7b3fe4;stroke-width:2.5;stroke-linecap:round;stroke-dasharray:7 4}

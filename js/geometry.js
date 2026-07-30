@@ -126,14 +126,19 @@ function snapPlanPoint(rawX, rawY, prev, opts) {
    ячейка ближе wallRadius px к любой стене помечается заблокированной, остальное
    разбивается флуд-фолл'ом (BFS) на компоненты. Комнаты без ручного контура потом
    привязываются к объектам через общий id компонента. Размеры и стены —
-   аргументами, чтобы функция не зависела от DOM (magic-числа cell/wallRadius — PLAN 2.3). */
-function buildSpaceComponents(width, height, walls, cell = 10, wallRadius = 7) {
+   аргументами, чтобы функция не зависела от DOM (magic-числа cell/wallRadius — PLAN 2.3).
+
+   originX/originY — мировая точка левого-верхнего угла сетки. На бесконечном холсте
+   нарисованное бывает в любых координатах (в т.ч. отрицательных), поэтому сетку
+   ставят по bounding box содержимого, а не от (0,0). По умолчанию 0 — прежнее
+   поведение и совместимость с существующими вызовами/тестами. */
+function buildSpaceComponents(width, height, walls, cell = 10, wallRadius = 7, originX = 0, originY = 0) {
   const cols = Math.ceil(width / cell), rows = Math.ceil(height / cell);
   const blocked = new Uint8Array(cols * rows);
 
   for (let gy = 0; gy < rows; gy++) {
     for (let gx = 0; gx < cols; gx++) {
-      const cx = gx * cell + cell / 2, cy = gy * cell + cell / 2;
+      const cx = originX + gx * cell + cell / 2, cy = originY + gy * cell + cell / 2;
       for (const w of walls) {
         if (distancePointToSegment(cx, cy, w.a.x, w.a.y, w.b.x, w.b.y) <= wallRadius) {
           blocked[gy * cols + gx] = 1; break;
@@ -163,14 +168,16 @@ function buildSpaceComponents(width, height, walls, cell = 10, wallRadius = 7) {
       nextId++;
     }
   }
-  return { cell, cols, rows, blocked, component };
+  return { cell, cols, rows, blocked, component, originX, originY };
 }
 
 /* id компонента в точке; если точка попала на стену — ищем ближайшую свободную
-   ячейку в радиусе 3 клеток, иначе -1. */
+   ячейку в радиусе 3 клеток, иначе -1. Координаты точки — мировые, поэтому вычитаем
+   начало сетки (originX/originY; для сеток от (0,0) оно равно 0 — прежнее поведение). */
 function componentAt(map, x, y) {
-  const gx = Math.max(0, Math.min(map.cols - 1, Math.floor(x / map.cell)));
-  const gy = Math.max(0, Math.min(map.rows - 1, Math.floor(y / map.cell)));
+  const ox = map.originX || 0, oy = map.originY || 0;
+  const gx = Math.max(0, Math.min(map.cols - 1, Math.floor((x - ox) / map.cell)));
+  const gy = Math.max(0, Math.min(map.rows - 1, Math.floor((y - oy) / map.cell)));
   const idx = gy * map.cols + gx;
   if (!map.blocked[idx]) return map.component[idx];
 

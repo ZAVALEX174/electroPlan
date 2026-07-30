@@ -219,7 +219,7 @@ function douglasPeucker(pts, eps) {
    (там, где сосед не принадлежит компоненте), сшиваем head-to-tail в контуры, берём
    контур максимальной площади (внешняя граница компоненты). Координаты углов клеток
    целые → умножаем на cell для перевода в px. */
-function traceCells(cells, cols, rows, component, compId, cell) {
+function traceCells(cells, cols, rows, component, compId, cell, originX = 0, originY = 0) {
   const inComp = (gx, gy) => gx >= 0 && gy >= 0 && gx < cols && gy < rows && component[gy * cols + gx] === compId;
   const edges = [];
   for (const gc of cells) {
@@ -240,7 +240,7 @@ function traceCells(cells, cols, rows, component, compId, cell) {
     const loop = []; let cur = start, guard = 0;
     while (cur && !used.has(cur)) {
       used.add(cur);
-      loop.push({ x: cur.ax * cell, y: cur.ay * cell });
+      loop.push({ x: originX + cur.ax * cell, y: originY + cur.ay * cell });
       const cand = byTail.get(key(cur.bx, cur.by));
       let nxt = null;
       if (cand) for (const c of cand) { if (!used.has(c)) { nxt = c; break; } }
@@ -255,12 +255,15 @@ function traceCells(cells, cols, rows, component, compId, cell) {
   return best;
 }
 
-/* Запасной проход целиком: возвращает массив полигонов (px). */
+/* Запасной проход целиком: возвращает массив полигонов (px). originX/originY —
+   мировое начало сетки: на бесконечном холсте линии бывают не от (0,0), поэтому
+   вызывающий передаёт bounding box разметки. По умолчанию 0 — прежнее поведение. */
 function fallbackByGrid(segments, geom, opts) {
   const width = opts.width, height = opts.height;
   const cell = opts.cell || 10, wallRadius = opts.wallRadius || 7;
+  const originX = opts.originX || 0, originY = opts.originY || 0;
   if (!width || !height || !geom.buildSpaceComponents) return [];
-  const map = geom.buildSpaceComponents(width, height, segments, cell, wallRadius);
+  const map = geom.buildSpaceComponents(width, height, segments, cell, wallRadius, originX, originY);
   const cols = map.cols, rows = map.rows, component = map.component;
   /* компоненты, касающиеся границы холста, — это внешнее пространство, а не помещения */
   const border = new Set();
@@ -280,13 +283,13 @@ function fallbackByGrid(segments, geom, opts) {
   for (const entry of cellsByComp) {
     const cells = entry[1];
     if (cells.length < minCells) continue;
-    const loop = traceCells(cells, cols, rows, component, entry[0], cell);
+    const loop = traceCells(cells, cols, rows, component, entry[0], cell, originX, originY);
     if (!loop || loop.length < 4) continue;
     let poly = removeCollinear(loop);
     poly = douglasPeucker(poly, eps);
-    /* ортогонализация: углы контура и так кратны cell (границы клеток); привязка к
-       сетке cell гасит дробный дрейф после упрощения и убирает мелкие «лесенки» */
-    poly = poly.map(p => ({ x: Math.round(p.x / cell) * cell, y: Math.round(p.y / cell) * cell }));
+    /* ортогонализация: узлы сетки сдвинуты на origin (кратно cell), поэтому и
+       округляем относительно origin — иначе на смещённой сетке контур «съедет» */
+    poly = poly.map(p => ({ x: originX + Math.round((p.x - originX) / cell) * cell, y: originY + Math.round((p.y - originY) / cell) * cell }));
     poly = removeCollinear(poly);
     if (poly.length >= 3) polys.push(poly);
   }
@@ -299,7 +302,8 @@ function fallbackByGrid(segments, geom, opts) {
      minArea      — порог отсечения вырожденных граней, px²;
      maxSegments  — предохранитель по числу линий на входе;
      maxFaces     — предохранитель по числу граней;
-     width,height,cell,wallRadius,simplifyEps — параметры запасного прохода.
+     width,height,cell,wallRadius,simplifyEps — параметры запасного прохода;
+     originX,originY — мировое начало сетки запасного прохода (по умолчанию 0).
    Возвращает { rooms:[{polygon,area,source}], method, stats }. method ∈
    'faces' | 'grid' | 'none' | 'empty' | 'skipped-limit'. */
 function roomsFromLines(segments, opts) {

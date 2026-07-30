@@ -2,8 +2,12 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const canvas=$("canvas"), hover=$("hoverCard"), props=$("properties");
+const canvasScroll=document.querySelector(".canvas-scroll");
 const state={
-  tool:"select",scale:1,pending:null,selected:null,
+  /* Вид холста (бесконечное поле): scale — масштаб, panX/panY — смещение вида в
+     пикселях экрана. Мировые координаты объектов = прежние координаты холста, поэтому
+     старые проекты открываются без пересчёта. Экран↔мир — через EPViewport. */
+  tool:"select",scale:1,panX:0,panY:0,pending:null,selected:null,
   products:[],templates:[],devices:[],posts:[],rooms:[],walls:[],autoWalls:[],wallPoints:[],planLoaded:false,
   /* линии разметки помещений — отдельный слой (решение владельца): не смешиваются
      ни с ручными стенами (walls), ни с автообрисовкой (autoWalls). roomLinePoints —
@@ -181,7 +185,7 @@ async function init(){
   const restored=await restoreProject();
   loadCachedRate();
   renderCatalog();renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();
-  applyGridStyle();syncMarkupControls();updateZoomUi();   /* сетка/переключатели/подпись зума — из state (в т.ч. восстановленного) */
+  applyGridStyle();syncMarkupControls();updateZoomUi();applyView();   /* сетка/переключатели/зум/вид — из state (в т.ч. восстановленного) */
   _autosaveOn=true;   /* включаем ПОСЛЕ восстановления, иначе пустой старт затрёт сохранённое */
   if(restored){
     const objects=state.devices.length+state.posts.length;
@@ -318,8 +322,10 @@ function dragVertex(room,index,startEvent){
   const rect=canvas.getBoundingClientRect();
   const point=room.polygon[index];
   const move=e=>{
-    point.x=Math.max(0,Math.min(canvas.clientWidth,(e.clientX-rect.left)/state.scale));
-    point.y=Math.max(0,Math.min(canvas.clientHeight,(e.clientY-rect.top)/state.scale));
+    /* без зажима по краям блока: поле бесконечное, вершину можно тащить куда угодно.
+       rect снят на старте — холст во время правки вершины не панорамируется */
+    point.x=(e.clientX-rect.left)/state.scale;
+    point.y=(e.clientY-rect.top)/state.scale;
     if(pg)pg.setAttribute("points",room.polygon.map(p=>p.x+","+p.y).join(" "));
     if(handle){handle.setAttribute("cx",point.x);handle.setAttribute("cy",point.y)}
   };
@@ -639,9 +645,37 @@ async function annotatePlan(){
   finally{btn.disabled=false}
 }
 
-/* строит карту связных «свободных» областей плана; сам флуд-фолл — в EPGeom,
-   здесь подставляем размеры холста и текущие стены */
-function buildSpaceComponents(){return EPGeom.buildSpaceComponents(canvas.clientWidth,canvas.clientHeight,allWalls(),EPConfig.spaceCell,EPConfig.wallCellRadius)}
+/* Точки, задающие границы сетки свободного пространства: концы всех линий, центры и
+   углы объектов, seed'ы и вершины комнат. Берём ТОЛЬКО реально нарисованное (без
+   привязки к блоку) — топология областей между стенами зависит от самих стен, а не
+   от пустого поля вокруг, поэтому привязка объектов к комнатам сохраняется. Подложку
+   сюда НЕ включаем: пиксели чертежа на деление пространства не влияют. */
+function spaceContentPoints(){
+  const pts=[];
+  allWalls().forEach(w=>{pts.push(w.a,w.b)});
+  [...state.devices,...state.posts].forEach(o=>{pts.push({x:o.x,y:o.y},{x:o.x+24,y:o.y+24})});
+  state.rooms.forEach(r=>{
+    if(r.seedX!=null)pts.push({x:r.seedX,y:r.seedY});
+    if(r.polygon)r.polygon.forEach(p=>pts.push(p));
+  });
+  return pts;
+}
+/* Радиус «засветки» ячейки стеной. Пока сетка обычной плотности (cell = spaceCell)
+   отдаём прежние 7 px — поведение существующих проектов не меняется. Если же
+   предохранитель УКРУПНИЛ cell (гигантское содержимое), радиус тянем до ~0.71·cell,
+   иначе центры клеток окажутся дальше 7 px от стены и стена «протечёт», слив комнаты. */
+function wallRadiusFor(cell){
+  return cell>EPConfig.spaceCell?Math.max(EPConfig.wallCellRadius,cell*0.71):EPConfig.wallCellRadius;
+}
+/* строит карту связных «свободных» областей плана; сам флуд-фолл — в EPGeom.
+   На бесконечном холсте размер берём НЕ по блоку, а по bounding box нарисованного
+   (EPViewport.spaceGrid: запас + предохранитель на число клеток) — иначе сетка либо
+   не накроет объекты за краем листа, либо разрастётся и подвесит интерфейс (пункт 6). */
+function buildSpaceComponents(){
+  const g=EPViewport.spaceGrid(EPViewport.bounds(spaceContentPoints()),
+    {cell:EPConfig.spaceCell,margin:EPConfig.spaceMargin,maxCells:EPConfig.spaceMaxCells});
+  return EPGeom.buildSpaceComponents(g.width,g.height,allWalls(),g.cell,wallRadiusFor(g.cell),g.originX,g.originY);
+}
 
 function getRoomForPoint(x,y,map=null){
   if(!state.rooms.length)return null;
@@ -711,7 +745,8 @@ function positionHover(e){const r=canvas.getBoundingClientRect();hover.style.lef
 function hideHover(){hover.classList.remove("show")}
 function makeDraggable(el,obj,kind){
   let dragging=false,sx=0,sy=0,bx=0,by=0;
-  const move=e=>{if(!dragging)return;obj.x=Math.max(0,Math.min(canvas.clientWidth-el.offsetWidth,bx+(e.clientX-sx)/state.scale));obj.y=Math.max(0,Math.min(canvas.clientHeight-el.offsetHeight,by+(e.clientY-sy)/state.scale));el.style.left=obj.x+"px";el.style.top=obj.y+"px"};
+  /* без зажима по краям блока (бесконечный холст): дельту мыши делим на масштаб вида */
+  const move=e=>{if(!dragging)return;obj.x=bx+(e.clientX-sx)/state.scale;obj.y=by+(e.clientY-sy)/state.scale;el.style.left=obj.x+"px";el.style.top=obj.y+"px"};
   const up=()=>{
     if(dragging){
       if(kind==="device"||kind==="post"){
@@ -1170,11 +1205,17 @@ function buildRoomsFromLines(opts){
   const silent=opts.silent===true;
   const lines=state.roomLines;
   if(!lines||!lines.length){if(!silent)toast("Нет линий разметки — нарисуйте контур инструментом «Разметка»");return}
+  /* сетка запасного прохода — по bounding box самой разметки (бесконечный холст),
+     а не по размеру блока: линии бывают где угодно. Основной проход (грани графа)
+     origin/размеры не использует и работает в абсолютных координатах. */
+  const linePts=[];lines.forEach(l=>linePts.push(l.a,l.b));
+  const g=EPViewport.spaceGrid(EPViewport.bounds(linePts),
+    {cell:EPConfig.spaceCell,margin:EPConfig.spaceMargin,maxCells:EPConfig.spaceMaxCells});
   const res=EPRoomsFromLines.roomsFromLines(lines,{
     geom:EPGeom,tol:EPConfig.roomWeldTol,minArea:EPConfig.roomMinAreaPx,
     maxSegments:EPConfig.roomMaxSegments,maxFaces:EPConfig.roomMaxFaces,
-    width:canvas.clientWidth,height:canvas.clientHeight,
-    cell:EPConfig.spaceCell,wallRadius:EPConfig.wallCellRadius,simplifyEps:EPConfig.roomSimplifyEps
+    width:g.width,height:g.height,originX:g.originX,originY:g.originY,
+    cell:g.cell,wallRadius:wallRadiusFor(g.cell),simplifyEps:EPConfig.roomSimplifyEps
   });
   if(res.method==="skipped-limit"){if(!silent)toast(`Слишком много линий разметки (>${EPConfig.roomMaxSegments}) — пересчёт помещений пропущен`);return}
   if(!res.rooms.length){
@@ -1255,6 +1296,9 @@ function projectSnapshot(){
   return{name:"Проект электроснабжения",savedAt:new Date().toISOString(),
     devices:state.devices,posts:state.posts,rooms:state.rooms,walls:state.walls,autoWalls:state.autoWalls,
     roomLines:state.roomLines,planVisibility:state.planVisibility,
+    /* вид холста (смещение и масштаб) — чтобы вернуться туда, где работали.
+       Старые проекты без view открываются с видом по умолчанию (см. restoreProject). */
+    view:{panX:state.panX,panY:state.panY,scale:state.scale},
     /* режимы разметки — часть проекта: восстанавливаются вместе с ним */
     orthoMode:state.orthoMode,snapGrid:state.snapGrid,gridStep:state.gridStep,
     pxPerMeter:state.pxPerMeter,scaleSegment:state.scaleSegment,
@@ -1306,6 +1350,14 @@ async function restoreProject(){
   state.snapGrid=p.snapGrid!==false;
   state.gridStep=EPConfig.gridSteps.includes(p.gridStep)?p.gridStep:EPConfig.gridDefault;
   state.pxPerMeter=p.pxPerMeter??null;state.scaleSegment=p.scaleSegment||null;
+  /* вид: восстанавливаем смещение и масштаб; старый проект без view — 100% и начало
+     координат. Масштаб зажимаем в допустимые границы (чужое/битое значение не должно
+     вывести холст за пределы разумного). */
+  const v=p.view;
+  if(v&&Number.isFinite(v.scale)&&v.scale>0){
+    state.scale=EPViewport.clampScale(v.scale,EPConfig.viewMinScale,EPConfig.viewMaxScale);
+    state.panX=Number.isFinite(v.panX)?v.panX:0;state.panY=Number.isFinite(v.panY)?v.panY:0;
+  }else{state.scale=1;state.panX=0;state.panY=0}
   state.planLabel=p.planLabel||"";
   if(p.terms){
     Object.assign(EP_DATA.settings,Object.fromEntries(Object.entries(p.terms).filter(([,v])=>v!=null&&v!=="")));
@@ -1472,6 +1524,16 @@ document.querySelectorAll("#postWallType .wall-type-option").forEach(b=>b.onclic
   EP_DATA.settings.wallType=b.dataset.wall;renderBuilder();renderSummary();scheduleSave();
 });
 $("postModal").onclick=e=>{if(e.target===$("postModal"))closePostBuilder()};
+/* ---- Вид холста: панорама, зум к курсору, «вписать в экран» (бесконечный холст).
+   Мировые координаты объектов НЕ трогаем — двигаем/масштабируем сам ВИД через одну
+   CSS-трансформацию единого родителя .canvas. Поэтому слои, объекты, подложка и
+   линейка остаются на местах друг относительно друга (главный критерий приёмки).
+   Все пересчёты — в чистом EPViewport. ---- */
+function view(){return {panX:state.panX,panY:state.panY,scale:state.scale}}
+/* применить вид к DOM: одна дешёвая трансформация, без перерисовки слоёв и объектов —
+   поэтому панорама и зум не грузят интерфейс на каждое движение мыши */
+function applyView(){canvas.style.transform=`translate(${state.panX}px,${state.panY}px) scale(${state.scale})`}
+function setView(v){state.panX=v.panX;state.panY=v.panY;state.scale=v.scale;applyView()}
 /* Единый апдейт индикаторов масштаба: подпись на кнопке #zoomReset и (по флагу)
    строка статуса. Раньше три обработчика писали число врозь, а кнопку не трогали
    вовсе — она вечно висела на «100%». Держим в одном месте, чтобы не разъезжались. */
@@ -1480,9 +1542,83 @@ function updateZoomUi(showInStatus){
   $("zoomReset").textContent=pct+"%";
   if(showInStatus)updateStatus(`Масштаб ${pct}%`);
 }
-$("zoomIn").onclick=()=>{state.scale=Math.min(2,state.scale+.1);canvas.style.transform=`scale(${state.scale})`;updateZoomUi(true)};
-$("zoomOut").onclick=()=>{state.scale=Math.max(.5,state.scale-.1);canvas.style.transform=`scale(${state.scale})`;updateZoomUi(true)};
-$("zoomReset").onclick=()=>{state.scale=1;canvas.style.transform="scale(1)";updateZoomUi(true)};
+const zoomBounds=()=>({min:EPConfig.viewMinScale,max:EPConfig.viewMaxScale});
+/* центр окна вида в координатах, от которых отсчитывается pan (левый-верхний угол окна) */
+function viewportCenter(){const r=canvasScroll.getBoundingClientRect();return {x:r.width/2,y:r.height/2}}
+/* зум вокруг точки экрана (курсор/центр) — единый расчёт EPViewport.zoomAt держит
+   мировую точку под этой точкой экрана на месте */
+function zoomBy(factor,screenPt){setView(EPViewport.zoomAt(view(),screenPt,factor,zoomBounds()));updateZoomUi(true);scheduleSave()}
+$("zoomIn").onclick=()=>zoomBy(1+EPConfig.viewZoomStep,viewportCenter());
+$("zoomOut").onclick=()=>zoomBy(1/(1+EPConfig.viewZoomStep),viewportCenter());
+/* сброс к 100% — вокруг центра окна, чтобы содержимое не «прыгнуло» в угол */
+$("zoomReset").onclick=()=>zoomBy(1/state.scale,viewportCenter());
+/* точки, ограничивающие «всё нарисованное» для вписывания: подложка (если есть),
+   линии, объекты, комнаты. В отличие от сетки областей блок [0..clientW] НЕ добавляем
+   без подложки — иначе пустой лист «вписывался» бы вместо реального содержимого. */
+function fitContentPoints(){
+  const pts=[];
+  if(state.planLoaded)pts.push({x:0,y:0},{x:canvas.clientWidth,y:canvas.clientHeight});
+  allWalls().forEach(w=>pts.push(w.a,w.b));
+  [...state.devices,...state.posts].forEach(o=>pts.push({x:o.x,y:o.y},{x:o.x+24,y:o.y+24}));
+  state.rooms.forEach(r=>{
+    pts.push({x:r.x,y:r.y},{x:r.x+110,y:r.y+40});   /* габарит подписи комнаты */
+    if(r.polygon)r.polygon.forEach(p=>pts.push(p));
+  });
+  return pts;
+}
+/* «Вписать в экран»: подгоняем вид под bbox всего нарисованного с полями; пусто —
+   100% и начало координат (EPViewport.fitView сам возвращает вид по умолчанию). */
+function fitToScreen(){
+  const r=canvasScroll.getBoundingClientRect();
+  setView(EPViewport.fitView(EPViewport.bounds(fitContentPoints()),r.width,r.height,
+    {padding:EPConfig.viewFitPadding,minScale:EPConfig.viewMinScale,maxScale:EPConfig.viewMaxScale}));
+  updateZoomUi(true);scheduleSave();
+}
+$("zoomFit").onclick=fitToScreen;
+
+/* ---- Панорамирование: зажатый ПРОБЕЛ + перетаскивание ИЛИ средняя кнопка мыши.
+   Слушаем на окне вида в фазе ПЕРЕХВАТА — панорама должна перебивать инструменты и
+   объекты под курсором (иначе пробел+клик по иконке начал бы тащить иконку). pan —
+   в пикселях экрана 1:1 с мышью: двигаем сам вид, масштаб тут не делим. ---- */
+let spaceDown=false,panning=false,panLX=0,panLY=0,panMoved=false;
+function setPanReady(on){canvasScroll.classList.toggle("pan-ready",on&&!panning)}
+canvasScroll.addEventListener("pointerdown",e=>{
+  if(!((spaceDown&&e.button===0)||e.button===1))return;   /* пробел+ЛКМ или средняя кнопка */
+  e.preventDefault();e.stopPropagation();
+  panning=true;panMoved=false;panLX=e.clientX;panLY=e.clientY;
+  canvasScroll.classList.remove("pan-ready");canvasScroll.classList.add("panning");
+  try{canvasScroll.setPointerCapture(e.pointerId)}catch(_){}
+},true);
+canvasScroll.addEventListener("pointermove",e=>{
+  if(!panning)return;
+  const dx=e.clientX-panLX,dy=e.clientY-panLY;
+  if(dx||dy)panMoved=true;
+  panLX=e.clientX;panLY=e.clientY;
+  state.panX+=dx;state.panY+=dy;applyView();
+},true);
+function endPan(e){
+  if(!panning)return;
+  panning=false;canvasScroll.classList.remove("panning");
+  if(spaceDown)canvasScroll.classList.add("pan-ready");
+  try{canvasScroll.releasePointerCapture(e.pointerId)}catch(_){}
+  scheduleSave();   /* положение вида — часть проекта */
+}
+canvasScroll.addEventListener("pointerup",endPan,true);
+canvasScroll.addEventListener("pointercancel",endPan,true);
+/* панорама сдвинула вид (или зажат пробел) — гасим последующий клик по холсту в фазе
+   перехвата на окне вида (до canvas.onclick), иначе он поставил бы точку/объект там,
+   где пользователь просто отпустил кнопку */
+canvasScroll.addEventListener("click",e=>{if(panMoved||spaceDown){panMoved=false;e.stopPropagation();e.preventDefault()}},true);
+/* средняя кнопка на части ОС включает автоскролл — глушим */
+canvasScroll.addEventListener("auxclick",e=>{if(e.button===1)e.preventDefault()});
+
+/* ---- Зум КОЛЕСОМ К ПОЗИЦИИ КУРСОРА. passive:false — нужен preventDefault, иначе
+   прокрутится страница. Множитель экспоненциальный — плавно и симметрично вверх/вниз. */
+canvasScroll.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const r=canvasScroll.getBoundingClientRect();
+  zoomBy(Math.exp(-e.deltaY*0.0015),{x:e.clientX-r.left,y:e.clientY-r.top});
+},{passive:false});
 
 const uploadHelp=$("planUploadHelp"),uploadPopover=$("planUploadPopover");
 function setUploadPopover(open,returnFocus=false){
@@ -1637,7 +1773,13 @@ document.onkeydown=e=>{
   if(e.key==="Backspace"&&state.tool==="roomline"&&!typing&&state.roomLinePoints.length){e.preventDefault();removeLastRoomLinePoint()}
   /* B — переключение видимости подложки (независимо от раскладки, по физической клавише) */
   if(e.code==="KeyB"&&!typing&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();cyclePlanVisibility()}
+  /* Пробел — режим «рука» для панорамы (курсор-подсказка). preventDefault, чтобы
+     пробел не прокручивал страницу и не «нажимал» сфокусированную кнопку. */
+  if(e.code==="Space"&&!typing){e.preventDefault();if(!spaceDown){spaceDown=true;setPanReady(true)}}
 };
+/* отпускание пробела и потеря фокуса окна снимают режим «рука» (иначе он «залипнет») */
+document.addEventListener("keyup",e=>{if(e.code==="Space"){spaceDown=false;canvasScroll.classList.remove("pan-ready")}});
+window.addEventListener("blur",()=>{spaceDown=false;canvasScroll.classList.remove("pan-ready")});
 /* ---- Общий перехват ошибок (PLAN 7.2) ----
    Сегодняшний разбор показал, что необработанное исключение внутри рендера или
    промиса обрывает работу молча: интерфейс просто замирает на полпути, а
