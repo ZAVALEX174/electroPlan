@@ -41,6 +41,9 @@ function displayRate(){
 const money=(n)=>new Intl.NumberFormat("ru-RU",{
   style:"currency",currency:displayCurrency(),minimumFractionDigits:2,maximumFractionDigits:2
 }).format((Number(n)||0)*displayRate());
+/* Курс печатаем с 4 знаками, но дробную часть — через ЗАПЯТУЮ: в русском документе
+   «92,5000 ₽», а не «92.5000 ₽» (интерфейс и КП идут заказчику). */
+const rubRate=n=>(Number(n)||0).toFixed(4).replace(".",",");
 const product=id=>state.products.find(x=>Number(x.id)===Number(id));
 const byKind=kind=>state.products.filter(x=>x.kind===kind&&x.active);
 const socketBox=()=>byKind("socket_box")[0];
@@ -105,7 +108,35 @@ function bindProductPictureFallbacks(root){
 }
 
 function toast(text){const e=$("toast");e.textContent=text;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),1800)}
-const postCost=p=>EPPosts.postCost(p,{product,socketBox,frameProduct});
+/* Подбор монтажной коробки под тип стены проекта. В каталоге сейчас один
+   универсальный подрозетник (V71001, кирпич/бетон); коробок для полых стен и
+   прямоугольных типоразмеров пока нет — тогда возвращаем null, и вызывающий честно
+   показывает «коробка не подобрана» (в цене остаётся универсальный подрозетник).
+   Коробки без подтверждённого типа стены (wallType отсутствует) годятся в оба режима. */
+function findBox({wallType}={}){
+  const boxes=byKind("socket_box");
+  if(!boxes.length)return null;
+  const wanted=wallType||EP_DATA.settings.wallType||"solid";
+  return boxes.find(b=>{const bw=b.wallType||"unknown";return bw===wanted||bw==="unknown";})||null;
+}
+/* Подбор суппорта («планки для модулей») той же серии и модульности, что накладка.
+   Суппортов в каталоге пока нет (kind "support"), поэтому обычно возвращает null —
+   вызывающий покажет «суппорт не подобран», а не подставит случайный. */
+function findSupport({frame,modules}={}){
+  const supports=byKind("support");
+  if(!supports.length)return null;
+  const target=modules||frameSlotCount(frame)||0;
+  const frameSeries=productSeries(frame).map(x=>x.toLocaleLowerCase("ru-RU"));
+  const sameSeries=supports.filter(s=>productSeries(s).map(x=>x.toLocaleLowerCase("ru-RU")).some(v=>frameSeries.includes(v)));
+  const pool=sameSeries.length?sameSeries:supports;
+  return pool.find(s=>Number(s.moduleCount||s.modules||frameSlotCount(s))===target)||null;
+}
+/* Единый набор зависимостей для чистой логики поста (EPPosts): каталог, подбор
+   суппорта/коробки и тип стены проекта. Стандарт накладки берётся из поля товара
+   (проставлено при загрузке каталога из колонки standard прайса). */
+const postDeps=()=>({product,frameProduct,socketBox,mechanismSpan,findBox,findSupport,wallType:EP_DATA.settings.wallType});
+const postCost=p=>EPPosts.postCost(p,postDeps());
+const postComposition=p=>EPPosts.postComposition(p,postDeps());
 function setTool(tool){
   state.tool=tool;state.pending=null;state.wallPoints=[];canvas.classList.remove("placing");
   /* выход из режима разметки сбрасывает незавершённую цепочку и подсветку */
@@ -413,12 +444,12 @@ function updateRateUi(){
     const d=s.rateDate?new Date(s.rateDate).toLocaleDateString("ru-RU"):"";
     const isManual=s.rateSource===EPRates.SRC_MANUAL;
     const pct=Number(s.rateSurchargePercent)||0;
-    let txt=`1 € = ${s.eurRate.toFixed(4)} ₽ · ${s.rateSource||"вручную"}${d?" от "+d:""}`;
+    let txt=`1 € = ${rubRate(s.eurRate)} ₽ · ${s.rateSource||"вручную"}${d?" от "+d:""}`;
     /* показываем обе величины: официальный курс ЦБ и итоговый с надбавкой.
        Для ручного курса надбавка не применяется — сообщаем об этом явно, чтобы
        пользователь понимал, почему +% не влияет на пересчёт. textContent —
        экранирование не требуется (не innerHTML), значения свои. */
-    if(!isManual&&pct>0)txt+=` + ${pct}% = ${EPRates.effectiveRate(s).toFixed(4)} ₽`;
+    if(!isManual&&pct>0)txt+=` + ${pct}% = ${rubRate(EPRates.effectiveRate(s))} ₽`;
     else if(isManual&&pct>0)txt+=` · надбавка +${pct}% к ручному курсу не применяется`;
     info.textContent=txt;
     info.classList.add("is-set");
@@ -434,7 +465,7 @@ async function refreshRate(){
   try{
     const e=applyRateEntry(await EPRates.fetchFresh());
     updateRateUi();renderCatalog($("catalogSearch").value);renderSummary();renderTemplates();scheduleSave();
-    toast(`Курс ЦБ РФ: 1 € = ${e.rate.toFixed(4)} ₽`);
+    toast(`Курс ЦБ РФ: 1 € = ${rubRate(e.rate)} ₽`);
   }catch(err){
     console.error(err);
     toast("Не удалось получить курс ЦБ РФ — введите вручную");
@@ -650,9 +681,9 @@ function showHover(kind,obj,e){
     const p=product(obj.productId);
     hover.innerHTML=`<h4>${esc(p.name)}</h4><dl><dt>Артикул</dt><dd>${esc(p.code)}</dd><dt>Цена</dt><dd>${productMoney(p)}</dd><dt>Высота</dt><dd>${esc(obj.height||"не указана")}</dd></dl>`;
   }else{
-    const frame=frameProduct(obj.frameId),box=socketBox();
+    const frame=frameProduct(obj.frameId),comp=postComposition(obj),boxUnit=comp.box||socketBox();
     hover.innerHTML=`<h4>${esc(obj.name)}</h4><div class="hover-composition">${obj.mechanismIds.map(id=>`<span class="hover-chip">${esc(product(id)?.name)}</span>`).join("")}</div>
-    <dl><dt>Рамка</dt><dd>${esc(frame?.name)}</dd><dt>Подрозетники</dt><dd>${obj.mechanismIds.length} × ${money(box?.price||0)}</dd><dt>Стоимость поста</dt><dd>${money(postCost(obj))}</dd></dl>`;
+    <dl><dt>Накладка</dt><dd>${esc(frame?.name)}</dd><dt>Коробки</dt><dd>${comp.boxCount} × ${money(boxUnit?.price||0)}</dd><dt>Стоимость поста</dt><dd>${money(postCost(obj))}</dd></dl>`;
   }
   hover.classList.add("show");positionHover(e);
 }
@@ -701,7 +732,7 @@ function renderProperties(){
     const room=state.rooms.find(r=>r.id===p.roomId);
     props.innerHTML=`<label>Название<input value="${esc(p.name)}" disabled></label>
     <label>Комната<input value="${esc(room?.name||"Не назначена")}" disabled></label>
-    <label>Мест / подрозетников<input value="${p.mechanismIds.length}" disabled></label>
+    <label>Механизмов / коробок<input value="${p.mechanismIds.length} / ${postComposition(p).boxCount}" disabled></label>
     <label>Стоимость<input value="${money(postCost(p))}" disabled></label>
     <div class="property-actions"><button class="btn primary" id="editSelected">Редактировать</button><button class="btn ghost" id="removeSelected">Удалить</button></div>`;
     $("editSelected").onclick=()=>openPostBuilder({placedId:id});$("removeSelected").onclick=()=>removeEntity(kind,id);
@@ -752,7 +783,7 @@ function renderProperties(){
 function buildEstimate(){
   return EPEstimate.build({
     devices:state.devices,posts:state.posts,
-    product,frameProduct,postCost,
+    product,frameProduct,postCost,postComposition,
     settings:EP_DATA.settings
   });
 }
@@ -846,7 +877,47 @@ function renderBuilder(){
     }
     renderBuilder();
   });
+  renderBuilderComposition(selectedFrame);
   $("savePost").disabled=remaining!==0;
+}
+/* Видимый состав поста (PLAN — задача по конструктору): суппорт, монтажная коробка
+   с числом по стандарту накладки и типу стены, итоговая цена. Всё, что попадает в
+   разметку, — через esc(); суммы — через money(). Стандарт/подбор считает EPPosts. */
+const WALL_STEP_LABEL={solid:"кирпич / бетон / сплошная",hollow:"полая стена / ГКЛ"};
+const STANDARD_LABEL={IT:"итальянский · одна коробка на сборку",IT_ROUND:"итальянский · круглая коробка",DE:"немецко-французский · коробка на каждый пост",FR:"французский 57 мм · коробка на каждый пост",US:"американский",BOTH:"универсальный",UNKNOWN:"не подтверждён"};
+function renderBuilderComposition(selectedFrame){
+  const wall=EP_DATA.settings.wallType||"solid";
+  document.querySelectorAll("#postWallType .wall-type-option").forEach(b=>{
+    const on=b.dataset.wall===wall;
+    b.classList.toggle("active",on);
+    b.setAttribute("aria-checked",on?"true":"false");
+  });
+  const host=$("builderComposition");if(!host)return;
+  if(!selectedFrame){host.innerHTML="";return;}
+  const post={frameId:Number($("postFrameSelect").value),mechanismIds:state.builder.mechanismIds};
+  const comp=postComposition(post);
+  const supportRow=comp.support
+    ? `<div class="composition-row"><span>Суппорт (планка для модулей)</span><b>${esc(comp.support.name)} · ${money(comp.support.price)}</b></div>`
+    : `<div class="composition-row is-missing"><span>Суппорт (планка для модулей)</span><b>не подобран</b></div>`;
+  const box=comp.box||socketBox();
+  let boxRow;
+  if(!comp.boxCount){
+    boxRow=`<div class="composition-row"><span>Монтажная коробка · ${esc(WALL_STEP_LABEL[wall])}</span><b>—</b></div>`;
+  }else if(comp.box){
+    boxRow=`<div class="composition-row"><span>Монтажная коробка · ${esc(WALL_STEP_LABEL[wall])}</span><b>${comp.boxCount} × ${esc(comp.box.name)} · ${money(comp.box.price)}</b></div>`;
+  }else if(box){
+    /* точная коробка под тип стены не найдена — честно помечаем, а в цене оставляем
+       универсальный подрозетник (не подставляем случайный артикул как «подходящий») */
+    boxRow=`<div class="composition-row is-missing"><span>Монтажная коробка · ${esc(WALL_STEP_LABEL[wall])}</span><b>${comp.boxCount} шт. — точная не подобрана, в цене ${esc(box.name)} · ${money(box.price)}</b></div>`;
+  }else{
+    boxRow=`<div class="composition-row is-missing"><span>Монтажная коробка · ${esc(WALL_STEP_LABEL[wall])}</span><b>${comp.boxCount} шт. — не подобрана</b></div>`;
+  }
+  const note=comp.approximate
+    ? `<div class="composition-note">Тип стены/стандарт накладки не подтверждён — состав приблизительный (число коробок как раньше).</div>`
+    : "";
+  host.innerHTML=`<div class="composition-head"><strong>Состав поста</strong><span>Стандарт: ${esc(STANDARD_LABEL[comp.standard]||comp.standard)}</span></div>
+    ${supportRow}${boxRow}
+    <div class="composition-row total"><span>Стоимость поста</span><b>${money(postCost(post))}</b></div>${note}`;
 }
 function changePostSlotCount(){
   const currentName=$("postName").value.trim();
@@ -1158,8 +1229,8 @@ function projectSnapshot(){
     plan:(state.planLoaded&&/^data:/.test(img.src||""))?img.src:null,
     planLabel:state.planLabel||"",
     /* условия сделки и валюта — часть проекта, а не глобальная настройка приложения */
-    terms:(({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,displayCurrency,eurRate,rateDate,rateSource})=>
-      ({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
+    terms:(({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,wallType,displayCurrency,eurRate,rateDate,rateSource})=>
+      ({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,wallType,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
 }
 /* План может не влезть в LocalStorage (лимит ~5 МБ). Тогда сохраняем всё остальное,
    пометив, что чертёж придётся загрузить заново, — это лучше полной потери работы. */
@@ -1362,6 +1433,11 @@ $("catalogSearch").oninput=e=>renderCatalog(e.target.value);
 $("newPostBtn").onclick=()=>openPostBuilder();
 $("closePostModal").onclick=$("cancelPost").onclick=closePostBuilder;
 $("savePost").onclick=savePostBuilder;$("postSlotCount").onchange=changePostSlotCount;$("postFrameSelect").onchange=renderBuilder;
+/* Тип стены — первый шаг конструктора и свойство проекта: меняет подбор коробки,
+   поэтому перерисовываем состав и смету и сохраняем. */
+document.querySelectorAll("#postWallType .wall-type-option").forEach(b=>b.onclick=()=>{
+  EP_DATA.settings.wallType=b.dataset.wall;renderBuilder();renderSummary();scheduleSave();
+});
 $("postModal").onclick=e=>{if(e.target===$("postModal"))closePostBuilder()};
 /* Единый апдейт индикаторов масштаба: подпись на кнопке #zoomReset и (по флагу)
    строка статуса. Раньше три обработчика писали число врозь, а кнопку не трогали

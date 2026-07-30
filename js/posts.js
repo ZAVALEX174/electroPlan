@@ -1,8 +1,10 @@
-/* Посты — чистая логика сборки электрического поста (PLAN 2.1): стоимость поста и
-   упаковка механизмов в рамку по вместимости. Доступ к каталогу (product/socketBox/
-   frameProduct/mechanismSpan) передаётся объектом deps — модуль не знает про state
-   и DOM. UI-конструктор (openPostBuilder/renderBuilder/savePostBuilder) остаётся в
-   app.js: он завязан на $()/state.builder/DataService.
+/* Посты — чистая логика сборки электрического поста (PLAN 2.1): состав поста
+   (механизмы + суппорт + монтажные коробки + накладка), число коробок по монтажному
+   стандарту и стоимость. Доступ к каталогу (product/socketBox/frameProduct/
+   mechanismSpan) и подбор суппорта/коробки (findSupport/findBox) передаётся объектом
+   deps — модуль не знает про state и DOM. UI-конструктор (openPostBuilder/
+   renderBuilder/savePostBuilder) остаётся в app.js: он завязан на $()/state.builder/
+   DataService.
 
    Как estimate.js — без зависимостей приложения, под автотесты (PLAN 7.1).
 
@@ -10,13 +12,92 @@
 (() => {
 "use strict";
 
-/* Стоимость поста = механизмы + подрозетники (по числу механизмов) + рамка.
-   deps = { product(id), socketBox(), frameProduct(id) } — цены из каталога. */
-function postCost(p, deps) {
-  const product = deps.product, socketBox = deps.socketBox, frameProduct = deps.frameProduct;
-  return p.mechanismIds.reduce((s, id) => s + (product(id)?.price || 0), 0)
-    + (socketBox()?.price || 0) * p.mechanismIds.length
-    + (frameProduct(p.frameId)?.price || 0);
+const price = item => Number(item && item.price) || 0;
+
+/* Модель числа монтажных коробок по стандарту накладки. По официальному каталогу
+   VIMAR (docs/совместимость-vimar-внешние-источники.md, §1): в ИТАЛЬЯНСКОМ стандарте
+   вся сборка садится в ОДНУ прямоугольную коробку на N модулей; в НЕМЕЦКО-ФРАНЦУЗСКОМ
+   (71 мм) и ФРАНЦУЗСКОМ (57 мм) на КАЖДЫЙ пост (пост = 2 модуля) идёт СВОЯ круглая
+   коробка. Старое правило «коробка на каждый механизм» завышало смету — отсюда фикс.
+   assembly → одна коробка; post → по числу постов. Для остальных значений стандарта
+   (both/US/unknown) достоверной модели нет: считаем по-старому и помечаем состав
+   приблизительным, а не выдаём догадку за факт. */
+const BOX_MODEL = { IT: "assembly", IT_ROUND: "assembly", DE: "post", FR: "post" };
+
+/* Стандарт накладки: из поля товара (проставляется при загрузке каталога из колонки
+   standard прайса), иначе через deps.standardOf (для тестов), иначе «unknown». */
+function frameStandard(frame, deps) {
+  const raw = frame && frame.standard != null
+    ? frame.standard
+    : (deps.standardOf ? deps.standardOf(frame) : null);
+  return String(raw || "unknown").toUpperCase();
+}
+
+/* Сумма модулей, занимаемых механизмами поста. */
+function modulesTotal(mechanismIds, deps) {
+  const span = deps.mechanismSpan || (() => 1);
+  return (mechanismIds || []).reduce((sum, id) => sum + (Number(span(deps.product(id))) || 0), 0);
+}
+
+/* Число монтажных коробок в посте по стандарту накладки.
+   assembly — 1 на всю сборку; post — по числу постов (явный postCount накладки,
+   иначе по 2 модуля на пост); прочее — прежнее правило (по числу механизмов). */
+function boxCount(post, frame, standard, deps) {
+  const mechIds = post.mechanismIds || [];
+  if (!mechIds.length) return 0;
+  const model = BOX_MODEL[standard];
+  if (model === "assembly") return 1;
+  if (model === "post") {
+    const declared = Number(frame && frame.postCount);
+    if (Number.isInteger(declared) && declared >= 1) return declared;
+    return Math.max(1, Math.ceil(modulesTotal(mechIds, deps) / 2));
+  }
+  /* both/US/unknown: модель неизвестна — сохраняем прежнее поведение (по числу
+     механизмов), чтобы не занизить и честно пометить состав как приблизительный. */
+  return mechIds.length;
+}
+
+/* Полный состав поста: стандарт, число коробок, подобранные суппорт и коробка.
+   Возвращает объекты каталога (product|null) и флаги для интерфейса — рендер и
+   money()/esc() остаются в app.js. Подбор суппорта/коробки делает приложение через
+   deps.findSupport/findBox (им нужен доступ к state.products); если подходящего нет —
+   поле остаётся null, а вызывающий показывает «не подобран», не подставляя случайный. */
+function postComposition(post, deps) {
+  const frame = deps.frameProduct ? deps.frameProduct(post.frameId) : null;
+  const mechIds = post.mechanismIds || [];
+  const modules = modulesTotal(mechIds, deps);
+  const standard = frameStandard(frame, deps);
+  const model = BOX_MODEL[standard] || null;
+  const count = boxCount(post, frame, standard, deps);
+  const postCount = model === "post" ? count : null;
+  const support = deps.findSupport
+    ? deps.findSupport({ frame, standard, modules, series: frame && frame.series }) || null
+    : null;
+  const box = deps.findBox
+    ? deps.findBox({ frame, standard, modules, postCount, wallType: deps.wallType || "unknown" }) || null
+    : null;
+  return {
+    frame, standard, model,
+    approximate: !model,      /* модель коробок для стандарта неизвестна */
+    modulesTotal: modules,
+    boxCount: count,
+    boxUnit: model === "post" ? "post" : model === "assembly" ? "assembly" : "place",
+    postCount,
+    support,
+    box
+  };
+}
+
+/* Стоимость поста = механизмы + накладка + суппорт (если подобран) + коробки.
+   Число коробок берётся из состава (postComposition), цена коробки — подобранная,
+   иначе универсальный подрозетник socketBox(). При старом наборе deps (без
+   standardOf/findSupport/findBox) стандарт = unknown, суппорт не находится, а число
+   коробок = числу механизмов — то есть поведение полностью совпадает с прежним. */
+function postCost(post, deps) {
+  const comp = postComposition(post, deps);
+  const mechSum = (post.mechanismIds || []).reduce((s, id) => s + price(deps.product(id)), 0);
+  const boxUnitPrice = price(comp.box || (deps.socketBox ? deps.socketBox() : null));
+  return mechSum + price(comp.frame) + price(comp.support) + boxUnitPrice * comp.boxCount;
 }
 
 /* Отбирает из ids столько механизмов (по порядку), сколько влезает в capacity
@@ -57,7 +138,7 @@ function fitMechanismIdsPreserving(ids, items, capacity, pinnedIndex, deps) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { postCost, fitMechanismIds, fitMechanismIdsPreserving };
+const api = { postCost, postComposition, boxCount, fitMechanismIds, fitMechanismIdsPreserving };
 if (typeof window !== "undefined") window.EPPosts = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

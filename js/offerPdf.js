@@ -29,9 +29,12 @@ function buildHtml(est, deps) {
     const pct = Number(s.rateSurchargePercent) || 0;
     const src = esc(s.rateSource || "вручную");
     const dateNote = s.rateDate ? " от " + new Date(s.rateDate).toLocaleDateString("ru-RU") : "";
+    /* Дробная часть курса — через запятую: в русском коммерческом документе точка
+       как десятичный разделитель неуместна («92,5000 ₽», а не «92.5000 ₽»). */
+    const rub = n => n.toFixed(4).replace(".", ",");
     const body = (!isManual && pct > 0)
-      ? `по курсу ${src} ${base.toFixed(4)} ₽ + ${pct}% = ${eff.toFixed(4)} ₽ за 1 €`
-      : `по курсу 1 € = ${eff.toFixed(4)} ₽ (${src}${dateNote})`;
+      ? `по курсу ${src} ${rub(base)} ₽ + ${pct}% = ${rub(eff)} ₽ за 1 €`
+      : `по курсу 1 € = ${rub(eff)} ₽ (${src}${dateNote})`;
     return `<div class="footer">Пересчёт из евро ${body}. Курс на дату выставления предложения.</div>`;
   };
 

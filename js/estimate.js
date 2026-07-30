@@ -26,6 +26,10 @@ function build(input) {
   const product = input.product || (() => undefined);
   const frameProduct = input.frameProduct || product;
   const postCost = input.postCost || (() => 0);
+  /* Состав поста (число коробок по стандарту накладки, подобранный суппорт) — из
+     EPPosts.postComposition. Необязательная зависимость: без неё смета считается как
+     раньше (коробка на каждый механизм) — так старые вызовы и автотесты не ломаются. */
+  const postComposition = input.postComposition || null;
   const s = input.settings || {};
 
   const lines = [], missing = [];
@@ -46,12 +50,15 @@ function build(input) {
   });
 
   posts.forEach((po) => {
+    const comp = postComposition ? postComposition(po) : null;
+    const boxes = comp ? comp.boxCount : (po.mechanismIds || []).length;
     lines.push({
       key: "p" + po.name,
       name: po.name,
       composition: [
         frameProduct(po.frameId) && frameProduct(po.frameId).name,
-        `${(po.mechanismIds || []).length} подрозетн.`,
+        comp && comp.support && `суппорт ${comp.support.name}`,
+        `${boxes} подрозетн.`,
         ...(po.mechanismIds || []).map((id) => product(id) && product(id).name)
       ].filter(Boolean).join(", "),
       unit: "компл.",

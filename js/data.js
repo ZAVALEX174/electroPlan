@@ -15,6 +15,10 @@ window.EP_DATA = {
     // с 0 (см. restoreProject), иначе ранее сохранённые сметы задним числом
     // подорожали бы на надбавку. К ручному курсу надбавка не применяется.
     rateSurchargePercent: 3,
+    // Тип стены проекта: solid — кирпич/бетон/сплошные (в РФ чаще, потому по умолчанию),
+    // hollow — ГКЛ/полые. Свойство ПРОЕКТА (не отдельного поста): в одном объекте стены
+    // обычно одного типа. Влияет на подбор монтажной коробки в конструкторе поста.
+    wallType: "solid",
     // Прайс VIMAR в евро — это базовая валюта всех цен в каталоге.
     // displayCurrency лишь меняет представление, сами цены не переписываются.
     displayCurrency: "EUR",
@@ -28,7 +32,26 @@ window.EP_DATA = {
     {id:2,name:"Рамки"},
     {id:3,name:"Монтажные элементы"}
   ],
-  products: window.EP_VIMAR_CATALOG?.products || []
+  /* Признаки автосостава поста (стандарт накладки, тип стены коробки) лежат отдельным
+     JS-глобалом EP_VIMAR_ATTRS (js/catalog-vimar-attrs.js), а не в catalog-vimar.js:
+     тот пересобирается конвертером и правки в нём теряются, а fetch() JSON с диска не
+     работает при открытии index.html через file:// (PLAN 2.2). Подмешиваем их к товарам
+     здесь, один раз при загрузке; если файла нет — товары просто без этих полей
+     (стандарт → unknown, тип стены → не подтверждён), приложение это переживает. */
+  products: (function enrichCatalog(){
+    const list = window.EP_VIMAR_CATALOG?.products || [];
+    const attrs = window.EP_VIMAR_ATTRS || {standards:{},wallTypes:{}};
+    return list.map(p => {
+      if (p.kind === "frame" && attrs.standards[p.code]) {
+        const a = attrs.standards[p.code];
+        return {...p, standard: a.standard, postCount: a.postCount};
+      }
+      if (p.kind === "socket_box" && attrs.wallTypes[p.code]) {
+        return {...p, wallType: attrs.wallTypes[p.code]};
+      }
+      return p;
+    });
+  })()
 };
 
 window.DataService = {

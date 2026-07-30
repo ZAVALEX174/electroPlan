@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260730.2">
+  <link rel="stylesheet" href="css/styles.css?v=20260730.3">
 </head>
 <body>
 <div class="app">
@@ -216,19 +216,24 @@
     <div class="builder-layout">
       <div class="builder-preview-area">
         <div class="post-preview-large" id="postPreview"></div>
-        <div class="builder-note">
-          <strong>Подрозетники обязательны</strong>
-          <span>Один подрозетник автоматически добавляется под каждое место.</span>
-        </div>
+        <div class="builder-composition" id="builderComposition"></div>
       </div>
 
       <div class="builder-form">
+        <fieldset class="wall-type-step">
+          <legend>Тип стены</legend>
+          <div class="wall-type-options" id="postWallType" role="radiogroup" aria-label="Тип стены поста">
+            <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-wall="hollow">ГКЛ и полые стены</button>
+            <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-wall="solid">Бетон, кирпич, сплошные стены</button>
+          </div>
+          <small class="wall-type-hint">Влияет на подбор монтажной коробки. Свойство проекта.</small>
+        </fieldset>
         <label>Название поста<input id="postName" value="Пост 3 места"></label>
         <div class="form-row">
           <label>Количество модулей рамки
             <select id="postSlotCount"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
           </label>
-          <label>Рамка
+          <label>Накладка
             <select id="postFrameSelect"></select>
           </label>
         </div>
@@ -280,13 +285,14 @@
 
 <div class="toast" id="toast"></div>
   <script src="js/catalog-vimar.js?v=20260723.9"></script>
-  <script src="js/data.js?v=20260730.10"></script>
+  <script src="js/catalog-vimar-attrs.js?v=20260730.1"></script>
+  <script src="js/data.js?v=20260730.11"></script>
 <script src="js/store.js?v=20260723"></script>
 <script src="js/config.js?v=20260730.3"></script>
 <script src="js/catalog.js?v=20260727.1"></script>
-<script src="js/posts.js?v=20260727.1"></script>
-<script src="js/estimate.js?v=20260726.1"></script>
-<script src="js/offerPdf.js?v=20260730.1"></script>
+<script src="js/posts.js?v=20260730.1"></script>
+<script src="js/estimate.js?v=20260730.1"></script>
+<script src="js/offerPdf.js?v=20260730.2"></script>
 <script src="js/rates.js?v=20260730.1"></script>
 <script src="js/geometry.js?v=20260730.2"></script>
 <script src="js/roomsFromLines.js?v=20260730.1"></script>
@@ -294,6 +300,6 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-  <script src="js/app.js?v=20260730.4"></script>
+  <script src="js/app.js?v=20260730.5"></script>
 </body>
 </html>
