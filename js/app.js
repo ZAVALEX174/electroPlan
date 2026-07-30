@@ -46,7 +46,9 @@ const money=(n)=>new Intl.NumberFormat("ru-RU",{
 const rubRate=n=>(Number(n)||0).toFixed(4).replace(".",",");
 const product=id=>state.products.find(x=>Number(x.id)===Number(id));
 const byKind=kind=>state.products.filter(x=>x.kind===kind&&x.active);
-const socketBox=()=>byKind("socket_box")[0];
+/* Разумный фолбэк-подрозетник (для хранения socketBoxProductId и крайних случаев):
+   самая универсальная коробка. Логика — в чистом EPPostFit (js/postfit.js). */
+const socketBox=()=>EPPostFit.socketBox(byKind("socket_box"));
 const frameProduct=id=>product(id);
 /* Чистая доменная логика каталога (модули/серии/совместимость/рамки/картинки)
    вынесена в js/catalog.js (EPCatalog) — PLAN 2.1; берём её алиасами. Accessor'ы
@@ -108,33 +110,23 @@ function bindProductPictureFallbacks(root){
 }
 
 function toast(text){const e=$("toast");e.textContent=text;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),1800)}
-/* Подбор монтажной коробки под тип стены проекта. В каталоге сейчас один
-   универсальный подрозетник (V71001, кирпич/бетон); коробок для полых стен и
-   прямоугольных типоразмеров пока нет — тогда возвращаем null, и вызывающий честно
-   показывает «коробка не подобрана» (в цене остаётся универсальный подрозетник).
-   Коробки без подтверждённого типа стены (wallType отсутствует) годятся в оба режима. */
-function findBox({wallType}={}){
-  const boxes=byKind("socket_box");
-  if(!boxes.length)return null;
-  const wanted=wallType||EP_DATA.settings.wallType||"solid";
-  return boxes.find(b=>{const bw=b.wallType||"unknown";return bw===wanted||bw==="unknown";})||null;
-}
-/* Подбор суппорта («планки для модулей») той же серии и модульности, что накладка.
-   Суппортов в каталоге пока нет (kind "support"), поэтому обычно возвращает null —
-   вызывающий покажет «суппорт не подобран», а не подставит случайный. */
-function findSupport({frame,modules}={}){
-  const supports=byKind("support");
-  if(!supports.length)return null;
-  const target=modules||frameSlotCount(frame)||0;
-  const frameSeries=productSeries(frame).map(x=>x.toLocaleLowerCase("ru-RU"));
-  const sameSeries=supports.filter(s=>productSeries(s).map(x=>x.toLocaleLowerCase("ru-RU")).some(v=>frameSeries.includes(v)));
-  const pool=sameSeries.length?sameSeries:supports;
-  return pool.find(s=>Number(s.moduleCount||s.modules||frameSlotCount(s))===target)||null;
-}
+/* Подбор коробки/суппорта — тонкие обёртки над чистым EPPostFit (js/postfit.js):
+   даём ему активные коробки/суппорты из state, ёмкость накладки и тип стены проекта.
+   findBox — точная коробка (стандарт + тип стены + типоразмер); fallbackBox —
+   стандартно-совместимый фолбэк (тип стены как приоритет); оба не противоречат стандарту.
+   Хелперы модуля берут стандарт накладки из поля товара (проставлено при загрузке
+   каталога из колонки standard прайса) и серию через productSeries. */
+const wantedWall=()=>EP_DATA.settings.wallType||"solid";
+const findBox=({frame,standard,modules,wallType}={})=>EPPostFit.findBox({
+  boxes:byKind("socket_box"),frame,standard,modules,frameModules:frameSlotCount(frame),wantedWall:wallType||wantedWall()});
+const fallbackBox=({frame,standard,modules,wallType}={})=>EPPostFit.fallbackBox({
+  boxes:byKind("socket_box"),frame,standard,modules,frameModules:frameSlotCount(frame),wantedWall:wallType||wantedWall()});
+const findSupport=({frame,standard,modules}={})=>EPPostFit.findSupport({
+  supports:byKind("support"),frame,standard,modules,frameModules:frameSlotCount(frame),seriesOf:productSeries});
 /* Единый набор зависимостей для чистой логики поста (EPPosts): каталог, подбор
-   суппорта/коробки и тип стены проекта. Стандарт накладки берётся из поля товара
-   (проставлено при загрузке каталога из колонки standard прайса). */
-const postDeps=()=>({product,frameProduct,socketBox,mechanismSpan,findBox,findSupport,wallType:EP_DATA.settings.wallType});
+   суппорта/коробки (точный findBox + стандартно-совместимый фолбэк fallbackBox) и тип
+   стены проекта. */
+const postDeps=()=>({product,frameProduct,socketBox,mechanismSpan,findBox,fallbackBox,findSupport,wallType:EP_DATA.settings.wallType});
 const postCost=p=>EPPosts.postCost(p,postDeps());
 const postComposition=p=>EPPosts.postComposition(p,postDeps());
 function setTool(tool){
@@ -681,9 +673,12 @@ function showHover(kind,obj,e){
     const p=product(obj.productId);
     hover.innerHTML=`<h4>${esc(p.name)}</h4><dl><dt>Артикул</dt><dd>${esc(p.code)}</dd><dt>Цена</dt><dd>${productMoney(p)}</dd><dt>Высота</dt><dd>${esc(obj.height||"не указана")}</dd></dl>`;
   }else{
-    const frame=frameProduct(obj.frameId),comp=postComposition(obj),boxUnit=comp.box||socketBox();
+    const frame=frameProduct(obj.frameId),comp=postComposition(obj),boxUnit=comp.box||comp.boxFallback;
+    /* Коробки в подсказке: цена подобранной/фолбэк-коробки × число; если совместимой со
+       стандартом коробки нет — честно «не подобрана», без цены (как в составе поста). */
+    const boxCell=boxUnit?`${comp.boxCount} × ${money(boxUnit.price)}`:(comp.boxCount?`${comp.boxCount} шт. — не подобрана`:"—");
     hover.innerHTML=`<h4>${esc(obj.name)}</h4><div class="hover-composition">${obj.mechanismIds.map(id=>`<span class="hover-chip">${esc(product(id)?.name)}</span>`).join("")}</div>
-    <dl><dt>Накладка</dt><dd>${esc(frame?.name)}</dd><dt>Коробки</dt><dd>${comp.boxCount} × ${money(boxUnit?.price||0)}</dd><dt>Стоимость поста</dt><dd>${money(postCost(obj))}</dd></dl>`;
+    <dl><dt>Накладка</dt><dd>${esc(frame?.name)}</dd><dt>Коробки</dt><dd>${boxCell}</dd><dt>Стоимость поста</dt><dd>${money(postCost(obj))}</dd></dl>`;
   }
   hover.classList.add("show");positionHover(e);
 }
@@ -885,6 +880,8 @@ function renderBuilder(){
    разметку, — через esc(); суммы — через money(). Стандарт/подбор считает EPPosts. */
 const WALL_STEP_LABEL={solid:"кирпич / бетон / сплошная",hollow:"полая стена / ГКЛ"};
 const STANDARD_LABEL={IT:"итальянский · одна коробка на сборку",IT_ROUND:"итальянский · круглая коробка",DE:"немецко-французский · коробка на каждый пост",FR:"французский 57 мм · коробка на каждый пост",US:"американский",BOTH:"универсальный",UNKNOWN:"не подтверждён"};
+/* Родительный падеж стандарта для пояснений «нет коробки для … стандарта». */
+const STANDARD_GENITIVE={IT:"итальянского",IT_ROUND:"итальянского (круглая коробка)",DE:"немецко-французского",FR:"французского 57 мм",US:"американского",BOTH:"универсального",UNKNOWN:"не подтверждённого"};
 function renderBuilderComposition(selectedFrame){
   const wall=EP_DATA.settings.wallType||"solid";
   document.querySelectorAll("#postWallType .wall-type-option").forEach(b=>{
@@ -896,21 +893,29 @@ function renderBuilderComposition(selectedFrame){
   if(!selectedFrame){host.innerHTML="";return;}
   const post={frameId:Number($("postFrameSelect").value),mechanismIds:state.builder.mechanismIds};
   const comp=postComposition(post);
+  /* Суппорт: подобран → артикул с ценой; нет → «не подобран» + отдельная приглушённая
+     строка с причиной (никакой подстановки чужого суппорта). */
+  const frameSeriesLabel=productSeries(selectedFrame).join(", ")||"этой серии";
+  const frameMods=frameSlotCount(selectedFrame)||comp.modulesTotal||0;
   const supportRow=comp.support
     ? `<div class="composition-row"><span>Суппорт (планка для модулей)</span><b>${esc(comp.support.name)} · ${money(comp.support.price)}</b></div>`
-    : `<div class="composition-row is-missing"><span>Суппорт (планка для модулей)</span><b>не подобран</b></div>`;
-  const box=comp.box||socketBox();
+    : `<div class="composition-row is-missing"><span>Суппорт (планка для модулей)</span><b>не подобран</b></div>`
+      +`<div class="composition-note">подходящего суппорта серии «${esc(frameSeriesLabel)}» на ${frameMods} мод. нет в каталоге</div>`;
+  /* Коробка: количество и подпись разнесены. Точная (comp.box) → артикул с ценой.
+     Стандартно-совместимый фолбэк (comp.boxFallback) → «подобрана по стандарту» + причина
+     и цена приглушённой строкой. Ничего совместимого со стандартом → «не подобрана» БЕЗ
+     цены (в стоимость коробка не входит), чтобы фолбэк не противоречил стандарту. */
   let boxRow;
   if(!comp.boxCount){
     boxRow=`<div class="composition-row"><span>Монтажная коробка · ${esc(WALL_STEP_LABEL[wall])}</span><b>—</b></div>`;
   }else if(comp.box){
     boxRow=`<div class="composition-row"><span>Монтажная коробка · ${esc(WALL_STEP_LABEL[wall])}</span><b>${comp.boxCount} × ${esc(comp.box.name)} · ${money(comp.box.price)}</b></div>`;
-  }else if(box){
-    /* точная коробка под тип стены не найдена — честно помечаем, а в цене оставляем
-       универсальный подрозетник (не подставляем случайный артикул как «подходящий») */
-    boxRow=`<div class="composition-row is-missing"><span>Монтажная коробка · ${esc(WALL_STEP_LABEL[wall])}</span><b>${comp.boxCount} шт. — точная не подобрана, в цене ${esc(box.name)} · ${money(box.price)}</b></div>`;
+  }else if(comp.boxFallback){
+    boxRow=`<div class="composition-row"><span>Монтажная коробка · ${esc(WALL_STEP_LABEL[wall])} · ${comp.boxCount} шт.</span><b>подобрана по стандарту</b></div>`
+      +`<div class="composition-note">точная коробка под тип стены не найдена — в цене ${esc(comp.boxFallback.name)} · ${money(comp.boxFallback.price)}</div>`;
   }else{
-    boxRow=`<div class="composition-row is-missing"><span>Монтажная коробка · ${esc(WALL_STEP_LABEL[wall])}</span><b>${comp.boxCount} шт. — не подобрана</b></div>`;
+    boxRow=`<div class="composition-row is-missing"><span>Монтажная коробка · ${esc(WALL_STEP_LABEL[wall])} · ${comp.boxCount} шт.</span><b>не подобрана</b></div>`
+      +`<div class="composition-note">подходящей коробки для ${esc(STANDARD_GENITIVE[comp.standard]||"выбранного")} стандарта нет в каталоге</div>`;
   }
   const note=comp.approximate
     ? `<div class="composition-note">Тип стены/стандарт накладки не подтверждён — состав приблизительный (число коробок как раньше).</div>`

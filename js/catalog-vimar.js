@@ -6,11 +6,12 @@ window.EP_VIMAR_CATALOG = {
     "source": "Прайс VIMAR Евро 01.07.26 (2) (2).xls",
     "sourceDate": "2026-07-01",
     "currency": "EUR",
-    "generatedAt": "2026-07-27",
+    "generatedAt": "2026-07-30",
     "mechanisms": 340,
     "verifiedModuleSpans": 340,
     "frames": 58,
-    "socketBoxes": 1
+    "socketBoxes": 15,
+    "supports": 12
   },
   "products": [
     {
@@ -2744,6 +2745,202 @@ window.EP_VIMAR_CATALOG = {
       "moduleSpan": 2
     },
     {
+      "id": 100982,
+      "categoryId": 200,
+      "code": "09602.1",
+      "name": "Суппорт для 2 модулей 71мм с защелками",
+      "kind": "support",
+      "icon": "≡",
+      "price": 2.58,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Neve Up"
+      ],
+      "compatibility": "Neve Up",
+      "properties": {
+        "sourceRow": 982,
+        "sourceDate": "2026-07-01",
+        "packQty": 50,
+        "series": [
+          "Neve Up"
+        ],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/c53/100_100_2/c537a575c45c6e910b41d53ebe037060.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/c53/c537a575c45c6e910b41d53ebe037060.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/supporta/support-dlya-2-moduley-71mm-s-zashchelkami/"
+    },
+    {
+      "id": 100983,
+      "categoryId": 200,
+      "code": "09603.1",
+      "name": "Суппорт на 2 модуля без винтов, межосевое расстояние 71мм",
+      "kind": "support",
+      "icon": "≡",
+      "price": 2.19,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Neve Up"
+      ],
+      "compatibility": "Neve Up",
+      "properties": {
+        "sourceRow": 983,
+        "sourceDate": "2026-07-01",
+        "packQty": 50,
+        "series": [
+          "Neve Up"
+        ],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/131/100_100_2/131707f7ce834934d740390c23d7d667.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/131/131707f7ce834934d740390c23d7d667.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/supporta/support-na-2-modulya-bez-vintov-mezhosevoe-rasstoyanie-71mm/"
+    },
+    {
+      "id": 100984,
+      "categoryId": 200,
+      "code": "09606",
+      "name": "Суппорт на 2 модуля центрально, горизонтальный с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 1.87,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Neve Up"
+      ],
+      "compatibility": "Neve Up",
+      "properties": {
+        "sourceRow": 984,
+        "sourceDate": "2026-07-01",
+        "packQty": 10,
+        "series": [
+          "Neve Up"
+        ],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/62e/100_100_2/62e4a9a5df436c33782801067642b061.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/62e/62e4a9a5df436c33782801067642b061.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/supporta/support-na-2-modulya-tsentralno-gorizontalnyy-s-vintami/"
+    },
+    {
+      "id": 100985,
+      "categoryId": 200,
+      "code": "09607",
+      "name": "Суппорт на 2 модуля центрально,вертикальный с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 1.87,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Neve Up"
+      ],
+      "compatibility": "Neve Up",
+      "properties": {
+        "sourceRow": 985,
+        "sourceDate": "2026-07-01",
+        "packQty": 10,
+        "series": [
+          "Neve Up"
+        ],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/2dd/100_100_2/2ddfc75c2cc0b19d68b34b4949ade523.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/2dd/2ddfc75c2cc0b19d68b34b4949ade523.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/supporta/support-na-2-modulya-tsentralno-vertikalnyy-s-vintami/"
+    },
+    {
+      "id": 100986,
+      "categoryId": 200,
+      "code": "09613",
+      "name": "Суппорт на 3 модуля с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 1.48,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Neve Up"
+      ],
+      "compatibility": "Neve Up",
+      "properties": {
+        "sourceRow": 986,
+        "sourceDate": "2026-07-01",
+        "packQty": 10,
+        "series": [
+          "Neve Up"
+        ],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/481/100_100_2/4815415537f031f654aa9e046811c737.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/481/4815415537f031f654aa9e046811c737.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/supporta/karkas-na-3-modulya-s-vintami/"
+    },
+    {
+      "id": 100988,
+      "categoryId": 200,
+      "code": "09614",
+      "name": "Суппорт на 4 модуля с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 3.75,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Neve Up"
+      ],
+      "compatibility": "Neve Up",
+      "properties": {
+        "sourceRow": 988,
+        "sourceDate": "2026-07-01",
+        "packQty": 40,
+        "series": [
+          "Neve Up"
+        ],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/a1a/100_100_2/a1ad3c516792af93674177c97f544368.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/a1a/a1ad3c516792af93674177c97f544368.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/supporta/support-na-4-modulya-s-vintami/"
+    },
+    {
+      "id": 100989,
+      "categoryId": 200,
+      "code": "09617",
+      "name": "Каркас на 7 модуля с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 7.55,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Neve Up"
+      ],
+      "compatibility": "Neve Up",
+      "properties": {
+        "sourceRow": 989,
+        "sourceDate": "2026-07-01",
+        "packQty": 30,
+        "series": [
+          "Neve Up"
+        ],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/f8c/100_100_2/f8ce968dd396c6f6f8935ed90e59873d.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/f8c/f8ce968dd396c6f6f8935ed90e59873d.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/supporta/support-na-7-moduley-s-vintami/"
+    },
+    {
       "id": 100992,
       "categoryId": 900,
       "code": "09661.01",
@@ -4397,6 +4594,26 @@ window.EP_VIMAR_CATALOG = {
         "width": 62.5,
         "height": 52.5,
         "aspect": 1.66
+      }
+    },
+    {
+      "id": 101190,
+      "categoryId": 200,
+      "code": "09996",
+      "name": "Коробка встраиваемая для 6 (3+3) модулей прямоугольная, синяя",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 9.01,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 1190,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": []
       }
     },
     {
@@ -11690,6 +11907,146 @@ window.EP_VIMAR_CATALOG = {
       "moduleSpan": 1
     },
     {
+      "id": 102814,
+      "categoryId": 200,
+      "code": "16713",
+      "name": "Суппорт для 3 модулей с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 3.74,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Idea"
+      ],
+      "compatibility": "Idea",
+      "properties": {
+        "sourceRow": 2814,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": [
+          "Idea"
+        ],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/a21/100_100_2/a2137250caf6e29b018d820adeda9608.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/a21/a2137250caf6e29b018d820adeda9608.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/supporta-idea/СУППОРТ 3 МОДУЛЯ  С ВИНТАМИ831/"
+    },
+    {
+      "id": 102816,
+      "categoryId": 200,
+      "code": "16714",
+      "name": "Суппорт для 4 модулей с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 8.59,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Idea"
+      ],
+      "compatibility": "Idea",
+      "properties": {
+        "sourceRow": 2816,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": [
+          "Idea"
+        ],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/de1/100_100_2/de118c2e0f4bb55c8a066b34ab03c9a9.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/de1/de118c2e0f4bb55c8a066b34ab03c9a9.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/supporta-idea/СУППОРТ 4 МОДУЛЯ  С ВИНТАМИ832/"
+    },
+    {
+      "id": 102817,
+      "categoryId": 200,
+      "code": "16715",
+      "name": "Суппорт для 5 модулей с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 18.09,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Idea"
+      ],
+      "compatibility": "Idea",
+      "properties": {
+        "sourceRow": 2817,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": [
+          "Idea"
+        ],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/efa/100_100_2/efa169b2b7bc09f51468af719f2ac352.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/efa/efa169b2b7bc09f51468af719f2ac352.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/supporta-idea/СУППОРТ 5 МОДУЛЯ  С ВИНТАМИ833/"
+    },
+    {
+      "id": 102818,
+      "categoryId": 200,
+      "code": "16716",
+      "name": "Суппорт для 6 модулей",
+      "kind": "support",
+      "icon": "≡",
+      "price": 16.34,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Idea"
+      ],
+      "compatibility": "Idea",
+      "properties": {
+        "sourceRow": 2818,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": [
+          "Idea"
+        ],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/b87/100_100_2/b87a92980ea4c624e40b708274c9a5e7.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/b87/b87a92980ea4c624e40b708274c9a5e7.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/supporta-idea/СУППОРТ 6 МОДУЛЯ  С ВИНТАМИ834/"
+    },
+    {
+      "id": 102821,
+      "categoryId": 200,
+      "code": "16722",
+      "name": "Суппорт для 2 модулей с рифлением, без винтов (Треб.07935-2шт), серый",
+      "kind": "support",
+      "icon": "≡",
+      "price": 11.25,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Idea"
+      ],
+      "compatibility": "Idea",
+      "properties": {
+        "sourceRow": 2821,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": [
+          "Idea"
+        ],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/200/100_100_2/200cc6b141b913642f4c211ea91cfd51.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/200/200cc6b141b913642f4c211ea91cfd51.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/supporta-idea/СУППОРТ 2M  С РИФЛЕНИЕМ СЕРЫЙ838/"
+    },
+    {
       "id": 102869,
       "categoryId": 100,
       "code": "16743.01",
@@ -12328,6 +12685,318 @@ window.EP_VIMAR_CATALOG = {
         "imageSource": "Vimar Russia catalogue",
         "series": []
       }
+    },
+    {
+      "id": 107326,
+      "categoryId": 200,
+      "code": "V71303",
+      "name": "Коробка встраиваемая прямоугольная для 3 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 1.04,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7326,
+        "sourceDate": "2026-07-01",
+        "packQty": 15,
+        "series": [],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/ce4/100_100_2/ce4a39732b6e89c396b20674faf966ce.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/ce4/ce4a39732b6e89c396b20674faf966ce.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/montazhnye-korobki/КОРОБКА ВСТРАИВАЕМАЯ ПРЯМОУГ 3 МОДУЛЯ6337/"
+    },
+    {
+      "id": 107328,
+      "categoryId": 200,
+      "code": "V71304",
+      "name": "Коробка встраиваемая прямоугольная для 4 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 4.37,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7328,
+        "sourceDate": "2026-07-01",
+        "packQty": 6,
+        "series": [],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/ae7/100_100_2/ae7fcb82944a556b7ebc6c7bbad9788f.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/ae7/ae7fcb82944a556b7ebc6c7bbad9788f.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/montazhnye-korobki/КОРОБКА ВСТРАИВАЕМАЯ ПРЯМОУГ 4 МОДУЛЯ6339/"
+    },
+    {
+      "id": 107330,
+      "categoryId": 200,
+      "code": "V71305",
+      "name": "Коробка встраиваемая прямоугольная для 5 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 7.61,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7330,
+        "sourceDate": "2026-07-01",
+        "packQty": 6,
+        "series": [],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/upload/resize_cache/iblock/38b/100_100_2/38b043cad4a7864f247833619fce2409.jpg",
+      "imageUrl": "https://vimar.ru/upload/iblock/38b/38b043cad4a7864f247833619fce2409.jpg",
+      "productPageUrl": "https://vimar.ru/catalog/production/montazhnye-korobki/КОРОБКА ВСТРАИВАЕМАЯ ПРЯМОУГ 5 МОДУЛЯ6341/"
+    },
+    {
+      "id": 107332,
+      "categoryId": 200,
+      "code": "V71306",
+      "name": "Коробка встраиваемая прямоугольная для 6-7 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 8.54,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7332,
+        "sourceDate": "2026-07-01",
+        "packQty": 6,
+        "series": [],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "imageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "productPageUrl": "https://vimar.ru/catalog/production/montazhnye-korobki/КОРОБКА ВСТРАИВАЕМАЯ ПРЯМОУГ 6 МОДУЛЯ6343/"
+    },
+    {
+      "id": 107334,
+      "categoryId": 200,
+      "code": "V71318",
+      "name": "Коробка встраиваемая для 8 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 11.87,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7334,
+        "sourceDate": "2026-07-01",
+        "packQty": 10,
+        "series": [],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "imageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "productPageUrl": "https://vimar.ru/catalog/production/montazhnye-korobki/КОРОБКА ВСТРАИВАЕМАЯ 8 МОДУЛЕЙ6345/"
+    },
+    {
+      "id": 107335,
+      "categoryId": 200,
+      "code": "V71320",
+      "name": "Коробка встраиваемая для 12-14 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 13.02,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7335,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": [],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "imageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "productPageUrl": "https://vimar.ru/catalog/production/montazhnye-korobki/КОРОБКА ВСТРАИВАЕМАЯ 12/14 МОДУЛЕЙ6346/"
+    },
+    {
+      "id": 107336,
+      "categoryId": 200,
+      "code": "V71321",
+      "name": "Коробка встраиваемая для 18-21 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 14.69,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7336,
+        "sourceDate": "2026-07-01",
+        "packQty": 10,
+        "series": [],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "imageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "productPageUrl": "https://vimar.ru/catalog/production/prochee/КОРОБКА ВСТРАИВАЕМАЯ 18/21 МОДУЛЬ6347/"
+    },
+    {
+      "id": 107355,
+      "categoryId": 200,
+      "code": "V71701",
+      "name": "Коробка встраиваемая круглая на 1-2 модуля для тонких перегородок",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 7.94,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7355,
+        "sourceDate": "2026-07-01",
+        "packQty": 5,
+        "series": [],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "imageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "productPageUrl": "https://vimar.ru/catalog/production/montazhnye-korobki/%D0%9A%D0%9E%D0%A0%D0%9E%D0%91%D0%9A%D0%90+%D0%92%D0%A1%D0%A2%D0%A0%D0%90%D0%98%D0%92%D0%90%D0%95%D0%9C%D0%90%D0%AF+%D0%9A%D0%A0%D0%A3%D0%93%D0%9B%D0%90%D0%AF+%D0%94%D0%9B%D0%AF+%D0%A2%D0%9E%D0%9D%D0%9A%D0%98%D0%A5+%D0%9F%D0%95%D0%A0%D0%95%D0%93%D0%9E%D0%A0%D0%9E%D0%94%D0%9E%D0%9A6363/"
+    },
+    {
+      "id": 107356,
+      "categoryId": 200,
+      "code": "V71703",
+      "name": "Коробка встраиваемая прямоуг для тонких перегородок 3 модуля",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 6.04,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7356,
+        "sourceDate": "2026-07-01",
+        "packQty": 5,
+        "series": [],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "imageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "productPageUrl": "https://vimar.ru/catalog/production/montazhnye-korobki/%D0%9A%D0%9E%D0%A0%D0%9E%D0%91%D0%9A%D0%90+%D0%92%D0%A1%D0%A2%D0%A0%D0%90%D0%98%D0%92%D0%90%D0%95%D0%9C%D0%90%D0%AF+%D0%9F%D0%A0%D0%AF%D0%9C%D0%9E%D0%A3%D0%93+%D0%94%D0%9B%D0%AF+%D0%A2%D0%9E%D0%9D%D0%9A%D0%98%D0%A5+%D0%9F%D0%95%D0%A0%D0%95%D0%93%D0%9E%D0%A0%D0%9E%D0%94%D0%9E%D0%9A+3+%D0%9C%D0%9E%D0%94%D0%A3%D0%9B%D0%AF6364/"
+    },
+    {
+      "id": 107357,
+      "categoryId": 200,
+      "code": "V71704",
+      "name": "Коробка встраиваемая прямоуг для тонких перегородок 4 модуля",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 8.97,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7357,
+        "sourceDate": "2026-07-01",
+        "packQty": 5,
+        "series": [],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "imageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "productPageUrl": "https://vimar.ru/catalog/production/montazhnye-korobki/%D0%9A%D0%9E%D0%A0%D0%9E%D0%91%D0%9A%D0%90+%D0%92%D0%A1%D0%A2%D0%A0%D0%90%D0%98%D0%92%D0%90%D0%95%D0%9C%D0%90%D0%AF+%D0%9F%D0%A0%D0%AF%D0%9C%D0%9E%D0%A3%D0%93+%D0%94%D0%9B%D0%AF+%D0%A2%D0%9E%D0%9D%D0%9A%D0%98%D0%A5+%D0%9F%D0%95%D0%A0%D0%95%D0%93%D0%9E%D0%A0%D0%9E%D0%94%D0%9E%D0%9A+4+%D0%9C%D0%9E%D0%94%D0%A3%D0%9B%D0%AF6365/"
+    },
+    {
+      "id": 107358,
+      "categoryId": 200,
+      "code": "V71706",
+      "name": "Коробка встраиваемая на 6-7 модулей для тонких перегородок",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 15.02,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7358,
+        "sourceDate": "2026-07-01",
+        "packQty": 5,
+        "series": [],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "imageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "productPageUrl": "https://vimar.ru/catalog/production/montazhnye-korobki/%D0%9A%D0%9E%D0%A0%D0%9E%D0%91%D0%9A%D0%90+%D0%92%D0%A1%D0%A2%D0%A0%D0%90%D0%98%D0%92%D0%90%D0%95%D0%9C%D0%90%D0%AF+%D0%9F%D0%A0%D0%AF%D0%9C%D0%9E%D0%A3%D0%93+%D0%94%D0%9B%D0%AF+%D0%A2%D0%9E%D0%9D%D0%9A%D0%98%D0%A5+%D0%9F%D0%95%D0%A0%D0%95%D0%93%D0%9E%D0%A0%D0%9E%D0%94%D0%9E%D0%9A+6-7+%D0%9C%D0%9E%D0%94%D0%A3%D0%9B%D0%95%D0%996366/"
+    },
+    {
+      "id": 107359,
+      "categoryId": 200,
+      "code": "V71718",
+      "name": "Коробка встраиваемая прямоуг для тонких перегородок 8 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 21.93,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7359,
+        "sourceDate": "2026-07-01",
+        "packQty": 10,
+        "series": [],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "imageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "productPageUrl": "https://vimar.ru/catalog/production/montazhnye-korobki/%D0%9A%D0%9E%D0%A0%D0%9E%D0%91%D0%9A%D0%90+%D0%92%D0%A1%D0%A2%D0%A0%D0%90%D0%98%D0%92%D0%90%D0%95%D0%9C%D0%90%D0%AF+%D0%9F%D0%A0%D0%AF%D0%9C%D0%9E%D0%A3%D0%93+%D0%94%D0%9B%D0%AF+%D0%A2%D0%9E%D0%9D%D0%9A%D0%98%D0%A5+%D0%9F%D0%95%D0%A0%D0%95%D0%93%D0%9E%D0%A0%D0%9E%D0%94%D0%9E%D0%9A+8+%D0%9C%D0%9E%D0%94%D0%A3%D0%9B%D0%95%D0%996367/"
+    },
+    {
+      "id": 107360,
+      "categoryId": 200,
+      "code": "V71720",
+      "name": "Коробка встраиваемая прямоуг для тонких перегородок 12/14 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 26.03,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7360,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": [],
+        "imageSource": "Vimar Russia catalogue"
+      },
+      "previewImageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "imageUrl": "https://vimar.ru/bitrix/templates/vimar/components/bitrix/catalog.section/products/images/no_photo.png",
+      "productPageUrl": "https://vimar.ru/catalog/production/montazhnye-korobki/%D0%9A%D0%9E%D0%A0%D0%9E%D0%91%D0%9A%D0%90+%D0%92%D0%A1%D0%A2%D0%A0%D0%90%D0%98%D0%92%D0%90%D0%95%D0%9C%D0%90%D0%AF+%D0%9F%D0%A0%D0%AF%D0%9C%D0%9E%D0%A3%D0%93+%D0%94%D0%9B%D0%AF+%D0%A2%D0%9E%D0%9D%D0%9A%D0%98%D0%A5+%D0%9F%D0%95%D0%A0%D0%95%D0%93%D0%9E%D0%A0%D0%9E%D0%94%D0%9E%D0%9A+12%2F14+%D0%9C%D0%9E%D0%94%D0%A3%D0%9B%D0%95%D0%996368/"
     }
   ]
 };

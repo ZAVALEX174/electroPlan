@@ -73,8 +73,15 @@ function postComposition(post, deps) {
   const support = deps.findSupport
     ? deps.findSupport({ frame, standard, modules, series: frame && frame.series }) || null
     : null;
+  const wanted = deps.wallType || "unknown";
   const box = deps.findBox
-    ? deps.findBox({ frame, standard, modules, postCount, wallType: deps.wallType || "unknown" }) || null
+    ? deps.findBox({ frame, standard, modules, postCount, wallType: wanted }) || null
+    : null;
+  /* Стандартно-совместимый фолбэк коробки (не противоречит стандарту накладки): нужен
+     лишь когда точной коробки под тип стены/типоразмер не нашлось. Приложение гарантирует
+     совместимость по стандарту; нет и его — коробка в смету не попадёт (честный пробел). */
+  const boxFallback = !box && deps.fallbackBox
+    ? deps.fallbackBox({ frame, standard, modules, postCount, wallType: wanted }) || null
     : null;
   return {
     frame, standard, model,
@@ -84,20 +91,24 @@ function postComposition(post, deps) {
     boxUnit: model === "post" ? "post" : model === "assembly" ? "assembly" : "place",
     postCount,
     support,
-    box
+    box,
+    boxFallback
   };
 }
 
 /* Стоимость поста = механизмы + накладка + суппорт (если подобран) + коробки.
-   Число коробок берётся из состава (postComposition), цена коробки — подобранная,
-   иначе универсальный подрозетник socketBox(). При старом наборе deps (без
-   standardOf/findSupport/findBox) стандарт = unknown, суппорт не находится, а число
-   коробок = числу механизмов — то есть поведение полностью совпадает с прежним. */
+   Цена коробки: точная (comp.box) → её цена; иначе стандартно-совместимый фолбэк
+   (comp.boxFallback) — приложение гарантирует, что он не противоречит стандарту накладки.
+   Нет ни того, ни другого — цена коробки НЕ добавляется: честный пробел в смете лучше
+   правдоподобно неверной суммы (требование владельца — фолбэк не должен противоречить
+   стандарту). Старый набор deps без fallbackBox сохраняет прежнее поведение через
+   socketBox() — регресс-совместимость со старыми проектами и вызовами. */
 function postCost(post, deps) {
   const comp = postComposition(post, deps);
   const mechSum = (post.mechanismIds || []).reduce((s, id) => s + price(deps.product(id)), 0);
-  const boxUnitPrice = price(comp.box || (deps.socketBox ? deps.socketBox() : null));
-  return mechSum + price(comp.frame) + price(comp.support) + boxUnitPrice * comp.boxCount;
+  let boxUnit = comp.box || comp.boxFallback;
+  if (!boxUnit && !deps.fallbackBox && deps.socketBox) boxUnit = deps.socketBox();
+  return mechSum + price(comp.frame) + price(comp.support) + price(boxUnit) * comp.boxCount;
 }
 
 /* Отбирает из ids столько механизмов (по порядку), сколько влезает в capacity

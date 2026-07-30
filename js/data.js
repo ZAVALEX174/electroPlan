@@ -40,14 +40,27 @@ window.EP_DATA = {
      (стандарт → unknown, тип стены → не подтверждён), приложение это переживает. */
   products: (function enrichCatalog(){
     const list = window.EP_VIMAR_CATALOG?.products || [];
-    const attrs = window.EP_VIMAR_ATTRS || {standards:{},wallTypes:{}};
+    const attrs = window.EP_VIMAR_ATTRS || {standards:{},supports:{},wallTypes:{},boxes:{}};
+    const supports = attrs.supports || {};
+    const boxes = attrs.boxes || {};
     return list.map(p => {
       if (p.kind === "frame" && attrs.standards[p.code]) {
         const a = attrs.standards[p.code];
         return {...p, standard: a.standard, postCount: a.postCount};
       }
-      if (p.kind === "socket_box" && attrs.wallTypes[p.code]) {
-        return {...p, wallType: attrs.wallTypes[p.code]};
+      // Суппорт: стандарт + число модулей + межосевой шаг — для findSupport (подбор
+      // планки той же серии, модульности и стандарта, что накладка).
+      if (p.kind === "support" && supports[p.code]) {
+        const a = supports[p.code];
+        return {...p, standard: a.standard, moduleCount: a.modules, pitchMm: a.pitchMm};
+      }
+      // Коробка: тип стены + форма + число модулей + совместимые стандарты — для findBox.
+      // boxStandards отделено от standard накладки: у коробки это СПИСОК (круглая годна
+      // под IT_ROUND/DE/FR, прямоугольная — под IT), фолбэк по нему не противоречит стандарту.
+      if (p.kind === "socket_box") {
+        const b = boxes[p.code];
+        if (b) return {...p, wallType: b.wallType, boxShape: b.shape, boxModules: b.modules, boxStandards: b.standards};
+        if (attrs.wallTypes[p.code]) return {...p, wallType: attrs.wallTypes[p.code]};
       }
       return p;
     });

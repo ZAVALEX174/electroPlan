@@ -187,6 +187,7 @@ async function main() {
     verifiedModuleSpans: products.filter((p) => p.moduleSpan != null).length,
     frames: kindCount("frame"),
     socketBoxes: kindCount("socket_box"),
+    supports: kindCount("support"),
   };
 
   const banner =
@@ -198,7 +199,7 @@ async function main() {
   console.log("Готово:", path.relative(repoRoot, OUT));
   console.log(`  курация:            ${curation.length} позиций`);
   console.log(`  собрано в каталог:  ${products.length}`);
-  console.log(`  по типам:           mechanism=${meta.mechanisms}, frame=${meta.frames}, socket_box=${meta.socketBoxes}`);
+  console.log(`  по типам:           mechanism=${meta.mechanisms}, frame=${meta.frames}, socket_box=${meta.socketBoxes}, support=${meta.supports}`);
   console.log(`  с картинкой:        ${products.filter((p) => p.imageUrl).length}`);
   if (missing.length) {
     console.log(`  ! НЕТ В ПРАЙСЕ:     ${missing.length} — ${missing.slice(0, 15).join(", ")}${missing.length > 15 ? " …" : ""}`);

@@ -100,6 +100,27 @@ test("подобранная коробка задаёт цену коробки
   near(postCost(post, deps), 3 * 4.30 + 3.0 + 1 * 1.2, "цена по подобранной коробке");
 });
 
+test("фолбэк-коробка (findBox=null, fallbackBox есть) идёт в цену вместо socketBox", () => {
+  const post = { frameId: 14653, mechanismIds: [1, 1, 1] };
+  const deps = baseDeps({ findBox: () => null, fallbackBox: () => CATALOG[71303] });   // 1.2 €
+  const comp = postComposition(post, deps);
+  assert.equal(comp.box, null, "точная коробка не найдена");
+  assert.equal(comp.boxFallback && comp.boxFallback.code, "V71303");
+  near(postCost(post, deps), 3 * 4.30 + 3.0 + 1 * 1.2, "в цене фолбэк, а не socketBox 0.85");
+});
+
+test("ДЕФЕКТ-1: нет совместимой коробки (fallbackBox=null) — цена коробки НЕ добавляется", () => {
+  /* Раньше сюда подставлялся socketBox() (круглый V71001) даже под IT-накладку — цена
+     заведомо неподходящего изделия. Теперь при наличии fallbackBox в deps socketBox
+     как фолбэк не используется: нет коробки — нет цены коробки. */
+  const post = { frameId: 14653, mechanismIds: [1, 1, 1] };
+  const deps = baseDeps({ findBox: () => null, fallbackBox: () => null });
+  const comp = postComposition(post, deps);
+  assert.equal(comp.box, null);
+  assert.equal(comp.boxFallback, null);
+  near(postCost(post, deps), 3 * 4.30 + 3.0, "без цены коробки (socketBox 0.85 НЕ добавлен)");
+});
+
 test("пустой пост — ноль коробок, нулевая стоимость коробок", () => {
   const post = { frameId: 14653, mechanismIds: [] };
   assert.equal(postComposition(post, baseDeps()).boxCount, 0);

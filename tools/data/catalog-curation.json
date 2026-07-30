@@ -1,7 +1,7 @@
 {
   "note": "Кураторский снимок каталога VIMAR для ElectroPlan: полный набор позиций и их СТАБИЛЬНЫХ атрибутов (тип, категория, иконка, серия, геометрия slotCount/mountRect, module span). Извлечено из js/catalog-vimar.js 2026-07-27. Изменчивые поля (name, price, packQty, id, картинки) конвертер обновляет из прайса — их значения здесь лишь базовый снимок. Добавляйте/удаляйте позиции здесь; правьте геометрию/тип здесь.",
   "extractedAt": "2026-07-27",
-  "count": 399,
+  "count": 425,
   "products": [
     {
       "id": 100766,
@@ -12317,6 +12317,574 @@
         "packQty": 10,
         "imageSource": "Vimar Russia catalogue",
         "series": []
+      }
+    },
+    {
+      "id": 107326,
+      "categoryId": 200,
+      "code": "V71303",
+      "name": "Коробка встраиваемая прямоугольная для 3 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 1.04,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7326,
+        "sourceDate": "2026-07-01",
+        "packQty": 15,
+        "series": []
+      }
+    },
+    {
+      "id": 107328,
+      "categoryId": 200,
+      "code": "V71304",
+      "name": "Коробка встраиваемая прямоугольная для 4 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 4.37,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7328,
+        "sourceDate": "2026-07-01",
+        "packQty": 6,
+        "series": []
+      }
+    },
+    {
+      "id": 107330,
+      "categoryId": 200,
+      "code": "V71305",
+      "name": "Коробка встраиваемая прямоугольная для 5 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 7.61,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7330,
+        "sourceDate": "2026-07-01",
+        "packQty": 6,
+        "series": []
+      }
+    },
+    {
+      "id": 107332,
+      "categoryId": 200,
+      "code": "V71306",
+      "name": "Коробка встраиваемая прямоугольная для 6-7 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 8.54,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7332,
+        "sourceDate": "2026-07-01",
+        "packQty": 6,
+        "series": []
+      }
+    },
+    {
+      "id": 107334,
+      "categoryId": 200,
+      "code": "V71318",
+      "name": "Коробка встраиваемая для 8 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 11.87,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7334,
+        "sourceDate": "2026-07-01",
+        "packQty": 10,
+        "series": []
+      }
+    },
+    {
+      "id": 107335,
+      "categoryId": 200,
+      "code": "V71320",
+      "name": "Коробка встраиваемая для 12-14 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 13.02,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7335,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": []
+      }
+    },
+    {
+      "id": 107336,
+      "categoryId": 200,
+      "code": "V71321",
+      "name": "Коробка встраиваемая для 18-21 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 14.69,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7336,
+        "sourceDate": "2026-07-01",
+        "packQty": 10,
+        "series": []
+      }
+    },
+    {
+      "id": 101190,
+      "categoryId": 200,
+      "code": "09996",
+      "name": "Коробка встраиваемая для 6 (3+3) модулей прямоугольная, синяя",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 9.01,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 1190,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": []
+      }
+    },
+    {
+      "id": 107356,
+      "categoryId": 200,
+      "code": "V71703",
+      "name": "Коробка встраиваемая прямоуг для тонких перегородок 3 модуля",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 6.04,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7356,
+        "sourceDate": "2026-07-01",
+        "packQty": 5,
+        "series": []
+      }
+    },
+    {
+      "id": 107357,
+      "categoryId": 200,
+      "code": "V71704",
+      "name": "Коробка встраиваемая прямоуг для тонких перегородок 4 модуля",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 8.97,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7357,
+        "sourceDate": "2026-07-01",
+        "packQty": 5,
+        "series": []
+      }
+    },
+    {
+      "id": 107358,
+      "categoryId": 200,
+      "code": "V71706",
+      "name": "Коробка встраиваемая на 6-7 модулей для тонких перегородок",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 15.02,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7358,
+        "sourceDate": "2026-07-01",
+        "packQty": 5,
+        "series": []
+      }
+    },
+    {
+      "id": 107359,
+      "categoryId": 200,
+      "code": "V71718",
+      "name": "Коробка встраиваемая прямоуг для тонких перегородок 8 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 21.93,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7359,
+        "sourceDate": "2026-07-01",
+        "packQty": 10,
+        "series": []
+      }
+    },
+    {
+      "id": 107360,
+      "categoryId": 200,
+      "code": "V71720",
+      "name": "Коробка встраиваемая прямоуг для тонких перегородок 12/14 модулей",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 26.03,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7360,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": []
+      }
+    },
+    {
+      "id": 107355,
+      "categoryId": 200,
+      "code": "V71701",
+      "name": "Коробка встраиваемая круглая на 1-2 модуля для тонких перегородок",
+      "kind": "socket_box",
+      "icon": "○",
+      "price": 7.94,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [],
+      "compatibility": "",
+      "properties": {
+        "sourceRow": 7355,
+        "sourceDate": "2026-07-01",
+        "packQty": 5,
+        "series": []
+      }
+    },
+    {
+      "id": 100982,
+      "categoryId": 200,
+      "code": "09602.1",
+      "name": "Суппорт для 2 модулей 71мм с защелками",
+      "kind": "support",
+      "icon": "≡",
+      "price": 2.58,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Neve Up"
+      ],
+      "compatibility": "Neve Up",
+      "properties": {
+        "sourceRow": 982,
+        "sourceDate": "2026-07-01",
+        "packQty": 50,
+        "series": [
+          "Neve Up"
+        ]
+      }
+    },
+    {
+      "id": 100983,
+      "categoryId": 200,
+      "code": "09603.1",
+      "name": "Суппорт на 2 модуля без винтов, межосевое расстояние 71мм",
+      "kind": "support",
+      "icon": "≡",
+      "price": 2.19,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Neve Up"
+      ],
+      "compatibility": "Neve Up",
+      "properties": {
+        "sourceRow": 983,
+        "sourceDate": "2026-07-01",
+        "packQty": 50,
+        "series": [
+          "Neve Up"
+        ]
+      }
+    },
+    {
+      "id": 100984,
+      "categoryId": 200,
+      "code": "09606",
+      "name": "Суппорт на 2 модуля центрально, горизонтальный с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 1.87,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Neve Up"
+      ],
+      "compatibility": "Neve Up",
+      "properties": {
+        "sourceRow": 984,
+        "sourceDate": "2026-07-01",
+        "packQty": 10,
+        "series": [
+          "Neve Up"
+        ]
+      }
+    },
+    {
+      "id": 100985,
+      "categoryId": 200,
+      "code": "09607",
+      "name": "Суппорт на 2 модуля центрально,вертикальный с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 1.87,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Neve Up"
+      ],
+      "compatibility": "Neve Up",
+      "properties": {
+        "sourceRow": 985,
+        "sourceDate": "2026-07-01",
+        "packQty": 10,
+        "series": [
+          "Neve Up"
+        ]
+      }
+    },
+    {
+      "id": 100986,
+      "categoryId": 200,
+      "code": "09613",
+      "name": "Суппорт на 3 модуля с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 1.48,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Neve Up"
+      ],
+      "compatibility": "Neve Up",
+      "properties": {
+        "sourceRow": 986,
+        "sourceDate": "2026-07-01",
+        "packQty": 10,
+        "series": [
+          "Neve Up"
+        ]
+      }
+    },
+    {
+      "id": 100988,
+      "categoryId": 200,
+      "code": "09614",
+      "name": "Суппорт на 4 модуля с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 3.75,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Neve Up"
+      ],
+      "compatibility": "Neve Up",
+      "properties": {
+        "sourceRow": 988,
+        "sourceDate": "2026-07-01",
+        "packQty": 40,
+        "series": [
+          "Neve Up"
+        ]
+      }
+    },
+    {
+      "id": 100989,
+      "categoryId": 200,
+      "code": "09617",
+      "name": "Каркас на 7 модуля с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 7.55,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Neve Up"
+      ],
+      "compatibility": "Neve Up",
+      "properties": {
+        "sourceRow": 989,
+        "sourceDate": "2026-07-01",
+        "packQty": 30,
+        "series": [
+          "Neve Up"
+        ]
+      }
+    },
+    {
+      "id": 102814,
+      "categoryId": 200,
+      "code": "16713",
+      "name": "Суппорт для 3 модулей с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 3.74,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Idea"
+      ],
+      "compatibility": "Idea",
+      "properties": {
+        "sourceRow": 2814,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": [
+          "Idea"
+        ]
+      }
+    },
+    {
+      "id": 102816,
+      "categoryId": 200,
+      "code": "16714",
+      "name": "Суппорт для 4 модулей с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 8.59,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Idea"
+      ],
+      "compatibility": "Idea",
+      "properties": {
+        "sourceRow": 2816,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": [
+          "Idea"
+        ]
+      }
+    },
+    {
+      "id": 102817,
+      "categoryId": 200,
+      "code": "16715",
+      "name": "Суппорт для 5 модулей с винтами",
+      "kind": "support",
+      "icon": "≡",
+      "price": 18.09,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Idea"
+      ],
+      "compatibility": "Idea",
+      "properties": {
+        "sourceRow": 2817,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": [
+          "Idea"
+        ]
+      }
+    },
+    {
+      "id": 102818,
+      "categoryId": 200,
+      "code": "16716",
+      "name": "Суппорт для 6 модулей",
+      "kind": "support",
+      "icon": "≡",
+      "price": 16.34,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Idea"
+      ],
+      "compatibility": "Idea",
+      "properties": {
+        "sourceRow": 2818,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": [
+          "Idea"
+        ]
+      }
+    },
+    {
+      "id": 102821,
+      "categoryId": 200,
+      "code": "16722",
+      "name": "Суппорт для 2 модулей с рифлением, без винтов (Треб.07935-2шт), серый",
+      "kind": "support",
+      "icon": "≡",
+      "price": 11.25,
+      "currency": "EUR",
+      "unit": "шт.",
+      "active": true,
+      "series": [
+        "Idea"
+      ],
+      "compatibility": "Idea",
+      "properties": {
+        "sourceRow": 2821,
+        "sourceDate": "2026-07-01",
+        "packQty": 20,
+        "series": [
+          "Idea"
+        ]
       }
     }
   ]
