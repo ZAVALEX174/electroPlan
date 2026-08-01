@@ -52,14 +52,25 @@ function build(input) {
   posts.forEach((po) => {
     const comp = postComposition ? postComposition(po) : null;
     const boxes = comp ? comp.boxCount : (po.mechanismIds || []).length;
+    /* Группируем посты ПО СОСТАВУ (накладка + набор механизмов), а не по имени/номеру.
+       Раньше ключом было имя поста; теперь у каждого размещённого поста свой сквозной
+       номер, и по номеру одинаковые посты перестали бы сходиться — смета раздулась бы
+       в строку на каждый пост. Номера используются в разделе «Раскладка постов», где
+       каждый пост показан отдельно; в позиционной спецификации идентичные посты — одна
+       строка с количеством. Суппорт/коробка производны от накладки+механизмов+типа стены
+       (тип стены на смету один), поэтому в ключ достаточно накладки и мультимножества
+       механизмов. */
+    const key = "p" + po.frameId + ":" + [...(po.mechanismIds || [])].map(Number).sort((a, b) => a - b).join(",");
     lines.push({
-      key: "p" + po.name,
+      key,
       name: po.name,
+      /* Порядок состава — как при сборке и как у заказчика: механизмы → суппорт →
+         коробка → накладка (раньше был обратный). */
       composition: [
-        frameProduct(po.frameId) && frameProduct(po.frameId).name,
+        ...(po.mechanismIds || []).map((id) => product(id) && product(id).name),
         comp && comp.support && `суппорт ${comp.support.name}`,
         `${boxes} подрозетн.`,
-        ...(po.mechanismIds || []).map((id) => product(id) && product(id).name)
+        frameProduct(po.frameId) && frameProduct(po.frameId).name
       ].filter(Boolean).join(", "),
       unit: "компл.",
       price: postCost(po)

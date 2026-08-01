@@ -111,6 +111,79 @@ function postCost(post, deps) {
   return mechSum + price(comp.frame) + price(comp.support) + price(boxUnit) * comp.boxCount;
 }
 
+/* Раскладка механизмов по модулям поста: слева направо, каждый механизм занимает
+   span модулей и получает точную позицию. Одномодульный → «2», двухмодульный → «2–3».
+   Это та самая нумерация, что конструктор рисует в слотах (renderBuilder/slot-number) —
+   вынесена сюда, чтобы лист монтажника и конструктор считали её ОДНИМ кодом (не дублируя).
+   Возвращает [{id, item, span, start, end, label}]. Отсутствующий в каталоге механизм
+   считаем за 1 модуль (в конструкторе такого не бывает — ids уже отфильтрованы; в листе
+   монтажника это честнее нуля, который слил бы соседние позиции в один номер).
+   deps = { product(id), mechanismSpan(item) }. */
+function moduleLayout(mechanismIds, deps) {
+  const product = deps.product || (() => null);
+  const span = deps.mechanismSpan || (() => 1);
+  let cursor = 1;
+  return (mechanismIds || []).map(id => {
+    const item = product(id);
+    const s = Number(span(item)) || 1;
+    const start = cursor, end = start + s - 1;
+    cursor = end + 1;
+    return { id, item, span: s, start, end, label: start === end ? String(start) : `${start}–${end}` };
+  });
+}
+
+/* Функциональное слово для наполнения поста («Розетка», «Выключатель») — читаемая
+   замена списку артикулов в КП. Берём ПЕРВОЕ значимое слово названия: functionalGroup
+   прайса слишком крупная (выключатель, переключатель и инвертор — все «управление светом»),
+   а заказчик их различает. Ведущие количественные/уточняющие слова («Две», «Пара»,
+   «Механизм…») пропускаем, частые родительные формы приводим к именительному. Эвристика
+   по названию — не идеал; при появлении явной колонки типа в номенклатуре её и возьмём
+   (поле item.fillWord имеет приоритет — точка расширения без правки логики). */
+const FILL_SKIP = new Set(["механизм", "две", "два", "пара", "одна", "один", "широкая", "узкая", "двойная", "тройная"]);
+const FILL_NORMALIZE = { "выключателя": "Выключатель", "переключателя": "Переключатель", "инвертора": "Инвертор", "кнопки": "Кнопка", "розетки": "Розетка", "диммера": "Диммер" };
+function fillWord(item) {
+  if (!item) return "Элемент";
+  if (item.fillWord) return String(item.fillWord);
+  const words = String(item.name || "").trim().split(/[\s,]+/).filter(Boolean);
+  let i = 0;
+  while (i < words.length - 1 && FILL_SKIP.has(words[i].toLowerCase())) i++;
+  const raw = words[i] || "";
+  if (!raw) return "Элемент";
+  const norm = FILL_NORMALIZE[raw.toLowerCase()];
+  return norm || raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+/* Наполнение поста словами с количеством: [{word, count}] в порядке первого появления.
+   «Розетка — 2, Выключатель — 1» вместо простыни артикулов (форматирование — за
+   представлением, здесь только свод). deps = { product(id) }. */
+function fillSummary(mechanismIds, deps) {
+  const product = deps.product || (() => null);
+  const order = [], map = new Map();
+  (mechanismIds || []).forEach(id => {
+    const word = fillWord(product(id));
+    if (!map.has(word)) { map.set(word, { word, count: 0 }); order.push(word); }
+    map.get(word).count++;
+  });
+  return order.map(word => map.get(word));
+}
+
+/* Следующий номер поста = максимум существующих + 1. Номер закрепляется за постом
+   при создании и НЕ переиспользуется: удаление поста не сдвигает номера остальных
+   (иначе ранее распечатанные документы разошлись бы с экраном). Осознанно привести
+   нумерацию к 1..N — отдельной командой «перенумеровать» в приложении. */
+function nextPostNumber(posts) {
+  return (posts || []).reduce((max, p) => Math.max(max, Number(p && p.number) || 0), 0) + 1;
+}
+
+/* Проставляет номера постам, у которых их нет (миграция старых проектов — они
+   сохранялись без номеров). Существующие номера не трогаем, недостающие выдаём по
+   порядку массива, продолжая от максимума, — стабильно между открытиями проекта. */
+function ensurePostNumbers(posts) {
+  let next = nextPostNumber(posts);
+  (posts || []).forEach(p => { if (!(Number(p.number) > 0)) p.number = next++; });
+  return posts;
+}
+
 /* Отбирает из ids столько механизмов (по порядку), сколько влезает в capacity
    модулей рамки; чужие для items и не влезающие отбрасываются.
    deps = { product(id), mechanismSpan(item) }. */
@@ -149,7 +222,8 @@ function fitMechanismIdsPreserving(ids, items, capacity, pinnedIndex, deps) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { postCost, postComposition, boxCount, fitMechanismIds, fitMechanismIdsPreserving };
+const api = { postCost, postComposition, boxCount, fitMechanismIds, fitMechanismIdsPreserving,
+  moduleLayout, fillWord, fillSummary, nextPostNumber, ensurePostNumbers };
 if (typeof window !== "undefined") window.EPPosts = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

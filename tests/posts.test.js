@@ -4,7 +4,8 @@
    поэтому браузер поднимать не нужно. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { postCost, postComposition, boxCount } = require("../js/posts.js");
+const { postCost, postComposition, boxCount,
+  moduleLayout, fillWord, fillSummary, nextPostNumber, ensurePostNumbers } = require("../js/posts.js");
 
 /* Каталог-заглушка на реальных артикулах VIMAR. Накладки (kind frame) несут стандарт
    и число постов ровно так, как их проставит загрузчик из колонок прайса.
@@ -129,4 +130,52 @@ test("пустой пост — ноль коробок, нулевая стои
 test("boxCount экспортируется и считает независимо", () => {
   assert.equal(boxCount({ mechanismIds: [1, 1, 1] }, product(14653), "IT", baseDeps()), 1);
   assert.equal(boxCount({ mechanismIds: [2, 2] }, product(14643), "DE", baseDeps()), 2);
+});
+
+/* --- Раскладка модулей: точная позиция «2» / «2–3» (та же, что в конструкторе) --- */
+test("moduleLayout: одномодульный даёт «N», двухмодульный — «N–M»", () => {
+  const layout = moduleLayout([1, 2, 1], { product, mechanismSpan });   // 1М, 2М, 1М
+  assert.deepEqual(layout.map(s => s.label), ["1", "2–3", "4"], "многомодульный механизм занимает диапазон");
+  assert.deepEqual(layout.map(s => [s.start, s.end]), [[1, 1], [2, 3], [4, 4]]);
+  assert.equal(layout[1].span, 2, "span берётся из механизма");
+});
+
+test("moduleLayout: отсутствующий в каталоге механизм считается за 1 модуль (не сливает соседей)", () => {
+  const layout = moduleLayout([1, 777, 1], { product, mechanismSpan });   // 777 нет в каталоге
+  assert.deepEqual(layout.map(s => s.label), ["1", "2", "3"], "пропущенный товар не обнуляет позицию");
+});
+
+/* --- Наполнение словами с количеством: «Розетка — 2, Выключатель — 1» --- */
+test("fillWord: первое значимое слово названия, стоп-слова и родительный отбрасываются", () => {
+  assert.equal(fillWord({ name: "Розетка 2P+T 16A" }), "Розетка");
+  assert.equal(fillWord({ name: "Две  кнопки взаимоблокируемые" }), "Кнопка", "ведущее «Две» пропускается, форма нормализуется");
+  assert.equal(fillWord({ name: "Механизм выключателя 1П 16AX" }), "Выключатель", "родительный → именительный");
+  assert.equal(fillWord({ name: "нечто", fillWord: "Инвертор" }), "Инвертор", "явное поле имеет приоритет");
+});
+
+test("fillSummary: свод по типам с количеством в порядке первого появления", () => {
+  const cat = {
+    10: { id: 10, name: "Розетка 2P+T 16A", moduleSpan: 2 },
+    11: { id: 11, name: "Выключатель 1П 16AX", moduleSpan: 1 }
+  };
+  const deps = { product: id => cat[id] };
+  assert.deepEqual(fillSummary([10, 11, 10], deps), [
+    { word: "Розетка", count: 2 },
+    { word: "Выключатель", count: 1 }
+  ]);
+});
+
+/* --- Сквозная нумерация постов: закрепляется при создании, стабильна --- */
+test("nextPostNumber: максимум существующих + 1 (не переиспользует удалённые)", () => {
+  assert.equal(nextPostNumber([]), 1, "первый пост — №1");
+  assert.equal(nextPostNumber([{ number: 1 }, { number: 3 }]), 4, "после удаления №2 следующий — №4, номера не прыгают");
+});
+
+test("ensurePostNumbers: миграция старого проекта — недостающие номера по порядку, существующие не трогаются", () => {
+  const posts = [{ number: 5 }, {}, { number: 2 }, {}];
+  ensurePostNumbers(posts);
+  assert.deepEqual(posts.map(p => p.number), [5, 6, 2, 7], "новые продолжают от максимума, старые на месте");
+  const fresh = [{}, {}, {}];
+  ensurePostNumbers(fresh);
+  assert.deepEqual(fresh.map(p => p.number), [1, 2, 3], "проект без номеров — 1..N в порядке массива");
 });

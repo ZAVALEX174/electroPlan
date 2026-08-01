@@ -103,6 +103,34 @@ test("посты входят в смету комплектами", () => {
   assert.match(e.groups[0].composition, /2 подрозетн\./, "и число подрозетников");
 });
 
+test("посты группируются ПО СОСТАВУ, а не по имени/номеру", () => {
+  /* два поста с одинаковым составом, но разными номерами (номер теперь идентификатор
+     размещённого поста) должны сойтись в ОДНУ строку сметы — иначе она раздувается */
+  const a = { number: 1, name: "Пост № 1", frameId: 2, mechanismIds: [1, 1] };
+  const b = { number: 2, name: "Пост № 2", frameId: 2, mechanismIds: [1, 1] };
+  const e = run({ posts: [a, b], postCost: () => 33 });
+  assert.equal(e.groups.length, 1, "одинаковый состав → одна позиция");
+  assert.equal(e.groups[0].count, 2, "с количеством 2");
+  near(e.groups[0].sum, 66, "сумма — по обоим постам");
+});
+
+test("посты с РАЗНЫМ составом не сливаются, даже если имя одно", () => {
+  const a = { name: "Пост", frameId: 2, mechanismIds: [1, 1] };
+  const b = { name: "Пост", frameId: 2, mechanismIds: [1] };
+  const e = run({ posts: [a, b], postCost: () => 10 });
+  assert.equal(e.groups.length, 2, "разный набор механизмов → разные позиции");
+});
+
+test("порядок состава: механизмы → суппорт → коробка → накладка", () => {
+  const post = { name: "Пост", frameId: 2, mechanismIds: [1] };   // механизм «Розетка», рамка «Канал»
+  const comp = { boxCount: 1, support: { name: "Суппорт X" } };
+  const e = run({ posts: [post], postCost: () => 1, postComposition: () => comp });
+  const c = e.groups[0].composition;
+  assert.ok(c.indexOf("Розетка") < c.indexOf("Суппорт X"), "механизмы раньше суппорта");
+  assert.ok(c.indexOf("Суппорт X") < c.indexOf("подрозетн"), "суппорт раньше коробки");
+  assert.ok(c.indexOf("подрозетн") < c.indexOf("Канал"), "коробка раньше накладки");
+});
+
 test("нулевые проценты дают чистое оборудование", () => {
   const e = run({
     devices: [{ productId: 1 }],

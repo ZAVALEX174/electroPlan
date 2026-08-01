@@ -158,6 +158,11 @@ const findSupport=({frame,standard,modules}={})=>EPPostFit.findSupport({
 const postDeps=()=>({product,frameProduct,socketBox,mechanismSpan,findBox,fallbackBox,findSupport,wallType:EP_DATA.settings.wallType});
 const postCost=p=>EPPosts.postCost(p,postDeps());
 const postComposition=p=>EPPosts.postComposition(p,postDeps());
+/* Размещённый пост опознаётся сквозным НОМЕРОМ (решение владельца 01.08): номер —
+   основной идентификатор вместо имени. Номер закрепляется за постом при создании и не
+   переиспользуется (удаление не сдвигает чужие номера), привести к 1..N — команда
+   «Перенумеровать». Шаблоны в библиотеке остаются с именами — там номера смысла не имеют. */
+const postNumberLabel=p=>`Пост № ${p&&p.number!=null?p.number:"—"}`;
 function setTool(tool){
   state.tool=tool;state.pending=null;state.wallPoints=[];canvas.classList.remove("placing");
   /* выход из режима разметки сбрасывает незавершённую цепочку и подсветку */
@@ -184,6 +189,7 @@ async function init(){
   state.templates=await DataService.getSavedPosts();
   const restored=await restoreProject();
   loadCachedRate();
+  fillDocHeaderInputs();   /* реквизиты КП: заполнить поля (и дату «сегодня» на чистом старте) */
   renderCatalog();renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();
   applyGridStyle();syncMarkupControls();updateZoomUi();applyView();   /* сетка/переключатели/зум/вид — из state (в т.ч. восстановленного) */
   _autosaveOn=true;   /* включаем ПОСЛЕ восстановления, иначе пустой старт затрёт сохранённое */
@@ -234,7 +240,9 @@ function compactIcon(entity,kind){
   el.className="plan-icon "+(kind==="post"?"post ":"")+(state.selected?.kind===kind&&state.selected.id===entity.id?"selected":"");
   el.style.left=entity.x+"px";el.style.top=entity.y+"px";
   if(kind==="device") el.textContent=product(entity.productId)?.icon||"?";
-  if(kind==="post"){el.textContent="P";el.dataset.count=entity.mechanismIds.length}
+  /* метка поста = его сквозной номер (раньше рисовали «P» + число мест) — чтобы номер
+     на плане совпадал с раскладкой постов, листом монтажника и КП */
+  if(kind==="post")el.textContent=entity.number!=null?String(entity.number):"?";
   el.onclick=e=>{e.stopPropagation();if(state.tool==="delete")removeEntity(kind,entity.id);else selectEntity(kind,entity.id)};
   el.onmouseenter=e=>showHover(kind,entity,e);el.onmousemove=positionHover;el.onmouseleave=hideHover;
   makeDraggable(el,entity,kind);return el;
@@ -718,7 +726,7 @@ function recalculateRoomAssignments(){
 function getObjectsInRoom(roomId){
   const result=[];
   state.devices.forEach(d=>{if(d.roomId===roomId)result.push({kind:"device",entity:d,name:product(d.productId)?.name||"Элемент"})});
-  state.posts.forEach(p=>{if(p.roomId===roomId)result.push({kind:"post",entity:p,name:p.name})});
+  state.posts.forEach(p=>{if(p.roomId===roomId)result.push({kind:"post",entity:p,name:postNumberLabel(p)})});
   return result;
 }
 
@@ -736,7 +744,7 @@ function showHover(kind,obj,e){
     /* Коробки в подсказке: цена подобранной/фолбэк-коробки × число; если совместимой со
        стандартом коробки нет — честно «не подобрана», без цены (как в составе поста). */
     const boxCell=boxUnit?`${comp.boxCount} × ${money(boxUnit.price)}`:(comp.boxCount?`${comp.boxCount} шт. — не подобрана`:"—");
-    hover.innerHTML=`<h4>${esc(obj.name)}</h4><div class="hover-composition">${obj.mechanismIds.map(id=>`<span class="hover-chip">${esc(product(id)?.name)}</span>`).join("")}</div>
+    hover.innerHTML=`<h4>${esc(postNumberLabel(obj))}</h4><div class="hover-composition">${obj.mechanismIds.map(id=>`<span class="hover-chip">${esc(product(id)?.name)}</span>`).join("")}</div>
     <dl><dt>Накладка</dt><dd>${esc(frame?.name)}</dd><dt>Коробки</dt><dd>${boxCell}</dd><dt>Стоимость поста</dt><dd>${money(postCost(obj))}</dd></dl>`;
   }
   hover.classList.add("show");positionHover(e);
@@ -785,7 +793,7 @@ function renderProperties(){
   }else if(kind==="post"){
     const p=state.posts.find(x=>x.id===id);
     const room=state.rooms.find(r=>r.id===p.roomId);
-    props.innerHTML=`<label>Название<input value="${esc(p.name)}" disabled></label>
+    props.innerHTML=`<label>Пост<input value="${esc(postNumberLabel(p))}" disabled></label>
     <label>Комната<input value="${esc(room?.name||"Не назначена")}" disabled></label>
     <label>Механизмов / коробок<input value="${p.mechanismIds.length} / ${postComposition(p).boxCount}" disabled></label>
     <label>Стоимость<input value="${money(postCost(p))}" disabled></label>
@@ -911,14 +919,15 @@ function renderBuilder(){
   });
   $("builderCapacity").innerHTML=`<div class="builder-capacity-head"><strong>Заполнение рамки</strong><span>Занято ${occupied} из ${count} · ${remaining?`свободно ${moduleWord(remaining)}`:"рамка заполнена"}</span></div>
     <div class="module-meter" style="--module-count:${count}" aria-label="Занято ${occupied} из ${count} модулей">${Array.from({length:count},(_,index)=>`<span class="${index<occupied?"occupied":""}"></span>`).join("")}</div>`;
-  let moduleCursor=1;
-  const selectedRows=state.builder.mechanismIds.map((id,index)=>{
-    const item=product(id),span=mechanismSpan(item),start=moduleCursor,end=start+span-1;
-    moduleCursor=end+1;
-    return `<div class="builder-slot"><div class="slot-number" title="${moduleWord(span)}">${start===end?start:`${start}–${end}`}</div><select data-builder-slot="${index}" aria-label="Элемент в модулях ${start}${start===end?"":`–${end}`}">${mechs.length
-      ?mechanismOptions(mechs,id,{maxSpan:count,emptyLabel:"Убрать элемент"})
-      :'<option value="">Механизмы не загружены</option>'}</select></div>`;
-  }).join("");
+  /* Нумерация модулей слота (одномодульный «2», двухмодульный «2–3») — общая чистая
+     функция EPPosts.moduleLayout: тот же код считает позиции для листа монтажника,
+     чтобы номера в конструкторе и в документе не разошлись. */
+  const layout=EPPosts.moduleLayout(state.builder.mechanismIds,{product,mechanismSpan});
+  const selectedRows=layout.map((slot,index)=>
+    `<div class="builder-slot"><div class="slot-number" title="${moduleWord(slot.span)}">${slot.label}</div><select data-builder-slot="${index}" aria-label="Элемент в модулях ${slot.start}${slot.start===slot.end?"":`–${slot.end}`}">${mechs.length
+      ?mechanismOptions(mechs,slot.id,{maxSpan:count,emptyLabel:"Убрать элемент"})
+      :'<option value="">Механизмы не загружены</option>'}</select></div>`
+  ).join("");
   const addRow=remaining?`<div class="builder-slot is-empty"><div class="slot-number">+</div><select data-builder-slot="${state.builder.mechanismIds.length}" aria-label="Добавить элемент в свободные модули">${mechs.length
     ?mechanismOptions(mechs,null,{maxSpan:remaining,emptyLabel:`Выберите элемент · свободно ${moduleWord(remaining)}`})
     :'<option value="">Механизмы не загружены</option>'}</select></div>`:"";
@@ -1017,7 +1026,9 @@ function addPending(x,y){
   }else{
     const t=state.templates.find(v=>v.id===state.pending.templateId);
     if(!t){toast("Шаблон не найден");return}
-    created={id:uid("post_"),templateId:t.id,x:x-12,y:y-12,name:t.name,frameId:t.frameId,mechanismIds:[...t.mechanismIds],socketBoxProductId:t.socketBoxProductId,roomId:null};
+    /* номер закрепляется за постом при создании = максимум существующих + 1 (стабилен,
+       удаление не сдвигает чужие номера) */
+    created={id:uid("post_"),templateId:t.id,x:x-12,y:y-12,number:EPPosts.nextPostNumber(state.posts),name:t.name,frameId:t.frameId,mechanismIds:[...t.mechanismIds],socketBoxProductId:t.socketBoxProductId,roomId:null};
     state.posts.push(created);
   }
   updateObjectRoom(created);
@@ -1305,6 +1316,8 @@ function projectSnapshot(){
     /* план кладём data-URL'ом — иначе после перезагрузки объекты повиснут над пустым холстом */
     plan:(state.planLoaded&&/^data:/.test(img.src||""))?img.src:null,
     planLabel:state.planLabel||"",
+    /* реквизиты документа (проект/клиент/адрес/разработчик/дата/номер КП) — часть проекта */
+    docHeader:EP_DATA.settings.docHeader||{},
     /* условия сделки и валюта — часть проекта, а не глобальная настройка приложения */
     terms:(({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,wallType,displayCurrency,eurRate,rateDate,rateSource})=>
       ({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,wallType,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
@@ -1339,6 +1352,10 @@ async function restoreProject(){
   try{p=ProjectStore.load()}catch(e){return null}
   if(!p)return null;
   state.devices=p.devices||[];state.posts=p.posts||[];state.rooms=p.rooms||[];
+  /* миграция старых проектов: они сохранялись без номеров постов — проставляем
+     недостающие по порядку массива (существующие номера не трогаем), чтобы номер был
+     стабильным идентификатором и на плане, и в документах */
+  EPPosts.ensurePostNumbers(state.posts);
   state.walls=p.walls||[];state.autoWalls=p.autoWalls||[];
   /* старые проекты без разметки и без флага видимости открываются штатно:
      roomLines → [], planVisibility → "show" (обратная совместимость) */
@@ -1374,6 +1391,10 @@ async function restoreProject(){
     $("vatEnabled").checked=EP_DATA.settings.vatEnabled!==false;
     $("currencySelect").value=EP_DATA.settings.displayCurrency||"EUR";
   }
+  /* реквизиты документа: старый проект без них открывается с пустыми полями и датой
+     «сегодня» (fillDocHeaderInputs подставит) — обратная совместимость */
+  if(p.docHeader)EP_DATA.settings.docHeader=p.docHeader;
+  fillDocHeaderInputs();
   if(p.plan){
     await new Promise(done=>{
       const img=$("planImage");
@@ -1390,14 +1411,131 @@ async function restoreProject(){
   if(state.planLoaded||state.devices.length||state.posts.length||state.rooms.length||state.walls.length)markCanvasUsed();
   return p;
 }
+/* Реквизиты документа (PLAN 5): поля панели «Реквизиты КП». Хранятся в проекте
+   (settings.docHeader, см. projectSnapshot/restoreProject). Возвращаем готовый к печати
+   вид: дата форматируется ГГГГ-ММ-ДД → ДД.ММ.ГГГГ, пустая дата → сегодня. Пустые поля
+   отдаём как есть — offerPdf/installSheet сами их не печатают. */
+const DOC_FIELDS={docProject:"project",docClient:"client",docAddress:"address",docDeveloper:"developer",docDate:"date",docNumber:"number"};
+function docHeader(){
+  const d=EP_DATA.settings.docHeader||{};
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(d.date||"");
+  return {
+    project:d.project||"",client:d.client||"",address:d.address||"",
+    developer:d.developer||"",number:d.number||"",
+    date:m?`${m[3]}.${m[2]}.${m[1]}`:(d.date||new Date().toLocaleDateString("ru-RU"))
+  };
+}
+function applyDocHeader(){
+  const dh=EP_DATA.settings.docHeader=EP_DATA.settings.docHeader||{};
+  Object.entries(DOC_FIELDS).forEach(([id,key])=>{dh[key]=$(id).value});
+  scheduleSave();
+}
+function fillDocHeaderInputs(){
+  const d=EP_DATA.settings.docHeader||{};
+  $("docProject").value=d.project||"";$("docClient").value=d.client||"";
+  $("docAddress").value=d.address||"";$("docDeveloper").value=d.developer||"";
+  $("docNumber").value=d.number||"";
+  /* дата по умолчанию — сегодня (ISO для input[type=date]); значение можно изменить */
+  $("docDate").value=d.date||new Date().toISOString().slice(0,10);
+}
+
+/* Раскладка постов для КП (PLAN 1): по строке на пост — номер, наполнение словами с
+   количеством, модульность, иллюстрация (картинка накладки). Порядок — по номеру. */
+function buildPostLayout(){
+  return state.posts.slice().sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0)).map(p=>{
+    const comp=postComposition(p);
+    return {
+      number:p.number,
+      modules:comp.modulesTotal,
+      fill:EPPosts.fillSummary(p.mechanismIds,{product}),
+      imageUrl:productImage(comp.frame,{detail:true}),
+      frameName:comp.frame?comp.frame.name:""
+    };
+  });
+}
+
+/* Данные одного поста для листа монтажника: таблица модулей (позиция «2» / «2–3»,
+   элемент, артикул) и обвязка в порядке сборки суппорт → коробка → накладка. Высота и
+   назначение подхватятся, когда появятся у поста (PLAN 6). */
+function buildPostSheet(post){
+  const comp=postComposition(post);
+  const frame=comp.frame;
+  const modules=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan}).map(s=>({
+    label:s.label,
+    name:s.item?s.item.name:`Механизм не найден (арт. ${s.id})`,
+    code:s.item?s.item.code:"",
+    note:s.item?"":"нет в каталоге"
+  }));
+  const box=comp.box||comp.boxFallback;
+  const fittings=[];
+  if(comp.support)fittings.push({role:"Суппорт",name:comp.support.name,code:comp.support.code,count:1});
+  if(box&&comp.boxCount)fittings.push({role:"Монтажная коробка",name:box.name,code:box.code,count:comp.boxCount});
+  if(frame)fittings.push({role:"Накладка",name:frame.name,code:frame.code,count:1});
+  const room=state.rooms.find(r=>r.id===post.roomId);
+  return {
+    number:post.number,
+    room:room?room.name:"",
+    standardLabel:STANDARD_LABEL[comp.standard]||comp.standard,
+    frameName:frame?frame.name:"",
+    frameCode:frame?frame.code:"",
+    color:(frame&&(frame.properties?.color||frame.color))||"",
+    height:post.height||"",
+    purpose:post.purpose||"",
+    modules,fittings,
+    /* немецко-французский: коробок несколько (пост = 2 модуля) + импосты — важно монтажнику */
+    german:(comp.model==="post"&&comp.postCount>1)?{postCount:comp.postCount}:null
+  };
+}
+function openInstallSheet(data){
+  const win=window.open("","_blank");
+  if(!win){toast("Разрешите всплывающие окна для листа монтажника");return}
+  const h=docHeader();
+  win.document.write(EPInstallSheet.buildHtml(
+    Object.assign({header:{project:h.project,developer:h.developer,date:h.date}},data),{esc}));
+  win.document.close();
+}
+/* Лист монтажника для поста в конструкторе: если правим размещённый пост — берём его
+   номер/помещение, иначе пост ещё без номера («—»). */
+function installSheetForBuilder(){
+  const placed=state.builder.editingPlacedId?state.posts.find(x=>x.id===state.builder.editingPlacedId):null;
+  const post={number:placed?placed.number:"—",frameId:Number($("postFrameSelect").value),
+    mechanismIds:[...state.builder.mechanismIds],roomId:placed?placed.roomId:null,
+    height:placed?.height,purpose:placed?.purpose};
+  if(!post.mechanismIds.length){toast("Добавьте механизмы в пост");return}
+  openInstallSheet({posts:[buildPostSheet(post)],subtitle:"Помодульная раскладка поста"});
+}
+/* Лист монтажника на весь проект: лист на каждый пост, сгруппировано по помещениям
+   (порядок помещений — как в state.rooms, «Без помещения» в конце; внутри — по номеру). */
+function installSheetForProject(){
+  if(!state.posts.length){toast("В проекте нет постов");return}
+  const roomIndex=new Map(state.rooms.map((r,i)=>[r.id,i]));
+  const ordered=state.posts.slice().sort((a,b)=>{
+    const ra=roomIndex.has(a.roomId)?roomIndex.get(a.roomId):Infinity;
+    const rb=roomIndex.has(b.roomId)?roomIndex.get(b.roomId):Infinity;
+    return ra-rb||(Number(a.number)||0)-(Number(b.number)||0);
+  });
+  openInstallSheet({posts:ordered.map(buildPostSheet),subtitle:"Помодульная раскладка постов по проекту"});
+}
+/* Осознанная перенумерация постов к 1..N по расположению на плане (сверху вниз, слева
+   направо) — как обычно обходят точки на чертеже. Пока пользователь не нажал, номера
+   закреплены и не прыгают при удалении (иначе распечатанные документы разошлись бы). */
+function renumberPosts(){
+  if(!state.posts.length){toast("В проекте нет постов");return}
+  state.posts.slice().sort((a,b)=>(a.y-b.y)||(a.x-b.x)).forEach((p,i)=>p.number=i+1);
+  renderAll();renderProperties();renderSummary();persistProject();
+  toast("Посты перенумерованы по расположению на плане");
+}
+
 /* Оркестратор КП: считаем ту же смету, что и панель справа (единый buildEstimate —
-   PLAN 2.4), открываем окно печати, а саму вёрстку документа собирает EPOfferPdf. */
+   PLAN 2.4), открываем окно печати, а саму вёрстку документа собирает EPOfferPdf.
+   Сверху добавляем реквизиты (docHeader) и раскладку постов (buildPostLayout). */
 function generateCommercialOffer(){
   const est=buildEstimate();
   if(est.missing.length)toast(`Внимание: позиций без товара в каталоге — ${est.missing.length}`);
   const win=window.open("","_blank");
   if(!win){toast("Разрешите всплывающие окна для формирования PDF");return}
-  win.document.write(EPOfferPdf.buildHtml(est,{money,esc,displayCurrency,effectiveRate:EPRates.effectiveRate,settings:EP_DATA.settings}));
+  win.document.write(EPOfferPdf.buildHtml(est,{money,esc,displayCurrency,effectiveRate:EPRates.effectiveRate,
+    settings:EP_DATA.settings,header:docHeader(),postLayout:buildPostLayout()}));
   win.document.close();
 }
 
@@ -1709,6 +1847,11 @@ $("scaleLengthInput").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();$("co
 $("clearAutoTraceBtn").onclick=()=>{state.autoWalls=[];recalculateRoomAssignments();drawWalls();renderRooms();renderProperties();renderSummary();toast("Автоматические линии удалены")};
 $("traceSensitivity").oninput=e=>$("traceSensitivityValue").textContent=e.target.value+"%";
 $("saveProjectBtn").onclick=saveProject;$("pdfBtn").onclick=generateCommercialOffer;
+$("installSheetBtn").onclick=installSheetForProject;
+$("renumberPostsBtn").onclick=renumberPosts;
+$("builderInstallSheet").onclick=installSheetForBuilder;
+/* реквизиты КП: правки полей сохраняются в проект (settings.docHeader) */
+Object.keys(DOC_FIELDS).forEach(id=>{$(id).oninput=applyDocHeader});
 /* условия сделки: скидка, ставка НДС и его наличие в КП */
 function applyTerms(){
   EP_DATA.settings.workPercent=Math.max(0,Math.min(200,Number($("workInput").value)||0));
@@ -1756,7 +1899,7 @@ $("demoBtn").onclick=()=>{
     {id:uid("room_"),x:650,y:175,seedX:705,seedY:193,name:"Кухня",area:"12,8 м²"}
   ];
   state.devices=[{id:uid("dev_"),productId:107,x:320,y:310,height:"Потолок"},{id:uid("dev_"),productId:101,x:205,y:530,height:"300 мм"}];
-  const template=state.templates[0];if(template)state.posts=[{id:uid("post_"),templateId:template.id,x:610,y:510,name:template.name,frameId:template.frameId,mechanismIds:[...template.mechanismIds],socketBoxProductId:template.socketBoxProductId}];
+  const template=state.templates[0];if(template)state.posts=[{id:uid("post_"),templateId:template.id,x:610,y:510,number:1,name:template.name,frameId:template.frameId,mechanismIds:[...template.mechanismIds],socketBoxProductId:template.socketBoxProductId}];
   drawWalls();renderAll();renderSummary();
 };
 document.onkeydown=e=>{

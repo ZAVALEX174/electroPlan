@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260730.5">
+  <link rel="stylesheet" href="css/styles.css?v=20260801.1">
 </head>
 <body>
 <div class="app">
@@ -16,6 +16,7 @@
     <div class="top-actions">
       <button class="btn ghost" id="demoBtn">Демо-проект</button>
       <button class="btn ghost" id="saveProjectBtn">Сохранить проект</button>
+      <button class="btn ghost" id="installSheetBtn">Лист монтажника</button>
       <button class="btn primary" id="pdfBtn">Коммерческое предложение PDF</button>
     </div>
   </header>
@@ -124,6 +125,7 @@
           <button class="btn ghost small" id="zoomFit" title="Показать весь план: пробел + перетаскивание или средняя кнопка — панорама, колесо — зум">Вписать в экран</button>
         </div>
         <div class="status" id="status">Выберите инструмент или элемент</div>
+        <button class="btn ghost small" id="renumberPostsBtn" title="Перенумеровать посты по расположению на плане (1, 2, 3…)">Перенумеровать посты</button>
         <button class="btn ghost small" id="clearBtn">Очистить холст</button>
       </div>
 
@@ -156,6 +158,19 @@
       <section>
         <div class="section-head"><h3>Свойства</h3></div>
         <div id="properties" class="empty-properties">Выберите объект на плане</div>
+      </section>
+
+      <section>
+        <div class="section-head"><h3>Реквизиты КП</h3></div>
+        <div class="doc-header-form">
+          <label>Проект<input id="docProject" autocomplete="off" placeholder="Название проекта"></label>
+          <label>Клиент<input id="docClient" autocomplete="off" placeholder="Заказчик"></label>
+          <label>Адрес объекта<input id="docAddress" autocomplete="off" placeholder="Адрес"></label>
+          <label>Разработчик<input id="docDeveloper" autocomplete="off" placeholder="Кто составил"></label>
+          <label>Дата<input id="docDate" type="date"></label>
+          <label>Номер КП<input id="docNumber" autocomplete="off" placeholder="№"></label>
+        </div>
+        <small class="hint-line">Печатаются в шапке КП и листа монтажника. Пустые поля не выводятся.</small>
       </section>
 
       <section>
@@ -245,6 +260,7 @@
 
     <div class="modal-footer">
       <button class="btn ghost" id="cancelPost">Отмена</button>
+      <button class="btn ghost" id="builderInstallSheet">Лист монтажника</button>
       <button class="btn primary" id="savePost">Сохранить пост</button>
     </div>
   </div>
@@ -292,10 +308,11 @@
 <script src="js/config.js?v=20260730.3"></script>
 <script src="js/catalog.js?v=20260727.1"></script>
 <script src="js/postfit.js?v=20260730.1"></script>
-<script src="js/posts.js?v=20260730.2"></script>
+<script src="js/posts.js?v=20260801.1"></script>
 <script src="js/picker.js?v=20260730.1"></script>
-<script src="js/estimate.js?v=20260730.1"></script>
-<script src="js/offerPdf.js?v=20260730.2"></script>
+<script src="js/estimate.js?v=20260801.1"></script>
+<script src="js/offerPdf.js?v=20260801.1"></script>
+<script src="js/installSheet.js?v=20260801.1"></script>
 <script src="js/rates.js?v=20260730.1"></script>
 <script src="js/geometry.js?v=20260730.3"></script>
 <script src="js/viewport.js?v=20260730.1"></script>
@@ -304,6 +321,6 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-  <script src="js/app.js?v=20260730.8"></script>
+  <script src="js/app.js?v=20260801.1"></script>
 </body>
 </html>
