@@ -130,12 +130,69 @@ function pickerMeta(value){
     searchText:`${item.code||""} ${item.name||""}`
   };
 }
-function enhancePicker(selectEl){
+/* opts = {emptyContext, resolveMissing} — доменный контекст пустого поиска (что искали
+   и как объяснить отсеянный артикул). Виджет про каталог не знает, поэтому строки и
+   действие готовит оркестратор (renderBuilder передаёт свой контекст на каждый select). */
+function enhancePicker(selectEl,opts={}){
   EPPicker.enhance(selectEl,{
     esc,meta:pickerMeta,
     searchPlaceholder:"Поиск по артикулу или названию",
-    onRender:root=>bindProductPictureFallbacks(root)
+    onRender:root=>bindProductPictureFallbacks(root),
+    emptyContext:opts.emptyContext,
+    resolveMissing:opts.resolveMissing
   });
+}
+/* Точное совпадение с артикулом (регистронезависимо, без крайних пробелов). Точность
+   важна: подсказку про отсеянный товар показываем ТОЛЬКО на полный артикул, иначе она
+   лезла бы на любой частичный ввод названия. null — если такого артикула нет вовсе. */
+function findByExactCode(items,query){
+  const q=String(query==null?"":query).trim().toLocaleLowerCase("ru-RU");
+  if(!q)return null;
+  return items.find(it=>String(it.code||"").trim().toLocaleLowerCase("ru-RU")===q)||null;
+}
+/* Пустой поиск накладки: артикул есть в каталоге, но отсеян фильтром по числу модулей.
+   Возвращаем описание и действие «переключить» — меняем число модулей конструктора и
+   выбираем эту накладку. null — если артикула нет или он и так подходит под текущее
+   число модулей (тогда обычный фильтр его и так показал бы). */
+function resolveMissingFrame(query,currentCount,frameSelect){
+  const item=findByExactCode(byKind("frame"),query);
+  if(!item)return null;
+  const target=frameSlotCount(item);
+  if(target===currentCount)return null;   /* уже подходит под текущий размер — подсказка не нужна */
+  return{
+    lead:"Артикул есть в каталоге, но скрыт фильтром по числу модулей.",
+    code:item.code||"без артикула",
+    name:item.name||"Без названия",
+    note:target?moduleWord(target):"число модулей не указано",
+    actionLabel:target?`Переключить на ${moduleWord(target)}`:null,
+    onAction:target?()=>{
+      $("postSlotCount").value=String(target);
+      frameSelect.dataset.preferredFrameId=String(item.id);   /* renderBuilder выберет именно её */
+      changePostSlotCount();
+      toast(`Число модулей: ${target} · выбрана накладка ${item.code||""}`.trim());
+    }:null
+  };
+}
+/* Пустой поиск механизма: артикул есть в каталоге, но не подходит к текущей накладке.
+   Объясняем ПРИЧИНУ (другая серия / шире свободного места), а не молчим. Действия не
+   даём: смена серии или размера накладки — отдельный осознанный выбор пользователя. */
+function resolveMissingMechanism(query,selectedFrame){
+  const all=byKind("mechanism");
+  const item=findByExactCode(all,query);
+  if(!item)return null;
+  /* тот же совместимый набор, что показывается в слотах: если механизма в нём нет —
+     он несовместим по серии; если есть, но не виден — он шире свободного места */
+  const seriesOk=compatibleMechanisms(selectedFrame,all).includes(item);
+  const reason=seriesOk
+    ?`занимает ${moduleWord(mechanismSpan(item))} — это шире свободного места в накладке.`
+    :`другая серия: механизм серии «${productSeries(item).join(", ")||"—"}», а накладка серии «${productSeries(selectedFrame).join(", ")||"—"}».`;
+  return{
+    lead:"Артикул есть в каталоге, но не подходит к текущей накладке.",
+    code:item.code||"без артикула",
+    name:item.name||"Без названия",
+    note:moduleWord(mechanismSpan(item)),
+    reason
+  };
 }
 
 function toast(text){const e=$("toast");e.textContent=text;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),1800)}
@@ -271,13 +328,20 @@ function renderTemplates(){
 function compactIcon(entity,kind){
   const el=document.createElement("div");
   el.className="plan-icon "+(kind==="post"?"post ":"")+(state.selected?.kind===kind&&state.selected.id===entity.id?"selected":"");
+  /* kind/id на узле — чтобы выделение и клавиатура находили этот элемент точечно,
+     без пересоздания сцены (корневой дефект: renderAll на нажатии) */
+  el.dataset.kind=kind;el.dataset.id=entity.id;
   el.style.left=entity.x+"px";el.style.top=entity.y+"px";
   if(kind==="device") el.textContent=product(entity.productId)?.icon||"?";
   /* метка поста = его сквозной номер (раньше рисовали «P» + число мест) — чтобы номер
      на плане совпадал с раскладкой постов, листом монтажника и КП */
   if(kind==="post")el.textContent=entity.number!=null?String(entity.number):"?";
-  el.onclick=e=>{e.stopPropagation();if(state.tool==="delete")removeEntity(kind,entity.id);else selectEntity(kind,entity.id)};
+  /* выделение/удаление/перенос — единый указательный обработчик (makeDraggable):
+     клик и перенос разводятся порогом, сцена на нажатии не перерисовывается */
   el.onmouseenter=e=>showHover(kind,entity,e);el.onmousemove=positionHover;el.onmouseleave=hideHover;
+  /* клик по объекту не должен доходить до canvas.onclick (иначе в режиме размещения
+     из каталога он поставил бы ещё один объект поверх) — выделение уже в makeDraggable */
+  el.onclick=e=>e.stopPropagation();
   makeDraggable(el,entity,kind);return el;
 }
 function renderDevices(){canvas.querySelectorAll(".plan-icon.device-only").forEach(e=>e.remove());state.devices.forEach(d=>{const el=compactIcon(d,"device");el.classList.add("device-only");canvas.appendChild(el)})}
@@ -302,9 +366,12 @@ function renderRooms(){
     const el=document.createElement("div");
     el.className="room-label "+(sel?"selected":"");
     el.style.left=r.x+"px";el.style.top=r.y+"px";
+    el.dataset.kind="room";el.dataset.id=r.id;   /* для точечного выделения и подсветки drop-цели */
     el.innerHTML=`<span class="room-title">${esc(r.name)}</span>${areaText?`<small>${esc(areaText)}</small>`:""}<span class="room-object-count">${count} объект.</span>`;
-    el.onclick=e=>{e.stopPropagation();state.tool==="delete"?removeEntity("room",r.id):selectEntity("room",r.id)};
-    if(!isPoly)makeDraggable(el,r,"room");
+    /* полигональную комнату подпись не двигает (контур отдельно) — только выделяет/удаляет
+       кликом; подпись комнаты без контура тащится и выделяется единым обработчиком makeDraggable */
+    if(isPoly)el.onclick=e=>{e.stopPropagation();state.tool==="delete"?removeEntity("room",r.id):selectEntity("room",r.id)};
+    else{el.onclick=e=>e.stopPropagation();makeDraggable(el,r,"room")}   /* клик не должен доходить до canvas.onclick */
     canvas.appendChild(el);
   });
 }
@@ -786,28 +853,188 @@ function showHover(kind,obj,e){
 }
 function positionHover(e){const r=canvas.getBoundingClientRect();hover.style.left=Math.min(canvas.clientWidth-280,(e.clientX-r.left)/state.scale+18)+"px";hover.style.top=Math.max(8,(e.clientY-r.top)/state.scale-20)+"px"}
 function hideHover(){hover.classList.remove("show")}
-function makeDraggable(el,obj,kind){
-  let dragging=false,sx=0,sy=0,bx=0,by=0;
-  /* без зажима по краям блока (бесконечный холст): дельту мыши делим на масштаб вида */
-  const move=e=>{if(!dragging)return;obj.x=bx+(e.clientX-sx)/state.scale;obj.y=by+(e.clientY-sy)/state.scale;el.style.left=obj.x+"px";el.style.top=obj.y+"px"};
-  const up=()=>{
-    if(dragging){
-      if(kind==="device"||kind==="post"){
-        updateObjectRoom(obj);
-        renderRooms();renderProperties();renderSummary();
-        const room=state.rooms.find(r=>r.id===obj.roomId);
-        if(room)updateStatus(`Объект прикреплён к комнате: ${room.name}`);
-        else updateStatus("Объект находится вне назначенных комнат");
-      }else if(kind==="room"){
-        obj.seedX=obj.x+55;obj.seedY=obj.y+18;
-        recalculateRoomAssignments();renderRooms();renderSummary();
-      }
-    }
-    dragging=false;document.removeEventListener("pointermove",move);document.removeEventListener("pointerup",up)
-  };
-  el.onpointerdown=e=>{if(state.tool==="delete")return;e.preventDefault();e.stopPropagation();setTool("select");state.selected={kind,id:obj.id};dragging=true;sx=e.clientX;sy=e.clientY;bx=obj.x;by=obj.y;renderAll();renderProperties();document.addEventListener("pointermove",move);document.addEventListener("pointerup",up)};
+/* PointerEvent есть у всех браузеров нижней границы проекта (Chrome 80/FF 72/Safari 13.4).
+   Флаг нужен только для Safari ДО 13 (PLAN 5): там указательных событий нет, и перенос
+   объекта идёт через mouse+touch. Различия сглаживает trackDrag — makeDraggable про
+   конкретный ввод не знает. */
+const HAS_POINTER=typeof window!=="undefined"&&"PointerEvent" in window;
+
+/* Точечная синхронизация ВЫДЕЛЕНИЯ с DOM — без пересоздания объектов (корневой дефект:
+   раньше любое выделение шло через renderAll, который сносил и заново создавал все
+   иконки; узел под указателем оказывался вне документа, и перенос «не работал»).
+   Переключаем классы на уже существующих узлах; слой стен перерисовываем отдельно
+   (он рисуется инлайн-атрибутами по state.selected — это дёшево, не пересоздание сцены). */
+function applySelectionClasses(){
+  const sel=state.selected;
+  const isSel=(kind,id)=>!!sel&&sel.kind===kind&&String(sel.id)===String(id);
+  canvas.querySelectorAll(".plan-icon").forEach(el=>el.classList.toggle("selected",isSel(el.dataset.kind,el.dataset.id)));
+  canvas.querySelectorAll(".room-label").forEach(el=>el.classList.toggle("selected",isSel("room",el.dataset.id)));
+  const rsvg=$("roomsSvg");
+  if(rsvg)rsvg.querySelectorAll(".room-poly").forEach(pg=>{
+    /* editing (правка вершин) ставит renderRooms — его не трогаем, только selected */
+    if(!pg.classList.contains("editing"))pg.classList.toggle("selected",isSel("room",pg.dataset.roomId));
+  });
+  drawWalls();   /* прежняя выделенная стена должна погаснуть; иконки/подписи не трогаются */
 }
-function selectEntity(kind,id){state.selected={kind,id};renderAll();renderProperties()}
+/* Тихий переход в инструмент «select» на время захвата объекта: меняет состояние и
+   активную кнопку, НО не вызывает renderRooms (тот пересоздал бы подпись комнаты, которую
+   мы, возможно, сейчас тащим). Слои превью-разметки/линейки перерисовываем — они узлы
+   объектов не пересоздают. Возвращает true, если инструмент реально сменился. */
+function ensureSelectTool(){
+  if(state.tool==="select")return false;
+  state.tool="select";state.pending=null;state.wallPoints=[];
+  state.roomLinePoints=[];state.roomLineIds=[];state.roomLineHover=null;state.scalePoints=[];
+  canvas.classList.remove("placing","measuring","drawing");
+  document.querySelectorAll("[data-tool]").forEach(b=>b.classList.toggle("active",b.dataset.tool==="select"));
+  drawWalls();drawRoomLines();renderScaleRuler();updateStatus();
+  return true;
+}
+/* Подсветка помещения под переносимым объектом (PLAN 3: видно, куда попадёт при
+   отпускании — привязка всё равно пересчитается, пусть будет видна заранее). map —
+   карта областей, снятая на старте жеста: стены при переносе объекта не двигаются,
+   поэтому строить её на каждом движении (дорогой флуд-фолл) не нужно. */
+let _dropRoomId=null;
+function setRoomDropHighlight(roomId){
+  if(_dropRoomId===roomId)return;   /* не дёргаем DOM, пока цель не сменилась */
+  _dropRoomId=roomId;
+  const rsvg=$("roomsSvg");
+  if(rsvg)rsvg.querySelectorAll(".room-poly").forEach(pg=>pg.classList.toggle("drop-target",pg.dataset.roomId===String(roomId)));
+  canvas.querySelectorAll(".room-label").forEach(el=>el.classList.toggle("drop-target",el.dataset.id===String(roomId)));
+}
+function clearRoomDropHighlight(){setRoomDropHighlight(null)}
+
+/* Единый источник событий переноса. PointerEvent (с захватом указателя — перенос не
+   рвётся, если курсор ушёл за край окна) там, где он есть; иначе — mouse+touch на
+   document (без capture курсор уходит с узла). Наружу — одинаковые onMove(x,y)/onUp();
+   возвращает функцию отписки. */
+function trackDrag(el,pointerId,onMove,onUp){
+  if(HAS_POINTER){
+    try{el.setPointerCapture(pointerId)}catch(_){}
+    const move=e=>{if(pointerId!=null&&e.pointerId!==pointerId)return;onMove(e.clientX,e.clientY)};
+    const up=e=>{if(pointerId!=null&&e.pointerId!==pointerId)return;cleanup();onUp()};
+    function cleanup(){
+      el.removeEventListener("pointermove",move);el.removeEventListener("pointerup",up);el.removeEventListener("pointercancel",up);
+      try{el.releasePointerCapture(pointerId)}catch(_){}
+    }
+    el.addEventListener("pointermove",move);el.addEventListener("pointerup",up);el.addEventListener("pointercancel",up);
+    return cleanup;
+  }
+  /* запасной путь (Safari <13): touchmove гасим, иначе страница прокрутится вместо переноса */
+  const move=e=>{const t=e.touches?e.touches[0]:e;if(!t)return;if(e.cancelable&&e.touches)e.preventDefault();onMove(t.clientX,t.clientY)};
+  const up=()=>{cleanup();onUp()};
+  function cleanup(){
+    document.removeEventListener("mousemove",move);document.removeEventListener("mouseup",up);
+    document.removeEventListener("touchmove",move);document.removeEventListener("touchend",up);document.removeEventListener("touchcancel",up);
+  }
+  document.addEventListener("mousemove",move);document.addEventListener("mouseup",up);
+  document.addEventListener("touchmove",move,{passive:false});document.addEventListener("touchend",up);document.addEventListener("touchcancel",up);
+  return cleanup;
+}
+
+/* Перенос объекта плана. Клик и перенос разведены порогом (EPConfig.dragThreshold):
+   пока указатель в пределах порога — это клик (выделение уже применено на нажатии),
+   дальше — перенос. Сцена на нажатии НЕ перерисовывается (корневой дефект); полная
+   перерисовка — только на завершении, когда состав/привязка реально изменились. */
+function makeDraggable(el,obj,kind){
+  el.dataset.kind=kind;el.dataset.id=obj.id;
+  let mode="idle",sx=0,sy=0,bx=0,by=0,stop=null,dragMap=null,switched=false;
+  function beginPress(clientX,clientY,pointerId){
+    if(state.tool==="delete"){removeEntity(kind,obj.id);return}   /* в режиме удаления нажатие удаляет */
+    if(spaceDown)return;   /* зажат пробел — жест забирает панорама холста, объект не трогаем */
+    switched=ensureSelectTool();
+    state.selected={kind,id:obj.id};
+    applySelectionClasses();renderProperties();   /* выделяем точечно, без renderAll */
+    mode="pending";sx=clientX;sy=clientY;bx=obj.x;by=obj.y;dragMap=null;
+    document.addEventListener("keydown",onKey,true);   /* Esc отменяет перенос (capture — раньше глобального) */
+    stop=trackDrag(el,pointerId,onMove,onUp);
+  }
+  function onMove(clientX,clientY){
+    if(mode==="idle")return;
+    if(mode==="pending"){
+      if(!EPDrag.beyondThreshold(clientX-sx,clientY-sy,EPConfig.dragThreshold))return;   /* ещё клик */
+      mode="dragging";el.classList.add("dragging");hideHover();
+      /* карту областей для подсветки помещения снимаем один раз на старте переноса */
+      dragMap=(kind!=="room"&&state.rooms.some(r=>!(r.polygon&&r.polygon.length>2)))?buildSpaceComponents():null;
+    }
+    const p=EPDrag.worldPosition({x:bx,y:by},{x:sx,y:sy},{x:clientX,y:clientY},state.scale);
+    obj.x=p.x;obj.y=p.y;el.style.left=obj.x+"px";el.style.top=obj.y+"px";
+    if(kind!=="room"){const room=getRoomForPoint(obj.x+12,obj.y+12,dragMap);setRoomDropHighlight(room?room.id:null)}
+  }
+  function onUp(){
+    const dragged=mode==="dragging",wasSwitched=switched;
+    endInteraction();
+    if(dragged)finishDrag();
+    else if(wasSwitched)renderRooms();   /* сменили инструмент кликом — привести сцену в порядок */
+  }
+  function onKey(e){
+    if(e.key!=="Escape")return;
+    e.preventDefault();e.stopPropagation();   /* не даём глобальному Esc (setTool) перерисовать сцену */
+    if(mode==="dragging"){obj.x=bx;obj.y=by;el.style.left=bx+"px";el.style.top=by+"px";updateStatus("Перенос отменён")}
+    endInteraction();
+  }
+  function endInteraction(){
+    if(stop){stop();stop=null}
+    document.removeEventListener("keydown",onKey,true);
+    el.classList.remove("dragging");clearRoomDropHighlight();
+    mode="idle";dragMap=null;switched=false;
+  }
+  function finishDrag(){
+    if(kind==="room"){
+      obj.seedX=obj.x+55;obj.seedY=obj.y+18;
+      recalculateRoomAssignments();renderRooms();renderSummary();
+    }else{
+      /* финальную привязку считаем свежей картой (updateObjectRoom): объект мог уехать за
+         габарит превью-карты; она годится только для подсветки на лету, не для итога */
+      const room=updateObjectRoom(obj);
+      renderRooms();renderProperties();renderSummary();
+      updateStatus(room?`Объект прикреплён к комнате: ${room.name}`:"Объект находится вне назначенных комнат");
+    }
+    scheduleSave();   /* новая позиция — часть проекта: перенос закончился, сохраняем */
+  }
+  if(HAS_POINTER){
+    el.addEventListener("pointerdown",e=>{
+      if(!e.isPrimary||e.button>0)return;   /* основной указатель, левая кнопка/касание (средняя/правая — не сюда) */
+      e.preventDefault();e.stopPropagation();
+      beginPress(e.clientX,e.clientY,e.pointerId);
+    });
+  }else{
+    el.addEventListener("mousedown",e=>{if(e.button!==0)return;e.preventDefault();e.stopPropagation();beginPress(e.clientX,e.clientY,null)});
+    el.addEventListener("touchstart",e=>{const t=e.touches[0];if(!t)return;e.preventDefault();e.stopPropagation();beginPress(t.clientX,t.clientY,null)},{passive:false});
+  }
+  /* долгое нажатие/ПКМ на объекте не должны звать системное контекстное меню (PLAN 2) */
+  el.addEventListener("contextmenu",e=>e.preventDefault());
+}
+/* Выделение объекта точечно: классы на существующих узлах + панель свойств. НЕ renderAll —
+   иначе на каждый клик пересоздавались бы все иконки (см. applySelectionClasses). Выделение
+   в снимок проекта не входит, поэтому автосохранение здесь не нужно. */
+function selectEntity(kind,id){state.selected={kind,id};applySelectionClasses();renderProperties()}
+/* Найти существующий узел объекта (для клавиатурного сдвига — двигаем узел, не пересоздаём). */
+function findEntityNode(kind,id){
+  let found=null;
+  canvas.querySelectorAll(".plan-icon,.room-label").forEach(el=>{if(el.dataset.kind===kind&&el.dataset.id===String(id))found=el});
+  return found;
+}
+/* Сдвиг выделенного объекта клавиатурой (PLAN 4): узел двигаем точечно, привязку к
+   помещению и счётчики пересчитываем на каждом шаге (шаги дискретные — не жест, полная
+   перерисовка комнат допустима). Полигональные комнаты стрелками не двигаем: у них своя
+   правка вершин. Возвращает true, если что-то сдвинули (чтобы погасить прокрутку страницы). */
+function moveSelectedBy(dx,dy){
+  const sel=state.selected;if(!sel)return false;
+  if(sel.kind==="device"||sel.kind==="post"){
+    const obj=state[sel.kind==="device"?"devices":"posts"].find(x=>x.id===sel.id);if(!obj)return false;
+    obj.x+=dx;obj.y+=dy;
+    const node=findEntityNode(sel.kind,sel.id);if(node){node.style.left=obj.x+"px";node.style.top=obj.y+"px"}
+    updateObjectRoom(obj);renderRooms();renderProperties();renderSummary();scheduleSave();
+    return true;
+  }
+  if(sel.kind==="room"){
+    const obj=state.rooms.find(x=>x.id===sel.id);if(!obj||(obj.polygon&&obj.polygon.length>2))return false;
+    obj.x+=dx;obj.y+=dy;obj.seedX=obj.x+55;obj.seedY=obj.y+18;
+    recalculateRoomAssignments();renderRooms();renderProperties();renderSummary();scheduleSave();
+    return true;
+  }
+  return false;
+}
 function removeEntity(kind,id){
   if(kind==="wall"){removeWall(id);return}
   const key={device:"devices",post:"posts",room:"rooms"}[kind];state[key]=state[key].filter(x=>x.id!==id);state.selected=null;renderAll();renderProperties();renderSummary();
@@ -929,7 +1156,12 @@ function renderBuilder(){
     :'<option value="">Рамки не загружены</option>';
   frameSelect.value=selectedFrameId==null?"":String(selectedFrameId);
   delete frameSelect.dataset.preferredFrameId;
-  enhancePicker(frameSelect);   /* накладка: <select> → кастомный список с миниатюрами */
+  /* накладка: <select> → кастомный список с миниатюрами. Пустой поиск объясняет, среди
+     чего искали, и предлагает переключить размер, если артикул отсеян фильтром модулей */
+  enhancePicker(frameSelect,{
+    emptyContext:matchingFrames.length?`накладок на ${moduleWord(count)}`:"загруженных накладок",
+    resolveMissing:q=>resolveMissingFrame(q,count,frameSelect)
+  });
   const selectedFrame=frameProduct(frameSelect.value);
   const mechs=compatibleMechanisms(selectedFrame,allMechanisms);
   state.builder.mechanismIds=fitMechanismIds(state.builder.mechanismIds,mechs,count);
@@ -972,8 +1204,12 @@ function renderBuilder(){
     }
     renderBuilder();
   });
-  /* слоты механизмов: те же скрытые <select>, поверх — кастомный список с миниатюрами */
-  document.querySelectorAll("[data-builder-slot]").forEach(enhancePicker);
+  /* слоты механизмов: те же скрытые <select>, поверх — кастомный список с миниатюрами.
+     Пустой поиск объясняет причину отсева (другая серия / шире свободного места). */
+  document.querySelectorAll("[data-builder-slot]").forEach(sel=>enhancePicker(sel,{
+    emptyContext:selectedFrame?"механизмов, совместимых с этой накладкой":"механизмов",
+    resolveMissing:q=>resolveMissingMechanism(q,selectedFrame)
+  }));
   renderBuilderComposition(selectedFrame,builderErrorHtml(dist));
   /* Сохранять можно, только когда сборка физически собирается (никакой механизм не шире
      поста и не «размазан» через импост) и все посты заполнены целиком. */
@@ -1969,6 +2205,14 @@ document.onkeydown=e=>{
   }
   if(e.key==="Enter"&&(state.tool==="wall"||state.tool==="roomline"))setTool("select");
   if(e.key==="Delete"&&state.selected)removeEntity(state.selected.kind,state.selected.id);
+  /* Клавиатура для выделенного объекта (PLAN 4): Enter — конструктор поста, стрелки —
+     сдвиг на шаг сетки (Shift — на 1px). Только вне ввода и при закрытом конструкторе. */
+  if(!typing&&state.selected&&!$("postModal").classList.contains("open")){
+    if(e.key==="Enter"&&state.selected.kind==="post"){e.preventDefault();openPostBuilder({placedId:state.selected.id});return}
+    const step=e.shiftKey?1:state.gridStep;
+    const nudge={ArrowLeft:[-step,0],ArrowRight:[step,0],ArrowUp:[0,-step],ArrowDown:[0,step]}[e.key];
+    if(nudge&&moveSelectedBy(nudge[0],nudge[1])){e.preventDefault();return}
+  }
   /* Backspace во время рисования разметки — снять последнюю точку (Esc — выход из режима) */
   if(e.key==="Backspace"&&state.tool==="roomline"&&!typing&&state.roomLinePoints.length){e.preventDefault();removeLastRoomLinePoint()}
   /* B — переключение видимости подложки (независимо от раскладки, по физической клавише) */

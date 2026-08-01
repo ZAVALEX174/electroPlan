@@ -79,6 +79,13 @@ function enhance(selectEl, config){
   const meta = config.meta || (() => null);
   const onRender = config.onRender || (() => {});
   const searchPlaceholder = config.searchPlaceholder || "Поиск";
+  /* «Среди чего» ищем — для внятного пустого состояния (строка или функция, чтобы
+     оркестратор мог вычислить контекст на момент фильтра). resolveMissing(query) —
+     необязательный доменный хук: когда фильтр не нашёл ничего, но артикул ЕСТЬ в
+     каталоге и отсеян текущим фильтром, оркестратор возвращает описание и (для
+     накладок) действие «переключить». Виджет про каталог не знает — только рисует. */
+  const emptyContext = config.emptyContext;
+  const resolveMissing = config.resolveMissing;
   const id = "epk" + (++uidCounter);
 
   /* нативный select прячем, но НЕ удаляем — он носитель значения и события change;
@@ -110,6 +117,7 @@ function enhance(selectEl, config){
   let rowEls = [];        /* строки-опции в порядке отрисовки (для клавиатуры/фильтра) */
   let visibleRows = [];   /* подмножество rowEls, видимое при текущем фильтре */
   let activeIndex = -1;
+  let pendingAction = null;  /* действие подсказки пустого состояния (Enter/клик) — см. renderEmptyMessage */
 
   /* —— свёрнутая кнопка: миниатюра + подпись выбранного —— */
   function selectedText(){
@@ -199,10 +207,50 @@ function enhance(selectEl, config){
       header.hidden = !hasVisible;
     });
     visibleRows = rowEls.filter(row => !row.hidden);
-    emptyMsgEl.hidden = visibleRows.length > 0;
+    /* «Ничего не найдено» — про ТОВАРНЫЕ строки: пустая опция «Убрать элемент» видна
+       всегда и не должна прятать сообщение (у слотов механизмов она есть, у накладки —
+       нет). Показываем подсказку только при непустом запросе — иначе при первом
+       открытии список просто полон. */
+    const productVisible = visibleRows.some(row => !row.classList.contains("is-empty"));
+    const querying = searchEl.value.trim().length > 0;
+    const showEmpty = !productVisible && querying;
+    emptyMsgEl.hidden = !showEmpty;
+    if(showEmpty) renderEmptyMessage(); else pendingAction = null;
     /* активной делаем выбранную, если она видима, иначе первую видимую */
     const selectedVisible = visibleRows.findIndex(row => row.getAttribute("aria-selected") === "true");
     setActive(selectedVisible >= 0 ? selectedVisible : (visibleRows.length ? 0 : -1), false);
+  }
+
+  /* Пустое состояние с внятной причиной (PLAN: понятная пустота). Базовая строка
+     говорит, СРЕДИ ЧЕГО искали. Если оркестратор через resolveMissing нашёл этот
+     артикул в каталоге, но он отсеян фильтром — показываем товар, причину и, где есть
+     смысл, кнопку действия (для накладки — «переключить число модулей и выбрать»).
+     Всё пользовательское — через esc(); действие запускает переданный onAction. */
+  function renderEmptyMessage(){
+    pendingAction = null;
+    const context = typeof emptyContext === "function" ? emptyContext() : emptyContext;
+    const base = context ? `Ничего не найдено среди ${esc(context)}` : "Ничего не найдено";
+    let html = `<div class="epk-empty-base">${base}</div>`;
+    const hit = resolveMissing ? resolveMissing(searchEl.value.trim()) : null;
+    if(hit){
+      const codeName = esc(`[${hit.code}] ${hit.name}`);
+      const note = hit.note ? ` — ${esc(hit.note)}` : "";
+      html += `<div class="epk-empty-found">`;
+      if(hit.lead) html += `<div class="epk-empty-lead">${esc(hit.lead)}</div>`;
+      html += `<div class="epk-empty-item">${codeName}${note}</div>`;
+      if(hit.reason) html += `<div class="epk-empty-reason">${esc(hit.reason)}</div>`;
+      if(hit.actionLabel && typeof hit.onAction === "function")
+        html += `<button type="button" class="epk-empty-action">${esc(hit.actionLabel)}</button>`;
+      html += `</div>`;
+    }
+    emptyMsgEl.innerHTML = html;
+    if(hit && hit.actionLabel && typeof hit.onAction === "function"){
+      pendingAction = hit.onAction;
+      const btn = emptyMsgEl.querySelector(".epk-empty-action");
+      /* действие перестраивает конструктор и сносит этот виджет — сначала закрываем
+         popup, потом запускаем, чтобы не дёргать уже удаляемый узел */
+      if(btn) btn.addEventListener("click", () => { const run = pendingAction; close(false); run(); });
+    }
   }
 
   function setActive(index, scroll){
@@ -316,6 +364,9 @@ function enhance(selectEl, config){
       case "Enter":
         e.preventDefault();
         if(activeIndex >= 0 && visibleRows[activeIndex]) commit(visibleRows[activeIndex].getAttribute("data-value"));
+        /* нет активной строки (пустой результат по накладкам), но есть действие подсказки —
+           Enter запускает его: клавиатурный путь к «переключить», не только мышью */
+        else if(pendingAction){ const run = pendingAction; close(false); run(); }
         break;
       case "Escape": e.preventDefault(); close(true); break;   /* закрыть без выбора, фокус на кнопку */
       /* Tab: фокус на кнопку СИНХРОННО (поле поиска сейчас исчезнет), затем закрыть — и
