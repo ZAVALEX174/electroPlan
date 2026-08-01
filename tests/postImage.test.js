@@ -10,7 +10,7 @@
    (faceSprite) и выбора «фото или клавиша» (useFacePhoto) вынесены в экспорт и проверяются отдельно. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildHtml, frameColor, pickIcon, splitOpening, postWindows, faceSprite, useFacePhoto } = require("../js/postImage.js");
+const { buildHtml, frameColor, pickIcon, splitOpening, postWindows, faceSprite, useFacePhoto, photoReady } = require("../js/postImage.js");
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const deps = { esc };
@@ -73,6 +73,9 @@ test("pickIcon: без categoryId падаем на символ функцио�
 /* ── Деление немецкого окна на посты (splitOpening) ─────────────────────────── */
 
 const OPENING = { left: 20, top: 24, width: 60, height: 52, aspect: 1.4 };
+/* Измеренное окно под OPENING: с ним включается режим фото (без измеренных окон — схема-фолбэк,
+   даже если фото накладки есть: в каталоге VIMAR это бывает макро-снимок угла без окна в кадре). */
+const OPENING_WIN = [{ left: 20, top: 24, width: 60, height: 52 }];
 const inside = (r, o) => r.left >= o.left - 0.01 && r.top >= o.top - 0.01
   && r.left + r.width <= o.left + o.width + 0.01
   && r.top + r.height <= o.top + o.height + 0.01;
@@ -178,13 +181,39 @@ test("buildHtml режим фото: клавиши раскладываются
   assert.ok(!/data-ep="impost"/.test(html), "импост уже на фото — свой не рисуем");
 });
 
+/* ── Гейт «фото накладки или схема-фолбэк» (photoReady) ─────────────────────── */
+
+/* Режим фото включается ТОЛЬКО когда есть И фотография, И измеренные окна. Причина: у части баз
+   накладок фото в каталоге VIMAR — макро-снимок угла изделия, где окна в кадре нет (детектор вернул
+   пусто); раскладывать по нему клавиши нечего — честная схема лучше догадки. */
+test("photoReady: фото + измеренные окна → true; фото без окон → false", () => {
+  assert.equal(photoReady({ imageUrl: "https://cdn/f.png", windows: OPENING_WIN }), true, "есть фото и окна");
+  assert.equal(photoReady({ imageUrl: "https://cdn/f.png" }), false, "фото есть, окон нет → схема-фолбэк");
+  assert.equal(photoReady({ imageUrl: "https://cdn/f.png", windows: [] }), false, "пустой список окон → фолбэк");
+  assert.equal(photoReady({ imageUrl: "https://cdn/f.png", windows: [{ left: 5, top: 5, width: 0, height: 40 }] }), false, "все окна битые → фолбэк");
+  assert.equal(photoReady({ windows: OPENING_WIN }), false, "окна есть, фото нет → фолбэк");
+});
+
+test("buildHtml: есть фото, но окон нет → СХЕМА-ФОЛБЭК (не раскладываем по макро-снимку угла)", () => {
+  const spec = {
+    size: "lg",
+    frame: { name: "Накладка CLASSIC на 1 модуль, графит матовый", code: "19641.01", standard: "IT", imageUrl: "https://cdn/macro-corner.png", opening: OPENING },
+    rows: [{ posts: [{ capacity: 1, cells: [{ span: 1, categoryId: 500, name: "Выключатель", num: "1" }] }] }]
+  };
+  const html = buildHtml(spec, deps);
+  assert.ok(!/<img/.test(html), "фото-подложку не берём — окон нет, это схема-фолбэк");
+  assert.match(html, /data-ep="plate"/, "рисуется пластина схемы-фолбэка");
+});
+
 /* ── Режим ФОТО ────────────────────────────────────────────────────────────── */
 
 const italianPhoto = {
   size: "lg",
   frame: {
     name: "Накладка на 3 модуля, белая", code: "09673.01", standard: "IT",
-    imageUrl: "https://cdn/frame3.png", opening: { left: 20, top: 24, width: 60, height: 52, aspect: 1.4 }
+    imageUrl: "https://cdn/frame3.png", opening: { left: 20, top: 24, width: 60, height: 52, aspect: 1.4 },
+    /* измеренное окно есть (иначе фото не включается), но без aspect — проверяем фолбэк аспекта */
+    windows: [{ left: 20, top: 24, width: 60, height: 52 }]
   },
   rows: [{ posts: [{ capacity: 3, cells: [
     { span: 1, categoryId: 500, name: "Выключатель", num: "1" },
@@ -207,7 +236,8 @@ test("немецкая 2+2 с фото: два непересекающихся 
     size: "md",
     frame: {
       name: "Накладка на 4 модуля (2+2), белая", code: "09664.01", standard: "DE",
-      imageUrl: "https://cdn/frame22.png", opening: { left: 18, top: 22, width: 64, height: 54, aspect: 1.66 }
+      imageUrl: "https://cdn/frame22.png", opening: { left: 18, top: 22, width: 64, height: 54, aspect: 1.66 },
+      windows: [{ left: 14, top: 23, width: 29, height: 51 }, { left: 57, top: 23, width: 29, height: 51 }]
     },
     rows: [{ posts: [
       { capacity: 2, cells: [{ span: 1, categoryId: 500, num: "1" }, { span: 1, empty: true, num: "2" }] },
@@ -229,7 +259,8 @@ test("немецкая 2+2+2 с фото: три под-окна", () => {
     size: "md",
     frame: {
       name: "Накладка (2+2+2), белая", code: "09666.01", standard: "DE",
-      imageUrl: "https://cdn/frame222.png", opening: { left: 12, top: 22, width: 76, height: 55, aspect: 2.4 }
+      imageUrl: "https://cdn/frame222.png", opening: { left: 12, top: 22, width: 76, height: 55, aspect: 2.4 },
+      windows: [{ left: 12, top: 23, width: 20, height: 51 }, { left: 40, top: 23, width: 20, height: 51 }, { left: 68, top: 23, width: 20, height: 51 }]
     },
     rows: [{ posts: [
       { capacity: 2, cells: [{ span: 2, categoryId: 500, num: "1–2" }] },
@@ -245,7 +276,7 @@ test("немецкая 2+2+2 с фото: три под-окна", () => {
 test("режим фото: клавиша рисует символ функции инлайн-SVG, без onerror-JS", () => {
   const spec = {
     size: "lg",
-    frame: { name: "Накладка на 2 модуля, белая", code: "09672.01", standard: "IT", imageUrl: "https://cdn/f2.png", opening: OPENING },
+    frame: { name: "Накладка на 2 модуля, белая", code: "09672.01", standard: "IT", imageUrl: "https://cdn/f2.png", opening: OPENING, windows: OPENING_WIN },
     rows: [{ posts: [{ capacity: 2, cells: [{ span: 2, categoryId: 500, name: "Выключатель", num: "1–2" }] }] }]
   };
   const html = buildHtml(spec, deps);
@@ -256,7 +287,7 @@ test("режим фото: клавиша рисует символ функци
 test("режим фото: свободный модуль — клавиша-заглушка без символа функции", () => {
   const spec = {
     size: "lg",
-    frame: { name: "Накладка на 3 модуля, белая", code: "09673.01", standard: "IT", imageUrl: "https://cdn/f3.png", opening: OPENING },
+    frame: { name: "Накладка на 3 модуля, белая", code: "09673.01", standard: "IT", imageUrl: "https://cdn/f3.png", opening: OPENING, windows: OPENING_WIN },
     rows: [{ posts: [{ capacity: 3, cells: [
       { span: 1, categoryId: 500, num: "1" },
       { span: 1, empty: true, num: "2" },
@@ -273,7 +304,7 @@ test("режим фото: свободный модуль — клавиша-з
 test("режим фото: тёмная накладка → светлый символ на клавише; светлая → тёмный", () => {
   const base = name => ({
     size: "lg",
-    frame: { name, code: "00000.01", standard: "IT", imageUrl: "https://cdn/f.png", opening: OPENING },
+    frame: { name, code: "00000.01", standard: "IT", imageUrl: "https://cdn/f.png", opening: OPENING, windows: OPENING_WIN },
     rows: [{ posts: [{ capacity: 1, cells: [{ span: 1, categoryId: 500, num: "1" }] }] }]
   });
   const dark = buildHtml(base("Накладка на 1 модуль, карбон матовый"), deps);
@@ -387,7 +418,7 @@ test("режим фото без измеренного аспекта: padding 
 test("миниатюра (sm) в режиме фото: значков и номеров нет", () => {
   const spec = {
     size: "sm",
-    frame: { name: "Накладка на 2 модуля, белая", code: "09672.01", standard: "IT", imageUrl: "https://cdn/f2.png", opening: OPENING },
+    frame: { name: "Накладка на 2 модуля, белая", code: "09672.01", standard: "IT", imageUrl: "https://cdn/f2.png", opening: OPENING, windows: OPENING_WIN },
     rows: [{ posts: [{ capacity: 2, cells: [{ span: 2, categoryId: 500, name: "Выключатель", num: "1–2" }] }] }]
   };
   const html = buildHtml(spec, deps);
@@ -400,7 +431,7 @@ test("миниатюра (sm) в режиме фото: значков и ном
    клавиши, антрацитовая — белые). Контраст символа считаем ОТ ЦВЕТА КЛАВИШИ. */
 const keyOnFrame = (frameName, cellName) => buildHtml({
   size: "lg",
-  frame: { name: frameName, code: "0", standard: "IT", imageUrl: "https://cdn/f.png", opening: OPENING },
+  frame: { name: frameName, code: "0", standard: "IT", imageUrl: "https://cdn/f.png", opening: OPENING, windows: OPENING_WIN },
   rows: [{ posts: [{ capacity: 1, cells: [{ span: 1, categoryId: 500, name: cellName, num: "1" }] }] }]
 }, deps);
 
@@ -419,7 +450,7 @@ test("клавиша карбонового механизма на белой �
 test("две соседние клавиши разного цвета имеют разные заливки", () => {
   const html = buildHtml({
     size: "lg",
-    frame: { name: "Накладка на 2 модуля, белая", code: "0", standard: "IT", imageUrl: "https://cdn/f.png", opening: OPENING },
+    frame: { name: "Накладка на 2 модуля, белая", code: "0", standard: "IT", imageUrl: "https://cdn/f.png", opening: OPENING, windows: OPENING_WIN },
     rows: [{ posts: [{ capacity: 2, cells: [
       { span: 1, categoryId: 500, name: "Выключатель, белый", num: "1" },
       { span: 1, categoryId: 500, name: "Выключатель, карбон матовый", num: "2" }
@@ -433,7 +464,7 @@ test("две соседние клавиши разного цвета имею�
 test("явный cell.color приоритетнее названия механизма", () => {
   const html = buildHtml({
     size: "lg",
-    frame: { name: "Накладка на 1 модуль, белая", code: "0", standard: "IT", imageUrl: "https://cdn/f.png", opening: OPENING },
+    frame: { name: "Накладка на 1 модуль, белая", code: "0", standard: "IT", imageUrl: "https://cdn/f.png", opening: OPENING, windows: OPENING_WIN },
     rows: [{ posts: [{ capacity: 1, cells: [{ span: 1, color: "карбон матовый", categoryId: 500, name: "Выключатель, белый", num: "1" }] }] }]
   }, deps);
   assert.match(html, /<svg[^>]*stroke="#eef2f6"/, "цвет клавиши взят из явного color (карбон), не из имени (белый)");
@@ -547,7 +578,7 @@ test("экранирование имён накладки и механизма
 test("экранирование в режиме фото: url и имя механизма экранированы", () => {
   const spec = {
     size: "lg",
-    frame: { name: "Рамка <b>X</b>", code: "09673.01", standard: "IT", imageUrl: 'https://cdn/f.png"><b>', opening: OPENING },
+    frame: { name: "Рамка <b>X</b>", code: "09673.01", standard: "IT", imageUrl: 'https://cdn/f.png"><b>', opening: OPENING, windows: OPENING_WIN },
     rows: [{ posts: [{ capacity: 1, cells: [{ span: 1, imageUrl: 'x"><b>', categoryId: 500, name: 'Кнопка "A"', num: "1" }] }] }]
   };
   const html = buildHtml(spec, deps);

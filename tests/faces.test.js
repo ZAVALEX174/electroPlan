@@ -108,6 +108,26 @@ test("faceRectFromComponent: высота из ширины по пропорц�
   assert.deepEqual(face, [0.8, 1.6, 38.4, 76.8]);
 });
 
+test("faceRectFromComponent: высокий компонент (розетка с откинутой крышкой) → лицо прижато к НИЗУ", () => {
+  // 40×100 в кадре 100×100, span 1: ratio = (40/100)/0.5 = 0.8 < 1−ASPECT_TOL (0.85) — компонент
+  // заметно выше ожидаемого (крышка торчит вверх, модуль сидит внизу) → лицо к нижней границе
+  const c = comp(0, 0, 39, 99);
+  const { face, clamped } = F.faceRectFromComponent(c, 1, 100, 100);
+  assert.equal(clamped, false);
+  // faceH = 40/0.5 = 80; прижатие к низу: faceTop = 0 + (100−80) = 20; TRIM 2%: [0.8, 21.6, 38.4, 76.8]
+  assert.deepEqual(face, [0.8, 21.6, 38.4, 76.8]);
+  assert.ok(face[1] > 11.6, "top ниже центра (11.6) — берём низ модуля, а не крышку сверху");
+});
+
+test("faceRectFromComponent: компонент почти в пропорции (ratio в допуске) остаётся ЦЕНТРИРОВАННЫМ", () => {
+  // 45×100 в кадре 100×100, span 1: ratio = (45/100)/0.5 = 0.9 ≥ 1−ASPECT_TOL (0.85) — не крышка
+  const c = comp(0, 0, 44, 99);
+  const { face, clamped } = F.faceRectFromComponent(c, 1, 100, 100);
+  assert.equal(clamped, false);
+  // faceH = 45/0.5 = 90; центр: faceTop = (100−90)/2 = 5; TRIM 2%: [0.9, 6.8, 43.2, 86.4]
+  assert.deepEqual(face, [0.9, 6.8, 43.2, 86.4]);
+});
+
 test("expectedAspect/aspectDeviation: 1М → 0.5, 2М → 1.0", () => {
   assert.equal(F.expectedAspect(1), 0.5);
   assert.equal(F.expectedAspect(2), 1);

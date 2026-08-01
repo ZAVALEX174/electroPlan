@@ -183,17 +183,74 @@ function detectRaw(bmp) {
 const round1 = (n) => Math.round(n * 10) / 10;
 const round3 = (n) => Math.round(n * 1000) / 1000;
 
+/* Допуск на ВЫБРОС окна внутри ряда: окна одного физического ряда накладки лежат на одной высоте
+   и сами примерно одной высоты (top и height почти равны). Окно, чей top ИЛИ height отклоняется от
+   МЕДИАНЫ ряда больше, чем ROW_OUTLIER_TOL·(медианная высота ряда), — это блик (например, засветка
+   по канту, выбивающаяся вверх и по высоте), а не окно. Начато с 15% медианной высоты — крутится по
+   картинкам. */
+const ROW_OUTLIER_TOL = 0.15;
+
+/* Разброс top, в пределах которого окна считаем ОДНИМ физическим рядом (доля от медианной высоты
+   всех окон). Внутри ряда top гуляет на единицы процентов, а между рядами (двухрядная накладка 7+7,
+   19660) разрыв заведомо больше высоты окна — 0.5 надёжно разделяет ряды, не сливая и не дробя. */
+const ROW_BAND = 0.5;
+
+const median = (xs) => {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+/* Пересечение окон по ГОРИЗОНТАЛИ (перекрытие проекций на ось X). */
+const overlapX = (a, b) => a[0] < b[0] + b[2] - 1e-6 && b[0] < a[0] + a[2] - 1e-6;
+
+/* Группировка окон в физические ряды по близкому top (см. ROW_BAND). Ряды — сверху вниз, чтобы
+   собрать окна в порядке обхода постов «ряд за рядом». Многорядную (7+7) это разложит на два ряда,
+   и медиану дальше считаем В ПРЕДЕЛАХ РЯДА, а не по всему кадру. */
+function groupRows(rects) {
+  if (!rects.length) return [];
+  const band = ROW_BAND * median(rects.map((r) => r[3]));
+  const sorted = [...rects].sort((a, b) => a[1] - b[1]);   // по top, сверху вниз
+  const rows = [[sorted[0]]];
+  for (let i = 1; i < sorted.length; i++) {
+    const row = rows[rows.length - 1];
+    if (Math.abs(sorted[i][1] - median(row.map((r) => r[1]))) <= band) row.push(sorted[i]);
+    else rows.push([sorted[i]]);
+  }
+  return rows;
+}
+
+/* Чистка одного ряда от бликов: (1) выкидываем окна, чей top или height далеко от медианы ряда
+   (блик выбивается вверх и по высоте); (2) из горизонтально пересекающихся окон оставляем то, что
+   БЛИЖЕ к медиане ряда (реальное окно, а не наложившийся на него блик). Ряд из одного окна не
+   трогаем. Результат — слева направо. */
+function pruneRow(row) {
+  if (row.length <= 1) return row;
+  const medTop = median(row.map((r) => r[1]));
+  const medH = median(row.map((r) => r[3]));
+  const tol = ROW_OUTLIER_TOL * medH;
+  let kept = row.filter((r) => Math.abs(r[1] - medTop) <= tol && Math.abs(r[3] - medH) <= tol);
+  if (!kept.length) kept = row;                             // защита: не выкидываем ряд целиком
+  const dist = (r) => Math.abs(r[1] - medTop) + Math.abs(r[3] - medH);   // близость к медиане ряда
+  const out = [];
+  for (const r of [...kept].sort((a, b) => dist(a) - dist(b) || a[0] - b[0])) {
+    if (!out.some((o) => overlapX(o, r))) out.push(r);      // пересёкся с более «медианным» — блик, отбрасываем
+  }
+  return out.sort((a, b) => a[0] - b[0]);
+}
+
 /* Чистка от мусора (детектор ловит блики по канту). Окна одного ряда ~одной высоты и лежат в
    средней части кадра, поэтому: (1) отбрасываем компоненты, прилипшие к верхней/нижней кромке
    (короткие пятна у самого края); (2) из оставшихся режем те, что ниже 60% максимальной высоты
-   (блики короче реальных окон). Результат — слева направо. */
+   (блики короче реальных окон); (3) разбиваем на физические ряды и в каждом ряду отбрасываем блики
+   по медиане top/height и пересечениям. Результат — «ряд за рядом сверху вниз, слева направо»
+   (совпадает с порядком раскладки постов). */
 function cleanWindows(raw) {
   let cand = raw.filter(([, t, , hgt]) => t >= 3 && t + hgt <= 97);
   if (!cand.length) return [];
   const maxH = Math.max(...cand.map((r) => r[3]));
   cand = cand.filter(([, , , hgt]) => hgt >= 0.6 * maxH);
-  cand.sort((a, b) => a[0] - b[0]);
-  return cand;
+  return groupRows(cand).flatMap(pruneRow);
 }
 
 async function main() {
@@ -245,6 +302,8 @@ async function main() {
   }
   if (mismatch.length) {
     console.log(`\n  РАСХОЖДЕНИЕ числа окон с ожидаемым (посмотреть глазами) — ${mismatch.length}:`);
+    console.log(`    (ожидание считается по НАЗВАНИЮ и бывает наивным: «14 модулей» — это два ряда 7+7,`);
+    console.log(`     а «4 кнопки Flat» — четыре отдельных проёма; расхождение не значит ошибку детектора)`);
     for (const m of mismatch) console.log(`    ${m.base} «${m.name}»: ожидалось ${m.expected}, найдено ${m.found}`);
   } else {
     console.log("\n  расхождений числа окон с ожидаемым нет");

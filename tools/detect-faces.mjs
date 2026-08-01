@@ -206,6 +206,8 @@ async function main() {
   }
   if (suspicious.length) {
     console.log(`\n  ПОДОЗРИТЕЛЬНЫЕ КАДРЫ (модуль не попал в ожидаемую пропорцию) — ${suspicious.length}, глянуть глазами:`);
+    console.log(`    (ожидание считается по span и бывает наивным: у розетки с ОТКИНУТОЙ КРЫШКОЙ кадр честно`);
+    console.log(`     выше квадрата — лицо тогда прижимается к низу; расхождение не всегда ошибка)`);
     for (const s of suspicious) {
       console.log(`    ${String(s.code).padEnd(14)} span=${s.span} ratio=${s.ratio} компонентов=${s.parts}  «${s.name}»`);
     }
