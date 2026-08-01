@@ -35,6 +35,40 @@ function signedArea(poly) {
   return s / 2;
 }
 
+/* Аварийная починка зазоров ПЕРЕД построением графа: конец отрезка, «недоведённый»
+   до тела другого отрезка не далее healTol, подтягиваем ровно на этот отрезок. Так
+   недорисованный стык становится настоящим T-стыком — дальше splitAtIntersections
+   разрежет целевой отрезок в этой точке, а buildPlanarGraph сольёт совпавшие узлы, и
+   контур замкнётся. Чинит УЖЕ нарисованные планы без перерисовки (случай владельца:
+   вертикаль оборвалась в паре пикселей от диагонали).
+
+   Допуск (EPConfig.roomHealTol) заметно меньше радиуса магнита разметки: магнит помогает
+   при рисовании, а это аварийная склейка уже нарисованного — большой допуск слепил бы
+   намеренно раздельные линии. Только тело (t∈(0;1)): стык конец-в-конец лечит склейка
+   узлов по tol, здесь именно привязка конца к телу. Чистая функция: вход не мутируем
+   (проекции считаем по исходной геометрии, двигаем копию), поэтому результат не зависит
+   от порядка обхода. Возвращает { segments, healed } — healed показывается пользователю,
+   чтобы он видел, если алгоритм начал склеивать лишнее. */
+function healEndpointGaps(segments, geom, healTol) {
+  const out = segments.map(s => ({ a: { x: s.a.x, y: s.a.y }, b: { x: s.b.x, y: s.b.y } }));
+  let healed = 0;
+  for (let i = 0; i < out.length; i++) {
+    for (const end of ["a", "b"]) {
+      const p = out[i][end];
+      let best = null, bestDist = healTol;
+      for (let j = 0; j < segments.length; j++) {   // цели читаем из исходника — порядконезависимо
+        if (j === i) continue;
+        const s = segments[j];
+        const cp = geom.closestPointOnSegment(p.x, p.y, s.a.x, s.a.y, s.b.x, s.b.y);
+        if (cp.t <= 0 || cp.t >= 1) continue;        // только тело, не концы соседа
+        if (cp.dist > 1e-9 && cp.dist <= bestDist) { best = cp; bestDist = cp.dist; }
+      }
+      if (best) { p.x = best.x; p.y = best.y; healed++; }
+    }
+  }
+  return { segments: out, healed };
+}
+
 /* Разрез всех отрезков в точках взаимных пересечений и в точках, где чужой узел
    лежит на теле отрезка. Возвращает список под-отрезков — вход для планарного графа.
 
@@ -302,10 +336,12 @@ function fallbackByGrid(segments, geom, opts) {
      minArea      — порог отсечения вырожденных граней, px²;
      maxSegments  — предохранитель по числу линий на входе;
      maxFaces     — предохранитель по числу граней;
+     healTol      — допуск аварийной починки зазоров (конец → тело линии), px; 0/нет — починка выключена;
      width,height,cell,wallRadius,simplifyEps — параметры запасного прохода;
      originX,originY — мировое начало сетки запасного прохода (по умолчанию 0).
-   Возвращает { rooms:[{polygon,area,source}], method, stats }. method ∈
-   'faces' | 'grid' | 'none' | 'empty' | 'skipped-limit'. */
+   Возвращает { rooms:[{polygon,area,source}], method, healedJoints, stats }. method ∈
+   'faces' | 'grid' | 'none' | 'empty' | 'skipped-limit'. healedJoints — число «зашитых»
+   стыков (дублируется в stats), приложение показывает его пользователю. */
 function roomsFromLines(segments, opts) {
   opts = opts || {};
   const geom = opts.geom;
@@ -313,39 +349,50 @@ function roomsFromLines(segments, opts) {
   const minArea = opts.minArea >= 0 ? opts.minArea : 0;
   const maxSegments = opts.maxSegments || 400;
   const maxFaces = opts.maxFaces || 200;
-  const stats = { input: segments ? segments.length : 0, subSegments: 0, faces: 0, method: "none" };
+  const healTol = opts.healTol > 0 ? opts.healTol : 0;
+  const stats = { input: segments ? segments.length : 0, subSegments: 0, faces: 0, healedJoints: 0, method: "none" };
 
-  if (!segments || !segments.length || !geom) { stats.method = "empty"; return { rooms: [], method: "empty", stats }; }
+  if (!segments || !segments.length || !geom) { stats.method = "empty"; return { rooms: [], method: "empty", healedJoints: 0, stats }; }
   /* предохранитель: на патологическом вводе O(n²)/O(n³) обход не должен вешать UI */
-  if (segments.length > maxSegments) { stats.method = "skipped-limit"; return { rooms: [], method: "skipped-limit", stats }; }
+  if (segments.length > maxSegments) { stats.method = "skipped-limit"; return { rooms: [], method: "skipped-limit", healedJoints: 0, stats }; }
+
+  /* аварийная починка зазоров до основного прохода: подтягиваем недоведённые концы на
+     тело соседних линий. Работает и на грани, и на сетку (склеенная геометрия «более
+     замкнута»), поэтому дальше везде используем work, а не исходные segments. */
+  let work = segments, healed = 0;
+  if (healTol > 0 && geom.closestPointOnSegment) {
+    const h = healEndpointGaps(segments, geom, healTol);
+    work = h.segments; healed = h.healed;
+  }
+  stats.healedJoints = healed;
 
   // ---- основной проход: грани планарного графа
-  const sub = splitAtIntersections(segments, geom, tol);
+  const sub = splitAtIntersections(work, geom, tol);
   stats.subSegments = sub.length;
   const graph = buildPlanarGraph(sub, tol);
   const faces = findFaces(graph, minArea, maxFaces);
   stats.faces = faces.length;
   if (faces.length) {
     stats.method = "faces";
-    return { rooms: faces.map(f => ({ polygon: f.polygon, area: f.area, source: "lines" })), method: "faces", stats };
+    return { rooms: faces.map(f => ({ polygon: f.polygon, area: f.area, source: "lines" })), method: "faces", healedJoints: healed, stats };
   }
 
   // ---- запасной проход по сетке (только если основной пуст и переданы размеры холста)
   if (opts.width && opts.height && geom.buildSpaceComponents) {
-    const polys = fallbackByGrid(segments, geom, opts);
+    const polys = fallbackByGrid(work, geom, opts);
     stats.method = polys.length ? "grid" : "none";
     return {
       rooms: polys.map(p => ({ polygon: p, area: geom.polygonAreaPx ? geom.polygonAreaPx(p) : Math.abs(signedArea(p)), source: "grid" })),
-      method: stats.method, stats
+      method: stats.method, healedJoints: healed, stats
     };
   }
-  return { rooms: [], method: "none", stats };
+  return { rooms: [], method: "none", healedJoints: healed, stats };
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { roomsFromLines, splitAtIntersections, buildPlanarGraph, findFaces,
-  fallbackByGrid, traceCells, douglasPeucker, removeCollinear, signedArea };
+const api = { roomsFromLines, healEndpointGaps, splitAtIntersections, buildPlanarGraph,
+  findFaces, fallbackByGrid, traceCells, douglasPeucker, removeCollinear, signedArea };
 if (typeof window !== "undefined") window.EPRoomsFromLines = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

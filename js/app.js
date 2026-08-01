@@ -1084,7 +1084,11 @@ function drawWalls(){
    работа с DOM/state и оркестровка рисования цепочки. ---- */
 function makeRoomLine(a,b){return {id:uid("rline_"),a:{x:a.x,y:a.y},b:{x:b.x,y:b.y}}}
 
-/* Магнит: сперва к концам уже нарисованных линий, затем к их пересечениям.
+/* Магнит: конец линии → пересечение линий → ТЕЛО линии (в этом порядке приоритета).
+   Тело идёт последним: точные привязки (конец, пересечение) должны его перебивать,
+   иначе курсор будет промахиваться мимо узлов. Привязка к телу нужна там, где на линии
+   нет ни конца, ни пересечения (случай владельца: вертикаль доводится к диагонали) —
+   благодаря ей точка садится РОВНО на линию, и потом появляется настоящее пересечение.
    Радиус — из EPConfig, не зашит в код (PLAN 2.3). null — если рядом ничего нет. */
 function roomLineMagnet(x,y,radius){
   const pt={x,y};
@@ -1092,6 +1096,8 @@ function roomLineMagnet(x,y,radius){
   if(ep)return {x:ep.x,y:ep.y,kind:"endpoint"};
   const ix=EPGeom.nearestIntersection(pt,state.roomLines,radius);
   if(ix)return {x:ix.x,y:ix.y,kind:"intersection"};
+  const bp=EPGeom.nearestSegmentPoint(pt,state.roomLines,radius);
+  if(bp)return {x:bp.x,y:bp.y,kind:"segment"};
   return null;
 }
 /* Единая точка расчёта итоговой точки клика/курсора — чтобы превью и фактическая
@@ -1227,6 +1233,7 @@ function buildRoomsFromLines(opts){
   const res=EPRoomsFromLines.roomsFromLines(lines,{
     geom:EPGeom,tol:EPConfig.roomWeldTol,minArea:EPConfig.roomMinAreaPx,
     maxSegments:EPConfig.roomMaxSegments,maxFaces:EPConfig.roomMaxFaces,
+    healTol:EPConfig.roomHealTol,   /* аварийная починка зазоров: недоведённые концы → тело линии */
     width:g.width,height:g.height,originX:g.originX,originY:g.originY,
     cell:g.cell,wallRadius:wallRadiusFor(g.cell),simplifyEps:EPConfig.roomSimplifyEps
   });
@@ -1253,8 +1260,12 @@ function buildRoomsFromLines(opts){
   if(!silent){
     const byGrid=res.rooms.filter(r=>r.source==="grid").length;
     const note=res.method==="grid"?" (по сетке — контур приблизительный)":byGrid?` (из них по сетке: ${byGrid})`:"";
+    /* число «зашитых» зазоров показываем явно: если починка склеила лишнее, пользователь
+       должен это видеть, а не гадать, почему помещения не те (решение владельца) */
+    const healed=res.healedJoints||0;
+    const healNote=healed?` · зашито зазоров: ${healed}`:"";
     toast(`Помещений по линиям: ${res.rooms.length}${note}`);
-    updateStatus(kept?`Помещений по линиям: ${res.rooms.length} · сохранено ручных контуров: ${kept}`:`Помещений по линиям: ${res.rooms.length}`);
+    updateStatus((kept?`Помещений по линиям: ${res.rooms.length} · сохранено ручных контуров: ${kept}`:`Помещений по линиям: ${res.rooms.length}`)+healNote);
   }
 }
 /* Автопересчёт с задержкой после правки линий (решение владельца №3: «по кнопке +

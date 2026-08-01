@@ -32,12 +32,22 @@ function pointInPolygon(x, y, poly) {
   return inside;
 }
 
+/* Ближайшая точка НА отрезке A—B к точке (px,py): перпендикулярная проекция с зажимом
+   параметра t в [0;1] (за концами отрезка — сам ближний конец). Возвращает {x,y,t,dist}.
+   Это единственное место, где живёт математика проекции: distancePointToSegment и
+   привязка к телу линии опираются на неё, чтобы формула не расползлась по копиям. */
+function closestPointOnSegment(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  // вырожденный отрезок-точка: t=0, ближайшая точка — сам A (без деления на ноль)
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+  const x = ax + t * dx, y = ay + t * dy;
+  return { x, y, t, dist: Math.hypot(px - x, py - y) };
+}
+
 /* Расстояние от точки до отрезка (проекция с зажимом в [0;1]). */
 function distancePointToSegment(px, py, ax, ay, bx, by) {
-  const dx = bx - ax, dy = by - ay;
-  if (dx === 0 && dy === 0) return Math.hypot(px - ax, py - ay);
-  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
-  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  return closestPointOnSegment(px, py, ax, ay, bx, by).dist;
 }
 
 /* ---- Магниты разметки помещений (PLAN 3.1): чистая геометрия привязки.
@@ -93,6 +103,20 @@ function nearestIntersection(point, segments, radius) {
   for (const p of allIntersections(segments)) {
     const d = Math.hypot(point.x - p.x, point.y - p.y);
     if (d <= bestDist) { bestDist = d; best = { x: p.x, y: p.y, dist: d }; }
+  }
+  return best;
+}
+
+/* Ближайшая точка на ТЕЛЕ линий к точке в пределах радиуса — {x,y,dist} или null.
+   Даёт привязку к самому отрезку там, где нет ни конца, ни пересечения (случай
+   владельца: линия доводится к диагонали, на которой в этой точке цепляться не за
+   что). У вызывающего этот магнит — последний среди привязок: точные концы и
+   пересечения должны его перебивать, иначе курсор промахнётся мимо узлов. */
+function nearestSegmentPoint(point, segments, radius) {
+  let best = null, bestDist = radius;
+  for (const s of segments) {
+    const cp = closestPointOnSegment(point.x, point.y, s.a.x, s.a.y, s.b.x, s.b.y);
+    if (cp.dist <= bestDist) { bestDist = cp.dist; best = { x: cp.x, y: cp.y, dist: cp.dist }; }
   }
   return best;
 }
@@ -197,8 +221,8 @@ function componentAt(map, x, y) {
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
 const api = { polygonCentroid, polygonAreaPx, pointInPolygon, distancePointToSegment,
-  segmentsIntersection, allIntersections, nearestEndpoint, nearestIntersection,
-  snapPlanPoint, buildSpaceComponents, componentAt };
+  closestPointOnSegment, segmentsIntersection, allIntersections, nearestEndpoint,
+  nearestIntersection, nearestSegmentPoint, snapPlanPoint, buildSpaceComponents, componentAt };
 if (typeof window !== "undefined") window.EPGeom = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -5,7 +5,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   segmentsIntersection, allIntersections, nearestEndpoint, nearestIntersection,
-  distancePointToSegment, polygonAreaPx, pointInPolygon, snapPlanPoint
+  distancePointToSegment, closestPointOnSegment, nearestSegmentPoint,
+  polygonAreaPx, pointInPolygon, snapPlanPoint
 } = require("../js/geometry.js");
 
 /* отрезок из двух точек в форме {a,b} — как хранятся стены и линии разметки */
@@ -80,6 +81,59 @@ test("distancePointToSegment: проекция и зажим в концах", (
   near(distancePointToSegment(5, 4, 0, 0, 10, 0), 4, "перпендикуляр к отрезку");
   near(distancePointToSegment(-3, 0, 0, 0, 10, 0), 3, "зажим в начале отрезка");
   near(distancePointToSegment(5, 0, 5, 5, 5, 5), 5, "вырожденный отрезок = расстояние до точки");
+});
+
+/* Ближайшая точка НА отрезке (привязка к телу линии): проекция внутри, зажим за
+   концом, точка ровно на перпендикуляре. */
+test("closestPointOnSegment: проекция внутрь отрезка", () => {
+  const cp = closestPointOnSegment(5, 4, 0, 0, 10, 0);
+  near(cp.x, 5, "x проекции — под точкой");
+  near(cp.y, 0, "y проекции — на отрезке");
+  near(cp.t, 0.5, "параметр в середине");
+  near(cp.dist, 4, "расстояние = высота перпендикуляра");
+});
+
+test("closestPointOnSegment: за концом — зажим в конец (t=0)", () => {
+  const cp = closestPointOnSegment(-3, 5, 0, 0, 10, 0);
+  near(cp.x, 0, "x зажат в начало");
+  near(cp.y, 0, "y зажат в начало");
+  near(cp.t, 0, "параметр упёрся в 0");
+  near(cp.dist, Math.hypot(3, 5), "расстояние до ближнего конца");
+});
+
+test("closestPointOnSegment: на перпендикуляре к диагонали", () => {
+  /* точка (0,10) над диагональю (0,0)-(10,10): проекция — середина (5,5) */
+  const cp = closestPointOnSegment(0, 10, 0, 0, 10, 10);
+  near(cp.x, 5, "x проекции на диагональ");
+  near(cp.y, 5, "y проекции на диагональ");
+  near(cp.dist, Math.hypot(5, 5), "перпендикуляр к диагонали");
+});
+
+test("nearestSegmentPoint: ловит тело линии там, где нет ни конца, ни пересечения", () => {
+  /* диагональ; курсор в 2px от её тела вдали от концов — привязка к проекции */
+  const diag = [seg(0, 0, 100, 100)];
+  const hit = nearestSegmentPoint({ x: 51, y: 49 }, diag, 14);
+  assert.ok(hit, "тело диагонали в радиусе");
+  near(hit.x, 50, "x проекции на тело");
+  near(hit.y, 50, "y проекции на тело");
+  assert.equal(nearestSegmentPoint({ x: 60, y: 30 }, diag, 14), null, "далеко от тела — привязки нет");
+});
+
+/* Приоритет магнитов, как он реализован в roomLineMagnet (app.js): конец → пересечение
+   → тело. Проверяем на чистых функциях, что при точке у самого узла ПОБЕЖДАЕТ конец,
+   а тело лишь дополняет — иначе пользователь промахивался бы мимо узлов. */
+test("приоритет магнитов: конец линии перебивает тело линии", () => {
+  const segs = [seg(0, 0, 100, 0), seg(0, 0, 0, 100)];
+  const pt = { x: 3, y: 2 };                 // почти в углу (0,0)
+  const R = 14;
+  const ep = nearestEndpoint(pt, segs, R);
+  const bp = nearestSegmentPoint(pt, segs, R);
+  assert.ok(ep, "конец (0,0) в радиусе");
+  assert.ok(bp, "тело тоже в радиусе");
+  /* порядок из roomLineMagnet: сначала конец — он и выбирается */
+  const chosen = ep || nearestIntersection(pt, segs, R) || bp;
+  near(chosen.x, 0, "выбран узел (0,0), не тело");
+  near(chosen.y, 0, "выбран узел (0,0), не тело");
 });
 
 /* Смежные чистые функции, на которые опирается деление пространства — короткая

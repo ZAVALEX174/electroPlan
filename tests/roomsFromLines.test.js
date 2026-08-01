@@ -120,3 +120,59 @@ test("маршрутизация: разомкнутый и не заклеен�
   assert.equal(r.method, "none", "ни грани, ни области по сетке");
   assert.equal(r.rooms.length, 0);
 });
+
+/* ---- Аварийная починка зазоров: недоведённый конец подтягивается на тело линии. ---- */
+
+/* healEndpointGaps как чистая функция: конец в 2px от тела горизонтали садится на неё,
+   конец в 20px — нет; счётчик и неизменность входа. */
+test("healEndpointGaps: конец в пределах допуска садится на тело, дальше — нет", () => {
+  const horiz = seg(0, 10, 100, 10);
+  const near2 = seg(50, 30, 50, 12);   // верх (50,12) в 2px над телом горизонтали
+  const h = R.healEndpointGaps([horiz, near2], geom, 3);
+  assert.equal(h.healed, 1, "зашит ровно один стык");
+  const movedTop = h.segments[1].b;
+  near(movedTop.x, 50, "x конца остался");
+  near(movedTop.y, 10, "конец подтянут ровно на тело (y=10)");
+  assert.equal(near2.b.y, 12, "вход НЕ мутирован — исходный конец на месте");
+
+  const far = seg(50, 30, 50, 40);     // верх (50,40) в 30px от горизонтали
+  const h2 = R.healEndpointGaps([horiz, far], geom, 3);
+  assert.equal(h2.healed, 0, "зазор больше допуска не чинится");
+});
+
+test("healEndpointGaps: конец у КОНЦА соседа (не тело) не чинится", () => {
+  /* конец (52,0) в 2px от конца (50,0), но проекция попадает на t≈1 — это стык
+     конец-в-конец, а не привязка к телу; его лечит склейка узлов, не эта функция */
+  const h = R.healEndpointGaps([seg(0, 0, 50, 0), seg(52, 0, 52, 40)], geom, 3);
+  assert.equal(h.healed, 0, "к концу соседа не подтягиваем — только к телу");
+});
+
+/* Случай владельца: прямоугольные стены, диагональ и вертикаль, НЕ доведённая до
+   диагонали. Диагональ (0,120)-(200,40) на x=100 проходит через y=80. */
+const ownerCase = (verticalTop) => [
+  seg(0, 0, 200, 0),        // низ
+  seg(200, 0, 200, 40),     // право
+  seg(0, 120, 200, 40),     // диагональ (наклонный потолок)
+  seg(100, 0, 100, verticalTop) // вертикаль от низа вверх к диагонали
+];
+
+test("починка: вертикаль с зазором 2px до диагонали — помещение определяется", () => {
+  const r = R.roomsFromLines(ownerCase(78), { geom, tol: 0.75, minArea: 100, healTol: 3 });
+  assert.equal(r.method, "faces", "стык зашит — основной проход нашёл грань");
+  assert.equal(r.rooms.length, 1, "появилось одно помещение");
+  assert.equal(r.healedJoints, 1, "зашит один стык");
+  assert.equal(r.stats.healedJoints, 1, "счётчик продублирован в stats");
+});
+
+test("починка выключена (healTol нет) — тот же зазор помещения НЕ даёт", () => {
+  const r = R.roomsFromLines(ownerCase(78), { geom, tol: 0.75, minArea: 100 });
+  assert.equal(r.rooms.length, 0, "без починки контур остаётся разомкнутым");
+  assert.equal(r.healedJoints, 0, "ничего не зашивали");
+});
+
+test("починка: зазор 20px больше допуска — помещение не появляется", () => {
+  const r = R.roomsFromLines(ownerCase(60), { geom, tol: 0.75, minArea: 100, healTol: 3 });
+  assert.equal(r.rooms.length, 0, "слишком большой зазор не склеиваем");
+  assert.equal(r.healedJoints, 0, "стык не зашит");
+  assert.equal(r.method, "none");
+});

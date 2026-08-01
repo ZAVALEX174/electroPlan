@@ -82,6 +82,8 @@ button{cursor:pointer}
 .snap-intersection{stroke:#e08a1e}
 .snap-grid{stroke:#7b3fe4;opacity:.5}
 .snap-close{fill:rgba(31,155,82,.25);stroke:#1f9b52;stroke-width:2.5}
+/* привязка к ТЕЛУ линии: пунктир и свой цвет — видно, что точка сядет НА линию, а не рядом */
+.snap-segment{stroke:#d6336c;stroke-dasharray:2.5 2.5}
 .canvas.drawing{cursor:crosshair}
 .room-poly{fill:none;stroke:#102a43;stroke-width:3;stroke-linejoin:miter}
 .room-poly.selected{stroke:#bf3f4e;stroke-width:4}
