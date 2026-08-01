@@ -57,7 +57,7 @@ const frameProduct=id=>product(id);
 /* Чистая доменная логика каталога (модули/серии/совместимость/рамки/картинки)
    вынесена в js/catalog.js (EPCatalog) — PLAN 2.1; берём её алиасами. Accessor'ы
    product/byKind над state и генерация HTML/DOM остаются в этом файле. */
-const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,defaultPostName,productImage}=EPCatalog;
+const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,defaultPostName,productImage,frameOpening,frameOpenings,moduleFace}=EPCatalog;
 const productMoney=item=>money(item?.price);
 const productOptionLabel=item=>`[${item?.code||"без артикула"}] ${item?.name||"Без названия"} — ${productMoney(item)}`;
 const mechanismModulesTotal=ids=>ids.reduce((sum,id)=>sum+mechanismSpan(product(id)),0);
@@ -219,10 +219,13 @@ const postCost=p=>EPPosts.postCost(p,postDeps());
 const postComposition=p=>EPPosts.postComposition(p,postDeps());
 /* Единое изображение собранного поста (EPPostImage): собираем spec из каталога — накладка,
    ряды/посты (EPPosts.distributePosts показывает разделение на посты и импосты, включая
-   двухрядные «4+4»), в ячейках — ТИП механизма (признаки функциональной группы для
-   самодельного значка) и номер модуля. Фото сюда НЕ передаём: собранный пост рисуется
-   схемой (решение владельца). Одна функция кормит превью конструктора, карточку библиотеки,
-   подсказку на плане, раскладку КП и лист монтажника (в т.ч. печать — инлайн-стили). */
+   двухрядные «4+4»), в ячейках — только признаки функциональной группы (categoryId + символ)
+   для значка на клавише. ФОТО МЕХАНИЗМОВ ВНУТРЬ СБОРКИ НЕ КЛАДЁМ (владелец дважды отверг
+   коллаж; ориентир — каталожные сборки VIMAR): EPPostImage рисует ровные клавиши в цвет
+   накладки. ПОДЛОЖКА — фотография накладки (правка владельца 01.08): передаём её imageUrl,
+   стандарт (DE/FR → деление окна на посты) и окно в % (EPCatalog.frameOpening). Нет фото —
+   EPPostImage сам рисует схему-фолбэк. Одна функция кормит превью конструктора, карточку
+   библиотеки, подсказку на плане, раскладку КП и лист монтажника (в т.ч. печать — инлайн-стили). */
 function assembledPostSpec(post,{size="md"}={}){
   const frame=frameProduct(post.frameId);
   const dist=EPPosts.distributePosts(post.mechanismIds||[],frame,{product,mechanismSpan});
@@ -233,9 +236,13 @@ function assembledPostSpec(post,{size="md"}={}){
     p.mechanismIds.forEach(id=>{
       const item=product(id),span=mechanismSpan(item);
       const start=occ+1,end=occ+span;
-      /* значок — по функциональной группе (categoryId + символ icon), а не по фото:
-         EPPostImage.pickIcon сам выберет самодельную SVG-иконку из этих признаков */
-      cells.push({span,categoryId:item?.categoryId,icon:item?.icon,name:item?.name||"",num:start===end?String(start):`${start}–${end}`});
+      /* Модуль показываем НАСТОЯЩИМ фото механизма, обрезанным по лицу: imageUrl — детальное фото,
+         face — лицевой прямоугольник в % фото (moduleFace, снят детектором). Нет фото/лица →
+         postImage рисует нарисованную клавишу-фолбэк, и тогда работают признаки функц. группы
+         (categoryId + символ icon → значок pickIcon) и цвет клавиши: color — ЯВНЫЙ цвет, иначе
+         цвет из name самого механизма (лицевая панель — отдельный товар: VIMAR даёт белую накладку
+         с серебр. клавишами). */
+      cells.push({span,imageUrl:productImage(item,{detail:true}),face:moduleFace(item),color:item?.properties?.color||item?.color||"",categoryId:item?.categoryId,icon:item?.icon,name:item?.name||"",num:start===end?String(start):`${start}–${end}`});
       occ+=span;
     });
     /* свободные модули поста — пустые ячейки с номером слота (место, а не поломка) */
@@ -243,8 +250,16 @@ function assembledPostSpec(post,{size="md"}={}){
     rowsMap.get(p.row).push({capacity:p.capacity,cells});
   });
   const rows=[...rowsMap.keys()].sort((a,b)=>a-b).map(r=>({posts:rowsMap.get(r)}));
-  /* Цвет накладки EPPostImage возьмёт из name (у рамок VIMAR цвет — в названии). */
-  const frameSpec=frame?{name:frame.name,code:frame.code}:null;
+  /* Накладка: ДЕТАЛЬНОЕ фото (detail:true — превью это квадратный кроп 100×100, в него влезает
+     лишь средняя треть широкой накладки; заглушки no_photo отсеяны в productImage), стандарт,
+     ИЗМЕРЕННЫЕ монтажные окна с фото (frameOpenings → mountRect/mountRects) и запасное окно-догадка
+     (frameOpening) на случай, когда измерений нет. Нет фото — EPPostImage возьмёт цвет схемы-фолбэка
+     из name (у рамок VIMAR цвет — в названии). */
+  const count=frameSlotCount(frame)||dist.totalCapacity;
+  const frameSpec=frame?{
+    name:frame.name,code:frame.code,imageUrl:productImage(frame,{detail:true}),standard:frame.standard,
+    opening:frameOpening(frame,count),windows:frameOpenings(frame,count)
+  }:null;
   return {size,frame:frameSpec,rows};
 }
 const assembledPostHtml=(post,opts={})=>EPPostImage.buildHtml(assembledPostSpec(post,opts),{esc});

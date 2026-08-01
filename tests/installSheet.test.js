@@ -95,3 +95,15 @@ test("assembledImageHtml вставляется в карточку поста �
   const html = buildHtml({ posts: [post] }, deps);
   assert.match(html, /class="assembled-post"/, "картинка собранного поста в листе монтажника");
 });
+
+test("автопечать ждёт загрузки картинок и печатает ровно один раз", () => {
+  const html = buildHtml({ posts: [italianPost] }, deps);
+  /* печать по готовности картинок, а не по прежнему setTimeout(...,400): иллюстрации постов
+     тянутся с vimar.ru и могли не успеть → сборка уезжала в PDF недогруженной */
+  assert.match(html, /document\.images/, "печать привязана к загрузке изображений");
+  assert.match(html, /addEventListener\("load"/, "ждём событие load незагруженных картинок");
+  assert.match(html, /addEventListener\("error"/, "битая картинка (error) тоже снимает ожидание");
+  assert.match(html, /if\(done\)return;done=true/, "флаг done — печать ровно один раз");
+  assert.match(html, /setTimeout\(pr,4000\)/, "предохранитель: печать не позже 4000 мс");
+  assert.ok(!/setTimeout\(\(\)=>window\.print\(\),400\)/.test(html), "прежней печати по таймеру больше нет");
+});

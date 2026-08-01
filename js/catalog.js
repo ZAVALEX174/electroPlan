@@ -95,6 +95,63 @@ function frameOpening(item, count) {
   return valid ? rect : fallback;
 }
 
+/* ИЗМЕРЕННЫЕ монтажные окна накладки → массив прямоугольников {left,top,width,height,aspect}
+   СЛЕВА НАПРАВО в % фото. Немецкая накладка физически разделена импостами и несёт НЕСКОЛЬКО окон
+   (mountRects), итальянская — ОДНО сплошное (mountRect). Значения снимаются детектором с фото
+   (tools/detect-openings.mjs → catalog-vimar-openings.js) и подмешиваются в js/data.js.
+
+   ОТЛИЧИЕ ОТ frameOpening: тот ВСЕГДА отдаёт один валидный прямоугольник (с дефолтом-догадкой по
+   числу мест), а здесь принципиально вернуть null, когда измерений НЕТ (фото не разобралось или
+   товар не из VIMAR) — по этому null postImage падает на splitOpening-фолбэк, а не рисует клавиши
+   по выдуманному окну. count принят для симметрии с frameOpening (окна самодостаточны — несут
+   свою геометрию, поэтому в расчётах здесь не участвует). */
+function frameOpenings(item, count) {
+  const parse = v => { if (typeof v === "string") { try { return JSON.parse(v); } catch { return null; } } return v; };
+  const norm = r => {
+    if (!r || typeof r !== "object") return null;
+    const rect = {
+      left: Number(r.left ?? r.x), top: Number(r.top ?? r.y),
+      width: Number(r.width ?? r.w), height: Number(r.height ?? r.h)
+    };
+    if (Number(r.aspect) > 0) rect.aspect = Number(r.aspect);
+    const ok = [rect.left, rect.top, rect.width, rect.height].every(Number.isFinite)
+      && rect.left >= 0 && rect.top >= 0 && rect.width > 0 && rect.height > 0
+      && rect.left + rect.width <= 100.5 && rect.top + rect.height <= 100.5;
+    return ok ? rect : null;
+  };
+  const many = parse(item?.mountRects ?? item?.mount_rects);
+  if (Array.isArray(many)) {
+    const rects = many.map(norm).filter(Boolean);
+    if (rects.length) return rects;
+  }
+  const one = norm(parse(item?.mountRect ?? item?.mount_rect ?? item?.frameOpening ?? item?.frame_opening));
+  return one ? [one] : null;
+}
+
+/* ЛИЦЕВОЙ прямоугольник механизма → {left,top,width,height} в % ДЕТАЛЬНОГО фото, или null.
+   Значения снимаются детектором (tools/detect-faces.mjs → catalog-vimar-faces.js) и подмешиваются
+   в js/data.js полем faceRect. По этому прямоугольнику postImage обрезает фото механизма ровно под
+   ячейку модуля (лицо накрывает ячейку, поля и монтажные лапки уезжают за overflow).
+
+   Симметрично frameOpenings: принципиально вернуть null, когда лица НЕТ (фото не разобралось или
+   товар не из VIMAR) — по этому null postImage рисует нарисованную клавишу-фолбэк, а не тянет
+   отсутствующее фото. Принимаем и объект {left,top,width,height}, и массив [l,t,w,h] (как в
+   генерируемом файле), и JSON-строку — чтобы не зависеть от формы хранения. */
+function moduleFace(item) {
+  let r = item?.faceRect ?? item?.face_rect ?? item?.face;
+  if (typeof r === "string") { try { r = JSON.parse(r); } catch { r = null; } }
+  if (Array.isArray(r)) r = { left: r[0], top: r[1], width: r[2], height: r[3] };
+  if (!r || typeof r !== "object") return null;
+  const rect = {
+    left: Number(r.left ?? r.x), top: Number(r.top ?? r.y),
+    width: Number(r.width ?? r.w), height: Number(r.height ?? r.h)
+  };
+  const ok = [rect.left, rect.top, rect.width, rect.height].every(Number.isFinite)
+    && rect.left >= 0 && rect.top >= 0 && rect.width > 0 && rect.height > 0
+    && rect.left + rect.width <= 100.5 && rect.top + rect.height <= 100.5;
+  return ok ? rect : null;
+}
+
 /* Заглушка «нет фото» из выгрузки vimar.ru (…/no_photo.png) — единственный вид пустышки в
    каталоге. Она УСПЕШНО загружается, поэтому фолбэк «иконка под <img>» её не ловит и на
    экран лезет серый прямоугольник. Считаем такую картинку отсутствующей — тогда сработает
@@ -113,7 +170,7 @@ const productImage = (item, { detail = false } = {}) => {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { moduleWord, mechanismSpan, productSeries, compatibleMechanisms, frameSlotCount, defaultPostName, frameOpening, productImage, isPlaceholderImage };
+const api = { moduleWord, mechanismSpan, productSeries, compatibleMechanisms, frameSlotCount, defaultPostName, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage };
 if (typeof window !== "undefined") window.EPCatalog = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

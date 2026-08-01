@@ -7,9 +7,12 @@
   "scripts": {
     "test": "node --test \"tests/*.test.js\"",
     "build:catalog": "node tools/build-catalog.mjs",
-    "build:attrs": "node tools/build-catalog-attrs.mjs"
+    "build:attrs": "node tools/build-catalog-attrs.mjs",
+    "build:openings": "node tools/detect-openings.mjs",
+    "build:faces": "node tools/detect-faces.mjs"
   },
   "devDependencies": {
+    "jimp": "^1.6.1",
     "xlsx": "^0.18.5"
   }
 }

@@ -13,6 +13,19 @@
 (() => {
 "use strict";
 
+/* Автопечать окна листа монтажника: печатаем НЕ по таймеру, а когда догрузятся картинки
+   (иллюстрации собранных постов тянутся с vimar.ru и за прежние 400 мс могли не успеть — сборка
+   уезжала в PDF недогруженной). Все <img> уже complete → печать сразу; иначе ждём load/error
+   каждой незагруженной и печатаем на нуле счётчика. Сверху предохранитель 4000 мс, чтобы одна
+   битая картинка не подвесила печать навсегда. Флаг done — печать ровно один раз. Инлайн-скрипт:
+   в окне печати наших модулей нет. */
+const printScript = `<script>(function(){var done=false;function pr(){if(done)return;done=true;window.print();}`
+  + `var imgs=[].slice.call(document.images),pending=0;`
+  + `imgs.forEach(function(img){if(img.complete)return;pending++;`
+  + `function tick(){if(--pending===0)pr();}`
+  + `img.addEventListener("load",tick);img.addEventListener("error",tick);});`
+  + `if(pending===0)pr();setTimeout(pr,4000);})();<\/script>`;
+
 /* data = {
      title?, subtitle?,
      header?: { project?, developer?, date? },   // пустые поля не печатаются
@@ -146,7 +159,7 @@ function buildHtml(data, deps) {
   ${headerRows ? `<div class="doc-head">${headerRows}</div>` : ""}
   ${body}
   <div class="footer">Документ для монтажа. Позиции модулей указаны слева направо, как в собранной накладке.</div>
-  <script>setTimeout(()=>window.print(),400)<\/script></body></html>`;
+  ${printScript}</body></html>`;
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),

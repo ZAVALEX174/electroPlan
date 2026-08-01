@@ -43,15 +43,37 @@ window.EP_DATA = {
     const attrs = window.EP_VIMAR_ATTRS || {standards:{},supports:{},wallTypes:{},boxes:{}};
     const supports = attrs.supports || {};
     const boxes = attrs.boxes || {};
+    // Измеренные монтажные окна накладок (js/catalog-vimar-openings.js) — снятые детектором с
+    // ДЕТАЛЬНОГО фото прямоугольники в % фото. Ключ — БАЗА артикула (09673.01/09673.04 → 09673):
+    // геометрия окон у цветовых вариантов одна и та же. Итальянская несёт одно окно → mountRect,
+    // немецкая несколько → mountRects; EPCatalog.frameOpening/frameOpenings читают эти поля.
+    const openings = window.EP_VIMAR_OPENINGS || {};
+    const attachOpenings = (p, out) => {
+      const o = openings[String(p.code || "").split(".")[0]];
+      if (!o || !Array.isArray(o.rects) || !o.rects.length) return out;
+      const res = out === p ? {...p} : out;
+      const rects = o.rects.map(r => ({left: r[0], top: r[1], width: r[2], height: r[3], aspect: o.aspect}));
+      if (rects.length === 1) res.mountRect = rects[0]; else res.mountRects = rects;
+      return res;
+    };
+    // Лицевой прямоугольник механизма (js/catalog-vimar-faces.js) — снятый детектором с ДЕТАЛЬНОГО
+    // фото прямоугольник [left,top,width,height] в % фото. В собранном посте им обрезается фото
+    // механизма под ячейку модуля (postImage). Ключ — ПОЛНЫЙ артикул (у механизмов база ненадёжна:
+    // суффикс после точки кодирует и цвет, и число модулей — 09001.0.250 это 1М, 09001.2.CM это 2М).
+    // EPCatalog.moduleFace читает это поле; нет файла/записи → механизм рисуется клавишей-фолбэком.
+    const faces = window.EP_VIMAR_FACES || {};
     return list.map(p => {
-      if (p.kind === "frame" && attrs.standards[p.code]) {
-        const a = attrs.standards[p.code];
-        // layoutRows — раскладка накладки на посты (немецкая «(2+2)», двухрядная «4+4»);
-        // EPPosts.frameLayout читает её для превью/распределения. Нет её (обычная итальянская
-        // однорядная) — рантайм выведет один пост на всю ширину.
-        const frame = {...p, standard: a.standard, postCount: a.postCount};
-        if (a.layoutRows) frame.layoutRows = a.layoutRows;
-        return frame;
+      if (p.kind === "frame") {
+        let out = p;
+        if (attrs.standards[p.code]) {
+          const a = attrs.standards[p.code];
+          // layoutRows — раскладка накладки на посты (немецкая «(2+2)», двухрядная «4+4»);
+          // EPPosts.frameLayout читает её для превью/распределения. Нет её (обычная итальянская
+          // однорядная) — рантайм выведет один пост на всю ширину.
+          out = {...p, standard: a.standard, postCount: a.postCount};
+          if (a.layoutRows) out.layoutRows = a.layoutRows;
+        }
+        return attachOpenings(p, out);
       }
       // Суппорт: стандарт + число модулей + межосевой шаг — для findSupport (подбор
       // планки той же серии, модульности и стандарта, что накладка).
@@ -66,6 +88,14 @@ window.EP_DATA = {
         const b = boxes[p.code];
         if (b) return {...p, wallType: b.wallType, boxShape: b.shape, boxModules: b.modules, boxStandards: b.standards};
         if (attrs.wallTypes[p.code]) return {...p, wallType: attrs.wallTypes[p.code]};
+      }
+      // Механизм: лицевой прямоугольник фото (faceRect) — по ПОЛНОМУ артикулу, для обрезки фото
+      // под ячейку модуля в собранном посте. Нет записи → останется без faceRect (клавиша-фолбэк).
+      if (p.kind === "mechanism") {
+        const f = faces[p.code];
+        if (f && Array.isArray(f.face) && f.face.length === 4) {
+          return {...p, faceRect: {left: f.face[0], top: f.face[1], width: f.face[2], height: f.face[3]}};
+        }
       }
       return p;
     });

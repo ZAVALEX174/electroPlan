@@ -8,6 +8,18 @@
 (() => {
 "use strict";
 
+/* Автопечать окна КП: печатаем НЕ по таймеру, а когда догрузятся картинки (иллюстрации постов
+   тянутся с vimar.ru и за прежние 500 мс могли не успеть — сборка уезжала в PDF недогруженной).
+   Все <img> уже complete → печать сразу; иначе ждём load/error каждой незагруженной и печатаем на
+   нуле счётчика. Сверху предохранитель 4000 мс, чтобы одна битая картинка не подвесила печать
+   навсегда. Флаг done — печать ровно один раз. Инлайн-скрипт: в окне печати наших модулей нет. */
+const printScript = `<script>(function(){var done=false;function pr(){if(done)return;done=true;window.print();}`
+  + `var imgs=[].slice.call(document.images),pending=0;`
+  + `imgs.forEach(function(img){if(img.complete)return;pending++;`
+  + `function tick(){if(--pending===0)pr();}`
+  + `img.addEventListener("load",tick);img.addEventListener("error",tick);});`
+  + `if(pending===0)pr();setTimeout(pr,4000);})();<\/script>`;
+
 /* est   — результат EPEstimate.build (groups, equipment, discount, vat, total, …)
    deps  — { money(n), esc(s), displayCurrency(), effectiveRate(settings), settings }
    Возвращает строку полного HTML-документа с авто-печатью. */
@@ -68,7 +80,7 @@ function buildHtml(est, deps) {
   </tbody></table>` : "";
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>Коммерческое предложение</title><style>
-  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus img{max-height:56px;max-width:96px;object-fit:contain}@media print{button{display:none}}</style></head><body>
+  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}@media print{button{display:none}}</style></head><body>
   <h1>Коммерческое предложение</h1><div class="sub">Проект электрики и комплектация электроустановочных изделий</div>
   <div class="meta"><div class="box">${headerRows}</div><button onclick="window.print()">Сохранить в PDF</button></div>
   ${layoutSection}
@@ -83,7 +95,7 @@ function buildHtml(est, deps) {
   <div class="grand"><span>Итого${est.vat ? " с НДС" : ""}</span><b>${money(total)}</b></div></div>
   ${displayCurrency() === "RUB" ? rateFooter() : ""}
   <div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>
-  <script>setTimeout(()=>window.print(),500)<\/script></body></html>`;
+  ${printScript}</body></html>`;
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
