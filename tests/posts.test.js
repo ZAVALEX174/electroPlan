@@ -6,7 +6,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { postCost, postComposition, boxCount,
   moduleLayout, fillWord, fillSummary, nextPostNumber, ensurePostNumbers,
-  frameLayout, distributePosts, postModuleGroups } = require("../js/posts.js");
+  frameLayout, distributePosts, maxFreeSpan, postModuleGroups } = require("../js/posts.js");
 
 /* Каталог-заглушка на реальных артикулах VIMAR. Накладки (kind frame) несут стандарт
    и число постов ровно так, как их проставит загрузчик из колонок прайса.
@@ -245,6 +245,36 @@ test("distributePosts: двухрядная «4+4» — 4М встаёт в св
   assert.deepEqual(d.posts.map(p => [p.row, p.mechanismIds]), [[0, [4]], [1, [4]]]);
   // тот же 4М в немецкий пост (ёмкость 2) — уже шире поста
   assert.equal(distributePosts([4], { standard: "DE", slotCount: 4 }, distDeps).valid, false);
+});
+
+/* --- maxFreeSpan: максимальная ширина механизма для выпадающего списка конструктора.
+   Берётся наибольшее свободное место среди ВСЕХ постов, а не остаток первого поста —
+   иначе 2М-механизм, который влезает во второй пост, пропадает из списка (тот самый баг). */
+test("maxFreeSpan: итальянская 3М пустая → 3 (весь ряд свободен)", () => {
+  const d = distributePosts([], { standard: "IT", slotCount: 3 }, distDeps);
+  assert.equal(maxFreeSpan(d), 3);
+});
+
+test("maxFreeSpan: немецкая 2+2 пустая → 2 (по два модуля на пост)", () => {
+  const d = distributePosts([], { standard: "DE", slotCount: 4 }, distDeps);
+  assert.equal(maxFreeSpan(d), 2);
+});
+
+test("maxFreeSpan: немецкая 2+2 с 1М в первом посте → 2 (регрессия бага: 2М влезает во второй пост)", () => {
+  const d = distributePosts([1], { standard: "DE", slotCount: 4 }, distDeps);
+  // первый пост: занято 1 из 2 (свободно 1); второй пост пуст (свободно 2)
+  assert.equal(maxFreeSpan(d), 2, "берётся свободное место второго поста, а не остаток первого");
+});
+
+test("maxFreeSpan: немецкая 2+2 полностью занятая → 0", () => {
+  const d = distributePosts([2, 2], { standard: "DE", slotCount: 4 }, distDeps);
+  assert.equal(maxFreeSpan(d), 0);
+});
+
+test("maxFreeSpan: двухрядная «4+4» с 4М в первом ряду → 4 (свободен второй ряд-пост)", () => {
+  const frame = { standard: "IT", slotCount: 8, layoutRows: [[4], [4]] };
+  const d = distributePosts([4], frame, distDeps);
+  assert.equal(maxFreeSpan(d), 4, "второй ряд-пост пуст целиком");
 });
 
 test("postModuleGroups: нумерация модулей начинается заново в каждом посте", () => {

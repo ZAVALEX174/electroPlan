@@ -312,6 +312,18 @@ function distributePosts(mechanismIds, frame, deps) {
   };
 }
 
+/* Наибольшее свободное место среди ВСЕХ постов накладки: max по постам от
+   (capacity − occupied). Это максимальная ширина механизма, который ещё можно куда-то
+   поставить. distributePosts кладёт механизмы слева направо через посты, поэтому 2М
+   влезает во ВТОРОЙ пост даже когда в первом занят один модуль (свободный модуль первого
+   поста уходит под заглушку). Раньше конструктор ограничивал список остатком ПЕРВОГО поста
+   и прятал 2М-варианты — из-за этого немецкую 2+2 с 1М в первом посте нельзя было достроить.
+   Принимает результат distributePosts — единый источник раскладки, числа не пересчитываем. */
+function maxFreeSpan(dist) {
+  const posts = (dist && dist.posts) || [];
+  return posts.reduce((max, p) => Math.max(max, p.capacity - p.occupied), 0);
+}
+
 /* Помодульная нумерация ПО ПОСТАМ для листа монтажника: в каждом посте счёт модулей
    начинается заново («пост 1, модули 1–2», «пост 2, модуль 1») — монтажнику важно, что
    посты это отдельные коробки. Строится поверх distributePosts + moduleLayout (тот же код
@@ -328,7 +340,7 @@ function postModuleGroups(mechanismIds, frame, deps) {
    Node — module.exports для автотестов (PLAN 7.1). */
 const api = { postCost, postComposition, boxCount, fitMechanismIds, fitMechanismIdsPreserving,
   moduleLayout, fillWord, fillSummary, nextPostNumber, ensurePostNumbers,
-  frameLayout, distributePosts, postModuleGroups };
+  frameLayout, distributePosts, maxFreeSpan, postModuleGroups };
 if (typeof window !== "undefined") window.EPPosts = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

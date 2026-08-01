@@ -1187,12 +1187,12 @@ function renderBuilder(){
   /* Распределение механизмов по постам накладки (EPPosts.distributePosts): даёт превью с
      импостами/рядами, ограничивает ширину подбираемого механизма ёмкостью ПОСТА (не всей
      накладки) и ловит несовместимые сочетания — механизм шире поста или «размазанный»
-     через импост. maxPostCap — самый широкий пост; addMax — свободное место в текущем
-     посте (не даём начать механизм, который перелезет импост). */
+     через импост. maxPostCap — самый широкий пост; addMax — наибольшее свободное место
+     среди ВСЕХ постов: механизм такой ширины ещё влезает хоть в какой-то пост (напр. 2М
+     идёт во второй пост немецкой 2+2, когда в первом занят один модуль). */
   const dist=EPPosts.distributePosts(state.builder.mechanismIds,selectedFrame,{product,mechanismSpan});
   const maxPostCap=dist.maxCapacity||count;
-  const firstOpen=dist.posts.find(p=>p.occupied<p.capacity);
-  const addMax=firstOpen?firstOpen.capacity-firstOpen.occupied:0;
+  const addMax=EPPosts.maxFreeSpan(dist);
   /* Единое изображение собранного поста (крупно) — та же EPPostImage, что в библиотеке,
      подсказке, КП и листе монтажника. */
   $("postPreview").innerHTML=assembledPostHtml({frameId:selectedFrame&&selectedFrame.id,mechanismIds:state.builder.mechanismIds},{size:"lg"});
