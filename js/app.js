@@ -309,7 +309,7 @@ async function init(){
   }
 }
 function renderCatalog(filter=""){
-  const standalone=state.products.filter(x=>["standalone","mechanism"].includes(x.kind)&&x.active&&x.name.toLowerCase().includes(filter.toLowerCase()));
+  const standalone=state.products.filter(x=>["standalone","mechanism","accessory"].includes(x.kind)&&x.active&&x.name.toLowerCase().includes(filter.toLowerCase()));
   $("catalogCount").textContent=standalone.length;
   $("catalog").innerHTML=standalone.map(p=>`<div class="catalog-item">
     <div class="catalog-symbol">${productPicture(p,{label:p.name})}</div><div><strong>${esc(p.name)}</strong><small>${productMoney(p)} / ${esc(p.unit)}</small></div>
@@ -1236,7 +1236,7 @@ function renderBuilder(){
    с числом по стандарту накладки и типу стены, итоговая цена. Всё, что попадает в
    разметку, — через esc(); суммы — через money(). Стандарт/подбор считает EPPosts. */
 const WALL_STEP_LABEL={solid:"кирпич / бетон / сплошная",hollow:"полая стена / ГКЛ"};
-const STANDARD_LABEL={IT:"итальянский · одна коробка на сборку",IT_ROUND:"итальянский · круглая коробка",DE:"немецко-французский · коробка на каждый пост",FR:"французский 57 мм · коробка на каждый пост",US:"американский",BOTH:"универсальный",UNKNOWN:"не подтверждён"};
+const STANDARD_LABEL={IT:"итальянский · одна коробка на сборку",IT_ROUND:"итальянский · круглая коробка",DE:"немецко-французский · коробка на каждый пост",FR:"французский 57 мм · коробка на каждый пост",US:"американский",BOTH:"универсальный · одна коробка на накладку",UNKNOWN:"не подтверждён"};
 /* Родительный падеж стандарта для пояснений «нет коробки для … стандарта». */
 const STANDARD_GENITIVE={IT:"итальянского",IT_ROUND:"итальянского (круглая коробка)",DE:"немецко-французского",FR:"французского 57 мм",US:"американского",BOTH:"универсального",UNKNOWN:"не подтверждённого"};
 /* Ошибка несовместимости в конструкторе (требование заказчика 3.2: показывать ПРИЧИНУ,
@@ -1288,7 +1288,7 @@ function renderBuilderComposition(selectedFrame,errorHtml=""){
       +`<div class="composition-note">подходящей коробки для ${esc(STANDARD_GENITIVE[comp.standard]||"выбранного")} стандарта нет в каталоге</div>`;
   }
   const note=comp.approximate
-    ? `<div class="composition-note">Тип стены/стандарт накладки не подтверждён — состав приблизительный (число коробок как раньше).</div>`
+    ? `<div class="composition-note">Стандарт накладки не распознан — состав приблизительный (считаем по правилу «одна коробка на накладку»).</div>`
     : "";
   host.innerHTML=`${errorHtml||""}<div class="composition-head"><strong>Состав поста</strong><span>Стандарт: ${esc(STANDARD_LABEL[comp.standard]||comp.standard)}</span></div>
     ${supportRow}${boxRow}

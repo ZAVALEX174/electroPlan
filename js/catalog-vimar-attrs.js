@@ -10,22 +10,6 @@ window.EP_VIMAR_ATTRS = {
     "boxes": "Номенклатура новая.xls"
   },
   "standards": {
-    "14901": {
-      "standard": "BOTH",
-      "postCount": null
-    },
-    "14902": {
-      "standard": "BOTH",
-      "postCount": null
-    },
-    "14903": {
-      "standard": "IT",
-      "postCount": null
-    },
-    "14904": {
-      "standard": "IT",
-      "postCount": null
-    },
     "14931": {
       "standard": "BOTH",
       "postCount": null
@@ -10225,6 +10209,38 @@ window.EP_VIMAR_ATTRS = {
     "V71720": "hollow"
   },
   "boxes": {
+    "14901": {
+      "wallType": "unknown",
+      "shape": "rect",
+      "modules": 1,
+      "standards": [
+        "IT"
+      ]
+    },
+    "14902": {
+      "wallType": "unknown",
+      "shape": "rect",
+      "modules": 2,
+      "standards": [
+        "IT"
+      ]
+    },
+    "14903": {
+      "wallType": "unknown",
+      "shape": "rect",
+      "modules": 3,
+      "standards": [
+        "IT"
+      ]
+    },
+    "14904": {
+      "wallType": "unknown",
+      "shape": "rect",
+      "modules": 4,
+      "standards": [
+        "IT"
+      ]
+    },
     "V71001": {
       "wallType": "solid",
       "shape": "round",

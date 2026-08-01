@@ -61,6 +61,25 @@ test("итальянская 3М → наименьшая вмещающая: е
   assert.equal(findBox({ boxes, frame: idea3, standard: "IT", frameModules: 3, wantedWall: "solid" }).code, "V71304");
 });
 
+/* --- УНИВЕРСАЛЬНЫЙ СТАНДАРТ (BOTH): подбор коробки ПО ЁМКОСТИ, как у итальянской ---
+   Правило заказчика 01.08: одна накладка = одна коробка по её ёмкости. Раньше ветка
+   BOTH/UNKNOWN брала «самую дешёвую по стене» без учёта ёмкости — для 2М-накладки
+   09662.02 выбиралась 3М-коробка V71703 (6,04 €) вместо 2М V71701 (7,94 €) просто
+   потому, что дешевле. Фикстуры — реальные V71701/V71703/V71001. */
+const univ2 = { code: "09662.02", standard: "BOTH", slotCount: 2, series: ["Neve Up"] };
+test("BOTH 2М (09662.02), полая стена → круглая 2М V71701, а не более дешёвая 3М V71703", () => {
+  const box = findBox({ boxes: ALL_BOXES, frame: univ2, standard: "BOTH", frameModules: 2, wantedWall: "hollow" });
+  assert.equal(box.code, "V71701");   // 2 модуля, 7,94 € — по ёмкости, не по цене
+});
+test("BOTH 2М (09662.02), сплошная стена → V71001 (0,85 €)", () => {
+  const box = findBox({ boxes: ALL_BOXES, frame: univ2, standard: "BOTH", frameModules: 2, wantedWall: "solid" });
+  assert.equal(box.code, "V71001");
+});
+test("UNKNOWN-стандарт тоже подбирает коробку по ёмкости (наименьшая вмещающая)", () => {
+  const box = findBox({ boxes: ALL_BOXES, frame: { standard: "UNKNOWN", slotCount: 2 }, standard: "UNKNOWN", frameModules: 2, wantedWall: "hollow" });
+  assert.equal(box.code, "V71701");
+});
+
 /* --- ЗАЩИТА ОТ ДЕФЕКТА 1: фолбэк не противоречит стандарту --- */
 test("ДЕФЕКТ-1: под IT-накладку при наличии ТОЛЬКО круглых коробок — null, а не круглая", () => {
   const roundOnly = [BOX.V71001, BOX.V71701];
@@ -74,6 +93,27 @@ test("фолбэк релаксит ТИП СТЕНЫ, но не стандар�
   assert.equal(findBox({ boxes: solidRect, frame: idea3, standard: "IT", frameModules: 3, wantedWall: "hollow" }), null);
   // фолбэк: прямоугольная solid (стандарт IT сохранён), НЕ круглая V71001
   assert.equal(fallbackBox({ boxes: solidRect, frame: idea3, standard: "IT", frameModules: 3, wantedWall: "hollow" }).code, "V71303");
+});
+
+/* --- ГАРД: накладной корпус без достоверных признаков не лезет в автоподбор ---
+   14901–14904 (IP55-боксы) переклассифицированы из frame в socket_box и попали в пул
+   коробок, но у них wallType="unknown" (по номенклатуре «ГКЛ, Кирпич»). Как «подходящий
+   под любую стену» такой корпус иначе вытеснял бы штатную коробку по ёмкости/цене. Гард
+   отсекает коробки без определённого типа стены — врезной подбор их не выбирает. */
+const IP55_2 = { code: "14902", price: 3.0, kind: "socket_box", wallType: "unknown", boxShape: "rect", boxModules: 2, boxStandards: ["IT"] };
+test("IP55-корпус (unknown wall) не выигрывает подбор: IT 2М при штатной 3М V71303", () => {
+  // без гарда 14902 (mod 2) как «наименьшая вмещающая» побил бы V71303 (mod 3)
+  const box = findBox({ boxes: [...ALL_BOXES, IP55_2], frame: { code: "20614", standard: "IT", slotCount: 2, series: ["Eikon Evo"] }, standard: "IT", frameModules: 2, wantedWall: "solid" });
+  assert.equal(box.code, "V71303");
+});
+test("IP55-корпус в пуле не меняет штатный выбор (BOTH 2М → V71001/V71701)", () => {
+  const boxes = [...ALL_BOXES, IP55_2];
+  assert.equal(findBox({ boxes, frame: univ2, standard: "BOTH", frameModules: 2, wantedWall: "solid" }).code, "V71001");
+  assert.equal(findBox({ boxes, frame: univ2, standard: "BOTH", frameModules: 2, wantedWall: "hollow" }).code, "V71701");
+});
+test("пул из одних бесхарактерных корпусов → null (нет оснований выбирать)", () => {
+  assert.equal(findBox({ boxes: [IP55_2], frame: idea3, standard: "IT", frameModules: 3, wantedWall: "solid" }), null);
+  assert.equal(fallbackBox({ boxes: [IP55_2], frame: idea3, standard: "IT", frameModules: 3, wantedWall: "solid" }), null);
 });
 
 /* --- findSupport: серия + модульность + стандарт --- */

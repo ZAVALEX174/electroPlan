@@ -19,6 +19,7 @@ const CATALOG = {
   14643: { id: 14643, code: "14643", name: "Накладка Plana 2+2", price: 5.0, standard: "DE", postCount: 2, series: "Plana", slotCount: 4 },
   14644: { id: 14644, code: "14644", name: "Накладка Plana 2+2+2", price: 7.0, standard: "DE", postCount: 3, series: "Plana", slotCount: 6 },
   9662:  { id: 9662, code: "09662", name: "Накладка Neve Up 2М", price: 3.12, standard: "unknown", series: "Neve Up", slotCount: 2 },
+  9663:  { id: 9663, code: "09662.02", name: "Накладка Neve Up 2М (универс.)", price: 3.12, standard: "BOTH", series: "Neve Up", slotCount: 2 },
   // суппорт и коробки
   14613: { id: 14613, code: "14613", name: "Суппорт Plana 3М", price: 2.5, kind: "support", series: "Plana", moduleCount: 3 },
   71303: { id: 71303, code: "V71303", name: "Коробка 3М прямоуг.", price: 1.2, kind: "socket_box", wallType: "solid" },
@@ -64,19 +65,30 @@ test("немецкий стандарт без явного postCount: по 2 м
   assert.equal(postComposition(post, deps).boxCount, 2, "ceil(4/2)=2");
 });
 
-test("неизвестный стандарт: старое поведение (коробка на механизм) + пометка", () => {
+test("универсальная накладка (BOTH) 2М с двумя 1М: одна коробка (регресс бага)", () => {
+  /* Раньше BOTH не имел модели и считался по числу механизмов → две коробки и завышенная
+     смета на 281 накладке каталога. Правило заказчика 01.08: одна коробка на накладку. */
+  const post = { frameId: 9663, mechanismIds: [1, 1] };
+  const comp = postComposition(post, baseDeps());
+  assert.equal(comp.standard, "BOTH");
+  assert.equal(comp.boxCount, 1, "BOTH — ровно одна коробка на накладку");
+  assert.equal(comp.approximate, false, "у BOTH есть настоящее правило — не приблизительно");
+});
+
+test("неизвестный стандарт: одна коробка на накладку + пометка приблизительности", () => {
   const post = { frameId: 9662, mechanismIds: [1, 1] };
   const comp = postComposition(post, baseDeps());
   assert.equal(comp.standard, "UNKNOWN");
   assert.equal(comp.approximate, true, "состав помечен приблизительным");
-  assert.equal(comp.boxCount, 2, "по числу механизмов, как раньше");
+  assert.equal(comp.boxCount, 1, "по правилу «одна коробка на накладку», а не по числу механизмов");
 });
 
-test("старый набор deps (без стандарта/подбора) считает как прежняя формула", () => {
-  /* Регресс: postCost со старыми deps = механизмы + socketBox×N + накладка. */
+test("старый набор deps (без стандарта/подбора): socketBox×boxCount + накладка", () => {
+  /* Регресс фолбэка socketBox: при отсутствии findBox/fallbackBox цена коробки берётся
+     из socketBox(). Число коробок теперь одно (правило «одна коробка на накладку»). */
   const post = { frameId: 9662, mechanismIds: [1, 1] };
   const oldDeps = { product, frameProduct: product, socketBox };
-  near(postCost(post, oldDeps), 2 * 4.30 + 2 * 0.85 + 3.12, "совпадает со старой формулой");
+  near(postCost(post, oldDeps), 2 * 4.30 + 1 * 0.85 + 3.12, "механизмы + одна коробка + накладка");
 });
 
 test("суппорт подбирается через deps и входит в цену и состав", () => {

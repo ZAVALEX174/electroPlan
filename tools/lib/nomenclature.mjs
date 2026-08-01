@@ -165,6 +165,43 @@ export function categoryAndIcon(kind, name) {
   return { categoryId, icon: c.icon };
 }
 
+/*
+ * Явные переклассификации kind поверх «Функциональной группы» номенклатуры
+ * (tools/data/kind-overrides.json, утверждено владельцем по сверке с vimar.ru).
+ * Чистая функция: мутирует переданные записи и пересчитывает ЗАВИСЯЩИЕ ОТ kind
+ * производные признаки (категория/иконка + тип-специфичные slotCount / pitchMm /
+ * boxShape / boxStandards), иначе после смены kind у записи остались бы признаки
+ * прежнего вида. Вызывается обоими конвертерами сразу после readNomenclature —
+ * один и тот же результат в catalog-vimar.js и catalog-vimar-attrs.js (не разъедется).
+ *
+ * overrides — карта { "<артикул>": { kind: "<новый вид>", why } }. Неизвестные виды
+ * (например "accessory") просто проставляются: производных признаков поста у них нет,
+ * поэтому в buildAttrs они не попадают ни в накладки/суппорты/коробки. Артикулы из
+ * карты, которых нет в записях, игнорируются (в статистике отдаётся счётчик применённых).
+ */
+export function applyKindOverrides(records, overrides = {}) {
+  const map = overrides || {};
+  let applied = 0;
+  for (const rec of records) {
+    const ov = map[rec.code];
+    if (!ov || !ov.kind || ov.kind === rec.kind) continue;
+    rec.kind = ov.kind;
+    const { categoryId, icon } = categoryAndIcon(rec.kind, rec.name);
+    rec.categoryId = categoryId;
+    rec.icon = icon;
+    // сбрасываем производные прежнего вида, ставим производные нового
+    delete rec.slotCount; delete rec.pitchMm; delete rec.boxShape; delete rec.boxStandards;
+    if (rec.kind === "frame") rec.slotCount = rec.moduleSize;
+    else if (rec.kind === "support") rec.pitchMm = pitchOf(rec.name);
+    else if (rec.kind === "socket_box") {
+      rec.boxShape = boxShapeOf(rec.name);
+      rec.boxStandards = boxStandardsOf(rec.boxShape);
+    }
+    applied++;
+  }
+  return { records, applied };
+}
+
 const COL = {
   brand: "Бренд", series: "Серия", code: "Артикул", name: "Наименование",
   moduleSize: "Размер в модулях", price: "цена, евро", control: "Тип управления",

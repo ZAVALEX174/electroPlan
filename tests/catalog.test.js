@@ -5,7 +5,47 @@
    конструктор пока не поддерживает (отложено владельцем). */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { frameSlotCount, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage } = require("../js/catalog.js");
+const { mechanismSpan, frameSlotCount, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage } = require("../js/catalog.js");
+
+/* --- ёмкость механизма в модулях (mechanismSpan) --- */
+test("mechanismSpan: явное поле moduleSpan авторитетно (1..8)", () => {
+  assert.equal(mechanismSpan({ moduleSpan: 3, name: "что угодно" }), 3);
+  assert.equal(mechanismSpan({ modules: 2 }), 2);
+});
+test("mechanismSpan: словесные формы названия — «модуль/module»", () => {
+  assert.equal(mechanismSpan({ name: "Фальшблок на 2 модуля, серый" }), 2);
+  assert.equal(mechanismSpan({ name: "Заглушка 1 модуль" }), 1);
+  assert.equal(mechanismSpan({ name: "Диммер 2 modules" }), 2);
+  assert.equal(mechanismSpan({ name: "Switch, 1 module" }), 1);
+});
+test("mechanismSpan: краткая форма «2М»/«2M» без слова «модуль» (цветовые варианты)", () => {
+  assert.equal(mechanismSpan({ name: "Фальшблок на 2М, белый" }), 2);
+  assert.equal(mechanismSpan({ name: "Фальшблок на 2M, белый" }), 2, "латинская M");
+  assert.equal(mechanismSpan({ name: "Термостат 2М" }), 2);
+  assert.equal(mechanismSpan({ name: "1M neutro" }), 1);
+});
+test("mechanismSpan: три цветовых варианта фальшблока дают ОДНУ ёмкость", () => {
+  // Реальный дефект: 20042.B «на 2М» получал 1, а 20042/20042.N «на 2 модуля» — 2.
+  assert.equal(mechanismSpan({ name: "Фальшблок на 2 модуля, серый" }), 2);
+  assert.equal(mechanismSpan({ name: "Фальшблок на 2М, белый" }), 2);
+  assert.equal(mechanismSpan({ name: "Фальшблок на 2 модуля, серебро" }), 2);
+});
+test("mechanismSpan: краткую М/M не путаем с единицами и размерами", () => {
+  assert.equal(mechanismSpan({ name: "Реле 16A 250V" }), 1, "ток/напряжение — не модули");
+  assert.equal(mechanismSpan({ name: "Светодиод 0,3W" }), 1, "мощность");
+  assert.equal(mechanismSpan({ name: "Розетка 2P+T" }), 1, "полюса");
+  assert.equal(mechanismSpan({ name: "Кабель cat5e" }), 1);
+  assert.equal(mechanismSpan({ name: "Суппорт 60 мм" }), 1, "размер в мм");
+  assert.equal(mechanismSpan({ name: "Провод 6 м" }), 1, "метры");
+  assert.equal(mechanismSpan({ name: "Трансформатор 2МВт" }), 1, "мегаватты");
+  assert.equal(mechanismSpan({ name: "Датчик 2mA" }), 1, "миллиамперы");
+  assert.equal(mechanismSpan({ name: "Модуль 2MHz" }), 1, "мегагерцы");
+});
+test("mechanismSpan: нет распознаваемой ёмкости → 1, пустой item → 0", () => {
+  assert.equal(mechanismSpan({ name: "Выключатель одноклавишный" }), 1);
+  assert.equal(mechanismSpan({}), 1);
+  assert.equal(mechanismSpan(null), 0);
+});
 
 /* --- ёмкость рамки: явная slotCount 1..8 авторитетна --- */
 test("frameSlotCount: рамки 6/7/8 модулей теперь распознаются", () => {

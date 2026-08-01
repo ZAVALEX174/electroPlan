@@ -49,7 +49,15 @@ function selectBox(opts) {
   if (!boxes.length) return null;
   const std = upStd(o.standard != null ? o.standard : o.frame && o.frame.standard);
   const wanted = o.wantedWall || "solid";
-  let pool = boxes.filter(b => boxFitsStandard(b, std));
+  /* В автоподбор идут только коробки с ДОСТОВЕРНЫМИ признаками — определённым типом
+     стены (solid|hollow) и положительной модульностью. Корпус без них не имеет оснований
+     выигрывать врезной подбор: например накладной IP55-бокс 14901–14904 (переклассифицирован
+     в socket_box) несёт wallType="unknown" — как «подходящий под любую стену» он иначе вытеснял
+     бы штатную коробку по цене/ёмкости. Все врезные коробки VIMAR тип стены и модульность несут,
+     поэтому фильтр их не трогает — отсекает лишь бесхарактерные корпуса (честнее пустой подбор). */
+  const qualified = boxes.filter(b => ((b && b.wallType) || "unknown") !== "unknown" && num(b.boxModules) > 0);
+  if (!qualified.length) return null;
+  let pool = qualified.filter(b => boxFitsStandard(b, std));
   if (!pool.length) return null;
   if (!o.relaxWall) {
     const wallOk = pool.filter(b => wallFits(b, wanted));
@@ -58,13 +66,18 @@ function selectBox(opts) {
   }
   const rankWall = b => { const bw = b.wallType || "unknown"; return bw === wanted ? 0 : bw === "unknown" ? 1 : 2; };
   const byWallThenPrice = (a, b) => rankWall(a) - rankWall(b) || (num(a.price) || Infinity) - (num(b.price) || Infinity);
-  /* круглая/неизвестный/универсальный стандарт: одна коробка на пост — самая подходящая
-     по стене и цене. */
-  if (!std || std === "UNKNOWN" || std === "BOTH" || ROUND_STD.has(std)) {
+  /* круглые стандарты (DE/FR/IT_ROUND): коробка идёт НА ПОСТ, её ёмкость выбор не
+     определяет — берём самую подходящую по стене и цене. */
+  if (ROUND_STD.has(std)) {
     return pool.slice().sort(byWallThenPrice)[0];
   }
-  /* итальянская сборка: одна прямоугольная коробка на всё число модулей накладки —
-     наименьшая из вмещающих; если накладка шире любой коробки — самая вместительная. */
+  /* итальянская сборка (IT), универсальный (BOTH) и нераспознанный/пустой стандарт:
+     одна коробка на всю накладку, подобранная ПО ЁМКОСТИ (правило заказчика 01.08 —
+     «одна накладка = одна коробка» по ёмкости накладки). Наименьшая из вмещающих число
+     модулей накладки; при равной ёмкости — по типу стены и цене; если накладка шире
+     любой коробки — самая вместительная. Прежде BOTH/UNKNOWN брали «самую дешёвую по
+     стене» без учёта ёмкости — для 2М-накладки выбиралась 3М-коробка за 6,04 € вместо
+     2М за 7,94 € просто потому, что дешевле; ёмкость это исправляет. */
   const target = num(o.frameModules) || num(o.modules) || 1;
   const fits = pool.filter(b => num(b.boxModules) >= target);
   if (fits.length) return fits.slice().sort((a, b) => a.boxModules - b.boxModules || byWallThenPrice(a, b))[0];

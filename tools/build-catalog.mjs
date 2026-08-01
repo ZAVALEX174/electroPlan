@@ -30,7 +30,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { createRequire } from "node:module";
-import { readNomenclature, resolveCatalogPrice, DEFAULT_NOMENCLATURE } from "./lib/nomenclature.mjs";
+import { readNomenclature, applyKindOverrides, resolveCatalogPrice, DEFAULT_NOMENCLATURE } from "./lib/nomenclature.mjs";
 
 const require = createRequire(import.meta.url);
 const XLSX = require("xlsx");
@@ -47,6 +47,7 @@ const { values: args } = parseArgs({
     "images-official": { type: "string" },
     ids: { type: "string" },
     out: { type: "string" },
+    overrides: { type: "string" },
   },
 });
 const resolveArg = (val, fallback) => (val ? path.resolve(val) : fallback);
@@ -55,6 +56,7 @@ const PRICE = resolveArg(args.xls, path.join(repoRoot, "Прайс VIMAR Евр�
 const IMAGES_RU = resolveArg(args.images, path.join(repoRoot, "outputs/db_price_import_20260723/vimar-ru-image-index.json"));
 const IMAGES_OFFICIAL = resolveArg(args["images-official"], path.join(repoRoot, "outputs/db_price_import_20260723/vimar-image-index.json"));
 const IDS = resolveArg(args.ids, path.join(here, "data/catalog-ids.json"));
+const OVERRIDES = resolveArg(args.overrides, path.join(here, "data/kind-overrides.json"));
 const OUT = resolveArg(args.out, path.join(projectRoot, "js/catalog-vimar.js"));
 
 const PRICE_DATE_ISO = "2026-07-01";
@@ -98,6 +100,11 @@ function readPrices(file) {
 
 async function main() {
   const { records, stats } = readNomenclature(NOM);
+  // Явные переклассификации kind (утверждены владельцем) применяем ПОСЛЕ чтения
+  // номенклатуры, тем же оверрайдом, что и build-catalog-attrs.mjs → каталог и attrs
+  // согласованы. Пустой/отсутствующий файл — просто ноль правок (сборка не падает).
+  const overridesDoc = await readJson(OVERRIDES, { overrides: {} });
+  const { applied: overridesApplied } = applyKindOverrides(records, overridesDoc.overrides || {});
   const priceByCode = readPrices(PRICE);
 
   const imageByCode = new Map();
@@ -186,6 +193,7 @@ async function main() {
     frames: kindCount("frame"),
     socketBoxes: kindCount("socket_box"),
     supports: kindCount("support"),
+    accessories: kindCount("accessory"),
     pricedFromPrice: merge.fromPrice,
     pricedFromNomenclature: merge.fromNomenclature,
   };
@@ -208,7 +216,8 @@ async function main() {
 
   console.log("Готово:", path.relative(repoRoot, OUT));
   console.log(`  номенклатура:       ${stats.withCode} строк, в каталог ${products.length} (исключено по серии: ${stats.excluded}, дублей: ${stats.dupCodes.length})`);
-  console.log(`  по типам:           mechanism=${meta.mechanisms}, frame=${meta.frames}, socket_box=${meta.socketBoxes}, support=${meta.supports}`);
+  console.log(`  по типам:           mechanism=${meta.mechanisms}, frame=${meta.frames}, socket_box=${meta.socketBoxes}, support=${meta.supports}, accessory=${meta.accessories}`);
+  console.log(`  kind-оверрайдов:    ${overridesApplied} (tools/data/kind-overrides.json)`);
   console.log(`  цена из прайса:     ${merge.fromPrice} (расхождений ном/прайс: ${merge.priceDiffs})`);
   console.log(`  цена из номенкл.:   ${merge.fromNomenclature} (нет в прайсе)`);
   console.log(`  новых id (200000+): ${merge.newIds}, стабильных по сиду: ${products.length - merge.newIds}`);

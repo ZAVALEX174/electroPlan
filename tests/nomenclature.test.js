@@ -84,6 +84,48 @@ test("resolveCatalogPrice: приоритет прайса, номенклату
   assert.equal(N.resolveCatalogPrice(null, { price: 1.239 }).price, 1.24);
 });
 
+test("applyKindOverrides: frame→socket_box пересчитывает производные признаки", () => {
+  // как запись из readNomenclature: у накладки есть slotCount, категория/иконка рамки
+  const records = [
+    { code: "14902", kind: "frame", name: "Коробка IP55 2 модуля", moduleSize: 2, slotCount: 2, categoryId: 100, icon: "□" },
+    { code: "14653.01", kind: "frame", name: "Накладка 2М", moduleSize: 2, slotCount: 2, categoryId: 100, icon: "□" },
+  ];
+  const { applied } = N.applyKindOverrides(records, { "14902": { kind: "socket_box", why: "корпус" } });
+  assert.equal(applied, 1);
+  const box = records[0];
+  assert.equal(box.kind, "socket_box");
+  assert.equal("slotCount" in box, false);            // признак рамки снят
+  assert.equal(box.boxShape, "rect");                 // без слова формы → прямоугольная
+  assert.deepEqual(box.boxStandards, ["IT"]);
+  assert.deepEqual({ categoryId: box.categoryId, icon: box.icon }, { categoryId: 200, icon: "○" });
+  // не тронутая запись осталась рамкой
+  assert.equal(records[1].kind, "frame");
+  assert.equal(records[1].slotCount, 2);
+});
+
+test("applyKindOverrides: mechanism→accessory не даёт признаков поста (не в buildAttrs)", () => {
+  const records = [
+    { code: "00938.B", kind: "mechanism", name: "Светодиод для подсветок", moduleSize: 1 },
+  ];
+  const { applied } = N.applyKindOverrides(records, { "00938.B": { kind: "accessory", why: "не модуль поста" } });
+  assert.equal(applied, 1);
+  assert.equal(records[0].kind, "accessory");
+  // accessory не попадает ни в накладки, ни в суппорты, ни в коробки автосостава
+  const a = N.buildAttrs(records);
+  assert.equal("00938.B" in a.standards, false);
+  assert.equal("00938.B" in a.supports, false);
+  assert.equal("00938.B" in a.boxes, false);
+});
+
+test("applyKindOverrides: пустая карта и совпадающий kind — ноль правок", () => {
+  const records = [{ code: "X", kind: "mechanism", name: "Механизм", moduleSize: 1 }];
+  assert.equal(N.applyKindOverrides(records, {}).applied, 0);
+  // артикула нет в записях — игнорируется без ошибки
+  assert.equal(N.applyKindOverrides(records, { "Y": { kind: "accessory" } }).applied, 0);
+  // kind уже совпадает — не считается правкой
+  assert.equal(N.applyKindOverrides(records, { "X": { kind: "mechanism" } }).applied, 0);
+});
+
 test("buildAttrs: формат признаков для рантайма (standards/supports/boxes)", () => {
   const records = [
     { code: "14653.01", kind: "frame", standard: "IT" },
