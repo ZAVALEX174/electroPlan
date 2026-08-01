@@ -95,6 +95,47 @@ test("нет суппорта нужной модульности → null (не
   assert.equal(s, null);
 });
 
+/* --- ПРАВИЛО ЗАКАЗЧИКА: суппорт выбирается ПО КОРОБКЕ (602/603), ответы 31.07 §3.3 ---
+   Тип суппорта — последние 3 цифры артикула: 602 «за щеками», 603 «с винтами».
+   Суппорты 602/603 в номенклатуре универсальны (BOTH) — стандарт суппорта в подборе больше
+   не участвует, тип задаёт коробка (это и снимает прежнее расхождение 09602.1/09603.1). */
+const EIKON = {
+  "21601.0": { code: "21601.0", price: 1.50, kind: "support", standard: "BOTH", moduleCount: 1, series: ["Eikon Evo", "Eikon Exe"] },
+  "21602": { code: "21602", price: 2.00, kind: "support", standard: "BOTH", moduleCount: 2, series: ["Eikon Evo", "Eikon Exe"] },
+  "21603": { code: "21603", price: 2.10, kind: "support", standard: "BOTH", moduleCount: 2, series: ["Eikon Evo", "Eikon Exe"] },
+};
+const EIKON_SUP = Object.values(EIKON);
+const eikonIT = { code: "20653", standard: "IT_ROUND", slotCount: 2, series: ["Eikon Evo"] };
+const eikonDE = { code: "20663", standard: "DE", slotCount: 2, series: ["Eikon Evo"] };
+/* Neve Up с универсальными 602/603 — как в новой номенклатуре (раньше считались немецкими). */
+const NEVE_UNIV = [
+  { code: "09602.1", price: 2.58, kind: "support", standard: "BOTH", moduleCount: 2, series: ["Neve Up"] },
+  { code: "09603.1", price: 2.70, kind: "support", standard: "BOTH", moduleCount: 2, series: ["Neve Up"] },
+];
+
+test("суппорт по коробке: V71001 → 602 (за щеками), та же серия", () => {
+  const s = findSupport({ supports: EIKON_SUP, frame: eikonIT, standard: "IT_ROUND", frameModules: 2, box: BOX.V71001, seriesOf: p => p.series });
+  assert.equal(s.code, "21602");
+});
+test("суппорт по коробке: V71701 → 603 (с винтами)", () => {
+  const s = findSupport({ supports: EIKON_SUP, frame: eikonIT, standard: "IT_ROUND", frameModules: 2, box: BOX.V71701, seriesOf: p => p.series });
+  assert.equal(s.code, "21603");
+});
+test("суппорт по коробке: немецкий стандарт → только 603, даже с круглой V71001", () => {
+  const s = findSupport({ supports: EIKON_SUP, frame: eikonDE, standard: "DE", frameModules: 2, box: BOX.V71001, seriesOf: p => p.series });
+  assert.equal(s.code, "21603");
+});
+test("суппорт по коробке: V71001 (→602), но в серии только 603 → null (не подставляем)", () => {
+  const s = findSupport({ supports: [EIKON["21603"]], frame: eikonIT, standard: "IT_ROUND", frameModules: 2, box: BOX.V71001, seriesOf: p => p.series });
+  assert.equal(s, null);
+});
+test("суппорт по коробке: 09602.1/09603.1 универсальны — стандарт суппорта не фильтрует", () => {
+  const de = findSupport({ supports: NEVE_UNIV, frame: neveDE, standard: "DE", frameModules: 2, box: BOX.V71701, seriesOf: p => p.series });
+  assert.equal(de.code, "09603.1");
+  const it = findSupport({ supports: NEVE_UNIV, frame: { standard: "IT_ROUND", slotCount: 2, series: ["Neve Up"] }, standard: "IT_ROUND", frameModules: 2, box: BOX.V71001, seriesOf: p => p.series });
+  assert.equal(it.code, "09602.1");
+});
+
 /* --- socketBox: универсальный фолбэк по умолчанию --- */
 test("socketBox — самая дешёвая круглая коробка (универсальный подрозетник)", () => {
   assert.equal(socketBox(ALL_BOXES).code, "V71001");

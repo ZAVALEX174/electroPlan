@@ -41,26 +41,36 @@ function compatibleMechanisms(frame, mechanisms) {
   return compatible.length ? compatible : mechanisms;
 }
 
-/* Число мест (постов) в рамке: явное поле, иначе «на N мест/модулей» из текста, иначе null. */
+/* Ёмкость рамки в модулях: явное поле, иначе «на N модулей» из текста, иначе null.
+   Поддерживаем 1..8 (основные размеры заказчика — 6-7-8, ответы 31.07 §2.6). Явная ёмкость
+   авторитетна: если она есть, но вне 1..8 — возвращаем null, НЕ угадывая по названию. Так
+   многорядные накладки (14=7+7, 21=7+7+7) не подставляются под однорядные размеры: у них
+   двумерная нумерация модулей, конструктор её пока не поддерживает (отложено владельцем). */
 function frameSlotCount(item) {
   if (!item) return null;
   const explicit = Number(item.slotCount ?? item.slots ?? item.placeCount);
-  if (Number.isInteger(explicit) && explicit >= 1 && explicit <= 5) return explicit;
+  if (Number.isInteger(explicit) && explicit >= 1) return explicit <= 8 ? explicit : null;
   const text = [item.name, item.compatibility, item.properties?.compatibility].filter(Boolean).join(" ");
-  const match = text.match(/(?:на|для)?\s*([1-5])\s*(?:модул|мест|пост|module|slot|[mf]\b)/i);
+  const match = text.match(/(?:на|для)?\s*([1-8])\s*(?:модул|мест|пост|module|slot|[mf]\b)/i);
   return match ? Number(match[1]) : null;
 }
 
 /* Имя поста по умолчанию под N мест. */
 const defaultPostName = count => `Пост на ${moduleWord(count)}`;
 
-/* Окно рамки в превью-сборке (доли %, aspect) по числу мест — дефолты под 1–5. */
+/* Окно рамки в превью-сборке (доли %, aspect) по числу модулей — дефолты под 1–8.
+   6–8 продолжают тренд узких рамок: окно шире, aspect больше (рамка вытягивается в ряд).
+   Точная геометрия конкретной накладки берётся из её mountRect (frameOpening), это лишь
+   запасные пропорции, чтобы модули не разъезжались, когда своего mountRect нет. */
 const defaultFrameOpenings = {
   1: { left: 37.5, top: 23.5, width: 25, height: 53.5, aspect: 1 },
   2: { left: 24, top: 23, width: 52, height: 51.5, aspect: 1 },
   3: { left: 21.5, top: 23, width: 57, height: 53.5, aspect: 1.39 },
   4: { left: 18.7, top: 23, width: 62.5, height: 52.5, aspect: 1.66 },
-  5: { left: 13, top: 23, width: 74, height: 55.5, aspect: 2.02 }
+  5: { left: 13, top: 23, width: 74, height: 55.5, aspect: 2.02 },
+  6: { left: 11, top: 23, width: 78, height: 56, aspect: 2.4 },
+  7: { left: 9.5, top: 23, width: 81, height: 56.5, aspect: 2.78 },
+  8: { left: 8.5, top: 23, width: 83, height: 57, aspect: 3.15 }
 };
 
 /* Окно рамки: пользовательский mountRect (если валиден и в пределах 0–100%),

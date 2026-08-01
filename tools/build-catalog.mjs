@@ -112,7 +112,7 @@ async function main() {
 
   for (const rec of records) {
     const pr = priceByCode.get(rec.code);
-    const { price, source: priceSource, packQty } = resolveCatalogPrice(rec.nomPrice, pr);
+    const { price, source: priceSource } = resolveCatalogPrice(rec.nomPrice, pr);
     if (priceSource === "price") {
       merge.fromPrice++;
       if (rec.nomPrice != null && Math.round(rec.nomPrice * 100) !== Math.round(pr.price * 100)) merge.priceDiffs++;
@@ -132,6 +132,13 @@ async function main() {
     const image = imageByCode.get(rec.code.toUpperCase()) || null;
     if (image) merge.withImage++;
 
+    /* В файл кладём ТОЛЬКО поля, которые читает рантайм (js/data.js подмешивает признаки
+       автосостава из catalog-vimar-attrs.js отдельно, а классификация/цены посчитаны здесь
+       конвертером). Служебные поля прежнего блока properties (sourceRow, priceSource/Date,
+       packQty, functionalGroup, standard, wallType, moduleSize, frameLevels, boxModularity,
+       principle, note, subgroup, accessGroup, imageSource) и productPageUrl рантайму не
+       нужны — не выводим их, чтобы каталог не раздувался (см. README/отчёт). Все эти данные
+       остаются в источнике (номенклатура) и восстанавливаются пересборкой. */
     const product = {
       id,
       categoryId: rec.categoryId,
@@ -149,34 +156,18 @@ async function main() {
     if (image) {
       product.previewImageUrl = image.preview_image_url || "";
       product.imageUrl = image.image_url || "";
-      product.productPageUrl = image.product_page_url || "";
     }
     // moduleSpan механизма — только валидное (1..8), иначе рантайм выведет из названия/1
     if (rec.kind === "mechanism" && Number.isInteger(rec.moduleSize) && rec.moduleSize >= 1 && rec.moduleSize <= 8) {
       product.moduleSpan = rec.moduleSize;
     }
-    // slotCount рамки — ёмкость в модулях (frameSlotCount учитывает 1..5, крупнее игнорит)
+    // slotCount рамки — ёмкость в модулях (frameSlotCount учитывает 1..8, крупнее игнорит)
     if (rec.kind === "frame" && rec.slotCount != null) product.slotCount = rec.slotCount;
-
-    product.properties = {
-      sourceRow: rec.sourceRow,
-      priceSource,
-      priceDate: PRICE_DATE_ISO,
-      packQty,
-      series: rec.series,
-      functionalGroup: rec.group,
-      standard: rec.standard,
-      wallType: rec.wallType,
-      moduleSize: rec.moduleSize,
-      frameLevels: rec.levels,          // «Количество уровней в рамке» (ряды) — из файла
-      boxModularity: rec.boxModularity, // «Модульность для коробки» — какой размер коробки нужен механизму
-      principle: rec.principle,         // «Принцип обработки» (2M_CENTRAL/BUTTON/…) — для будущего автосостава
-      note: rec.note,                   // требования по монтажу (суппорт/коробка) текстом
-      subgroup: rec.subgroup,
-      accessGroup: rec.accessGroup,
-      color: rec.color,
-    };
-    if (image) product.properties.imageSource = image.image_source || null;
+    // Цвет — единственное поле прежнего properties, которое читает рантайм (app.js берёт
+    // frame.color для листа монтажника/КП). В номенклатуре «Цвет элемента» заполнен только
+    // у механизмов (у рамок/суппортов/коробок пусто), но выносим на верхний уровень для всех
+    // — сохраняем атрибут и оставляем рабочим frame.color (падение с прежнего frame.properties.color).
+    if (rec.color) product.color = rec.color;
 
     products.push(product);
   }
@@ -208,8 +199,12 @@ async function main() {
   const banner =
     `/* Generated from «${path.basename(NOM)}» (состав/атрибуты) + «${path.basename(PRICE)}» (цены, ${PRICE_DATE_ISO}).\n` +
     `   Пересобирается: npm run build:catalog (tools/build-catalog.mjs). РУЧНЫЕ ПРАВКИ ЗДЕСЬ ТЕРЯЮТСЯ.\n` +
+    `   JSON без форматирования (одна строка) — файл грузится синхронно при каждом открытии,\n` +
+    `   минификация втрое уменьшает вес; читать/править исходники, не этот файл.\n` +
     `   Признаки автосостава поста (стандарт/коробка/суппорт) — в js/catalog-vimar-attrs.js (npm run build:attrs). */\n`;
-  await fs.writeFile(OUT, banner + `window.EP_VIMAR_CATALOG = ${JSON.stringify({ meta, products }, null, 2)};\n`, "utf8");
+  // Без отступов: детерминированный порядок ключей сохраняется (объекты строятся в фиксированном
+  // порядке, products отсортированы по коду) → повторный прогон даёт идентичный файл.
+  await fs.writeFile(OUT, banner + `window.EP_VIMAR_CATALOG = ${JSON.stringify({ meta, products })};\n`, "utf8");
 
   console.log("Готово:", path.relative(repoRoot, OUT));
   console.log(`  номенклатура:       ${stats.withCode} строк, в каталог ${products.length} (исключено по серии: ${stats.excluded}, дублей: ${stats.dupCodes.length})`);

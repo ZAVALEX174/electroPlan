@@ -84,10 +84,35 @@ function socketBox(boxes) {
   return pool.reduce((best, b) => ((num(b.price) || Infinity) < (num(best.price) || Infinity) ? b : best), pool[0]);
 }
 
-/* Подбор суппорта: та же серия, модульность и стандарт (или без стандарта — unknown),
-   что накладка. Стандарт — мягкий фильтр: суппорт того же стандарта ИЛИ без стандарта,
-   но не противоречащий (немецкий суппорт не подставится под итальянскую накладку).
-   seriesOf(item) → массив серий; frameModules — ёмкость накладки в модулях. */
+/* Тип суппорта закодирован последними 3 цифрами артикула (структура артикула VIMAR:
+   первые 2 цифры — коллекция, последние 3 — узел): 602 — «за щеками», 603 — «с винтами».
+   Вариант («09602.1») отбрасываем — тип определяют цифры базового артикула. */
+const supportTypeCode = code => {
+  const base = String(code || "").split(".")[0];
+  const m = base.match(/(\d{3})$/);
+  return m ? m[1] : "";
+};
+
+/* Правило заказчика (ответы 31.07, §3.3): суппорт выбирается ПО КОРОБКЕ, а не по нашей
+   эвристике «стандарт + модульность». Коробка 71001 → суппорт 602 (за щеками), коробка
+   71701 → 603 (с винтами; годится и для коробок других брендов немецкого стандарта).
+   Немецкий стандарт — всегда 603, даже если по типу стены подобралась круглая 71001
+   (иначе противоречили бы «для немецкого только 603»). Итальянская прямоугольная сборка
+   правилом не покрывается (у неё нет коробок 71001/71701) → null: там суппорт по модульности. */
+function supportTypeForBox(std, box) {
+  if (std === "DE") return "603";
+  const code = String((box && box.code) || "");
+  if (/71701/.test(code)) return "603";
+  if (/71001/.test(code)) return "602";
+  return null;
+}
+
+/* Подбор суппорта. Приоритет — правило заказчика: тип суппорта (602/603) задаёт подобранная
+   КОРОБКА (o.box). Стандарт суппорта (support.standard) в подборе БОЛЬШЕ НЕ участвует — он
+   закодирован в типе, а номенклатура помечает 602/603 универсальными (BOTH); прежняя
+   эвристика по стандарту давала ложные расхождения (09602.1/09603.1 считались немецкими).
+   Суппорт всегда той же серии, что накладка; нет подходящего по правилу → null (честный
+   пробел, без подстановки чужого). seriesOf(item) → массив серий; frameModules — ёмкость. */
 function findSupport(opts) {
   const o = opts || {};
   const supports = o.supports || [];
@@ -98,14 +123,23 @@ function findSupport(opts) {
   const ser = item => (Array.isArray(seriesOf(item)) ? seriesOf(item) : [seriesOf(item)])
     .filter(Boolean).map(x => String(x).toLocaleLowerCase("ru-RU"));
   const frameSeries = ser(o.frame);
-  const sameSeries = supports.filter(s => ser(s).some(v => frameSeries.includes(v)));
-  let pool = sameSeries.length ? sameSeries : supports;
-  if (std && std !== "UNKNOWN" && std !== "BOTH") {
-    const stdPool = pool.filter(s => { const ss = upStd(s.standard); return !ss || ss === "UNKNOWN" || ss === std; });
-    if (!stdPool.length) return null;
-    pool = stdPool;
+  /* Серия — жёсткое требование: чужую серию не подставляем. Если у накладки серия не
+     указана, фильтровать нечем — работаем по всему списку (как раньше). */
+  let pool = supports;
+  if (frameSeries.length) {
+    pool = supports.filter(s => ser(s).some(v => frameSeries.includes(v)));
+    if (!pool.length) return null;
   }
   const supModules = s => num(s.moduleCount) || num(s.modules) || 0;
+  const typeCode = supportTypeForBox(std, o.box);
+  if (typeCode) {
+    const byType = pool.filter(s => supportTypeCode(s.code) === typeCode);
+    if (!byType.length) return null;   // по правилу подходящего суппорта серии нет
+    /* среди суппортов нужного типа предпочитаем совпадение по модульности (обычно 2М) */
+    return byType.find(s => supModules(s) === target) || byType[0];
+  }
+  /* Правило не определило тип (итальянская прямоугольная сборка) — подбор по модульности
+     той же серии, как раньше; нет нужной модульности → null. */
   return pool.find(s => supModules(s) === target) || null;
 }
 

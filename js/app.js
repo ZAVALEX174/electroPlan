@@ -150,8 +150,10 @@ const findBox=({frame,standard,modules,wallType}={})=>EPPostFit.findBox({
   boxes:byKind("socket_box"),frame,standard,modules,frameModules:frameSlotCount(frame),wantedWall:wallType||wantedWall()});
 const fallbackBox=({frame,standard,modules,wallType}={})=>EPPostFit.fallbackBox({
   boxes:byKind("socket_box"),frame,standard,modules,frameModules:frameSlotCount(frame),wantedWall:wallType||wantedWall()});
-const findSupport=({frame,standard,modules}={})=>EPPostFit.findSupport({
-  supports:byKind("support"),frame,standard,modules,frameModules:frameSlotCount(frame),seriesOf:productSeries});
+/* box — подобранная коробка поста: по правилу заказчика её артикул (71001/71701) задаёт
+   тип суппорта (602/603). Пробрасываем в чистый EPPostFit.findSupport. */
+const findSupport=({frame,standard,modules,box}={})=>EPPostFit.findSupport({
+  supports:byKind("support"),frame,standard,modules,frameModules:frameSlotCount(frame),seriesOf:productSeries,box});
 /* Единый набор зависимостей для чистой логики поста (EPPosts): каталог, подбор
    суппорта/коробки (точный findBox + стандартно-совместимый фолбэк fallbackBox) и тип
    стены проекта. */
@@ -877,7 +879,7 @@ function openPostBuilder({templateId=null,placedId=null}={}){
     $("postModalTitle").textContent="Новый электрический пост";
   }
   const sourceMechanismIds=Array.isArray(src.mechanismIds)?src.mechanismIds:[];
-  const capacity=frameSlotCount(frameProduct(src.frameId))||Math.max(1,Math.min(5,mechanismModulesTotal(sourceMechanismIds)||3));
+  const capacity=frameSlotCount(frameProduct(src.frameId))||Math.max(1,Math.min(8,mechanismModulesTotal(sourceMechanismIds)||3));
   $("postName").value=src.name;$("postSlotCount").value=String(capacity);state.builder.mechanismIds=[...sourceMechanismIds];
   $("postFrameSelect").dataset.preferredFrameId=String(src.frameId??"");
   renderBuilder();$("postModal").classList.add("open");
@@ -1888,20 +1890,6 @@ function applySurcharge(){
   scheduleSave();
 }
 $("surchargeInput").oninput=applySurcharge;
-$("demoBtn").onclick=()=>{
-  markCanvasUsed();state.autoWalls=[];state.roomLines=[];finishRoomLineChain();state.walls=[
-    makeWall({x:140,y:120},{x:900,y:120}),makeWall({x:900,y:120},{x:900,y:600}),
-    makeWall({x:900,y:600},{x:140,y:600}),makeWall({x:140,y:600},{x:140,y:120}),
-    makeWall({x:520,y:120},{x:520,y:600})
-  ];
-  state.rooms=[
-    {id:uid("room_"),x:270,y:175,seedX:325,seedY:193,name:"Гостиная",area:"20,4 м²"},
-    {id:uid("room_"),x:650,y:175,seedX:705,seedY:193,name:"Кухня",area:"12,8 м²"}
-  ];
-  state.devices=[{id:uid("dev_"),productId:107,x:320,y:310,height:"Потолок"},{id:uid("dev_"),productId:101,x:205,y:530,height:"300 мм"}];
-  const template=state.templates[0];if(template)state.posts=[{id:uid("post_"),templateId:template.id,x:610,y:510,number:1,name:template.name,frameId:template.frameId,mechanismIds:[...template.mechanismIds],socketBoxProductId:template.socketBoxProductId}];
-  drawWalls();renderAll();renderSummary();
-};
 document.onkeydown=e=>{
   /* горячие клавиши не должны срабатывать во время ввода в поля (имя комнаты и т.п.) */
   const typing=/^(input|textarea|select)$/i.test(e.target.tagName)||e.target.isContentEditable;

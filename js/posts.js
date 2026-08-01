@@ -70,9 +70,6 @@ function postComposition(post, deps) {
   const model = BOX_MODEL[standard] || null;
   const count = boxCount(post, frame, standard, deps);
   const postCount = model === "post" ? count : null;
-  const support = deps.findSupport
-    ? deps.findSupport({ frame, standard, modules, series: frame && frame.series }) || null
-    : null;
   const wanted = deps.wallType || "unknown";
   const box = deps.findBox
     ? deps.findBox({ frame, standard, modules, postCount, wallType: wanted }) || null
@@ -82,6 +79,12 @@ function postComposition(post, deps) {
      совместимость по стандарту; нет и его — коробка в смету не попадёт (честный пробел). */
   const boxFallback = !box && deps.fallbackBox
     ? deps.fallbackBox({ frame, standard, modules, postCount, wallType: wanted }) || null
+    : null;
+  /* Суппорт подбираем ПОСЛЕ коробки: по правилу заказчика тип суппорта (602/603) задаёт
+     подобранная коробка (см. postfit.findSupport). Передаём фактическую коробку поста
+     (точную или фолбэк). */
+  const support = deps.findSupport
+    ? deps.findSupport({ frame, standard, modules, series: frame && frame.series, box: box || boxFallback }) || null
     : null;
   return {
     frame, standard, model,
