@@ -9,7 +9,8 @@
     "build:catalog": "node tools/build-catalog.mjs",
     "build:attrs": "node tools/build-catalog-attrs.mjs",
     "build:openings": "node tools/detect-openings.mjs",
-    "build:faces": "node tools/detect-faces.mjs"
+    "build:faces": "node tools/detect-faces.mjs",
+    "build:site-groups": "node tools/fetch-site-groups.mjs"
   },
   "devDependencies": {
     "jimp": "^1.6.1",
