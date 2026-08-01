@@ -5,7 +5,7 @@
    конструктор пока не поддерживает (отложено владельцем). */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { frameSlotCount, frameOpening } = require("../js/catalog.js");
+const { frameSlotCount, frameOpening, productImage, isPlaceholderImage } = require("../js/catalog.js");
 
 /* --- ёмкость рамки: явная slotCount 1..8 авторитетна --- */
 test("frameSlotCount: рамки 6/7/8 модулей теперь распознаются", () => {
@@ -37,4 +37,17 @@ test("frameOpening: для 8 модулей своя геометрия окна
   assert.notEqual(wide.aspect, narrow.aspect);
   assert.ok(wide.aspect > narrow.aspect, "окно 8М шире окна 3М");
   assert.ok(wide.left + wide.width <= 100, "окно не выходит за пределы рамки");
+});
+
+/* --- заглушка no_photo: успешно грузится, но фото по сути нет → отдаём пусто (фолбэк) --- */
+test("productImage: заглушку no_photo не отдаём, берём настоящее фото приоритетнее", () => {
+  assert.equal(isPlaceholderImage("https://vimar.ru/…/no_photo.png"), true);
+  assert.equal(isPlaceholderImage("https://vimar.ru/…/abc.jpg"), false);
+  // превью — заглушка, деталь — настоящая: берём настоящую, а не пустую
+  const item = { previewImageUrl: "https://x/no_photo.png", imageUrl: "https://x/real.jpg" };
+  assert.equal(productImage(item), "https://x/real.jpg", "заглушка-превью пропущена в пользу настоящей");
+  // обе заглушки → пусто (рисуется иконка)
+  assert.equal(productImage({ previewImageUrl: "https://x/no_photo.png", imageUrl: "https://y/no_photo.png" }), "");
+  // нет картинок вовсе → пусто
+  assert.equal(productImage({}), "");
 });

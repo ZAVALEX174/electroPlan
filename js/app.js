@@ -57,7 +57,7 @@ const frameProduct=id=>product(id);
 /* Чистая доменная логика каталога (модули/серии/совместимость/рамки/картинки)
    вынесена в js/catalog.js (EPCatalog) — PLAN 2.1; берём её алиасами. Accessor'ы
    product/byKind над state и генерация HTML/DOM остаются в этом файле. */
-const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,defaultPostName,productImage}=EPCatalog;
+const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,defaultPostName,frameOpening,productImage}=EPCatalog;
 const productMoney=item=>money(item?.price);
 const productOptionLabel=item=>`[${item?.code||"без артикула"}] ${item?.name||"Без названия"} — ${productMoney(item)}`;
 const mechanismModulesTotal=ids=>ids.reduce((sum,id)=>sum+mechanismSpan(product(id)),0);
@@ -168,12 +168,14 @@ const postComposition=p=>EPPosts.postComposition(p,postDeps());
 function assembledPostSpec(post,{size="md"}={}){
   const frame=frameProduct(post.frameId);
   const dist=EPPosts.distributePosts(post.mechanismIds||[],frame,{product,mechanismSpan});
+  const capacity=frameSlotCount(frame)||dist.totalCapacity||1;
   const rowsMap=new Map();   /* группируем посты по физическому ряду накладки */
   dist.posts.forEach(p=>{
     if(!rowsMap.has(p.row))rowsMap.set(p.row,[]);
     let occ=0;const cells=[];
     p.mechanismIds.forEach(id=>{
       const item=product(id),span=mechanismSpan(item);
+      /* productImage отсекает заглушки no_photo → пусто → в ячейке иконка-силуэт, а не серый прямоугольник */
       cells.push({span,imageUrl:productImage(item),icon:item?.icon||"?",name:item?.name||""});
       occ+=span;
     });
@@ -181,7 +183,10 @@ function assembledPostSpec(post,{size="md"}={}){
     rowsMap.get(p.row).push({capacity:p.capacity,cells});
   });
   const rows=[...rowsMap.keys()].sort((a,b)=>a-b).map(r=>({posts:rowsMap.get(r)}));
-  return {size,frame:frame?{name:frame.name,code:frame.code,color:frame.color}:null,rows};
+  /* Основа — ФОТО накладки (detail); окно из frameOpening (проценты) для наложения модулей.
+     Нет настоящего фото (или no_photo) → imageUrl пустой, EPPostImage рисует схему-контур. */
+  const frameSpec=frame?{name:frame.name,code:frame.code,imageUrl:productImage(frame,{detail:true}),opening:frameOpening(frame,capacity)}:null;
+  return {size,frame:frameSpec,rows};
 }
 const assembledPostHtml=(post,opts={})=>EPPostImage.buildHtml(assembledPostSpec(post,opts),{esc});
 /* Размещённый пост опознаётся сквозным НОМЕРОМ (решение владельца 01.08): номер —

@@ -95,17 +95,25 @@ function frameOpening(item, count) {
   return valid ? rect : fallback;
 }
 
-/* URL картинки товара: детальная (detail) или превью, с падением одна на другую. */
+/* Заглушка «нет фото» из выгрузки vimar.ru (…/no_photo.png) — единственный вид пустышки в
+   каталоге. Она УСПЕШНО загружается, поэтому фолбэк «иконка под <img>» её не ловит и на
+   экран лезет серый прямоугольник. Считаем такую картинку отсутствующей — тогда сработает
+   обычный фолбэк (иконка/силуэт). */
+const isPlaceholderImage = url => /no_photo/i.test(String(url || ""));
+
+/* URL картинки товара: детальная (detail) или превью, в порядке приоритета; заглушки
+   пропускаем и берём первую НАСТОЯЩУЮ. Нет настоящей — пустая строка (рисуем фолбэк). */
 const productImage = (item, { detail = false } = {}) => {
   if (!item) return "";
   const preview = item.previewImageUrl || item.preview_image_url || "";
   const full = item.detailImageUrl || item.detail_image_url || item.imageUrl || item.image_url || "";
-  return detail ? (full || preview) : (preview || full);
+  const order = detail ? [full, preview] : [preview, full];
+  return order.find(u => u && !isPlaceholderImage(u)) || "";
 };
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { moduleWord, mechanismSpan, productSeries, compatibleMechanisms, frameSlotCount, defaultPostName, frameOpening, productImage };
+const api = { moduleWord, mechanismSpan, productSeries, compatibleMechanisms, frameSlotCount, defaultPostName, frameOpening, productImage, isPlaceholderImage };
 if (typeof window !== "undefined") window.EPCatalog = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
