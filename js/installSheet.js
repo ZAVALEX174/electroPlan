@@ -19,7 +19,9 @@
      posts: [ {
        number, room?, standardLabel?, german?: { postCount },
        frameName?, frameCode?, color?, height?, purpose?,
-       modules: [ { label, name, code, note? } ],       // строки таблицы модулей
+       modules: [ { label, name, code, note? } ],       // строки таблицы модулей (плоские)
+       moduleGroups?: [ { post, capacity, modules:[…] } ],  // нумерация ПО ПОСТАМ (если >1 поста)
+       assembledImageHtml?: string,                     // готовая картинка собранного поста (EPPostImage)
        fittings: [ { role, name, code, count } ]        // обвязка: суппорт → коробка → накладка
      } ]
    }
@@ -53,9 +55,19 @@ function buildHtml(data, deps) {
     ].filter(([, v]) => v != null && String(v).trim() !== "")
      .map(([k, v]) => `<div class="post-meta-item"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
 
-    const moduleRows = (post.modules || []).map(m =>
-      `<tr><td class="mod">${esc(m.label)}</td><td>${esc(m.name)}</td><td class="code">${esc(m.code || "—")}</td><td class="note">${esc(m.note || "")}</td></tr>`
-    ).join("") || `<tr><td colspan="4" class="empty">Пост без механизмов</td></tr>`;
+    const moduleTr = m =>
+      `<tr><td class="mod">${esc(m.label)}</td><td>${esc(m.name)}</td><td class="code">${esc(m.code || "—")}</td><td class="note">${esc(m.note || "")}</td></tr>`;
+    /* Нумерация модулей ПО ПОСТАМ: когда постов больше одного (немецкий стандарт,
+       двухрядные), в каждом посте счёт модулей начинается заново под подзаголовком
+       «Пост N» — монтажнику важно, что это отдельные коробки. Один пост (итальянская
+       сплошная накладка) или нет moduleGroups (старые вызовы) — плоская таблица как прежде. */
+    const groups = Array.isArray(post.moduleGroups) ? post.moduleGroups : null;
+    const moduleRows = groups && groups.length > 1
+      ? groups.map(g => {
+          const rows = (g.modules || []).map(moduleTr).join("") || `<tr><td colspan="4" class="empty">Пост без механизмов</td></tr>`;
+          return `<tr class="post-row"><td colspan="4">Пост ${esc(g.post)}${g.capacity ? ` · до ${esc(g.capacity)} мод.` : ""}</td></tr>${rows}`;
+        }).join("")
+      : (post.modules || []).map(moduleTr).join("") || `<tr><td colspan="4" class="empty">Пост без механизмов</td></tr>`;
 
     const fittingRows = (post.fittings || []).map(f =>
       `<tr><td>${esc(f.role)}</td><td>${esc(f.name)}</td><td class="code">${esc(f.code || "—")}</td><td class="right">${Number(f.count) || 0}</td></tr>`
@@ -67,9 +79,14 @@ function buildHtml(data, deps) {
       ? `<div class="german-note">Немецко-французский стандарт: сборка разбита на <b>${Number(post.german.postCount)}</b> поста по 2 модуля — <b>${Number(post.german.postCount)}</b> монтажные коробки, между постами устанавливаются импосты.</div>`
       : "";
 
+    /* Собранный пост картинкой (EPPostImage): показывает разделение на посты и импосты —
+       та же иллюстрация, что в конструкторе/КП. Готовый HTML с инлайн-стилями (без
+       экранного CSS), поэтому в печати не разваливается. */
+    const illus = post.assembledImageHtml ? `<div class="post-illus">${post.assembledImageHtml}</div>` : "";
     return `<section class="post-card">
       <div class="post-card-head"><span class="post-badge">Пост № ${esc(post.number)}</span></div>
       <dl class="post-meta">${meta}</dl>
+      ${illus}
       ${germanNote}
       <table class="modules"><thead><tr><th>Модуль</th><th>Элемент</th><th>Артикул</th><th>Примечание</th></tr></thead>
         <tbody>${moduleRows}</tbody></table>
@@ -114,6 +131,8 @@ function buildHtml(data, deps) {
   th,td{padding:7px 9px;border-bottom:1px solid #e2edf6;text-align:left}
   th{background:#e8f4ff;color:#185d96;font-size:11px}
   td.mod{font-weight:bold;color:#185d96;white-space:nowrap;width:64px}
+  tr.post-row td{background:#f0f7ff;color:#185d96;font-weight:bold;font-size:11px}
+  .post-illus{margin:0 0 10px}
   td.code{font-family:"Courier New",monospace;color:#33465a}
   td.note{color:#687f94}td.right,th.right{text-align:right}td.empty{color:#687f94;font-style:italic}
   .fittings-title{margin:14px 0 0;font-weight:bold;color:#185d96;font-size:12px}

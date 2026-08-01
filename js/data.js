@@ -46,7 +46,12 @@ window.EP_DATA = {
     return list.map(p => {
       if (p.kind === "frame" && attrs.standards[p.code]) {
         const a = attrs.standards[p.code];
-        return {...p, standard: a.standard, postCount: a.postCount};
+        // layoutRows — раскладка накладки на посты (немецкая «(2+2)», двухрядная «4+4»);
+        // EPPosts.frameLayout читает её для превью/распределения. Нет её (обычная итальянская
+        // однорядная) — рантайм выведет один пост на всю ширину.
+        const frame = {...p, standard: a.standard, postCount: a.postCount};
+        if (a.layoutRows) frame.layoutRows = a.layoutRows;
+        return frame;
       }
       // Суппорт: стандарт + число модулей + межосевой шаг — для findSupport (подбор
       // планки той же серии, модульности и стандарта, что накладка).

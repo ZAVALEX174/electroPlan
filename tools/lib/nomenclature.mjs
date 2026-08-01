@@ -116,6 +116,40 @@ export function pitchOf(name) {
   return m ? Number(m[1]) : null;
 }
 
+/* Раскладка накладки на посты (для рантайма — EPPosts.frameLayout/distributePosts).
+   Возвращает массив РЯДОВ, каждый ряд — массив ёмкостей постов в модулях. Считается на
+   сборке каталога, а не разбором названия в рантайме (задача: признак проставляется как
+   остальные атрибуты). Источники по убыванию надёжности:
+     1) явная раскладка в названии в скобках: «(2+2)» → один ряд [2,2] (немецкий стандарт,
+        levels=1); «(7+7)»/«(7+7+7)» при levels≥2 → по РЯДУ на слагаемое: [[7],[7]] и т.д.
+        Двойные плюсы-опечатки в прайсе («2++2+2») переживаем: берём все числа из скобок,
+        а не парсим знаки. Скобку-примечание («(мин. 20 шт.)») отбрасываем — в ней нет «+».
+     2) без скобок, но многорядная (levels≥2) и ёмкость делится на число рядов — ровный
+        раскрой по рядам: «8 модулей», levels=2 → [[4],[4]] («4+4»); один пост на ряд.
+   Иначе (обычная итальянская однорядная) раскладка тривиальна — один пост на всю ширину;
+   такие возвращают null (рантайм подставит [[capacity]] сам, файл атрибутов не раздуваем). */
+export function postLayoutOf({ name, moduleSize, levels } = {}) {
+  const total = Number(moduleSize);
+  const lv = Number(levels) || 1;
+  const paren = String(name ?? "").match(/\(([^)]*\+[^)]*)\)/);   // скобка со знаком «+»
+  const parts = paren ? (paren[1].match(/\d+/g) || []).map(Number).filter(n => n >= 1) : [];
+  if (parts.length >= 2) {
+    const sum = parts.reduce((s, n) => s + n, 0);
+    if (lv >= 2 && parts.length === lv) return parts.map(n => [n]);   // «7+7» → ряды по посту
+    if (lv <= 1 && (!Number.isFinite(total) || sum === total)) return [parts];   // «2+2» → один ряд постов
+  }
+  if (lv >= 2 && Number.isInteger(total) && total > 0 && total % lv === 0) {
+    const perRow = total / lv;                                       // «4+4»: ряды по одному посту
+    return Array.from({ length: lv }, () => [perRow]);
+  }
+  return null;   // тривиальная однорядная накладка — один пост, раскладку не храним
+}
+/* Число постов в раскладке (для boxCount немецкого стандарта). Тривиальная (нет раскладки)
+   → null, как раньше: у обычной однорядной накладки явного числа постов нет. */
+export function postCountOf(layoutRows) {
+  return Array.isArray(layoutRows) ? layoutRows.reduce((s, row) => s + row.length, 0) : null;
+}
+
 /* Категория и иконка. Для рамки/суппорта/коробки — фиксированные (как в текущем
    каталоге: рамка □/100, суппорт ≡/200, коробка ○/200). Для механизма переиспользуем
    классификатор по названию (js/…/classify.mjs) — он даёт categoryId (300–1000, под
@@ -266,9 +300,14 @@ export function buildAttrs(records) {
   const standards = {}, supports = {}, boxes = {}, wallTypes = {};
   for (const rec of records) {
     if (rec.kind === "frame") {
-      // postCount оставляем null: приложение выведет число постов само (для DE — ceil(M/2)).
-      // Явного «числа постов» в файле нет, а «уровни рамки» (K) — это ряды, не посты.
-      standards[rec.code] = { standard: rec.standard, postCount: null };
+      // Раскладку на посты считаем здесь, на сборке (задача: признак ставится как остальные
+      // атрибуты, не разбором названия в рантайме). Немецкая «(2+2)» → [[2,2]], двухрядная
+      // итальянская «4+4» → [[4],[4]]. Тривиальная однорядная (обычный итальянский) → null:
+      // рантайм подставит один пост на всю ширину, а файл атрибутов не раздуваем.
+      const layoutRows = postLayoutOf({ name: rec.name, moduleSize: rec.moduleSize, levels: rec.levels });
+      const entry = { standard: rec.standard, postCount: postCountOf(layoutRows) };
+      if (layoutRows) entry.layoutRows = layoutRows;   // число постов = boxCount немецкого стандарта
+      standards[rec.code] = entry;
     } else if (rec.kind === "support") {
       supports[rec.code] = { standard: rec.standard, modules: rec.moduleSize, pitchMm: rec.pitchMm ?? null };
     } else if (rec.kind === "socket_box") {

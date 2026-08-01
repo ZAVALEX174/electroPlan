@@ -57,7 +57,7 @@ const frameProduct=id=>product(id);
 /* Чистая доменная логика каталога (модули/серии/совместимость/рамки/картинки)
    вынесена в js/catalog.js (EPCatalog) — PLAN 2.1; берём её алиасами. Accessor'ы
    product/byKind над state и генерация HTML/DOM остаются в этом файле. */
-const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,defaultPostName,frameOpening,productImage}=EPCatalog;
+const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,defaultPostName,productImage}=EPCatalog;
 const productMoney=item=>money(item?.price);
 const productOptionLabel=item=>`[${item?.code||"без артикула"}] ${item?.name||"Без названия"} — ${productMoney(item)}`;
 const mechanismModulesTotal=ids=>ids.reduce((sum,id)=>sum+mechanismSpan(product(id)),0);
@@ -160,6 +160,30 @@ const findSupport=({frame,standard,modules,box}={})=>EPPostFit.findSupport({
 const postDeps=()=>({product,frameProduct,socketBox,mechanismSpan,findBox,fallbackBox,findSupport,wallType:EP_DATA.settings.wallType});
 const postCost=p=>EPPosts.postCost(p,postDeps());
 const postComposition=p=>EPPosts.postComposition(p,postDeps());
+/* Единое изображение собранного поста (EPPostImage): собираем spec из каталога — рамка,
+   ряды/посты (EPPosts.distributePosts показывает разделение на посты и импосты, включая
+   двухрядные «4+4»), в ячейках — картинки механизмов с иконкой-фолбэком. Одна функция
+   кормит превью конструктора, карточку библиотеки, подсказку на плане, раскладку КП и
+   лист монтажника (в т.ч. печать — постройка инлайн-стилями, без экранного CSS). */
+function assembledPostSpec(post,{size="md"}={}){
+  const frame=frameProduct(post.frameId);
+  const dist=EPPosts.distributePosts(post.mechanismIds||[],frame,{product,mechanismSpan});
+  const rowsMap=new Map();   /* группируем посты по физическому ряду накладки */
+  dist.posts.forEach(p=>{
+    if(!rowsMap.has(p.row))rowsMap.set(p.row,[]);
+    let occ=0;const cells=[];
+    p.mechanismIds.forEach(id=>{
+      const item=product(id),span=mechanismSpan(item);
+      cells.push({span,imageUrl:productImage(item),icon:item?.icon||"?",name:item?.name||""});
+      occ+=span;
+    });
+    for(let i=occ;i<p.capacity;i++)cells.push({span:1,empty:true});   /* пустые модули поста */
+    rowsMap.get(p.row).push({capacity:p.capacity,cells});
+  });
+  const rows=[...rowsMap.keys()].sort((a,b)=>a-b).map(r=>({posts:rowsMap.get(r)}));
+  return {size,frame:frame?{name:frame.name,code:frame.code,color:frame.color}:null,rows};
+}
+const assembledPostHtml=(post,opts={})=>EPPostImage.buildHtml(assembledPostSpec(post,opts),{esc});
 /* Размещённый пост опознаётся сквозным НОМЕРОМ (решение владельца 01.08): номер —
    основной идентификатор вместо имени. Номер закрепляется за постом при создании и не
    переиспользуется (удаление не сдвигает чужие номера), привести к 1..N — команда
@@ -220,12 +244,14 @@ function renderCatalog(filter=""){
 function renderTemplates(){
   const list=$("postLibrary");
   if(!state.templates.length){list.innerHTML='<div class="library-empty">Сохранённых постов пока нет</div>';return}
+  /* Миниатюра — то же собранное изделие, что в конструкторе (единая EPPostImage): рамка,
+     разделение на посты/импосты и модули. Раньше здесь была россыпь иконок механизмов —
+     по замечанию владельца «нет получившегося полного изображения рамки и модулей». */
   list.innerHTML=state.templates.map(t=>`<div class="library-card">
     <div class="library-title"><strong>${esc(t.name)}</strong><span>${t.mechanismIds.length} места</span></div>
-    <div class="library-icons">${t.mechanismIds.map(id=>`<i>${productPicture(product(id),{label:product(id)?.name})}</i>`).join("")}</div>
+    <div class="library-thumb">${assembledPostHtml(t,{size:"sm"})}</div>
     <div class="library-actions"><button class="place" data-place-template="${t.id}">Разместить</button><button data-edit-template="${t.id}">✎</button><button data-delete-template="${t.id}">×</button></div>
   </div>`).join("");
-  bindProductPictureFallbacks(list);
   document.querySelectorAll("[data-place-template]").forEach(b=>b.onclick=()=>{
     state.pending={type:"post",templateId:b.dataset.placeTemplate};canvas.classList.add("placing");
     updateStatus("Кликните на плане для размещения готового поста");
@@ -746,7 +772,9 @@ function showHover(kind,obj,e){
     /* Коробки в подсказке: цена подобранной/фолбэк-коробки × число; если совместимой со
        стандартом коробки нет — честно «не подобрана», без цены (как в составе поста). */
     const boxCell=boxUnit?`${comp.boxCount} × ${money(boxUnit.price)}`:(comp.boxCount?`${comp.boxCount} шт. — не подобрана`:"—");
-    hover.innerHTML=`<h4>${esc(postNumberLabel(obj))}</h4><div class="hover-composition">${obj.mechanismIds.map(id=>`<span class="hover-chip">${esc(product(id)?.name)}</span>`).join("")}</div>
+    /* Миниатюра собранного поста (та же EPPostImage, что в конструкторе) вместо простыни
+       названий — сразу видно рамку, посты и импосты. */
+    hover.innerHTML=`<h4>${esc(postNumberLabel(obj))}</h4><div class="hover-thumb">${assembledPostHtml(obj,{size:"sm"})}</div>
     <dl><dt>Накладка</dt><dd>${esc(frame?.name)}</dd><dt>Коробки</dt><dd>${boxCell}</dd><dt>Стоимость поста</dt><dd>${money(postCost(obj))}</dd></dl>`;
   }
   hover.classList.add("show");positionHover(e);
@@ -902,23 +930,18 @@ function renderBuilder(){
   state.builder.mechanismIds=fitMechanismIds(state.builder.mechanismIds,mechs,count);
   const occupied=mechanismModulesTotal(state.builder.mechanismIds);
   const remaining=Math.max(0,count-occupied);
-  const frameImage=productImage(selectedFrame,{detail:true});
-  const opening=frameOpening(selectedFrame,count);
-  $("postPreview").innerHTML=`<div class="preview-assembly" style="--preview-slots:${count}">
-    <div class="preview-frame-caption"><span>Рамка</span><strong>${esc(selectedFrame?`[${selectedFrame.code}] ${selectedFrame.name}`:"не выбрана")}</strong></div>
-    <div class="preview-frame-stage${frameImage?" has-image":""}" style="--opening-left:${opening.left}%;--opening-top:${opening.top}%;--opening-width:${opening.width}%;--opening-height:${opening.height}%;--frame-aspect:${opening.aspect}">
-      ${frameImage?`<img src="${esc(frameImage)}" alt="${esc(selectedFrame?.name||"Выбранная рамка")}" loading="eager" decoding="async" data-frame-picture>`:""}
-      <div class="preview-frame-fallback" aria-hidden="true"></div>
-      <div class="preview-opening" aria-label="Собранный электрический пост">${state.builder.mechanismIds.map(id=>{
-        const item=product(id);
-        return productPicture(item,{className:"preview-installed-product",label:item?.name,eager:true,style:`--module-span:${mechanismSpan(item)}`});
-      }).join("")}${Array.from({length:remaining},()=>'<span class="preview-empty-module" aria-label="Свободный модуль"></span>').join("")}</div>
-    </div>
-  </div>`;
-  bindProductPictureFallbacks($("postPreview"));
-  $("postPreview").querySelectorAll("img[data-frame-picture]").forEach(img=>{
-    img.addEventListener("error",()=>img.closest(".preview-frame-stage")?.classList.remove("has-image"),{once:true});
-  });
+  /* Распределение механизмов по постам накладки (EPPosts.distributePosts): даёт превью с
+     импостами/рядами, ограничивает ширину подбираемого механизма ёмкостью ПОСТА (не всей
+     накладки) и ловит несовместимые сочетания — механизм шире поста или «размазанный»
+     через импост. maxPostCap — самый широкий пост; addMax — свободное место в текущем
+     посте (не даём начать механизм, который перелезет импост). */
+  const dist=EPPosts.distributePosts(state.builder.mechanismIds,selectedFrame,{product,mechanismSpan});
+  const maxPostCap=dist.maxCapacity||count;
+  const firstOpen=dist.posts.find(p=>p.occupied<p.capacity);
+  const addMax=firstOpen?firstOpen.capacity-firstOpen.occupied:0;
+  /* Единое изображение собранного поста (крупно) — та же EPPostImage, что в библиотеке,
+     подсказке, КП и листе монтажника. */
+  $("postPreview").innerHTML=assembledPostHtml({frameId:selectedFrame&&selectedFrame.id,mechanismIds:state.builder.mechanismIds},{size:"lg"});
   $("builderCapacity").innerHTML=`<div class="builder-capacity-head"><strong>Заполнение рамки</strong><span>Занято ${occupied} из ${count} · ${remaining?`свободно ${moduleWord(remaining)}`:"рамка заполнена"}</span></div>
     <div class="module-meter" style="--module-count:${count}" aria-label="Занято ${occupied} из ${count} модулей">${Array.from({length:count},(_,index)=>`<span class="${index<occupied?"occupied":""}"></span>`).join("")}</div>`;
   /* Нумерация модулей слота (одномодульный «2», двухмодульный «2–3») — общая чистая
@@ -927,11 +950,11 @@ function renderBuilder(){
   const layout=EPPosts.moduleLayout(state.builder.mechanismIds,{product,mechanismSpan});
   const selectedRows=layout.map((slot,index)=>
     `<div class="builder-slot"><div class="slot-number" title="${moduleWord(slot.span)}">${slot.label}</div><select data-builder-slot="${index}" aria-label="Элемент в модулях ${slot.start}${slot.start===slot.end?"":`–${slot.end}`}">${mechs.length
-      ?mechanismOptions(mechs,slot.id,{maxSpan:count,emptyLabel:"Убрать элемент"})
+      ?mechanismOptions(mechs,slot.id,{maxSpan:maxPostCap,emptyLabel:"Убрать элемент"})
       :'<option value="">Механизмы не загружены</option>'}</select></div>`
   ).join("");
   const addRow=remaining?`<div class="builder-slot is-empty"><div class="slot-number">+</div><select data-builder-slot="${state.builder.mechanismIds.length}" aria-label="Добавить элемент в свободные модули">${mechs.length
-    ?mechanismOptions(mechs,null,{maxSpan:remaining,emptyLabel:`Выберите элемент · свободно ${moduleWord(remaining)}`})
+    ?mechanismOptions(mechs,null,{maxSpan:addMax,emptyLabel:`Выберите элемент · свободно ${moduleWord(remaining)}`})
     :'<option value="">Механизмы не загружены</option>'}</select></div>`:"";
   $("builderSlots").innerHTML=selectedRows+addRow;
   document.querySelectorAll("[data-builder-slot]").forEach(s=>s.onchange=()=>{
@@ -946,8 +969,10 @@ function renderBuilder(){
   });
   /* слоты механизмов: те же скрытые <select>, поверх — кастомный список с миниатюрами */
   document.querySelectorAll("[data-builder-slot]").forEach(enhancePicker);
-  renderBuilderComposition(selectedFrame);
-  $("savePost").disabled=remaining!==0;
+  renderBuilderComposition(selectedFrame,builderErrorHtml(dist));
+  /* Сохранять можно, только когда сборка физически собирается (никакой механизм не шире
+     поста и не «размазан» через импост) и все посты заполнены целиком. */
+  $("savePost").disabled=!(dist.valid&&dist.full);
 }
 /* Видимый состав поста (PLAN — задача по конструктору): суппорт, монтажная коробка
    с числом по стандарту накладки и типу стены, итоговая цена. Всё, что попадает в
@@ -956,7 +981,20 @@ const WALL_STEP_LABEL={solid:"кирпич / бетон / сплошная",holl
 const STANDARD_LABEL={IT:"итальянский · одна коробка на сборку",IT_ROUND:"итальянский · круглая коробка",DE:"немецко-французский · коробка на каждый пост",FR:"французский 57 мм · коробка на каждый пост",US:"американский",BOTH:"универсальный",UNKNOWN:"не подтверждён"};
 /* Родительный падеж стандарта для пояснений «нет коробки для … стандарта». */
 const STANDARD_GENITIVE={IT:"итальянского",IT_ROUND:"итальянского (круглая коробка)",DE:"немецко-французского",FR:"французского 57 мм",US:"американского",BOTH:"универсального",UNKNOWN:"не подтверждённого"};
-function renderBuilderComposition(selectedFrame){
+/* Ошибка несовместимости в конструкторе (требование заказчика 3.2: показывать ПРИЧИНУ,
+   не блокировать молча). Причины — из EPPosts.distributePosts: механизм шире поста либо
+   сборка не делится по постам без разрыва через импост. */
+function builderErrorHtml(dist){
+  if(!dist||dist.valid)return"";
+  const parts=[];
+  dist.errors.filter(e=>e.type==="too-wide").forEach(e=>
+    parts.push(`Механизм «${esc(e.item?.name||"—")}» занимает ${esc(moduleWord(e.span))} — это шире поста накладки (${esc(moduleWord(e.maxCapacity))}); в такую накладку он не встанет.`));
+  if(dist.errors.some(e=>e.type==="overflow"))
+    parts.push(`Механизмы не делятся по постам без разрыва через импост. Каждый пост (по ${esc(moduleWord(dist.maxCapacity))}) заполняется целиком — переставьте механизмы или смените накладку.`);
+  if(!parts.length)return"";
+  return `<div class="builder-error" role="alert"><strong>Несовместимое сочетание</strong>${parts.map(p=>`<span>${p}</span>`).join("")}</div>`;
+}
+function renderBuilderComposition(selectedFrame,errorHtml=""){
   const wall=EP_DATA.settings.wallType||"solid";
   document.querySelectorAll("#postWallType .wall-type-option").forEach(b=>{
     const on=b.dataset.wall===wall;
@@ -964,7 +1002,7 @@ function renderBuilderComposition(selectedFrame){
     b.setAttribute("aria-checked",on?"true":"false");
   });
   const host=$("builderComposition");if(!host)return;
-  if(!selectedFrame){host.innerHTML="";return;}
+  if(!selectedFrame){host.innerHTML=errorHtml||"";return;}
   const post={frameId:Number($("postFrameSelect").value),mechanismIds:state.builder.mechanismIds};
   const comp=postComposition(post);
   /* Суппорт: подобран → артикул с ценой; нет → «не подобран» + отдельная приглушённая
@@ -994,7 +1032,7 @@ function renderBuilderComposition(selectedFrame){
   const note=comp.approximate
     ? `<div class="composition-note">Тип стены/стандарт накладки не подтверждён — состав приблизительный (число коробок как раньше).</div>`
     : "";
-  host.innerHTML=`<div class="composition-head"><strong>Состав поста</strong><span>Стандарт: ${esc(STANDARD_LABEL[comp.standard]||comp.standard)}</span></div>
+  host.innerHTML=`${errorHtml||""}<div class="composition-head"><strong>Состав поста</strong><span>Стандарт: ${esc(STANDARD_LABEL[comp.standard]||comp.standard)}</span></div>
     ${supportRow}${boxRow}
     <div class="composition-row total"><span>Стоимость поста</span><b>${money(postCost(post))}</b></div>${note}`;
 }
@@ -1004,8 +1042,12 @@ function changePostSlotCount(){
   renderBuilder();
 }
 async function savePostBuilder(){
-  const frameCapacity=frameSlotCount(frameProduct($("postFrameSelect").value))||Number($("postSlotCount").value);
-  if(mechanismModulesTotal(state.builder.mechanismIds)!==frameCapacity){toast("Заполните все модули рамки");return}
+  /* Проверяем сборку ПО ПОСТАМ: механизм не должен быть шире поста или «размазан» через
+     импост (dist.valid), и все посты должны быть заполнены целиком (dist.full). Для
+     итальянской однорядной накладки это ровно прежнее «заполните все модули». */
+  const dist=EPPosts.distributePosts(state.builder.mechanismIds,frameProduct($("postFrameSelect").value),{product,mechanismSpan});
+  if(!dist.valid){toast("Несовместимое сочетание — см. причину над составом поста");return}
+  if(!dist.full){toast("Заполните все модули рамки");return}
   const base={name:$("postName").value.trim()||"Пост",frameId:Number($("postFrameSelect").value),mechanismIds:[...state.builder.mechanismIds],socketBoxProductId:socketBox()?.id};
   if(state.builder.editingPlacedId){
     Object.assign(state.posts.find(x=>x.id===state.builder.editingPlacedId),base);renderAll();renderProperties();renderSummary();toast("Пост на плане обновлён");
@@ -1461,7 +1503,9 @@ function buildPostLayout(){
       number:p.number,
       modules:comp.modulesTotal,
       fill:EPPosts.fillSummary(p.mechanismIds,{product}),
-      imageUrl:productImage(comp.frame,{detail:true}),
+      /* Иллюстрация — собранный пост (EPPostImage), а не фото одной накладки: инлайн-стили,
+         поэтому одинаково рисуется в окне печати КП. */
+      assembledImageHtml:assembledPostHtml(p,{size:"md"}),
       frameName:comp.frame?comp.frame.name:""
     };
   });
@@ -1473,12 +1517,18 @@ function buildPostLayout(){
 function buildPostSheet(post){
   const comp=postComposition(post);
   const frame=comp.frame;
-  const modules=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan}).map(s=>({
+  const moduleRow=s=>({
     label:s.label,
     name:s.item?s.item.name:`Механизм не найден (арт. ${s.id})`,
     code:s.item?s.item.code:"",
     note:s.item?"":"нет в каталоге"
-  }));
+  });
+  /* Плоская нумерация (совместимость) + нумерация ПО ПОСТАМ: в каждом посте счёт модулей
+     с 1 («пост 1, модули 1–2», «пост 2, модуль 1») — монтажнику важно, что это разные
+     коробки. Обе считает EPPosts, чтобы позиции совпадали с конструктором и превью. */
+  const modules=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan}).map(moduleRow);
+  const moduleGroups=EPPosts.postModuleGroups(post.mechanismIds,frame,{product,mechanismSpan})
+    .map(g=>({post:g.post,capacity:g.capacity,modules:g.modules.map(moduleRow)}));
   const box=comp.box||comp.boxFallback;
   const fittings=[];
   if(comp.support)fittings.push({role:"Суппорт",name:comp.support.name,code:comp.support.code,count:1});
@@ -1494,7 +1544,10 @@ function buildPostSheet(post){
     color:(frame&&(frame.properties?.color||frame.color))||"",
     height:post.height||"",
     purpose:post.purpose||"",
-    modules,fittings,
+    modules,moduleGroups,fittings,
+    /* Единое изображение собранного поста (та же EPPostImage) — инлайн-стили, поэтому
+       одинаково рисуется в окне печати листа монтажника. */
+    assembledImageHtml:assembledPostHtml(post,{size:"md"}),
     /* немецко-французский: коробок несколько (пост = 2 модуля) + импосты — важно монтажнику */
     german:(comp.model==="post"&&comp.postCount>1)?{postCount:comp.postCount}:null
   };

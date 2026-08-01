@@ -67,3 +67,31 @@ test("пост без механизмов не роняет вёрстку", ()
   const html = buildHtml({ posts: [Object.assign({}, italianPost, { modules: [], fittings: [] })] }, deps);
   assert.match(html, /Пост без механизмов/, "явная строка вместо пустой таблицы");
 });
+
+test("нумерация по постам: подзаголовки «Пост N» и счёт модулей в каждом посте заново", () => {
+  const post = Object.assign({}, italianPost, {
+    number: 7,
+    moduleGroups: [
+      { post: 1, capacity: 2, modules: [{ label: "1", name: "Выключатель", code: "20001", note: "" }, { label: "2", name: "Кнопка", code: "20002", note: "" }] },
+      { post: 2, capacity: 2, modules: [{ label: "1", name: "Розетка", code: "20208", note: "" }] }
+    ]
+  });
+  const html = buildHtml({ posts: [post] }, deps);
+  assert.match(html, /class="post-row"/, "подзаголовки-посты рисуются");
+  assert.match(html, /Пост 1/, "подзаголовок первого поста");
+  assert.match(html, /Пост 2/, "подзаголовок второго поста");
+  /* оба поста нумеруют модули с 1 — в таблице есть минимум две ячейки-модуля «1» */
+  assert.ok((html.match(/class="mod">1</g) || []).length >= 2, "счёт модулей в каждом посте начинается с 1");
+});
+
+test("один пост (нет moduleGroups>1) рисует плоскую таблицу как прежде", () => {
+  const html = buildHtml({ posts: [italianPost] }, deps);   // moduleGroups нет вовсе
+  assert.match(html, /2–3/, "плоская нумерация сохранена для итальянской накладки");
+  assert.ok(!/class="post-row"/.test(html), "подзаголовков-постов у однопостовой накладки нет");
+});
+
+test("assembledImageHtml вставляется в карточку поста как есть", () => {
+  const post = Object.assign({}, italianPost, { assembledImageHtml: '<span class="assembled-post">IMG</span>' });
+  const html = buildHtml({ posts: [post] }, deps);
+  assert.match(html, /class="assembled-post"/, "картинка собранного поста в листе монтажника");
+});

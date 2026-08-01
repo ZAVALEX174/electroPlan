@@ -64,7 +64,7 @@ function buildHtml(est, deps) {
   ${layout.map(p => `<tr><td class="pl-num">${esc(p.number)}</td>
     <td>${(p.fill || []).map(f => `${esc(f.word)} — ${Number(f.count) || 0}`).join("<br>") || "—"}</td>
     <td>${Number(p.modules) || 0}</td>
-    <td class="pl-illus">${p.imageUrl ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.frameName || ("Пост № " + p.number))}">` : "—"}</td></tr>`).join("")}
+    <td class="pl-illus">${p.assembledImageHtml || (p.imageUrl ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.frameName || ("Пост № " + p.number))}">` : "—")}</td></tr>`).join("")}
   </tbody></table>` : "";
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>Коммерческое предложение</title><style>

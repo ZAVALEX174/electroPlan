@@ -5,7 +5,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { postCost, postComposition, boxCount,
-  moduleLayout, fillWord, fillSummary, nextPostNumber, ensurePostNumbers } = require("../js/posts.js");
+  moduleLayout, fillWord, fillSummary, nextPostNumber, ensurePostNumbers,
+  frameLayout, distributePosts, postModuleGroups } = require("../js/posts.js");
 
 /* Каталог-заглушка на реальных артикулах VIMAR. Накладки (kind frame) несут стандарт
    и число постов ровно так, как их проставит загрузчик из колонок прайса.
@@ -178,4 +179,78 @@ test("ensurePostNumbers: миграция старого проекта — не
   const fresh = [{}, {}, {}];
   ensurePostNumbers(fresh);
   assert.deepEqual(fresh.map(p => p.number), [1, 2, 3], "проект без номеров — 1..N в порядке массива");
+});
+
+/* --- Раскладка накладки на посты (немецкий стандарт + двухрядные) --- */
+const MECH = { 1: { id: 1, moduleSpan: 1 }, 2: { id: 2, moduleSpan: 2 }, 3: { id: 3, moduleSpan: 3 }, 4: { id: 4, moduleSpan: 4 } };
+const distDeps = { product: id => MECH[id], mechanismSpan: it => (it && it.moduleSpan) || 1 };
+
+test("frameLayout: немецкая накладка без явной раскладки делится по 2 модуля в один ряд", () => {
+  const de4 = frameLayout({ standard: "DE", slotCount: 4 });   // fallback-путь (нет layoutRows)
+  assert.deepEqual(de4.rows, [[2, 2]]);
+  assert.equal(de4.postCount, 2);
+  assert.equal(de4.multiRow, false);
+  const de6 = frameLayout({ standard: "DE", slotCount: 6 });
+  assert.deepEqual(de6.rows, [[2, 2, 2]]);
+  assert.equal(de6.postCount, 3);
+});
+
+test("frameLayout: двухрядная итальянская «4+4» из layoutRows — два ряда по посту", () => {
+  const lay = frameLayout({ standard: "IT", slotCount: 8, layoutRows: [[4], [4]] });
+  assert.deepEqual(lay.rows, [[4], [4]]);
+  assert.equal(lay.postCount, 2);
+  assert.equal(lay.multiRow, true);
+  assert.deepEqual(lay.posts.map(p => [p.row, p.capacity]), [[0, 4], [1, 4]]);
+});
+
+test("frameLayout: итальянская однорядная — один пост на всю ширину", () => {
+  const lay = frameLayout({ standard: "IT", slotCount: 3 });
+  assert.deepEqual(lay.rows, [[3]]);
+  assert.equal(lay.postCount, 1);
+  assert.equal(lay.multiRow, false);
+});
+
+test("distributePosts: немецкая 2+2 с двумя 2М — два полных поста", () => {
+  const d = distributePosts([2, 2], { standard: "DE", slotCount: 4 }, distDeps);
+  assert.equal(d.valid, true);
+  assert.equal(d.full, true);
+  assert.deepEqual(d.posts.map(p => p.mechanismIds), [[2], [2]]);
+});
+
+test("distributePosts: 2+2 с [1М,1М,2М] раскладывается без разрыва, оба поста полны", () => {
+  const d = distributePosts([1, 1, 2], { standard: "DE", slotCount: 4 }, distDeps);
+  assert.equal(d.valid, true);
+  assert.equal(d.full, true);
+  assert.deepEqual(d.posts.map(p => p.mechanismIds), [[1, 1], [2]]);
+});
+
+test("distributePosts: 2М нельзя размазать через импост — overflow с причиной", () => {
+  const d = distributePosts([1, 2, 1], { standard: "DE", slotCount: 4 }, distDeps);   // 1М | 2М через импост | 1М
+  assert.equal(d.valid, false);
+  assert.ok(d.errors.some(e => e.type === "overflow"), "механизм не делится через импост");
+});
+
+test("distributePosts: механизм шире поста в немецкую накладку не помещается (too-wide)", () => {
+  const d = distributePosts([3], { standard: "DE", slotCount: 4 }, distDeps);   // 3М в пост на 2
+  assert.equal(d.valid, false);
+  const e = d.errors.find(x => x.type === "too-wide");
+  assert.ok(e && e.maxCapacity === 2 && e.span === 3, "причина: механизм шире поста");
+});
+
+test("distributePosts: двухрядная «4+4» — 4М встаёт в свой ряд, посты по 4", () => {
+  const frame = { standard: "IT", slotCount: 8, layoutRows: [[4], [4]] };
+  const d = distributePosts([4, 4], frame, distDeps);
+  assert.equal(d.valid, true);
+  assert.equal(d.full, true);
+  assert.deepEqual(d.posts.map(p => [p.row, p.mechanismIds]), [[0, [4]], [1, [4]]]);
+  // тот же 4М в немецкий пост (ёмкость 2) — уже шире поста
+  assert.equal(distributePosts([4], { standard: "DE", slotCount: 4 }, distDeps).valid, false);
+});
+
+test("postModuleGroups: нумерация модулей начинается заново в каждом посте", () => {
+  const g = postModuleGroups([1, 1, 2], { standard: "DE", slotCount: 4 }, distDeps);
+  assert.equal(g.length, 2);
+  assert.deepEqual(g.map(x => x.post), [1, 2], "пост 1, пост 2");
+  assert.deepEqual(g[0].modules.map(m => m.label), ["1", "2"], "пост 1: модули 1 и 2");
+  assert.deepEqual(g[1].modules.map(m => m.label), ["1–2"], "пост 2: 2М-механизм на модулях 1–2 (счёт заново)");
 });

@@ -223,10 +223,112 @@ function fitMechanismIdsPreserving(ids, items, capacity, pinnedIndex, deps) {
   return result.filter(id => mechanismSpan(product(id)) <= capacity);
 }
 
+/* --- Раскладка накладки на посты (немецкий стандарт + многорядные) ------------------
+   Накладка немецкого стандарта физически разделена импостами на посты по 2 модуля:
+   09664 «(2+2)» — два поста, 09666 «(2+2+2)» — три, 09668 «(2+2+2+2)» — четыре.
+   Итальянская — сплошной ряд (один пост на всю ширину, импостов нет). Двухрядные
+   итальянские (levels=2, «4+4»/«7+7») — это два отдельных РЯДА-поста, трёхрядные
+   («7+7+7») — три. Раскладку считает конвертер каталога и кладёт в frame.layoutRows —
+   массив рядов, каждый ряд это массив ёмкостей постов: «2+2» → [[2,2]] (один ряд,
+   два поста), «4+4» → [[4],[4]] (два ряда по посту на 4). Здесь только ЧТЕНИЕ готовой
+   раскладки; если её нет (тест-фикстуры, старый attrs-файл) — выводим запасную: DE делим
+   по 2 модуля в один ряд, остальное — один пост на всю ширину. Модель нарочно общая: и
+   «посты в ряд» (2+2), и «ряды» (4+4) описываются одним массивом rows. */
+function normalizeRows(raw) {
+  if (!Array.isArray(raw) || !raw.length) return null;
+  const rows = [];
+  for (const row of raw) {
+    if (!Array.isArray(row) || !row.length) return null;
+    const caps = row.map(Number).filter(n => Number.isInteger(n) && n >= 1);
+    if (caps.length !== row.length) return null;   // мусор в раскладке — не доверяем ей
+    rows.push(caps);
+  }
+  return rows;
+}
+function frameLayout(frame) {
+  const std = String((frame && frame.standard) || "unknown").toUpperCase();
+  const capacity = Number(frame && (frame.slotCount ?? frame.slots ?? frame.placeCount)) || 0;
+  let rows = normalizeRows(frame && frame.layoutRows);
+  if (!rows) {
+    if ((std === "DE" || std === "FR") && capacity >= 1) {
+      /* один ряд постов по 2 модуля (последний — остаток, если ёмкость нечётна) */
+      const row = [];
+      for (let left = capacity; left > 0; left -= Math.min(2, left)) row.push(Math.min(2, left));
+      rows = [row];
+    } else {
+      rows = [[capacity || 1]];   /* один пост на всю ширину — итальянский сплошной ряд */
+    }
+  }
+  const posts = [];
+  rows.forEach((row, r) => row.forEach((cap, c) => posts.push({ index: posts.length, row: r, col: c, capacity: cap })));
+  return {
+    standard: std, rows, posts,
+    capacity: capacity || posts.reduce((s, p) => s + p.capacity, 0),
+    postCount: posts.length,
+    multiRow: rows.length > 1
+  };
+}
+
+/* Распределение механизмов по постам накладки. Механизмы идут слева направо, ряд за
+   рядом; каждый занимает span подряд идущих модулей и НЕ может пересекать импост между
+   постами (через импост его физически не собрать — курсор постов только вперёд, позиции
+   модулей последовательны). Механизм шире самого большого поста в такую накладку не
+   помещается вовсе. Возвращаем посты с их механизмами, не поместившиеся (overflow) и
+   список ошибок с ПРИЧИНОЙ — конструктор показывает их пользователю (требование заказчика
+   3.2: несовместимость — ошибкой, не молча). deps = { product(id), mechanismSpan(item) }. */
+function distributePosts(mechanismIds, frame, deps) {
+  const product = deps.product || (() => null);
+  const span = deps.mechanismSpan || (() => 1);
+  const layout = frameLayout(frame);
+  const posts = layout.posts.map(p => ({ index: p.index, row: p.row, col: p.col, capacity: p.capacity, mechanismIds: [], occupied: 0 }));
+  const maxCap = posts.reduce((m, p) => Math.max(m, p.capacity), 0);
+  const overflow = [], errors = [];
+  let pi = 0;
+  (mechanismIds || []).forEach(id => {
+    const item = product(id);
+    const s = Number(span(item)) || 1;
+    if (s > maxCap) {                 /* шире любого поста — в эту накладку не помещается */
+      overflow.push(id);
+      errors.push({ type: "too-wide", id, item, span: s, maxCapacity: maxCap });
+      return;
+    }
+    /* ближайший пост (вперёд), куда механизм влезает целиком, не пересекая импост */
+    while (pi < posts.length && posts[pi].occupied + s > posts[pi].capacity) pi++;
+    if (pi >= posts.length) {         /* в оставшихся постах места нет */
+      overflow.push(id);
+      errors.push({ type: "overflow", id, item, span: s });
+      return;
+    }
+    posts[pi].mechanismIds.push(id);
+    posts[pi].occupied += s;
+  });
+  const totalCapacity = posts.reduce((s, p) => s + p.capacity, 0);
+  const totalOccupied = posts.reduce((s, p) => s + p.occupied, 0);
+  return {
+    layout, posts, overflow, errors,
+    valid: overflow.length === 0,                                    /* ничего не «размазано» и не шире поста */
+    full: overflow.length === 0 && totalOccupied === totalCapacity,  /* все посты заполнены целиком */
+    maxCapacity: maxCap, totalCapacity, totalOccupied
+  };
+}
+
+/* Помодульная нумерация ПО ПОСТАМ для листа монтажника: в каждом посте счёт модулей
+   начинается заново («пост 1, модули 1–2», «пост 2, модуль 1») — монтажнику важно, что
+   посты это отдельные коробки. Строится поверх distributePosts + moduleLayout (тот же код
+   позиций, что и в конструкторе, не дублируем). deps = { product, mechanismSpan }. */
+function postModuleGroups(mechanismIds, frame, deps) {
+  const dist = distributePosts(mechanismIds, frame, deps);
+  return dist.posts.map((p, i) => ({
+    post: i + 1, row: p.row, capacity: p.capacity, occupied: p.occupied,
+    modules: moduleLayout(p.mechanismIds, deps)   /* нумерация внутри поста с 1 */
+  }));
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
 const api = { postCost, postComposition, boxCount, fitMechanismIds, fitMechanismIdsPreserving,
-  moduleLayout, fillWord, fillSummary, nextPostNumber, ensurePostNumbers };
+  moduleLayout, fillWord, fillSummary, nextPostNumber, ensurePostNumbers,
+  frameLayout, distributePosts, postModuleGroups };
 if (typeof window !== "undefined") window.EPPosts = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
