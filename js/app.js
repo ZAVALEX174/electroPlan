@@ -57,7 +57,7 @@ const frameProduct=id=>product(id);
 /* Чистая доменная логика каталога (модули/серии/совместимость/рамки/картинки)
    вынесена в js/catalog.js (EPCatalog) — PLAN 2.1; берём её алиасами. Accessor'ы
    product/byKind над state и генерация HTML/DOM остаются в этом файле. */
-const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,defaultPostName,frameOpening,productImage}=EPCatalog;
+const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,defaultPostName,productImage}=EPCatalog;
 const productMoney=item=>money(item?.price);
 const productOptionLabel=item=>`[${item?.code||"без артикула"}] ${item?.name||"Без названия"} — ${productMoney(item)}`;
 const mechanismModulesTotal=ids=>ids.reduce((sum,id)=>sum+mechanismSpan(product(id)),0);
@@ -217,32 +217,34 @@ const findSupport=({frame,standard,modules,box}={})=>EPPostFit.findSupport({
 const postDeps=()=>({product,frameProduct,socketBox,mechanismSpan,findBox,fallbackBox,findSupport,wallType:EP_DATA.settings.wallType});
 const postCost=p=>EPPosts.postCost(p,postDeps());
 const postComposition=p=>EPPosts.postComposition(p,postDeps());
-/* Единое изображение собранного поста (EPPostImage): собираем spec из каталога — рамка,
+/* Единое изображение собранного поста (EPPostImage): собираем spec из каталога — накладка,
    ряды/посты (EPPosts.distributePosts показывает разделение на посты и импосты, включая
-   двухрядные «4+4»), в ячейках — картинки механизмов с иконкой-фолбэком. Одна функция
-   кормит превью конструктора, карточку библиотеки, подсказку на плане, раскладку КП и
-   лист монтажника (в т.ч. печать — постройка инлайн-стилями, без экранного CSS). */
+   двухрядные «4+4»), в ячейках — ТИП механизма (признаки функциональной группы для
+   самодельного значка) и номер модуля. Фото сюда НЕ передаём: собранный пост рисуется
+   схемой (решение владельца). Одна функция кормит превью конструктора, карточку библиотеки,
+   подсказку на плане, раскладку КП и лист монтажника (в т.ч. печать — инлайн-стили). */
 function assembledPostSpec(post,{size="md"}={}){
   const frame=frameProduct(post.frameId);
   const dist=EPPosts.distributePosts(post.mechanismIds||[],frame,{product,mechanismSpan});
-  const capacity=frameSlotCount(frame)||dist.totalCapacity||1;
   const rowsMap=new Map();   /* группируем посты по физическому ряду накладки */
   dist.posts.forEach(p=>{
     if(!rowsMap.has(p.row))rowsMap.set(p.row,[]);
     let occ=0;const cells=[];
     p.mechanismIds.forEach(id=>{
       const item=product(id),span=mechanismSpan(item);
-      /* productImage отсекает заглушки no_photo → пусто → в ячейке иконка-силуэт, а не серый прямоугольник */
-      cells.push({span,imageUrl:productImage(item),icon:item?.icon||"?",name:item?.name||""});
+      const start=occ+1,end=occ+span;
+      /* значок — по функциональной группе (categoryId + символ icon), а не по фото:
+         EPPostImage.pickIcon сам выберет самодельную SVG-иконку из этих признаков */
+      cells.push({span,categoryId:item?.categoryId,icon:item?.icon,name:item?.name||"",num:start===end?String(start):`${start}–${end}`});
       occ+=span;
     });
-    for(let i=occ;i<p.capacity;i++)cells.push({span:1,empty:true});   /* пустые модули поста */
+    /* свободные модули поста — пустые ячейки с номером слота (место, а не поломка) */
+    for(let i=occ;i<p.capacity;i++)cells.push({span:1,empty:true,num:String(i+1)});
     rowsMap.get(p.row).push({capacity:p.capacity,cells});
   });
   const rows=[...rowsMap.keys()].sort((a,b)=>a-b).map(r=>({posts:rowsMap.get(r)}));
-  /* Основа — ФОТО накладки (detail); окно из frameOpening (проценты) для наложения модулей.
-     Нет настоящего фото (или no_photo) → imageUrl пустой, EPPostImage рисует схему-контур. */
-  const frameSpec=frame?{name:frame.name,code:frame.code,imageUrl:productImage(frame,{detail:true}),opening:frameOpening(frame,capacity)}:null;
+  /* Цвет накладки EPPostImage возьмёт из name (у рамок VIMAR цвет — в названии). */
+  const frameSpec=frame?{name:frame.name,code:frame.code}:null;
   return {size,frame:frameSpec,rows};
 }
 const assembledPostHtml=(post,opts={})=>EPPostImage.buildHtml(assembledPostSpec(post,opts),{esc});
