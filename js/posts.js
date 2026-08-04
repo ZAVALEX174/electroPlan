@@ -273,13 +273,45 @@ function frameLayout(frame) {
   };
 }
 
-/* Распределение механизмов по постам накладки. Механизмы идут слева направо, ряд за
-   рядом; каждый занимает span подряд идущих модулей и НЕ может пересекать импост между
-   постами (через импост его физически не собрать — курсор постов только вперёд, позиции
-   модулей последовательны). Механизм шире самого большого поста в такую накладку не
-   помещается вовсе. Возвращаем посты с их механизмами, не поместившиеся (overflow) и
-   список ошибок с ПРИЧИНОЙ — конструктор показывает их пользователю (требование заказчика
-   3.2: несовместимость — ошибкой, не молча). deps = { product(id), mechanismSpan(item) }. */
+/* Полная укладка механизмов по постам без разрыва через импост — перебор с возвратом.
+   Механизмы берутся В ПОРЯДКЕ входа, каждый пробуется в ПЕРВЫЙ подходящий пост слева
+   направо (first-fit): первое найденное решение совпадает с привычной «первый-подходящий»
+   раскладкой, поэтому для уже валидных наборов расстановка по постам не меняется. Идентичные
+   по ёмкости И текущей занятости посты повторно не пробуем — эквивалентные ветки перебора
+   (симметрия), их пропуск не теряет решений и убирает лишний перебор на пустых немецких
+   постах 2+2+2. Возвращает массив постов с механизмами {id,span} либо null, если ВСЕ уложить
+   без пересечения импоста нельзя. Задача крохотная (постов ≤ 8, механизмов ≤ 8) — перебор дёшев. */
+function packAll(items, capacities) {
+  const occ = capacities.map(() => 0);
+  const bins = capacities.map(() => []);
+  function place(i) {
+    if (i >= items.length) return true;
+    const it = items[i];
+    for (let p = 0; p < capacities.length; p++) {
+      if (p > 0 && capacities[p] === capacities[p - 1] && occ[p] === occ[p - 1]) continue;
+      if (occ[p] + it.span > capacities[p]) continue;
+      occ[p] += it.span; bins[p].push(it);
+      if (place(i + 1)) return true;
+      occ[p] -= it.span; bins[p].pop();
+    }
+    return false;
+  }
+  return place(0) ? bins : null;
+}
+
+/* Распределение механизмов по постам накладки. Механизм занимает span подряд идущих модулей
+   и НЕ может пересекать импост между постами (через импост его физически не собрать) — он
+   обязан целиком лечь ВНУТРИ одного поста. Прежде здесь был «next-fit»: курсор постов шёл
+   только вперёд и не возвращался к недозаполненным постам, из-за чего многомодульный механизм
+   мог встать верхом на импост и дать ЛОЖНУЮ несовместимость, хотя валидная раскладка набора
+   существовала (например 1М·1М·1М·2М·1М в накладку 2+2+2: next-fit ронял последний 1М в
+   overflow, хотя 2М целиком помещается в отдельный пост, а одномодульные — попарно вокруг).
+   Теперь укладка полная (packAll, перебор с возвратом): если валидное размещение без разрыва
+   через импост есть — оно находится, и посты приходят уже упакованными. Механизм шире самого
+   широкого поста в накладку не помещается вовсе (too-wide) — отсекаем его сразу, до укладки.
+   Если валидной раскладки НЕТ — раскладываем «как влезет» (first-fit) и помечаем не
+   поместившиеся overflow с ПРИЧИНОЙ: несовместимость остаётся ошибкой, не молча (требование
+   3.2). deps = { product(id), mechanismSpan(item) }. */
 function distributePosts(mechanismIds, frame, deps) {
   const product = deps.product || (() => null);
   const span = deps.mechanismSpan || (() => 1);
@@ -287,25 +319,28 @@ function distributePosts(mechanismIds, frame, deps) {
   const posts = layout.posts.map(p => ({ index: p.index, row: p.row, col: p.col, capacity: p.capacity, mechanismIds: [], occupied: 0 }));
   const maxCap = posts.reduce((m, p) => Math.max(m, p.capacity), 0);
   const overflow = [], errors = [];
-  let pi = 0;
+  /* Механизмы шире любого поста в накладку не встают в принципе (у них своя причина, отличная
+     от «не делится по постам») — снимаем их до укладки, остальные идём упаковывать. */
+  const items = [];
   (mechanismIds || []).forEach(id => {
     const item = product(id);
     const s = Number(span(item)) || 1;
-    if (s > maxCap) {                 /* шире любого поста — в эту накладку не помещается */
-      overflow.push(id);
-      errors.push({ type: "too-wide", id, item, span: s, maxCapacity: maxCap });
-      return;
-    }
-    /* ближайший пост (вперёд), куда механизм влезает целиком, не пересекая импост */
-    while (pi < posts.length && posts[pi].occupied + s > posts[pi].capacity) pi++;
-    if (pi >= posts.length) {         /* в оставшихся постах места нет */
-      overflow.push(id);
-      errors.push({ type: "overflow", id, item, span: s });
-      return;
-    }
-    posts[pi].mechanismIds.push(id);
-    posts[pi].occupied += s;
+    if (s > maxCap) { overflow.push(id); errors.push({ type: "too-wide", id, item, span: s, maxCapacity: maxCap }); return; }
+    items.push({ id, item, span: s });
   });
+  const packed = packAll(items, posts.map(p => p.capacity));
+  if (packed) {
+    /* нашлась укладка без разрыва через импост — переносим её в посты как есть */
+    packed.forEach((bin, i) => { posts[i].mechanismIds = bin.map(x => x.id); posts[i].occupied = bin.reduce((s, x) => s + x.span, 0); });
+  } else {
+    /* валидной раскладки нет: раскладываем «как влезет» (first-fit), не поместившиеся → overflow.
+       Так превью и метка занятости остаются осмысленными, а причину видит пользователь. */
+    items.forEach(it => {
+      const p = posts.find(q => q.occupied + it.span <= q.capacity);
+      if (p) { p.mechanismIds.push(it.id); p.occupied += it.span; }
+      else { overflow.push(it.id); errors.push({ type: "overflow", id: it.id, item: it.item, span: it.span }); }
+    });
+  }
   const totalCapacity = posts.reduce((s, p) => s + p.capacity, 0);
   const totalOccupied = posts.reduce((s, p) => s + p.occupied, 0);
   return {

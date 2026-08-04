@@ -1191,6 +1191,16 @@ function renderBuilder(){
      среди ВСЕХ постов: механизм такой ширины ещё влезает хоть в какой-то пост (напр. 2М
      идёт во второй пост немецкой 2+2, когда в первом занят один модуль). */
   const dist=EPPosts.distributePosts(state.builder.mechanismIds,selectedFrame,{product,mechanismSpan});
+  /* Авто-раскладка: когда набор укладывается по постам без разрыва через импост, принимаем
+     ПОРЯДОК из распределения (dist.posts, пост за постом) — так многомодульный механизм встаёт
+     в слоты ВНУТРИ своего поста, а не верхом на импост, и нумерация слотов совпадает с превью
+     и листом монтажника. Раньше порядок слотов не менялся, и 2М-механизм мог оказаться на
+     границе постов, давая ложную «Несовместимое сочетание». Реордер идемпотентен (перепаковка
+     уже упакованного даёт тот же порядок), поэтому цикла ре-рендеров не создаёт. */
+  if(dist.valid){
+    const packedOrder=dist.posts.reduce((all,p)=>all.concat(p.mechanismIds),[]);
+    if(packedOrder.length===state.builder.mechanismIds.length)state.builder.mechanismIds=packedOrder;
+  }
   const maxPostCap=dist.maxCapacity||count;
   const addMax=EPPosts.maxFreeSpan(dist);
   /* Единое изображение собранного поста (крупно) — та же EPPostImage, что в библиотеке,

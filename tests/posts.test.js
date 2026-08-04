@@ -236,10 +236,39 @@ test("distributePosts: 2+2 с [1М,1М,2М] раскладывается без 
   assert.deepEqual(d.posts.map(p => p.mechanismIds), [[1, 1], [2]]);
 });
 
-test("distributePosts: 2М нельзя размазать через импост — overflow с причиной", () => {
-  const d = distributePosts([1, 2, 1], { standard: "DE", slotCount: 4 }, distDeps);   // 1М | 2М через импост | 1М
+test("distributePosts: [1М,2М,1М] в 2+2 репакуется — 2М целиком в один пост, без ложной несовместимости", () => {
+  /* Раньше next-fit ронял последний 1М в overflow (2М вставал в пост, а 1М уже некуда).
+     Валидная раскладка существует: 2М в один пост, два 1М — в другой. Теперь она находится. */
+  const d = distributePosts([1, 2, 1], { standard: "DE", slotCount: 4 }, distDeps);   // 1М · 2М · 1М
+  assert.equal(d.valid, true, "валидная укладка есть — ложной несовместимости быть не должно");
+  assert.equal(d.full, true, "4 модуля ровно на 4 — оба поста полны");
+  assert.equal(d.overflow.length, 0);
+  const twoModulePost = d.posts.find(p => p.mechanismIds.includes(2));
+  assert.ok(twoModulePost && twoModulePost.occupied === 2, "2М лежит целиком в своём посте, не пересекая импост");
+  assert.deepEqual(d.posts.map(p => p.occupied), [2, 2], "оба поста по 2 модуля");
+});
+
+test("distributePosts: набор ШИРЕ ёмкости ([2М,2М,1М] в 2+2) — overflow с причиной остаётся", () => {
+  /* Здесь валидной раскладки нет в принципе (5 модулей на 4) — несовместимость обязана
+     оставаться ошибкой (требование 3.2), а не глотаться репаковкой. */
+  const d = distributePosts([2, 2, 1], { standard: "DE", slotCount: 4 }, distDeps);
   assert.equal(d.valid, false);
-  assert.ok(d.errors.some(e => e.type === "overflow"), "механизм не делится через импост");
+  assert.ok(d.errors.some(e => e.type === "overflow"), "лишний механизм не помещается ни в один пост");
+});
+
+test("distributePosts: 2+2+2 с [1М,1М,1М,2М,1М] — 2М целиком в посте, без ложной несовместимости (баг со скриншота)", () => {
+  /* Точный кейс из репро: накладка 09666 «2+2+2» (три поста по 2), набор 1+1+1+2М+1 = 6 модулей.
+     Next-fit ставил 2М верхом на импост и ронял последний 1М в overflow → «Несовместимое
+     сочетание», хотя валидная раскладка есть (2М в отдельный пост, одномодульные попарно). */
+  const frame = { standard: "DE", slotCount: 6, postCount: 3 };
+  const d = distributePosts([1, 1, 1, 2, 1], frame, distDeps);
+  assert.equal(d.valid, true, "валидная укладка существует — ложной несовместимости быть не должно");
+  assert.equal(d.full, true, "6 модулей ровно на 6 — все три поста полны");
+  assert.equal(d.overflow.length, 0, "ничего не выпало в overflow");
+  d.posts.forEach(p => assert.ok(p.occupied <= p.capacity, "ни один пост не переполнен"));
+  const twoModulePost = d.posts.find(p => p.mechanismIds.includes(2));
+  assert.ok(twoModulePost && twoModulePost.occupied === 2, "2М-механизм целиком в одном посте (не пересекает импост)");
+  assert.deepEqual(d.posts.map(p => p.occupied), [2, 2, 2], "все три поста по 2 модуля");
 });
 
 test("distributePosts: механизм шире поста в немецкую накладку не помещается (too-wide)", () => {
