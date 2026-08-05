@@ -35,6 +35,7 @@ const printScript = `<script>(function(){var done=false;function pr(){if(done)re
        modules: [ { label, name, code, note? } ],       // строки таблицы модулей (плоские)
        moduleGroups?: [ { post, capacity, modules:[…] } ],  // нумерация ПО ПОСТАМ (если >1 поста)
        assembledImageHtml?: string,                     // готовая картинка собранного поста (EPPostImage)
+       explodedViewHtml?: string,                       // взрыв-схема поста (EPExplodedView) — деталь → выносная линия → артикул
        fittings: [ { role, name, code, count } ]        // обвязка: суппорт → коробка → накладка
      } ]
    }
@@ -96,10 +97,16 @@ function buildHtml(data, deps) {
        та же иллюстрация, что в конструкторе/КП. Готовый HTML с инлайн-стилями (без
        экранного CSS), поэтому в печати не разваливается. */
     const illus = post.assembledImageHtml ? `<div class="post-illus">${post.assembledImageHtml}</div>` : "";
+    /* Взрыв-схема ДОПОЛНЯЕТ собранную картинку (не заменяет): по ней монтажник видит состав поста
+       с артикулом каждой детали. Готовый HTML с инлайн-стилями (EPExplodedView) — в печати цел. */
+    const exploded = post.explodedViewHtml
+      ? `<div class="exploded-title">Взрыв-схема поста</div><div class="post-exploded">${post.explodedViewHtml}</div>`
+      : "";
     return `<section class="post-card">
       <div class="post-card-head"><span class="post-badge">Пост № ${esc(post.number)}</span></div>
       <dl class="post-meta">${meta}</dl>
       ${illus}
+      ${exploded}
       ${germanNote}
       <table class="modules"><thead><tr><th>Модуль</th><th>Элемент</th><th>Артикул</th><th>Примечание</th></tr></thead>
         <tbody>${moduleRows}</tbody></table>
@@ -146,6 +153,8 @@ function buildHtml(data, deps) {
   td.mod{font-weight:bold;color:#185d96;white-space:nowrap;width:64px}
   tr.post-row td{background:#f0f7ff;color:#185d96;font-weight:bold;font-size:11px}
   .post-illus{margin:0 0 10px}
+  .exploded-title{margin:6px 0 4px;font-weight:bold;color:#185d96;font-size:12px}
+  .post-exploded{margin:0 0 10px;break-inside:avoid}
   td.code{font-family:"Courier New",monospace;color:#33465a}
   td.note{color:#687f94}td.right,th.right{text-align:right}td.empty{color:#687f94;font-style:italic}
   .fittings-title{margin:14px 0 0;font-weight:bold;color:#185d96;font-size:12px}

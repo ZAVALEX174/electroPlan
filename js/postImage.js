@@ -584,8 +584,10 @@ function schemaStage(frame, rows, s, sizeKey, modulesWide, esc) {
    обёртка над itemColor: на нём есть тесты и роль палитры пластины. faceSprite (проценты обрезки
    фото под ячейку) и useFacePhoto (фото или клавиша-фолбэк) — чистая логика режима фото модуля.
    photoReady — гейт «фото накладки или схема-фолбэк»: фото только при наличии И картинки, И
-   измеренных окон (иначе макро-снимок угла раскладывать нечем). */
-const api = { buildHtml, itemColor, frameColor, pickIcon, splitOpening, postWindows, faceSprite, useFacePhoto, photoReady };
+   измеренных окон (иначе макро-снимок угла раскладывать нечем). iconSvg отдан наружу, чтобы
+   взрыв-схема листа монтажника (EPExplodedView) рисовала детали ТЕМ ЖЕ каталожным глифом, что и
+   клавиши сборки, — единая система иконок, без дубля разметки. */
+const api = { buildHtml, itemColor, frameColor, pickIcon, iconSvg, splitOpening, postWindows, faceSprite, useFacePhoto, photoReady };
 if (typeof window !== "undefined") window.EPPostImage = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -48,6 +48,7 @@ const { values: args } = parseArgs({
     ids: { type: "string" },
     out: { type: "string" },
     overrides: { type: "string" },
+    "image-overrides": { type: "string" },
   },
 });
 const resolveArg = (val, fallback) => (val ? path.resolve(val) : fallback);
@@ -57,6 +58,7 @@ const IMAGES_RU = resolveArg(args.images, path.join(repoRoot, "outputs/db_price_
 const IMAGES_OFFICIAL = resolveArg(args["images-official"], path.join(repoRoot, "outputs/db_price_import_20260723/vimar-image-index.json"));
 const IDS = resolveArg(args.ids, path.join(here, "data/catalog-ids.json"));
 const OVERRIDES = resolveArg(args.overrides, path.join(here, "data/kind-overrides.json"));
+const IMAGE_OVERRIDES = resolveArg(args["image-overrides"], path.join(here, "data/image-overrides.json"));
 const OUT = resolveArg(args.out, path.join(projectRoot, "js/catalog-vimar.js"));
 
 const PRICE_DATE_ISO = "2026-07-01";
@@ -110,6 +112,19 @@ async function main() {
   const imageByCode = new Map();
   for (const it of await readJson(IMAGES_OFFICIAL, [])) imageByCode.set(String(it.code).toUpperCase(), it);
   for (const it of await readJson(IMAGES_RU, [])) imageByCode.set(String(it.code).toUpperCase(), it);
+  // Точечные override фото (tools/data/image-overrides.json) — ПОСЛЕ обоих индексов, чтобы
+  // реальный URL победил заглушку no_photo.png из RU (у монтажных коробок фото есть только на
+  // vimar.com; на vimar.ru индекс отдаёт no_photo, в official-индексе их нет). Одно фото
+  // кладём и в preview, и в image → productImage отдаёт его и в превью, и в детальном режиме.
+  // Пустой/отсутствующий файл — ноль правок, сборка не падает (как kind-overrides).
+  const imageOverridesDoc = await readJson(IMAGE_OVERRIDES, { overrides: {} });
+  let imageOverridesApplied = 0;
+  for (const [code, ov] of Object.entries(imageOverridesDoc.overrides || {})) {
+    const url = ov && ov.imageUrl;
+    if (!url) continue;
+    imageByCode.set(String(code).toUpperCase(), { code, preview_image_url: url, image_url: url, image_source: "vimar.com override" });
+    imageOverridesApplied++;
+  }
 
   const idsFile = await readJson(IDS, { ids: {} });
   const idMap = { ...(idsFile.ids || {}) };
@@ -218,6 +233,7 @@ async function main() {
   console.log(`  номенклатура:       ${stats.withCode} строк, в каталог ${products.length} (исключено по серии: ${stats.excluded}, дублей: ${stats.dupCodes.length})`);
   console.log(`  по типам:           mechanism=${meta.mechanisms}, frame=${meta.frames}, socket_box=${meta.socketBoxes}, support=${meta.supports}, accessory=${meta.accessories}`);
   console.log(`  kind-оверрайдов:    ${overridesApplied} (tools/data/kind-overrides.json)`);
+  console.log(`  фото-оверрайдов:    ${imageOverridesApplied} (tools/data/image-overrides.json)`);
   console.log(`  цена из прайса:     ${merge.fromPrice} (расхождений ном/прайс: ${merge.priceDiffs})`);
   console.log(`  цена из номенкл.:   ${merge.fromNomenclature} (нет в прайсе)`);
   console.log(`  новых id (200000+): ${merge.newIds}, стабильных по сиду: ${products.length - merge.newIds}`);

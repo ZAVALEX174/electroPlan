@@ -1,0 +1,50 @@
+{
+  "_readme": "Точечные override фото товаров поверх индексов картинок (vimar-image-index.json = международный vimar.com, vimar-ru-image-index.json = vimar.ru). Применяются конвертером tools/build-catalog.mjs ПОСЛЕ обоих индексов через applyImageOverrides — так реальный URL побеждает заглушку no_photo.png из RU-индекса и не теряется при пересборке catalog-vimar.js (тот же принцип, что и kind-overrides.json). Зачем нужно: у монтажных коробок (kind=socket_box) фото есть только на международном vimar.com — на vimar.ru у категории коробок картинки битые (индекс отдаёт no_photo.png), а в official-индексе этих кодов нет вовсе. Поэтому EPCatalog.productImage() возвращал для них пустую строку. URL проверены вручную на страницах товаров vimar.com (главное фото 500×500, паттерн cache/images/catalog/*.webp — тот же, что у остальных превью в каталоге). Своего хранилища картинок в проекте нет: ссылки — прямой хотлинк на CDN производителя, как и у существующих фото. Поле imageUrl — единственное фото товара; конвертер кладёт его и в previewImageUrl, и в imageUrl, чтобы productImage отдавал его и в режиме превью, и в детальном. РУЧНЫЕ ПРАВКИ catalog-vimar.js теряются при пересборке — правь ЗДЕСЬ.",
+  "_source": {
+    "site": "https://www.vimar.com/en/int/catalog/product/index/code/<CODE>",
+    "verifiedAt": "2026-08-05",
+    "images": 10
+  },
+  "overrides": {
+    "V71306": {
+      "imageUrl": "https://www.vimar.com/cache/images/catalog/v71306-vimar-contenitori-e-scatole-scatola-incasso-rettang-6m-azzurro.57256-415040c4fe10.webp",
+      "why": "Коробка встраиваемая прямоуг. 6М — фото только на vimar.com (на vimar.ru no_photo)"
+    },
+    "V71318": {
+      "imageUrl": "https://www.vimar.com/cache/images/catalog/v71318-vimar-contenitori-e-scatole-scatola-incasso-rettangolare-8m-azzurro.62469-162fa8eeb544.webp",
+      "why": "Коробка встраиваемая 8М — фото только на vimar.com (на vimar.ru no_photo)"
+    },
+    "V71320": {
+      "imageUrl": "https://www.vimar.com/cache/images/catalog/v71320-vimar-contenitori-e-scatole-scatola-incasso-rettang-12-14m-azzurro.62470-1337ad79221e.webp",
+      "why": "Коробка встраиваемая 12/14М — фото только на vimar.com (на vimar.ru no_photo)"
+    },
+    "V71321": {
+      "imageUrl": "https://www.vimar.com/cache/images/catalog/v71321-vimar-contenitori-e-scatole-scatola-incasso-rettang-18-21m-azzurro.62471-1337ad79221e.webp",
+      "why": "Коробка встраиваемая 18/21М — фото только на vimar.com (на vimar.ru no_photo)"
+    },
+    "V71701": {
+      "imageUrl": "https://www.vimar.com/cache/images/catalog/v71701-vimar-contenitori-e-scatole-scatola-inc-rotonda-p-leggere-azzurro.93077-30c45414183e.webp",
+      "why": "Коробка круглая для тонких перегородок — фото только на vimar.com (на vimar.ru no_photo)"
+    },
+    "V71703": {
+      "imageUrl": "https://www.vimar.com/cache/images/catalog/v71703-vimar-contenitori-e-scatole-scatola-inc-3m-p-leggere-azzurro.57259-415040c4fe10.webp",
+      "why": "Коробка 3М для тонких перегородок — фото только на vimar.com (на vimar.ru no_photo)"
+    },
+    "V71704": {
+      "imageUrl": "https://www.vimar.com/cache/images/catalog/v71704-vimar-contenitori-e-scatole-scatola-inc-4m-p-leggere-azzurro.57260-415040c4fe10.webp",
+      "why": "Коробка 4М для тонких перегородок — фото только на vimar.com (на vimar.ru no_photo)"
+    },
+    "V71706": {
+      "imageUrl": "https://www.vimar.com/cache/images/catalog/v71706-vimar-contenitori-e-scatole-scatola-inc-6-7m-p-leggere-azzurro.57261-f7c67473dfb2.webp",
+      "why": "Коробка 6-7М для тонких перегородок — фото только на vimar.com (на vimar.ru no_photo)"
+    },
+    "V71718": {
+      "imageUrl": "https://www.vimar.com/cache/images/catalog/v71718-vimar-contenitori-e-scatole-scatola-inc-8m-p-leggere-azzurro.62485-7fc3c2f65649.webp",
+      "why": "Коробка 8М для тонких перегородок — фото только на vimar.com (на vimar.ru no_photo). В переданном URL «azzурро» была кириллица — исправлено на латинское «azzurro» (как у 9 остальных)"
+    },
+    "V71720": {
+      "imageUrl": "https://www.vimar.com/cache/images/catalog/v71720-vimar-contenitori-e-scatole-scatola-inc-multifunz-12-14m-p-leggere.62486-247a9c8c66f8.webp",
+      "why": "Коробка многофункц. 12/14М для тонких перегородок — фото только на vimar.com (на vimar.ru no_photo)"
+    }
+  }
+}

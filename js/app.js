@@ -1779,6 +1779,62 @@ function buildPostLayout(){
   });
 }
 
+/* Детали поста для взрыв-схемы листа монтажника (EPExplodedView). Собираем ИЗ УЖЕ ПОСЧИТАННОГО:
+   comp (суппорт/коробка/накладка — товары каталога с kind/categoryId/icon), layout (механизмы с
+   позицией и товаром) и frameSpec (фото/окна накладки, что уже собрал assembledPostSpec) — второй
+   раз в каталог не ходим. Порядок деталей — как разносят сборку от лица к стене: накладка →
+   механизмы → суппорт → коробка. Значок детали задаём признаками товара (categoryId+icon+name):
+   их переводит в глиф pickIcon внутри EPExplodedView — тот же, что рисует клавиши сборки. Фото
+   КАЖДОЙ детали (накладка, механизмы, суппорт, коробка) берём каталожным productImage(detail) —
+   крупный кадр для печати; в отличие от photoReady оно НЕ требует размеченных окон (окна нужны
+   только для композитинга клавиш на СОБРАННОЙ картинке, здесь фото стоит отдельно), поэтому
+   закрывает намного больше накладок. Нет своего фото → EPExplodedView нарисует глиф по kind. */
+function buildExplodedSpec(comp,box,layout,frameSpec){
+  const parts=[];
+  const frame=comp.frame;
+  const photoOf=item=>productImage(item,{detail:true});   // "" если фото нет/плейсхолдер (сам фильтрует)
+  if(frame){
+    /* У накладки основной источник — productImage (без окон, ловит большинство накладок); photoReady
+       по frameSpec оставлен ЗАПАСНЫМ — на случай, когда своего productImage нет, а измеренное фото
+       из собранного spec всё же есть. wide → широкий бокс во взрыв-схеме (накладка шире, чем высокая). */
+    const framePhoto=photoOf(frame)||(EPPostImage.photoReady(frameSpec)?frameSpec.imageUrl:"");
+    parts.push({
+      role:"Накладка",name:frame.name,code:frame.code,
+      icon:{categoryId:frame.categoryId,icon:frame.icon,name:frame.name},
+      photo:framePhoto?{imageUrl:framePhoto,wide:true}:null
+    });
+  }
+  layout.forEach(s=>{
+    const item=s.item;
+    const photo=photoOf(item);   // item может быть null (механизм не в каталоге) — productImage вернёт ""
+    parts.push({
+      role:"Модуль",pos:s.label,
+      name:item?item.name:`Механизм не найден (арт. ${s.id})`,
+      code:item?item.code:"",
+      icon:{categoryId:item?.categoryId,icon:item?.icon,name:item?.name},
+      photo:photo?{imageUrl:photo}:null
+    });
+  });
+  if(comp.support){
+    const photo=photoOf(comp.support);
+    parts.push({
+      role:"Суппорт",name:comp.support.name,code:comp.support.code,
+      icon:{categoryId:comp.support.categoryId,icon:comp.support.icon,name:comp.support.name},
+      photo:photo?{imageUrl:photo}:null
+    });
+  }
+  if(box&&comp.boxCount){
+    const photo=photoOf(box);
+    parts.push({
+      role:comp.boxCount>1?`Монтажная коробка ×${comp.boxCount}`:"Монтажная коробка",
+      name:box.name,code:box.code,
+      icon:{categoryId:box.categoryId,icon:box.icon,name:box.name},
+      photo:photo?{imageUrl:photo}:null
+    });
+  }
+  return {parts};
+}
+
 /* Данные одного поста для листа монтажника: таблица модулей (позиция «2» / «2–3»,
    элемент, артикул) и обвязка в порядке сборки суппорт → коробка → накладка. Высота и
    назначение подхватятся, когда появятся у поста (PLAN 6). */
@@ -1794,7 +1850,8 @@ function buildPostSheet(post){
   /* Плоская нумерация (совместимость) + нумерация ПО ПОСТАМ: в каждом посте счёт модулей
      с 1 («пост 1, модули 1–2», «пост 2, модуль 1») — монтажнику важно, что это разные
      коробки. Обе считает EPPosts, чтобы позиции совпадали с конструктором и превью. */
-  const modules=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan}).map(moduleRow);
+  const layout=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan});
+  const modules=layout.map(moduleRow);
   const moduleGroups=EPPosts.postModuleGroups(post.mechanismIds,frame,{product,mechanismSpan})
     .map(g=>({post:g.post,capacity:g.capacity,modules:g.modules.map(moduleRow)}));
   const box=comp.box||comp.boxFallback;
@@ -1803,6 +1860,10 @@ function buildPostSheet(post){
   if(box&&comp.boxCount)fittings.push({role:"Монтажная коробка",name:box.name,code:box.code,count:comp.boxCount});
   if(frame)fittings.push({role:"Накладка",name:frame.name,code:frame.code,count:1});
   const room=state.rooms.find(r=>r.id===post.roomId);
+  /* Собранное изображение и взрыв-схему кормим ОДНИМ spec (assembledPostSpec) — в каталог за
+     фото/окнами накладки ходим один раз. assembledImageHtml остаётся байт-в-байт как прежде
+     (assembledPostHtml — это та же EPPostImage.buildHtml над тем же spec). */
+  const spec=assembledPostSpec(post,{size:"md"});
   return {
     number:post.number,
     room:room?room.name:"",
@@ -1815,7 +1876,12 @@ function buildPostSheet(post){
     modules,moduleGroups,fittings,
     /* Единое изображение собранного поста (та же EPPostImage) — инлайн-стили, поэтому
        одинаково рисуется в окне печати листа монтажника. */
-    assembledImageHtml:assembledPostHtml(post,{size:"md"}),
+    assembledImageHtml:EPPostImage.buildHtml(spec,{esc}),
+    /* Взрыв-схема ДОПОЛНЯЕТ собранную картинку: деталь → выносная линия → артикул. Глиф детали —
+       из каталожной системы иконок (pickIcon/iconSvg EPPostImage), фото накладки — из того же spec. */
+    explodedViewHtml:EPExplodedView.buildHtml(
+      buildExplodedSpec(comp,box,layout,spec.frame),
+      {esc,pickIcon:EPPostImage.pickIcon,iconSvg:EPPostImage.iconSvg}),
     /* немецко-французский: коробок несколько (пост = 2 модуля) + импосты — важно монтажнику */
     german:(comp.model==="post"&&comp.postCount>1)?{postCount:comp.postCount}:null
   };
