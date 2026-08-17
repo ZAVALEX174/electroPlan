@@ -1,5 +1,0 @@
-# Bash-скрипты хуков должны оставаться с LF-переводами строк, даже если
-# у кого-то в команде на Windows настроен core.autocrlf=true. Иначе Git Bash
-# не сможет разобрать shebang-строку (#!/bin/bash) и хук будет молча падать
-# с ошибкой вида "bad interpreter".
-.claude/hooks/*.sh text eol=lf
