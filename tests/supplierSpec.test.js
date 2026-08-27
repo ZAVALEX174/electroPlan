@@ -15,6 +15,8 @@ const installSheet = require("../js/installSheet.js");
 const offerPdf = require("../js/offerPdf.js");
 const EPPosts = require("../js/posts.js");
 const EPEstimate = require("../js/estimate.js");
+const EPLightingPlan = require("../js/lightingPlan.js");
+const EPLightingGroups = require("../js/lightingGroups.js");
 
 /* esc как в приложении (из app.js наружу не экспортируется). */
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -370,8 +372,31 @@ const CATALOG = {
   20: { id: 20, kind: "support",    code: "09613",   name: "Суппорт 3М",           unit: "шт.", price: 4 },
   21: { id: 21, kind: "support",    code: "09602.1", name: "Суппорт 2М",           unit: "шт.", price: 3 },
   30: { id: 30, kind: "socket_box", code: "V71303",  name: "Коробка 3М",           unit: "шт.", price: 2 },
-  31: { id: 31, kind: "socket_box", code: "V71701",  name: "Коробка круглая",      unit: "шт.", price: 2 }
+  31: { id: 31, kind: "socket_box", code: "V71701",  name: "Коробка круглая",      unit: "шт.", price: 2 },
+  /* Клавиша и голые механизмы за ней — без них половину состава поста (позиции групп света)
+     инвариант не видит вовсе. Роли и серии в форме настоящего каталога (partRole/controlRole
+     из attrs.roles). Инвертора в серии намеренно нет: три места одной группы дают пробел
+     ПОСТАВКИ, и он тоже обязан пройти сверку. */
+  3:  { id: 3,  kind: "mechanism", code: "09021.N",     name: "Клавиша 1M neutro",   unit: "шт.", price: 4,
+        partRole: "key", series: ["Neve Up"] },
+  40: { id: 40, kind: "mechanism", code: "09001.0.250", name: "Механизм выключателя 1П 16AX", unit: "шт.", price: 7,
+        partRole: "bare_mechanism", controlRole: "switch", series: ["Neve Up"] },
+  41: { id: 41, kind: "mechanism", code: "09005.0.250", name: "Механизм переключателя 1П 16AX", unit: "шт.", price: 9,
+        partRole: "bare_mechanism", controlRole: "changeover", series: ["Neve Up"] }
 };
+/* Расчёт групп света ровно так, как его подставляет приложение (app.js lightingFor):
+   места из постов → правила схемы → строгий подбор по серии → строки по постам.
+   Второй копии правил здесь нет: работают настоящие EPLightingPlan и EPLightingGroups. */
+const seriesOf = item => (item && item.series) || [];
+const BARE = [CATALOG[40], CATALOG[41]];
+function lightingFromProject(posts) {
+  const places = EPLightingPlan.collect(posts || [],
+    { product: id => CATALOG[id], seriesOf, isKey: item => !!item && item.partRole === "key" });
+  const plan = EPLightingGroups.plan({ scheme: "classic", places },
+    { seriesOf, findMechanism: q => EPLightingPlan.resolveMechanism(q, BARE).product });
+  return EPLightingPlan.rowsByPost(plan, places, EPLightingGroups.GAP_TEXTS);
+}
+const lightRowsOf = (light, post) => (light ? (light.get(EPLightingPlan.postKey(post)) || []) : []);
 /* Зависимости состава поста — как их подставляет приложение (app.js postDeps): каталог,
    подбор коробки и суппорта. Немецко-французской накладке — круглая коробка и планка 2М,
    причём подобранная НАМИ (assumed), остальным — итальянский комплект. */
@@ -392,13 +417,21 @@ const specItem = p => p ? { code: p.code, name: p.name, unit: p.unit, kind: kind
 /* Точная копия supplierSpecData() из app.js — включая формулировки ненайденных товаров.
    Каталог читаем через те же deps.product/frameProduct, что и postComposition: так одну и ту
    же сборку можно прогнать и на фикстуре, и на НАСТОЯЩЕМ каталоге (тест в конце файла). */
-const specFromProject = (posts, devices, deps0) => {
+const specFromProject = (posts, devices, deps0, light) => {
   const d = deps0 || catalogDeps;
   return {
     posts: (posts || []).map(p => {
       const comp = EPPosts.postComposition(p, d);
+      /* Механизмы групп света — такие же позиции заказа, как клавиши (app.js supplierSpecData).
+         Пробел ПОСТАВКИ идёт строкой без артикула, пробел ПРОЕКТА («группа не указана») не идёт
+         вовсе — род пробела решает один общий EPLightingGroups.isSupplyGap, а не литерал здесь. */
+      const lightItems = lightRowsOf(light, p)
+        .filter(r => !r.missing || EPLightingGroups.isSupplyGap(r.missingReason))
+        .map(r => r.missing
+          ? { code: "", name: `Механизм группы «${r.groupLabel || "—"}» не подобран`, kind: "mechanism" }
+          : { code: r.code, name: r.name, unit: r.product && r.product.unit, kind: "mechanism" });
       return {
-        mechanisms: (p.mechanismIds || []).map(id => specItem(d.product(id)) || { code: "", name: `Механизм не найден (арт. ${id})` }),
+        mechanisms: (p.mechanismIds || []).map(id => specItem(d.product(id)) || { code: "", name: `Механизм не найден (арт. ${id})` }).concat(lightItems),
         frame: specItem(comp.frame) || (p.frameId ? { code: "", name: `Накладка не найдена (арт. ${p.frameId})` } : null),
         support: specItem(comp.support), supportCount: comp.supportCount,
         supportAssumed: comp.supportAssumed, supportNotRequired: comp.supportNotRequired,
@@ -409,13 +442,14 @@ const specFromProject = (posts, devices, deps0) => {
   };
 };
 /* Смета по тому же проекту — как её собирает buildEstimate() в app.js. */
-const estimateFromProject = (posts, devices, deps0) => {
+const estimateFromProject = (posts, devices, deps0, light) => {
   const d = deps0 || catalogDeps;
   return EPEstimate.build({
     devices: devices || [], posts: posts || [],
     product: d.product, frameProduct: d.frameProduct,
     postCost: p => EPPosts.postCost(p, d),
     postComposition: p => EPPosts.postComposition(p, d),
+    lightingOf: p => lightRowsOf(light, p),
     settings: {}
   });
 };
@@ -738,4 +772,75 @@ test("печатный состав КП собран ИЗ ТЕХ ЖЕ items, ч
   assert.match(g.composition, /\d+ подрозетн\./, "коробка в КП посчитана, а не названа");
   assert.ok(g.composition.split(", ").length > g.items.length,
     "печатная строка на настоящих именах делится по «, » на большее число кусков, чем позиций в составе");
+});
+
+/* ---- Инвариант «свод = смета» на позициях ГРУПП СВЕТА ------------------------------------
+   Механизм за клавишей подставляет расчёт по числу мест группы во всём проекте: его нет в
+   post.mechanismIds, он не занимает модуля рамки и приходит в оба документа отдельным путём —
+   через lightingOf в смете и через lightItems в своде. Пока инвариант не был расширен, этот
+   путь не был закрыт ничем: свод мог заказать переключатель там, где КП обещало выключатель,
+   и заметили бы это на объекте. */
+
+test("ИНВАРИАНТ: механизмы групп света совпадают в своде и в смете по количествам", () => {
+  /* Набор недобрый нарочно: группа «Кухня» на ДВУХ постах (два переключателя вместо двух
+     выключателей — роль зависит от всего проекта), группа «Холл» на одном (выключатель),
+     повторяющиеся посты одинакового состава (смета сольёт их в строку с количеством) и
+     клавиша с той же группой во втором посте. */
+  const posts = [
+    { id: "p1", number: 1, name: "Пост 1", frameId: 10, mechanismIds: [3, 3], keyGroups: ["Кухня", "Холл"] },
+    { id: "p2", number: 2, name: "Пост 2", frameId: 10, mechanismIds: [3], keyGroups: ["Кухня"] }
+  ];
+  const light = lightingFromProject(posts);
+  const data = collect(specFromProject(posts, [], undefined, light));
+  const est = estimateFromProject(posts, [], undefined, light);
+  assert.equal(rowOf(data, "09005.0.250").count, 2, "два места «Кухни» — два переключателя в заказе");
+  assert.equal(rowOf(data, "09001.0.250").count, 1, "одно место «Холла» — один выключатель");
+  assert.deepEqual(estimateTally(est), specTally(data),
+    "документы называют одни и те же механизмы в одних и тех же количествах");
+});
+
+test("ИНВАРИАНТ держится, когда одинаковые посты различаются ТОЛЬКО группами света", () => {
+  /* Два физически одинаковых поста (та же накладка, та же клавиша) получают разные механизмы,
+     если их группы встречаются в проекте разное число раз. Смета обязана развести их на две
+     строки, иначе состав первого напечатается как состав обоих — и разойдётся со сводом. */
+  const posts = [
+    { id: "p1", number: 1, name: "Пост", frameId: 10, mechanismIds: [3], keyGroups: ["Кухня"] },
+    { id: "p2", number: 2, name: "Пост", frameId: 10, mechanismIds: [3], keyGroups: ["Кухня"] },
+    { id: "p3", number: 3, name: "Пост", frameId: 10, mechanismIds: [3], keyGroups: ["Холл"] }
+  ];
+  const light = lightingFromProject(posts);
+  const data = collect(specFromProject(posts, [], undefined, light));
+  const est = estimateFromProject(posts, [], undefined, light);
+  assert.equal(est.groups.length, 2, "переключатели и выключатель — разные строки спецификации");
+  assert.deepEqual(estimateTally(est), specTally(data));
+});
+
+test("пробел ПРОЕКТА («группа не указана») не идёт ни в свод, ни в смету", () => {
+  /* Незаполненный проект — не дыра поставки. Иначе накладная ЛЮБОГО старого проекта состояла
+     бы из «Не указана группа света»: групп там нет ни у одной клавиши. Оба документа молчат
+     одинаково — расхождения нет, а причину человек видит в блоке «Группы света». */
+  const posts = [{ id: "p1", number: 1, name: "Пост", frameId: 10, mechanismIds: [3], keyGroups: [""] }];
+  const light = lightingFromProject(posts);
+  const data = collect(specFromProject(posts, [], undefined, light));
+  const est = estimateFromProject(posts, [], undefined, light);
+  assert.equal(data.rows.filter(r => /не подобран/i.test(r.name)).length, 0, "в своде такой строки нет");
+  assert.ok(!/группа/i.test(est.groups[0].composition), "и состав в КП о ней молчит");
+  assert.deepEqual(estimateTally(est), specTally(data));
+});
+
+test("пробел ПОСТАВКИ группы света: свод его называет, смета молчит — как у суппорта", () => {
+  /* Три места одной группы требуют инвертор, а в серии клавиши его нет (Neve Up). Это тот же
+     выбор по АДРЕСАТУ, что у пробела суппорта: поставщик обязан видеть недокомплект, а пустая
+     строка «не подобран» в КП соврала бы про состав. Расхождение намеренное и держится
+     тестом с обеих сторон. */
+  const posts = [1, 2, 3].map(n => ({ id: "p" + n, number: n, name: "Пост", frameId: 10,
+    mechanismIds: [3], keyGroups: ["Кухня"] }));
+  const light = lightingFromProject(posts);
+  const data = collect(specFromProject(posts, [], undefined, light));
+  const est = estimateFromProject(posts, [], undefined, light);
+  const gap = data.rows.find(r => !r.code && /Механизм группы/.test(r.name));
+  assert.ok(gap, "свод печатает пробел строкой без артикула");
+  assert.equal(gap.count, 1, "инвертор не подобран ровно на одном месте из трёх");
+  assert.equal(rowOf(data, "09005.0.250").count, 2, "а два переключателя заказаны");
+  assert.ok(!/не подобран/i.test(est.groups.map(g => g.composition).join(" ")), "смета о пробеле молчит");
 });

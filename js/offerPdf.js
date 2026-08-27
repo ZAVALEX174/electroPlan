@@ -22,10 +22,15 @@ const printScript = `<script>(function(){var done=false;function pr(){if(done)re
 
 /* est   — результат EPEstimate.build (groups, equipment, discount, vat, total, …)
    deps  — { money(n), esc(s), displayCurrency(), effectiveRate(settings), settings,
-             header, postLayout, planBlockHtml, supplierSpecHtml }
+             header, postLayout, planBlockHtml, lightingHtml, supplierSpecHtml }
    planBlockHtml — готовая секция «план с бирками» (EPPlanLabels.buildHtml), собирает её
    оркестратор: только он знает про #canvas и state. Приходит СТРОКОЙ ровно как
    assembledImageHtml в раскладке постов — этот документ вёрстку блока не трогает.
+   lightingHtml — готовая секция «Группы света» (EPLightingPlan.buildHtml): какие механизмы
+   подставил расчёт по числу мест управления группой, сколько нужно импульсных реле и какие
+   места остались без подстановки. Печатается СРАЗУ ПОД спецификацией и ПЕРЕД итогами: это
+   пояснение к составу позиций выше (откуда в посте на три клавиши переключатель и инвертор,
+   а не три выключателя), и после итогов его бы никто не прочитал.
    supplierSpecHtml — готовая секция «сводная спецификация по артикулам» (EPSupplierSpec):
    те же позиции, но в разрезе артикулов и БЕЗ ЦЕН — её отправляют поставщику. Печатается
    ПОСЛЕ денежных итогов, своей страницей: КП читают ради цены, свод — приложение к нему,
@@ -103,6 +108,7 @@ function buildHtml(est, deps) {
   <table><thead><tr><th>№</th><th>Наименование</th><th>Состав / артикул</th><th>Кол.</th><th>Ед.</th><th class="right">Цена</th><th class="right">Сумма</th></tr></thead><tbody>
   ${rows.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.composition)}</td><td>${r.qty}</td><td>${esc(r.unit)}</td><td class="right">${money(r.price)}</td><td class="right">${money(r.sum)}</td></tr>`).join("")}
   </tbody></table>
+  ${deps.lightingHtml || ""}
   <div class="totals"><div><span>Оборудование</span><b>${money(est.equipment)}</b></div>
   ${est.discount ? `<div><span>Скидка ${est.discountPercent}%</span><b>−${money(est.discount)}</b></div>` : ""}
   <div><span>Монтажные материалы</span><b>${money(materials)}</b></div><div><span>Работы</span><b>${money(work)}</b></div>

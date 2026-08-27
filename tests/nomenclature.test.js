@@ -392,3 +392,60 @@ test("собранный js/catalog-vimar-attrs.js несёт роли по ре
   assert.deepEqual(roles["09013"], { control: "inverter" });
   assert.equal(Object.keys(roles).filter((c) => /^09\d+\.0/.test(c) && roles[c].control === "inverter").length, 0);
 });
+
+test("buildAttrs: функциональная группа и подгруппа едут в рантайм разделом groups", () => {
+  /* Разделы выбора товара в полноэкранном конструкторе поста берутся из колонки заказчика
+     «Функциональная группа», а не из categoryId: тот ставит эвристика classify() по названию,
+     и её разделы расходятся с теми, которыми думает заказчик. */
+  const rec = (code, kind, group, subgroup) => ({ code, kind, group, subgroup });
+  const a = N.buildAttrs([
+    rec("20021", "mechanism", "управление светом", "Выключатели с подсветкой"),
+    rec("20210", "mechanism", "Розетки", null),
+    rec("20001.0", "mechanism", "Механизмы", null),
+    rec("14591", "accessory", "Подсветка клавиш", null),
+    rec("20663", "frame", "Декоративные накладки", null),   // накладки группируются по СЕРИИ
+    rec("09613", "support", "Суппорты", null),
+    rec("V71303", "socket_box", "Монтажные коробки", null),
+  ]);
+  assert.deepEqual(a.groups["20021"], { group: "управление светом", subgroup: "Выключатели с подсветкой" });
+  assert.deepEqual(a.groups["20210"], { group: "Розетки" }, "подгруппы нет — ключа нет");
+  assert.deepEqual(a.groups["20001.0"], { group: "Механизмы" });
+  assert.deepEqual(a.groups["14591"], { group: "Подсветка клавиш" }, "аксессуары тоже в разделе");
+  // Накладок (1635 позиций), суппортов и коробок в разделе нет намеренно: в конструкторе
+  // выбираются механизмы, а файл атрибутов вырос бы с 14.5 КБ до 73 КБ без единой строки пользы.
+  assert.equal(a.groups["20663"], undefined);
+  assert.equal(a.groups["09613"], undefined);
+  assert.equal(a.groups["V71303"], undefined);
+});
+
+test("buildAttrs: у механизма без функциональной группы ключа в groups нет", () => {
+  /* «Признака нет» рантайм отличает по ОТСУТСТВИЮ ключа — то же правило, что у roles и
+     principle. Пустая запись раздула бы файл и сломала бы эту проверку. */
+  const a = N.buildAttrs([{ code: "X1", kind: "mechanism", group: "", subgroup: "" }]);
+  assert.equal(a.groups["X1"], undefined);
+});
+
+test("собранный js/catalog-vimar-attrs.js несёт функциональные группы механизмов", () => {
+  /* Проверяем ОТГРУЖАЕМЫЙ артефакт: раздел собран, доехал через конвертер и содержит те
+     разделы, которыми думает заказчик. Числа — замер по его номенклатуре (435 механизмов
+     в 8 разделах + 25 аксессуаров «Подсветка клавиш»); регресс в номенклатуре или в сборке
+     обязан быть виден здесь, а не в браузере пустым списком товаров. */
+  const box = {};
+  new Function("window", "\"use strict\";" + fs.readFileSync(path.join(__dirname, "../js/catalog-vimar-attrs.js"), "utf8"))(box);
+  const groups = box.EP_VIMAR_ATTRS.groups;
+  assert.equal(Object.keys(groups).length, 460);
+  const tally = {};
+  for (const code in groups) tally[groups[code].group] = (tally[groups[code].group] || 0) + 1;
+  assert.deepEqual(tally, {
+    "управление светом": 173, "Информационные разъемы": 75, "Зарядные устройства": 60,
+    "управление климатом и жалюзи": 38, "Розетки": 30, "Заглушки и выводы кабеля": 26,
+    "Механизмы": 24, "Подсветка клавиш": 25, "отели": 8, "Отели": 1
+  });
+  /* Клавиша живёт в «управлении светом», голый механизм — в «Механизмах»: разделы разные,
+     и в конструкторе голые механизмы уезжают в свой раздел в конце списка. */
+  assert.equal(groups["20021"].group, "управление светом");
+  assert.equal(groups["20001.0"].group, "Механизмы");
+  /* «отели» и «Отели» в данных записаны по-разному; схлопывает их уже рантайм
+     (EPCatalogSections по ключу в нижнем регистре), а сборка написание не правит. */
+  assert.ok(tally["отели"] > 0 && tally["Отели"] > 0);
+});

@@ -21,6 +21,10 @@
  * button/inverter/sensor/bluetooth) из колонок «Функциональная группа» + «Тип управления».
  * Раньше рантайм различал клавишу и голый механизм только косвенно — по categoryId=900 от
  * эвристики по названию и по отсутствию moduleSpan; теперь признак приходит из данных.
+ * Плюс раздел groups — «Функциональная группа» и «Подгруппы» механизмов и аксессуаров:
+ * это разделы, по которым конструктор поста раскладывает товары в полноэкранном окне
+ * выбора. Их тоже берём из данных, а не из categoryId (его ставит эвристика по названию,
+ * и её разделы расходятся с теми, которыми думает заказчик).
  *
  * Флаги: --nom файл номенклатуры (.xls), --out выходной файл.
  */
@@ -47,7 +51,7 @@ async function main() {
   let overridesDoc = { overrides: {} };
   try { overridesDoc = JSON.parse((await fs.readFile(OVERRIDES, "utf8")).replace(/^﻿/, "")); } catch { /* нет файла — ноль правок */ }
   applyKindOverrides(records, overridesDoc.overrides || {});
-  const { standards, supports, boxes, wallTypes, mounting, roles } = buildAttrs(records);
+  const { standards, supports, boxes, wallTypes, mounting, roles, groups } = buildAttrs(records);
 
   const tally = (obj, pick) => {
     const t = {};
@@ -61,7 +65,9 @@ async function main() {
     `   совместимые стандарты коробки, монтажное правило позиции (principle +\n` +
     `   boxModularity; у механизмов — раздел mounting), роль детали в посте и роль\n` +
     `   управления (раздел roles: part=bare_mechanism|key, control=switch|changeover|\n` +
-    `   button|inverter|sensor|bluetooth). Подмешиваются к товарам в js/data.js. */\n`;
+    `   button|inverter|sensor|bluetooth), функциональная группа и подгруппа механизма\n` +
+    `   (раздел groups — разделы выбора товара в конструкторе поста). Подмешиваются\n` +
+    `   к товарам в js/data.js. */\n`;
   const body = {
     generatedAt: new Date().toISOString().slice(0, 10),
     source: {
@@ -71,6 +77,7 @@ async function main() {
       boxes: path.basename(NOM),
       mounting: path.basename(NOM),
       roles: path.basename(NOM),
+      groups: path.basename(NOM),
     },
     standards,
     supports,
@@ -78,6 +85,7 @@ async function main() {
     boxes,
     mounting,
     roles,
+    groups,
   };
   await fs.writeFile(OUT, banner + `window.EP_VIMAR_ATTRS = ${JSON.stringify(body, null, 2)};\n`, "utf8");
 
@@ -105,6 +113,10 @@ async function main() {
   console.log(`  голые механизмы:        ${JSON.stringify(bareByControl)}`);
   console.log(`  тип управления:         ${JSON.stringify(stats.byControlRole)}`);
   console.log(`  подгруппа заполнена:    ${stats.withSubgroup} позиций (колонка «Подгруппы » — с пробелом в .xls)`);
+  // Функциональные группы — разделы выбора товара в конструкторе поста. Печатаем разбивку:
+  // раздел, которого не стало в номенклатуре, обязан быть виден при пересборке, а не в рантайме.
+  const byGroup = tally(groups, (a) => a.group || "—");
+  console.log(`  функциональные группы:  ${Object.keys(groups).length} позиций — ${JSON.stringify(byGroup)}`);
 }
 
 main().catch((err) => {

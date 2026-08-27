@@ -1519,3 +1519,43 @@ test("не-имя группы (объект, массив, boolean) даёт П
   assert.equal(res.unassigned.placeCount, 2);
   assert.equal(res.places[0].missingReason, GAPS.NO_GROUP);
 });
+
+/* ---- Род пробела: незаполненный проект против дыры поставки ----------------------------- */
+
+test("PROJECT_GAPS: «группа не указана» и «схема не описана» — не пробел поставки", () => {
+  /* Разделение нужно документам: накладная поставщика и обвязка листа монтажника печатают
+     только то, что нужно ЗАКАЗАТЬ И ПРИВЕЗТИ. «Человек не дозаполнил проект» туда не идёт —
+     иначе накладная любого старого проекта (групп там нет ни у одной клавиши) состояла бы из
+     «Не указана группа света», и настоящий пробел поставки утонул бы в этом шуме.
+     Пока список лежал литералом в приложении, о нём знал только свод, а обвязка печатала то,
+     что свод отбрасывал: один пробел, два разных документа, две трактовки. */
+  assert.deepEqual(LG.PROJECT_GAPS, [GAPS.NO_GROUP, GAPS.SCHEME_NOT_READY, GAPS.SCHEME_UNKNOWN]);
+  LG.PROJECT_GAPS.forEach(reason => {
+    assert.equal(LG.isProjectGap(reason), true, reason);
+    assert.equal(LG.isSupplyGap(reason), false, reason);
+  });
+});
+
+test("остальные причины — пробел ПОСТАВКИ: изделие нужно, а заказать нечего", () => {
+  [GAPS.NO_SERIES, GAPS.SERIES_FAILED, GAPS.NOT_IN_SERIES, GAPS.NO_CODE,
+   GAPS.NO_LOOKUP, GAPS.LOOKUP_FAILED, GAPS.NO_ROLE, GAPS.DUPLICATE_PLACE, GAPS.RELAY_ARTICLE]
+    .forEach(reason => {
+      assert.equal(LG.isSupplyGap(reason), true, reason);
+      assert.equal(LG.isProjectGap(reason), false, reason);
+    });
+});
+
+test("«причины нет» — это не пробел поставки", () => {
+  /* Строка подобранного механизма приходит с missingReason === null, и она не должна попасть
+     в перечень пробелов ни одного документа. */
+  [null, undefined, ""].forEach(v => assert.equal(LG.isSupplyGap(v), false, String(v)));
+});
+
+test("каждая причина из GAPS отнесена к одному из двух родов и имеет текст", () => {
+  /* Предохранитель на будущее: добавили причину — сразу решили, какого она рода и как
+     называется человеку. Иначе новая причина молча уедет в накладную поставщика. */
+  Object.values(GAPS).forEach(reason => {
+    assert.equal(LG.isProjectGap(reason) !== LG.isSupplyGap(reason), true, `${reason}: ровно один род`);
+    assert.ok(LG.GAP_TEXTS[reason], `${reason}: формулировка для человека`);
+  });
+});

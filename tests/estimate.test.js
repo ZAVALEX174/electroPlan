@@ -214,3 +214,102 @@ test("нулевые проценты дают чистое оборудован
   });
   near(e.total, 10, "итого равно цене оборудования");
 });
+
+/* ── Механизмы групп света в смете (C8) ────────────────────────────────────────────────
+   Механизм подставляется РАСЧЁТОМ по числу мест группы во всём проекте и физически стоит ЗА
+   клавишей: модуля рамки он не занимает, в post.mechanismIds не входит и входить не может
+   (там он удвоил бы modulesTotal и сменил бы коробку с суппортом). Поэтому он отдельная
+   позиция состава и отдельное слагаемое цены строки — единственный путь его денег в итог. */
+const lightRow = (over) => Object.assign(
+  { keyIndex: 0, code: "20005.0", name: "Механизм-переключатель", price: 25.79,
+    groupLabel: "Кухня", roleLabel: "Переключатель", missing: false }, over || {});
+
+test("группы света: механизм попадает в состав позиции и в цену строки ровно один раз", () => {
+  const post = { id: "p1", name: "Пост", frameId: 2, mechanismIds: [1] };
+  const e = run({ posts: [post], postCost: () => 30, postComposition: () => ({ boxCount: 1 }),
+    lightingOf: () => [lightRow()] });
+  assert.match(e.groups[0].composition, /Механизм-переключатель · группа «Кухня»/);
+  near(e.groups[0].sum, 55.79, "цена поста плюс механизм");
+  near(e.equipment, 55.79, "equipment = сумма lines[].price, механизм учтён один раз");
+});
+
+test("группы света: пробел подбора позиции НЕ даёт — ни строкой состава, ни ценой", () => {
+  /* Тот же выбор, что у суппорта: пустая строка «не подобран» в КП соврала бы про состав,
+     а причину пробела клиент видит отдельным блоком «Группы света». */
+  const post = { id: "p1", name: "Пост", frameId: 2, mechanismIds: [1] };
+  const e = run({ posts: [post], postCost: () => 30, postComposition: () => ({ boxCount: 1 }),
+    lightingOf: () => [lightRow({ missing: true, code: "", price: 0, name: "" })] });
+  assert.ok(!/группа «Кухня»/.test(e.groups[0].composition));
+  near(e.equipment, 30, "пробел не стоит денег");
+});
+
+test("группы света: одинаковые посты с РАЗНЫМИ механизмами не схлопываются в одну строку", () => {
+  /* Два физически одинаковых поста получают разные механизмы, если их группы встречаются в
+     проекте разное число раз. Схлопнуть их значило бы напечатать состав первого как состав
+     обоих — артикулы в КП и своде разошлись бы с проектом. */
+  const a = { id: "p1", name: "Пост", frameId: 2, mechanismIds: [1] };
+  const b = { id: "p2", name: "Пост", frameId: 2, mechanismIds: [1] };
+  const e = run({ posts: [a, b], postCost: () => 30, postComposition: () => ({ boxCount: 1 }),
+    lightingOf: (po) => po.id === "p1"
+      ? [lightRow({ code: "20001.0", name: "Механизм-выключатель", price: 20.26, roleLabel: "Выключатель", groupLabel: "Одна" })]
+      : [lightRow({ groupLabel: "Две" })] });
+  assert.equal(e.groups.length, 2, "разные механизмы — разные строки спецификации");
+  near(e.equipment, 30 + 20.26 + 30 + 25.79, "деньги обоих постов в итоге");
+});
+
+test("группы света: одинаковые посты с ОДИНАКОВЫМИ механизмами по-прежнему одна строка", () => {
+  const a = { id: "p1", name: "Пост", frameId: 2, mechanismIds: [1] };
+  const b = { id: "p2", name: "Пост", frameId: 2, mechanismIds: [1] };
+  const e = run({ posts: [a, b], postCost: () => 30, postComposition: () => ({ boxCount: 1 }),
+    lightingOf: () => [lightRow()] });
+  assert.equal(e.groups.length, 1);
+  assert.equal(e.groups[0].count, 2);
+});
+
+test("проект без групп света считается БАЙТ В БАЙТ как раньше", () => {
+  /* Ключ группировки получает подпись групп света только когда они есть: старые сметы не
+     имеют права перегруппироваться от появления новой возможности. */
+  const post = { id: "p1", name: "Пост", frameId: 2, mechanismIds: [1] };
+  const before = run({ posts: [post, post], postCost: () => 30, postComposition: () => ({ boxCount: 1 }) });
+  const after = run({ posts: [post, post], postCost: () => 30, postComposition: () => ({ boxCount: 1 }), lightingOf: () => [] });
+  assert.deepEqual(after.groups, before.groups);
+  near(after.equipment, before.equipment, "итог не изменился");
+});
+
+test("механизм группы света стоит в составе СРАЗУ ЗА клавишами, до суппорта и коробки", () => {
+  const post = { id: "p1", name: "Пост", frameId: 2, mechanismIds: [1] };
+  const e = run({ posts: [post], postCost: () => 30,
+    postComposition: () => ({ boxCount: 1, supportCount: 1, support: { name: "Суппорт X", code: "S1" } }),
+    lightingOf: () => [lightRow()] });
+  assert.deepEqual(e.groups[0].items.map(it => it.kind), ["mechanism", "lighting", "support", "box", "frame"]);
+});
+
+test("ключ группировки НЕ склеивается строкой: разные наборы не могут дать один ключ", () => {
+  /* Ровно тот «склеиваемый ключ», от которого отказался модуль групп света. Подпись
+     собиралась как `код@группа`, а пары сшивались запятой — и обе границы полей проходили
+     ВНУТРИ значения, которое вводит человек. Ниже вход намеренно вывернутый: имя группы несёт
+     и запятую, и «@». Так и должно быть — доказывать надо не «на реальных данных пронесло», а
+     что кодирование не может слипнуться В ПРИНЦИПЕ: имя группы это свободная строка человека
+     («Кухня, рабочая зона» — уже законно), и никакой разделитель в ней не запрещён.
+     Со склейкой оба поста давали ОДНУ строку сметы, и в КП уезжал состав первого как состав
+     обоих: разные артикулы за одни деньги. */
+  const a = { id: "p1", name: "Пост", frameId: 2, mechanismIds: [1, 1] };
+  const b = { id: "p2", name: "Пост", frameId: 2, mechanismIds: [1, 1] };
+  const e = run({ posts: [a, b], postCost: () => 30, postComposition: () => ({ boxCount: 1 }),
+    lightingOf: (po) => po.id === "p1"
+      ? [lightRow({ code: "20001.0", groupLabel: "Холл" }), lightRow({ code: "20005.0", groupLabel: "Кухня" })]
+      : [lightRow({ code: "20001.0", groupLabel: "Холл,20005.0@Кухня" })] });
+  assert.equal(e.groups.length, 2, "два разных состава — две строки спецификации");
+});
+
+test("ключ группировки не зависит от ПОРЯДКА клавиш в посте", () => {
+  /* Один и тот же пост, собранный «слева направо» и «справа налево», — одна строка сметы:
+     иначе спецификация раздувалась бы от перестановки, ничего не меняющей по существу. */
+  const a = { id: "p1", name: "Пост", frameId: 2, mechanismIds: [1, 1] };
+  const b = { id: "p2", name: "Пост", frameId: 2, mechanismIds: [1, 1] };
+  const rows = [lightRow({ code: "20001.0", groupLabel: "Кухня" }), lightRow({ code: "20005.0", groupLabel: "Холл" })];
+  const e = run({ posts: [a, b], postCost: () => 30, postComposition: () => ({ boxCount: 1 }),
+    lightingOf: (po) => po.id === "p1" ? rows : [rows[1], rows[0]] });
+  assert.equal(e.groups.length, 1);
+  assert.equal(e.groups[0].count, 2);
+});

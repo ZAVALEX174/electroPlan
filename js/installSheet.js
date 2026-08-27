@@ -10,8 +10,10 @@
    проверить автотестом, не поднимая браузер (PLAN 7.1).
 
    Интерфейс приложению — window.EPInstallSheet.buildHtml(data, deps) и
-   buildFittings(comp, box): обвязка поста собирается ЗДЕСЬ, а не в оркестраторе, потому
-   что её формат — часть контракта этого документа (см. fittings в описании data ниже). */
+   buildFittings(comp, box, lighting): обвязка поста собирается ЗДЕСЬ, а не в оркестраторе,
+   потому что её формат — часть контракта этого документа (см. fittings в описании data ниже).
+   lighting — необязательный третий аргумент: механизмы групп света, подставленные расчётом
+   (EPLightingPlan). Старый вызов с двумя аргументами работает как раньше. */
 (() => {
 "use strict";
 
@@ -39,9 +41,22 @@ const printScript = `<script>(function(){var done=false;function pr(){if(done)re
    (см. fittings в описании data ниже), так что правило и проверяется рядом с ним.
    Возвращает [{role, name, code, count}] — ровно те строки, что печатает таблица
    «Обвязка поста». */
-function buildFittings(comp, box) {
+function buildFittings(comp, box, lighting) {
   const fittings = [];
   if (!comp) return fittings;
+  /* Механизмы групп света (EPLightingPlan.rowsByPost) — ПЕРВЫМИ в обвязке: монтажник ставит их
+     в коробку раньше всего остального, они физически стоят ЗА клавишами. В таблице модулей выше
+     их нет и быть не может — модуля рамки они не занимают (там стоит клавиша), поэтому место
+     механизма в документе именно здесь, в обвязке, с указанием модуля и группы.
+     Пробел подбора печатаем СТРОКОЙ С НУЛЁМ и текстом причины из расчёта: монтажник обязан
+     увидеть, что за клавишей ничего не стоит, ДО поездки на объект. Это то же правило, по
+     которому «суппорт не требуется» пишется словами, а не пропускается. */
+  (Array.isArray(lighting) ? lighting : []).forEach(r => {
+    if (!r) return;
+    const where = `Механизм · модуль ${r.moduleLabel || "—"} · группа «${r.groupLabel || "—"}»`;
+    if (r.missing) fittings.push({ role: where, name: r.missingText || "механизм не подобран", code: null, count: 0 });
+    else fittings.push({ role: where, name: r.name, code: r.code, count: 1 });
+  });
   /* Суппорт: сколько насчитал состав (столько же, сколько коробок), а не «одна планка».
      Изделие, которое по номенклатуре монтируется В КОРОБКУ БЕЗ ПЛАНКИ (крышки IP55,
      принцип NO_SUPPORT), даёт строку «не требуется» с нулём — buildHtml напечатает в
@@ -79,6 +94,12 @@ function buildFittings(comp, box) {
        explodedViewHtml?: string,                       // взрыв-схема поста (EPExplodedView) — деталь → выносная линия → артикул
        fittings: [ { role, name, code, count } ]        // обвязка: суппорт → коробка → накладка
      } ],
+     lightingHtml?: string,                      // блок «Группы света» (EPLightingPlan.buildHtml):
+                                                 // какие механизмы подставил расчёт, сколько нужно
+                                                 // импульсных реле и какие места остались без
+                                                 // подстановки. Печатается ПОСЛЕ карточек постов
+                                                 // и ПЕРЕД подвалом: это свод по проекту, а не
+                                                 // состав конкретного поста (состав уже в обвязке)
      supplierSpecHtml?: string                   // сводная спецификация по артикулам (EPSupplierSpec),
                                                  // готовая секция от оркестратора — см. ниже
    }
@@ -244,6 +265,7 @@ function buildHtml(data, deps) {
   ${headerRows ? `<div class="doc-head">${headerRows}</div>` : ""}
   ${data.planBlockHtml || ""}
   ${body}
+  ${data.lightingHtml || ""}
   <div class="footer">Документ для монтажа. Позиции модулей указаны слева направо, как в собранной накладке.</div>
   ${data.supplierSpecHtml || ""}
   ${printScript}</body></html>`;

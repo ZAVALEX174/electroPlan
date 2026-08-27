@@ -445,8 +445,27 @@ function addMountingRule(entry, rec) {
  * 287 правил из 449 — остальные молча терялись на сборке.
  */
 export function buildAttrs(records) {
-  const standards = {}, supports = {}, boxes = {}, wallTypes = {}, mounting = {}, roles = {};
+  const standards = {}, supports = {}, boxes = {}, wallTypes = {}, mounting = {}, roles = {}, groups = {};
   for (const rec of records) {
+    /* Функциональная группа и подгруппа — сквозной раздел groups, ключ на артикул,
+       запись { group, subgroup }. Это РАЗДЕЛЫ ВЫБОРА товара в конструкторе поста: заказчик
+       на встрече 24.08 просил «разделы, которые изначально не раскрыты — сначала раздел
+       выбрал, потом в разделе нашёл элемент». Раньше рантайм группировал механизмы по
+       categoryId, а его ставит эвристика classify() по НАЗВАНИЮ, и разделы расходились с
+       данными заказчика: «управление светом» размазано по пяти категориям, а «Информационные
+       разъемы» и «Зарядные устройства» слиты в одну. Колонка номенклатуры даёт ровно те
+       разделы, которыми думает заказчик, — берём её, а не догадку по имени.
+       ТОЛЬКО механизмы и аксессуары: в конструкторе выбираются они, а 1635 декоративных
+       накладок группируются по СЕРИИ (frameOptions) и раздутый на них файл атрибутов
+       (73 КБ против 14.5 КБ) не окупился бы ни одной строкой интерфейса.
+       Пустых записей не кладём — по тому же правилу, что у roles/mounting: «признака нет»
+       рантайм отличает по отсутствию ключа. */
+    if (rec.kind === "mechanism" || rec.kind === "accessory") {
+      const g = {};
+      if (rec.group) g.group = rec.group;
+      if (rec.subgroup) g.subgroup = rec.subgroup;
+      if (Object.keys(g).length) groups[rec.code] = g;
+    }
     /* Роль детали в посте + роль управления (см. partRoleOf/controlRoleOf) — сквозной раздел
        roles, ключ на артикул, как у mounting. Схема записи: { part, control }.
          part    — "bare_mechanism" (нужна отдельная клавиша) | "key" (клавиша)
@@ -502,5 +521,5 @@ export function buildAttrs(records) {
       if (Object.keys(entry).length) mounting[rec.code] = entry;
     }
   }
-  return { standards, supports, boxes, wallTypes, mounting, roles };
+  return { standards, supports, boxes, wallTypes, mounting, roles, groups };
 }

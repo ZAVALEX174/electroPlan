@@ -5,6 +5,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { buildHtml, buildFittings } = require("../js/installSheet.js");
+/* Род пробела (поставка или незаполненный проект) — общий для всех документов словарь. */
+const LG = require("../js/lightingGroups.js");
 
 /* esc как в приложении — чтобы проверить экранирование пользовательского ввода. */
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -297,4 +299,77 @@ test("лист монтажника без плана собирается ка�
   const undef = buildHtml({ posts: [italianPost] }, deps);
   assert.ok(!/data-test="plan-block"/.test(withOut), "секции плана нет");
   assert.equal(withOut, undef, "пустая строка и отсутствие поля дают одинаковый документ");
+});
+
+/* ── Механизмы групп света в обвязке поста (C8) ───────────────────────────────────────
+   Механизм подставляется расчётом по числу мест группы и физически стоит ЗА клавишей — своего
+   модуля рамки у него нет, поэтому в таблице модулей его быть не может. Место монтажника,
+   где он обязан появиться, — обвязка, с номером модуля и именем группы. */
+const lightRow = (over) => Object.assign(
+  { keyIndex: 0, moduleLabel: "1", groupLabel: "Кухня", roleLabel: "Переключатель",
+    code: "20005.0", name: "Механизм-переключатель 1P 16AX", price: 25.79, missing: false }, over || {});
+const comp = { support: { name: "Суппорт X", code: "S1" }, supportCount: 1, boxCount: 1,
+  frame: { name: "Накладка", code: "F1" } };
+const box = { name: "Коробка", code: "B1" };
+
+test("механизм группы света идёт ПЕРВЫМ в обвязке — до суппорта, коробки и накладки", () => {
+  const rows = buildFittings(comp, box, [lightRow()]);
+  assert.deepEqual(rows.map(r => r.code), ["20005.0", "S1", "B1", "F1"]);
+  assert.match(rows[0].role, /модуль 1/);
+  assert.match(rows[0].role, /Кухня/);
+  assert.equal(rows[0].count, 1);
+});
+
+test("пробел ПОСТАВКИ печатается строкой с нулём и причиной, а не пропускается", () => {
+  /* Монтажник обязан увидеть ДО поездки, что за клавишей ничего не стоит: пустое место в
+     обвязке читается как забытая позиция, и он звонит уточнять. Пример — настоящий пробел
+     поставки: группа указана, а механизма такой роли в серии клавиши нет. */
+  const rows = buildFittings(comp, box, [lightRow({ missing: true, code: null,
+    missingReason: LG.GAPS.NOT_IN_SERIES,
+    missingText: LG.GAP_TEXTS[LG.GAPS.NOT_IN_SERIES] })]);
+  assert.equal(rows[0].count, 0);
+  assert.equal(rows[0].code, null);
+  assert.match(rows[0].name, /нет механизма нужного типа/);
+});
+
+test("пробел ПРОЕКТА в обвязку не идёт — та же трактовка, что в накладной поставщика", () => {
+  /* Обвязка — перечень ДЕТАЛЕЙ поста, то есть того, что надо привезти и поставить. «Группа не
+     указана» и «схема не описана» деталью не являются: это незаполненный проект. Пока обвязка
+     печатала их, а накладная поставщика молча отбрасывала, один и тот же пробел трактовался
+     двумя документами об одном проекте по-разному — и лист монтажника у любого старого
+     проекта (групп там нет ни у одной клавиши) состоял из «Не указана группа света» на каждую
+     клавишу, топя настоящий пробел поставки. Род пробела решает ОДИН общий
+     EPLightingGroups.isSupplyGap; ниже — та же сборка, что делает оркестратор в app.js
+     (buildPostSheet), чтобы правило нельзя было поменять с одной стороны. */
+  const rows = [
+    lightRow({ keyIndex: 0, missing: true, code: null, missingReason: LG.GAPS.NO_GROUP,
+      missingText: LG.GAP_TEXTS[LG.GAPS.NO_GROUP] }),
+    lightRow({ keyIndex: 1, moduleLabel: "2", missing: true, code: null,
+      missingReason: LG.GAPS.NOT_IN_SERIES, missingText: LG.GAP_TEXTS[LG.GAPS.NOT_IN_SERIES] })
+  ];
+  const forFittings = rows.filter(r => !r.missing || LG.isSupplyGap(r.missingReason));
+  const fittings = buildFittings(comp, box, forFittings);
+  assert.deepEqual(fittings.map(f => f.code), [null, "S1", "B1", "F1"], "в обвязке один пробел, а не два");
+  assert.match(fittings[0].role, /модуль 2/, "и это тот, что про поставку");
+  assert.ok(!/Не указана группа света/.test(fittings.map(f => f.name).join(" ")));
+});
+
+test("вызов без третьего аргумента даёт прежнюю обвязку байт в байт", () => {
+  assert.deepEqual(buildFittings(comp, box), buildFittings(comp, box, []));
+  assert.deepEqual(buildFittings(comp, box).map(r => r.code), ["S1", "B1", "F1"]);
+});
+
+test("блок «Группы света» печатается после карточек постов и перед подвалом", () => {
+  const marker = '<section data-test="lighting">группы</section>';
+  const html = buildHtml({ posts: [italianPost], lightingHtml: marker }, deps);
+  const posCard = html.indexOf('<section class="post-card">');
+  const posLight = html.indexOf(marker);
+  const posFooter = html.indexOf('<div class="footer">');
+  assert.ok(posCard > -1 && posLight > posCard, "блок идёт ПОСЛЕ карточек постов");
+  assert.ok(posLight < posFooter, "и ПЕРЕД подвалом документа");
+});
+
+test("лист монтажника без блока групп света собирается как раньше", () => {
+  assert.equal(buildHtml({ posts: [italianPost], lightingHtml: "" }, deps),
+    buildHtml({ posts: [italianPost] }, deps));
 });

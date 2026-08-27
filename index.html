@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260801.6">
+  <link rel="stylesheet" href="css/styles.css?v=20260828.3">
 </head>
 <body>
 <div class="app">
@@ -216,44 +216,78 @@
       <section>
         <div class="section-head"><h3>Спецификация</h3><span class="count-pill" id="objectCount">0</span></div>
         <div class="spec-list" id="specList"></div>
+        <!-- Группы света: тот же блок, что печатается в КП и листе монтажника
+             (EPLightingPlan.buildHtml) — чтобы экран и документы не могли разойтись. -->
+        <div id="lightingSummary"></div>
       </section>
     </aside>
   </main>
 </div>
 
-<div class="modal-backdrop" id="postModal">
+<!-- Конструктор поста — ПОЛНОЭКРАННОЕ окно (E17, прямая просьба заказчика 24.08: «можно
+     это окно, которое сейчас всплывает, сделать на весь экран, и он там перестроится, чтобы
+     они были крупнее и видно их было хорошо»). Разметка та же конвенция, что у #pdfPageModal
+     и #scaleModal (.modal-backdrop > .modal > .modal-header/.modal-footer) плюс модификатор
+     .fullscreen у подложки и грид-раскладка у .post-builder-modal: шапка и футер закреплены,
+     скроллятся только колонки. role="dialog"/aria-modal здесь раньше не было — добавлены. -->
+<div class="modal-backdrop fullscreen" id="postModal" role="dialog" aria-modal="true" aria-labelledby="postModalTitle">
   <div class="modal post-builder-modal">
     <div class="modal-header">
       <div><span class="eyebrow">Конструктор</span><h2 id="postModalTitle">Новый электрический пост</h2></div>
-      <button class="modal-close" id="closePostModal">×</button>
+      <button class="modal-close" id="closePostModal" type="button" aria-label="Закрыть">&times;</button>
     </div>
 
     <div class="builder-layout">
-      <div class="builder-preview-area">
-        <div class="post-preview-large" id="postPreview"></div>
-        <div class="builder-composition" id="builderComposition"></div>
+      <!-- Левая колонка: собранный пост, параметры и выбранные модули. Скроллится сама. -->
+      <div class="builder-side">
+        <div class="builder-preview-area">
+          <div class="post-preview-large" id="postPreview"></div>
+        </div>
+
+        <!-- Порядок блоков — по частоте обращения при сборке: сначала то, что меняют на каждый
+             клик по карточке (размер рамки, накладка, заполнение, сами модули с группами света),
+             ниже — реквизиты поста и свойства проекта, которые задают один раз. -->
+        <div class="builder-form">
+          <div class="form-row">
+            <label>Количество модулей рамки
+              <select id="postSlotCount"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select>
+            </label>
+            <label>Накладка
+              <select id="postFrameSelect"></select>
+            </label>
+          </div>
+          <div class="builder-capacity" id="builderCapacity"></div>
+          <div class="builder-slots" id="builderSlots"></div>
+          <label class="builder-name">Название поста<input id="postName" value="Пост 3 места"></label>
+          <fieldset class="wall-type-step">
+            <legend>Тип стены</legend>
+            <div class="wall-type-options" id="postWallType" role="radiogroup" aria-label="Тип стены поста">
+              <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-wall="hollow">ГКЛ и полые стены</button>
+              <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-wall="solid">Бетон, кирпич, сплошные стены</button>
+            </div>
+            <small class="wall-type-hint">Влияет на подбор монтажной коробки. Свойство проекта.</small>
+          </fieldset>
+          <!-- Схема электрики — свойство ПРОЕКТА, как и тип стены (хранится в EP_DATA.settings
+               и едет в terms проекта). Список схем строится из EPLightingGroups.SCHEMES, чтобы
+               у интерфейса не было второй копии названий и пометки «схема не реализована». -->
+          <fieldset class="wall-type-step">
+            <legend>Схема электрики проекта</legend>
+            <select id="lightingSchemeSelect" aria-describedby="lightingSchemeHint"></select>
+            <small class="wall-type-hint" id="lightingSchemeHint"></small>
+          </fieldset>
+          <div class="builder-composition" id="builderComposition"></div>
+        </div>
       </div>
 
-      <div class="builder-form">
-        <fieldset class="wall-type-step">
-          <legend>Тип стены</legend>
-          <div class="wall-type-options" id="postWallType" role="radiogroup" aria-label="Тип стены поста">
-            <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-wall="hollow">ГКЛ и полые стены</button>
-            <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-wall="solid">Бетон, кирпич, сплошные стены</button>
-          </div>
-          <small class="wall-type-hint">Влияет на подбор монтажной коробки. Свойство проекта.</small>
-        </fieldset>
-        <label>Название поста<input id="postName" value="Пост 3 места"></label>
-        <div class="form-row">
-          <label>Количество модулей рамки
-            <select id="postSlotCount"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select>
-          </label>
-          <label>Накладка
-            <select id="postFrameSelect"></select>
-          </label>
+      <!-- Правая колонка: каталог КРУПНЫМИ карточками с фото, разделы свёрнуты по умолчанию
+           («разделы могут быть изначально не раскрыты — ты сначала раздел выбрал, он у тебя
+           раскрылся, потом в разделе нашёл элемент, чтобы не крутить много»). -->
+      <div class="builder-catalog">
+        <div class="catalog-head">
+          <div class="catalog-target" id="builderTarget" role="status"></div>
+          <input id="builderSearch" type="search" autocomplete="off" placeholder="Поиск по артикулу или названию" aria-label="Поиск товара в каталоге">
         </div>
-        <div class="builder-capacity" id="builderCapacity"></div>
-        <div class="builder-slots" id="builderSlots"></div>
+        <div class="catalog-sections" id="builderCatalog"></div>
       </div>
     </div>
 
@@ -301,22 +335,29 @@
 
 <div class="toast" id="toast"></div>
   <script src="js/catalog-vimar.js?v=20260827.2"></script>
-  <script src="js/catalog-vimar-attrs.js?v=20260827.1"></script>
+  <script src="js/catalog-vimar-attrs.js?v=20260828.1"></script>
   <script src="js/catalog-vimar-openings.js?v=20260801.2"></script>
   <script src="js/catalog-vimar-faces.js?v=20260801.2"></script>
-  <script src="js/data.js?v=20260827.1"></script>
+  <script src="js/data.js?v=20260828.1"></script>
 <script src="js/store.js?v=20260723"></script>
 <script src="js/config.js?v=20260801.2"></script>
 <script src="js/catalog.js?v=20260801.8"></script>
 <!-- Чистый модуль (ни DOM, ни state): подбор механизма по группе света и схеме электрики.
      Считается по ВСЕМУ проекту, результат отдаётся в состав поста, поэтому грузится до postfit/posts. -->
-<script src="js/lightingGroups.js?v=20260827.4"></script>
+<script src="js/lightingGroups.js?v=20260828.4"></script>
+<!-- Связка модуля групп света с проектом: сборка мест управления из постов, строгий подбор
+     механизма по роли и серии, печатный блок для документов. Грузится ПОСЛЕ lightingGroups
+     (использует его тексты пробелов) и до estimate/installSheet, которые его результат печатают. -->
+<script src="js/lightingPlan.js?v=20260828.1"></script>
 <script src="js/postfit.js?v=20260826.2"></script>
-<script src="js/posts.js?v=20260826.2"></script>
+<script src="js/posts.js?v=20260828.3"></script>
 <script src="js/picker.js?v=20260801.1"></script>
-<script src="js/estimate.js?v=20260827.5"></script>
-<script src="js/offerPdf.js?v=20260827.4"></script>
-<script src="js/installSheet.js?v=20260827.4"></script>
+<!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
+<script src="js/catalogSections.js?v=20260828.1"></script>
+<script src="js/builderSlots.js?v=20260828.3"></script>
+<script src="js/estimate.js?v=20260828.3"></script>
+<script src="js/offerPdf.js?v=20260828.1"></script>
+<script src="js/installSheet.js?v=20260828.1"></script>
 <script src="js/supplierSpec.js?v=20260827.3"></script>
 <script src="js/postImage.js?v=20260805.1"></script>
 <script src="js/explodedView.js?v=20260805.5"></script>
@@ -330,6 +371,6 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-  <script src="js/app.js?v=20260827.4"></script>
+  <script src="js/app.js?v=20260828.4"></script>
 </body>
 </html>
