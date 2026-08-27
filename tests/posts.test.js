@@ -96,13 +96,37 @@ test("суппорт подбирается через deps и входит в �
   const deps = baseDeps({ findSupport: () => CATALOG[14613] });
   const comp = postComposition(post, deps);
   assert.equal(comp.support && comp.support.code, "14613", "суппорт найден");
+  assert.equal(comp.supportCount, 1, "итальянская сборка — одна планка на всю накладку");
   near(postCost(post, deps), 3 * 4.30 + 3.0 + 2.5 + 0.85, "суппорт учтён в стоимости");
 });
 
-test("суппорт не подобран — поле null, в цену не попадает", () => {
+test("ДЕФЕКТ-2: немецкая накладка 2+2 — суппорт на КАЖДЫЙ пост, а не один на сборку", () => {
+  /* Ответ заказчика 26.08: «с суппортом мы тоже два берём, два по два модуля, как и
+     коробок». Раньше суппорт входил в цену ровно один раз при любом числе постов —
+     смета занижалась на (N−1) планок в каждой немецко-французской сборке. Гейт нарочно
+     подаёт findSupport: без него суппорт равен null и регрессия снова не проверялась бы. */
+  const post = { frameId: 14643, mechanismIds: [2, 2] };
+  const deps = baseDeps({ findSupport: () => CATALOG[14613] });
+  const comp = postComposition(post, deps);
+  assert.equal(comp.boxCount, 2, "две коробки");
+  assert.equal(comp.supportCount, 2, "и столько же суппортов");
+  near(postCost(post, deps), 2 * 6.01 + 5.0 + 2 * 2.5 + 2 * 0.85, "в цене ДВА суппорта");
+});
+
+test("немецкая 2+2+2: суппортов столько же, сколько постов (3)", () => {
+  const post = { frameId: 14644, mechanismIds: [2, 2, 2] };
+  const deps = baseDeps({ findSupport: () => CATALOG[14613] });
+  const comp = postComposition(post, deps);
+  assert.equal(comp.supportCount, 3, "число суппортов идёт за postCount накладки");
+  assert.equal(comp.supportCount, comp.boxCount, "суппорт и коробка считаются одним правилом");
+});
+
+test("суппорт не подобран — поле null, количество 0, в цену не попадает", () => {
   const post = { frameId: 14653, mechanismIds: [1, 1, 1] };
   const deps = baseDeps({ findSupport: () => null });
-  assert.equal(postComposition(post, deps).support, null);
+  const comp = postComposition(post, deps);
+  assert.equal(comp.support, null);
+  assert.equal(comp.supportCount, 0, "нечего умножать — количество ноль, а не «одна штука»");
   near(postCost(post, deps), 3 * 4.30 + 3.0 + 0.85, "без суппорта");
 });
 
@@ -138,6 +162,92 @@ test("ДЕФЕКТ-1: нет совместимой коробки (fallbackBox=
 test("пустой пост — ноль коробок, нулевая стоимость коробок", () => {
   const post = { frameId: 14653, mechanismIds: [] };
   assert.equal(postComposition(post, baseDeps()).boxCount, 0);
+});
+
+test("пустой пост: суппортов тоже ноль — цена планки не капает в смету", () => {
+  /* Механизмов нет — обвязки нет: раньше цена подобранного суппорта прибавлялась
+     безусловно, и пустой пост стоил «накладка + планка» без единой коробки. */
+  const post = { frameId: 14653, mechanismIds: [] };
+  const deps = baseDeps({ findSupport: () => CATALOG[14613] });
+  assert.equal(postComposition(post, deps).supportCount, 0);
+  near(postCost(post, deps), 3.0, "только накладка");
+});
+
+/* --- «Суппорт не требуется» — отдельно от «суппорт не подобран» ---
+   Крышки IP55 (принцип NO_SUPPORT в номенклатуре) монтируются прямо в коробку. Пока признака
+   не было, им подбиралась планка «как всем» — лишняя позиция в смете; а если бы подбор просто
+   вернул null, документы напечатали бы «не подобран», то есть обвинили бы подбор в пробеле. */
+test("NO_SUPPORT: суппорт не ищется вовсе, в составе флаг «не требуется»", () => {
+  const post = { frameId: 14653, mechanismIds: [1, 1, 1] };
+  let asked = 0;
+  const deps = baseDeps({ supportRequired: () => false, findSupport: () => { asked++; return CATALOG[14613]; } });
+  const comp = postComposition(post, deps);
+  assert.equal(asked, 0, "подбор даже не вызывается — искать нечего");
+  assert.equal(comp.supportNotRequired, true);
+  assert.equal(comp.support, null);
+  assert.equal(comp.supportCount, 0);
+  near(postCost(post, deps), 3 * 4.30 + 3.0 + 0.85, "цена планки в смету не попадает");
+});
+
+test("обычная накладка: supportNotRequired=false — «не подобран» и «не требуется» не путаются", () => {
+  const post = { frameId: 14653, mechanismIds: [1, 1, 1] };
+  const found = postComposition(post, baseDeps({ supportRequired: () => true, findSupport: () => CATALOG[14613] }));
+  assert.equal(found.supportNotRequired, false);
+  const missing = postComposition(post, baseDeps({ supportRequired: () => true, findSupport: () => null }));
+  assert.equal(missing.supportNotRequired, false, "не нашли — это пробел подбора, а не свойство изделия");
+  assert.equal(missing.support, null);
+});
+
+test("deps без supportRequired (старый вызов): суппорт нужен всегда, как раньше", () => {
+  const post = { frameId: 14653, mechanismIds: [1, 1, 1] };
+  const deps = baseDeps({ findSupport: () => CATALOG[14613] });
+  const comp = postComposition(post, deps);
+  assert.equal(comp.supportNotRequired, false);
+  assert.equal(comp.support && comp.support.code, "14613");
+});
+
+test("старый набор deps (без findSupport): supportCount 0, регресс цены не тронут", () => {
+  /* Обратная совместимость: вызывающие, которые не передают подбор суппорта, получают
+     тот же состав и ту же цену, что до появления supportCount. */
+  const post = { frameId: 9662, mechanismIds: [1, 1] };
+  const oldDeps = { product, frameProduct: product, socketBox };
+  const comp = postComposition(post, oldDeps);
+  assert.equal(comp.support, null);
+  assert.equal(comp.supportCount, 0);
+  near(postCost(post, oldDeps), 2 * 4.30 + 1 * 0.85 + 3.12, "цена как прежде");
+});
+
+/* --- supportAssumed: «артикул подобран нами, заказчиком не подтверждён» ---
+   Решение владельца: у накладок, для которых номенклатура называет только типоразмер
+   («в коробку и супорт на 3 модуля»), артикул планки всё равно подставляем, но помечаем.
+   Признак приезжает из EPPostFit.resolveSupport через deps.resolveSupport. */
+test("supportAssumed: resolveSupport сообщил «не подтверждено» — флаг доходит до состава", () => {
+  const post = { frameId: 14653, mechanismIds: [1, 1, 1] };
+  const deps = baseDeps({ resolveSupport: () => ({ support: CATALOG[14613], assumed: true }) });
+  const comp = postComposition(post, deps);
+  assert.equal(comp.support && comp.support.code, "14613", "артикул в расчёте есть");
+  assert.equal(comp.supportAssumed, true, "и помечен как неподтверждённый");
+  near(postCost(post, deps), 3 * 4.30 + 3.0 + 2.5 + 0.85, "в цену планка входит как обычно");
+});
+
+test("supportAssumed: подтверждённая пара флага не несёт", () => {
+  const post = { frameId: 14653, mechanismIds: [1, 1, 1] };
+  const comp = postComposition(post, baseDeps({ resolveSupport: () => ({ support: CATALOG[14613], assumed: false }) }));
+  assert.equal(comp.supportAssumed, false, "пометка обесценится, если стоять будет у всех");
+});
+
+test("supportAssumed: суппорт не подобран — флага нет (нечего помечать)", () => {
+  const post = { frameId: 14653, mechanismIds: [1, 1, 1] };
+  const comp = postComposition(post, baseDeps({ resolveSupport: () => ({ support: null, assumed: true }) }));
+  assert.equal(comp.support, null);
+  assert.equal(comp.supportAssumed, false, "пустая строка «не подобран» пометки не получает");
+});
+
+test("supportAssumed: старый набор deps (только findSupport) работает как раньше", () => {
+  const post = { frameId: 14653, mechanismIds: [1, 1, 1] };
+  const comp = postComposition(post, baseDeps({ findSupport: () => CATALOG[14613] }));
+  assert.equal(comp.support && comp.support.code, "14613");
+  assert.equal(comp.supportAssumed, false, "нет resolveSupport — нет и признака, а не undefined");
 });
 
 test("boxCount экспортируется и считает независимо", () => {

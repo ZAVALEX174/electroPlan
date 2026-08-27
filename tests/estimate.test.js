@@ -123,12 +123,88 @@ test("посты с РАЗНЫМ составом не сливаются, да�
 
 test("порядок состава: механизмы → суппорт → коробка → накладка", () => {
   const post = { name: "Пост", frameId: 2, mechanismIds: [1] };   // механизм «Розетка», рамка «Канал»
-  const comp = { boxCount: 1, support: { name: "Суппорт X" } };
+  const comp = { boxCount: 1, supportCount: 1, support: { name: "Суппорт X" } };
   const e = run({ posts: [post], postCost: () => 1, postComposition: () => comp });
   const c = e.groups[0].composition;
   assert.ok(c.indexOf("Розетка") < c.indexOf("Суппорт X"), "механизмы раньше суппорта");
   assert.ok(c.indexOf("Суппорт X") < c.indexOf("подрозетн"), "суппорт раньше коробки");
   assert.ok(c.indexOf("подрозетн") < c.indexOf("Канал"), "коробка раньше накладки");
+});
+
+test("НЕСКОЛЬКО суппортов печатаются с количеством («2 × суппорт …»)", () => {
+  /* Немецко-французская сборка: две коробки и две планки. Раньше состав (он же уходит
+     в КП) печатал «суппорт X» без количества — заказчик читал его как одну штуку. */
+  const post = { name: "Пост", frameId: 2, mechanismIds: [1] };
+  const comp = { boxCount: 2, supportCount: 2, support: { name: "Суппорт X" } };
+  const e = run({ posts: [post], postCost: () => 1, postComposition: () => comp });
+  assert.match(e.groups[0].composition, /2 × суппорт Суппорт X/, "количество суппортов видно");
+  assert.match(e.groups[0].composition, /2 подрозетн\./, "рядом — то же число коробок");
+});
+
+test("ОДИН суппорт печатается без «1 × » — текст КП не меняется", () => {
+  /* Итальянские и универсальные накладки (1351 из 1631) — всегда одна планка. Префикс
+     «1 × » на них не добавил бы ни грамма информации, зато переписал бы состав в КП
+     по всему каталогу. Количество появляется только там, где оно больше одного. */
+  const post = { name: "Пост", frameId: 2, mechanismIds: [1] };
+  const comp = { boxCount: 1, supportCount: 1, support: { name: "Суппорт X" } };
+  const e = run({ posts: [post], postCost: () => 1, postComposition: () => comp });
+  assert.match(e.groups[0].composition, /(^|, )суппорт Суппорт X/, "суппорт назван, как и раньше");
+  assert.ok(!/1 × суппорт/.test(e.groups[0].composition), "единицу не печатаем");
+});
+
+test("comp без supportCount (старый вызов) не печатает «undefined суппорт»", () => {
+  /* postComposition — необязательная зависимость: самодельный состав из старого кода
+     приходит без supportCount, и суппорт должен остаться одним, а не сломать строку. */
+  const post = { name: "Пост", frameId: 2, mechanismIds: [1] };
+  const comp = { boxCount: 1, support: { name: "Суппорт X" } };
+  const e = run({ posts: [post], postCost: () => 1, postComposition: () => comp });
+  assert.ok(!/undefined/.test(e.groups[0].composition), "в составе нет undefined");
+  assert.match(e.groups[0].composition, /(^|, )суппорт Суппорт X/, "по умолчанию — один суппорт, без префикса");
+});
+
+test("суппорт с нулевым количеством в состав не попадает", () => {
+  const post = { name: "Пост", frameId: 2, mechanismIds: [1] };
+  const comp = { boxCount: 0, supportCount: 0, support: { name: "Суппорт X" } };
+  const e = run({ posts: [post], postCost: () => 1, postComposition: () => comp });
+  assert.ok(!/Суппорт X/.test(e.groups[0].composition), "нулевая обвязка не печатается");
+});
+
+test("NO_SUPPORT: в составе написано «суппорт не требуется», а не пусто", () => {
+  /* Крышка IP55 монтируется в коробку без планки. Молчание в составе заказчик читает как
+     забытую позицию — пишем словами; цену это не меняет, строка пояснительная. */
+  const post = { name: "Пост", frameId: 2, mechanismIds: [1] };
+  const comp = { boxCount: 1, supportCount: 0, support: null, supportNotRequired: true };
+  const e = run({ posts: [post], postCost: () => 1, postComposition: () => comp });
+  assert.match(e.groups[0].composition, /суппорт не требуется/, "признак виден в спецификации и КП");
+  assert.match(e.groups[0].composition, /1 подрозетн\./, "коробка на месте");
+});
+
+test("supportAssumed: в составе рядом с суппортом стоит «(предположительно)»", () => {
+  /* Решение владельца: артикул, подобранный нами (номенклатура называет только типоразмер —
+     09671.*, 22673.1.*, 09679.*), в расчёт ставим, но в КП помечаем. Без пометки заказчик
+     прочтёт догадку как согласованную позицию. */
+  const post = { name: "Пост", frameId: 2, mechanismIds: [1] };
+  const comp = { boxCount: 1, supportCount: 1, support: { name: "Суппорт X" }, supportAssumed: true };
+  const e = run({ posts: [post], postCost: () => 1, postComposition: () => comp });
+  assert.match(e.groups[0].composition, /суппорт Суппорт X \(предположительно\)/, "пометка вплотную к артикулу");
+});
+
+test("supportAssumed: пометка есть и при нескольких суппортах", () => {
+  const post = { name: "Пост", frameId: 2, mechanismIds: [1] };
+  const comp = { boxCount: 2, supportCount: 2, support: { name: "Суппорт X" }, supportAssumed: true };
+  const e = run({ posts: [post], postCost: () => 1, postComposition: () => comp });
+  assert.match(e.groups[0].composition, /2 × суппорт Суппорт X \(предположительно\)/);
+});
+
+test("подтверждённый суппорт печатается БЕЗ пометки", () => {
+  /* Важнее самой пометки: если она встанет у всех, читать её перестанут. Подтверждённые
+     пары — 09661.* → 09602.1/09603.1, 09672.* → 09606 и все обычные накладки. */
+  const post = { name: "Пост", frameId: 2, mechanismIds: [1] };
+  const comp = { boxCount: 1, supportCount: 1, support: { name: "Суппорт X" }, supportAssumed: false };
+  const e = run({ posts: [post], postCost: () => 1, postComposition: () => comp });
+  assert.ok(!/предположительно/.test(e.groups[0].composition), "у подтверждённой пары пометки нет");
+  const old = run({ posts: [post], postCost: () => 1, postComposition: () => ({ boxCount: 1, supportCount: 1, support: { name: "Суппорт X" } }) });
+  assert.ok(!/предположительно/.test(old.groups[0].composition), "старый comp без признака — тоже без пометки");
 });
 
 test("нулевые проценты дают чистое оборудование", () => {

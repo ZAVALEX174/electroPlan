@@ -157,10 +157,15 @@ async function main() {
     /* В файл кладём ТОЛЬКО поля, которые читает рантайм (js/data.js подмешивает признаки
        автосостава из catalog-vimar-attrs.js отдельно, а классификация/цены посчитаны здесь
        конвертером). Служебные поля прежнего блока properties (sourceRow, priceSource/Date,
-       packQty, functionalGroup, standard, wallType, moduleSize, frameLevels, boxModularity,
-       principle, note, subgroup, accessGroup, imageSource) и productPageUrl рантайму не
-       нужны — не выводим их, чтобы каталог не раздувался (см. README/отчёт). Все эти данные
-       остаются в источнике (номенклатура) и восстанавливаются пересборкой. */
+       packQty, functionalGroup, standard, wallType, moduleSize, frameLevels, note, subgroup,
+       accessGroup, imageSource) и productPageUrl рантайму не нужны — не выводим их, чтобы
+       каталог не раздувался (см. README/отчёт). Все эти данные остаются в источнике
+       (номенклатура) и восстанавливаются пересборкой.
+       ИСКЛЮЧЕНИЕ: principle и boxModularity рантайму НУЖНЫ (подбор коробки и суппорта для
+       «центральных» накладок), но выводятся не сюда, а в признаки автосостава
+       catalog-vimar-attrs.js — там уже живут standard/postCount/pitchMm, туда же смотрит
+       js/data.js, и «горячий» каталог (910 КБ, грузится синхронно) не тяжелеет. Единственное
+       место для этих полей — buildAttrs в tools/lib/nomenclature.mjs. */
     const product = {
       id,
       categoryId: rec.categoryId,

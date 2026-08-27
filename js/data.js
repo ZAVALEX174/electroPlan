@@ -40,9 +40,21 @@ window.EP_DATA = {
      (стандарт → unknown, тип стены → не подтверждён), приложение это переживает. */
   products: (function enrichCatalog(){
     const list = window.EP_VIMAR_CATALOG?.products || [];
-    const attrs = window.EP_VIMAR_ATTRS || {standards:{},supports:{},wallTypes:{},boxes:{}};
+    const attrs = window.EP_VIMAR_ATTRS || {standards:{},supports:{},wallTypes:{},boxes:{},mounting:{}};
     const supports = attrs.supports || {};
     const boxes = attrs.boxes || {};
+    // Монтажное правило видов, у которых своего раздела признаков нет (механизмы, аксессуары):
+    // «Принцип обработки» номенклатуры заполнен и им (BUTTON/SCHUP/Bluetooth). У накладок,
+    // суппортов и коробок правило приезжает вместе с их атрибутами — см. ветки ниже.
+    const mounting = attrs.mounting || {};
+    // Перенос монтажного правила на товар — одинаковый для любого вида, поэтому одной
+    // функцией. Поле появляется, ТОЛЬКО если номенклатура его заполнила: рантайм отличает
+    // «правила нет» (подбор по ёмкости, как раньше) от «правило есть» по наличию ключа.
+    const applyRule = (out, a) => {
+      if (a && a.principle) out.principle = a.principle;
+      if (a && a.boxModularity != null) out.boxModularity = a.boxModularity;
+      return out;
+    };
     // Измеренные монтажные окна накладок (js/catalog-vimar-openings.js) — снятые детектором с
     // ДЕТАЛЬНОГО фото прямоугольники в % фото. Ключ — БАЗА артикула (09673.01/09673.04 → 09673):
     // геометрия окон у цветовых вариантов одна и та же. Итальянская несёт одно окно → mountRect,
@@ -72,32 +84,51 @@ window.EP_DATA = {
           // однорядная) — рантайм выведет один пост на всю ширину.
           out = {...p, standard: a.standard, postCount: a.postCount};
           if (a.layoutRows) out.layoutRows = a.layoutRows;
+          // Монтажное правило накладки («Принцип обработки» + «Модульность для коробки»):
+          // principle — код схемы монтажа (1M_CENTRAL/2M_CENTRAL/NO_SUPPORT/…), boxModularity —
+          // модульность КОРОБКИ, которая у «центральных» накладок больше их собственной ёмкости
+          // (1М-накладка садится в коробку на 2 модуля, 2М — на 3). EPPostFit подбирает по ним
+          // коробку и суппорт; нет правила в номенклатуре — полей нет, подбор идёт как раньше.
+          applyRule(out, a);
         }
         return attachOpenings(p, out);
       }
       // Суппорт: стандарт + число модулей + межосевой шаг — для findSupport (подбор
-      // планки той же серии, модульности и стандарта, что накладка).
+      // планки той же серии, модульности и стандарта, что накладка). principle/boxModularity —
+      // то же монтажное правило, что у накладки: по совпадению пары (принцип + модульность
+      // коробки) выделенный «центральный» суппорт находит свою накладку (09672→09606,
+      // 14652→14612) — без них он неотличим от обычного суппорта той же модульности.
       if (p.kind === "support" && supports[p.code]) {
         const a = supports[p.code];
-        return {...p, standard: a.standard, moduleCount: a.modules, pitchMm: a.pitchMm};
+        return applyRule({...p, standard: a.standard, moduleCount: a.modules, pitchMm: a.pitchMm}, a);
       }
       // Коробка: тип стены + форма + число модулей + совместимые стандарты — для findBox.
       // boxStandards отделено от standard накладки: у коробки это СПИСОК (круглая годна
       // под IT_ROUND/DE/FR, прямоугольная — под IT), фолбэк по нему не противоречит стандарту.
+      // principle коробки — её монтажное правило («NO_INNERS, AQUAPLATE» у IP55-корпусов
+      // 14901–14904): признак влагозащищённой линейки, по нему документы отличают корпус
+      // накладного монтажа от врезной коробки.
       if (p.kind === "socket_box") {
         const b = boxes[p.code];
-        if (b) return {...p, wallType: b.wallType, boxShape: b.shape, boxModules: b.modules, boxStandards: b.standards};
+        if (b) return applyRule({...p, wallType: b.wallType, boxShape: b.shape, boxModules: b.modules, boxStandards: b.standards}, b);
         if (attrs.wallTypes[p.code]) return {...p, wallType: attrs.wallTypes[p.code]};
       }
       // Механизм: лицевой прямоугольник фото (faceRect) — по ПОЛНОМУ артикулу, для обрезки фото
       // под ячейку модуля в собранном посте. Нет записи → останется без faceRect (клавиша-фолбэк).
+      let out = p;
       if (p.kind === "mechanism") {
         const f = faces[p.code];
         if (f && Array.isArray(f.face) && f.face.length === 4) {
-          return {...p, faceRect: {left: f.face[0], top: f.face[1], width: f.face[2], height: f.face[3]}};
+          out = {...p, faceRect: {left: f.face[0], top: f.face[1], width: f.face[2], height: f.face[3]}};
         }
       }
-      return p;
+      // Монтажное правило для видов без своего раздела признаков (механизмы, аксессуары):
+      // у механизма это принцип обработки (BUTTON — клавишный, SCHUP — с заземляющими
+      // контактами, Bluetooth и т. д.). Раньше сборка клала правило только накладкам и
+      // суппортам, и до рантайма не доходил ни один из 158 механизмов с заполненным полем.
+      const m = mounting[p.code];
+      if (m) out = applyRule(out === p ? {...p} : out, m);
+      return out;
     });
   })()
 };

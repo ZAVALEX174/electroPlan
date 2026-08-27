@@ -21,7 +21,11 @@ const printScript = `<script>(function(){var done=false;function pr(){if(done)re
   + `if(pending===0)pr();setTimeout(pr,4000);})();<\/script>`;
 
 /* est   — результат EPEstimate.build (groups, equipment, discount, vat, total, …)
-   deps  — { money(n), esc(s), displayCurrency(), effectiveRate(settings), settings }
+   deps  — { money(n), esc(s), displayCurrency(), effectiveRate(settings), settings,
+             header, postLayout, planBlockHtml }
+   planBlockHtml — готовая секция «план с бирками» (EPPlanLabels.buildHtml), собирает её
+   оркестратор: только он знает про #canvas и state. Приходит СТРОКОЙ ровно как
+   assembledImageHtml в раскладке постов — этот документ вёрстку блока не трогает.
    Возвращает строку полного HTML-документа с авто-печатью. */
 function buildHtml(est, deps) {
   const money = deps.money;
@@ -83,6 +87,7 @@ function buildHtml(est, deps) {
   @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}@media print{button{display:none}}</style></head><body>
   <h1>Коммерческое предложение</h1><div class="sub">Проект электрики и комплектация электроустановочных изделий</div>
   <div class="meta"><div class="box">${headerRows}</div><button onclick="window.print()">Сохранить в PDF</button></div>
+  ${deps.planBlockHtml || ""}
   ${layoutSection}
   <h2 class="section-title">Спецификация и комплектация</h2>
   <table><thead><tr><th>№</th><th>Наименование</th><th>Состав / артикул</th><th>Кол.</th><th>Ед.</th><th class="right">Цена</th><th class="right">Сумма</th></tr></thead><tbody>

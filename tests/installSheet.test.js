@@ -4,7 +4,7 @@
    поэтому браузер поднимать не нужно. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildHtml } = require("../js/installSheet.js");
+const { buildHtml, buildFittings } = require("../js/installSheet.js");
 
 /* esc как в приложении — чтобы проверить экранирование пользовательского ввода. */
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -25,6 +25,29 @@ const italianPost = {
   german: null
 };
 
+/* Примечание немецкого стандарта отдельно от остального листа: имя суппорта встречается
+   и в блоке обвязки, поэтому проверять текст примечания надо ровно в его границах.
+   Ищем именно вёрстку (class="german-note"), а не слово: селектор с тем же именем есть
+   и в <style> листа. */
+const germanNoteOf = html => {
+  const from = html.indexOf('<div class="german-note">');
+  return from < 0 ? "" : html.slice(from, html.indexOf("</div>", from));
+};
+
+/* РОВНО одна строка таблицы (<tr>…</tr>), содержащая подстроку needle. Окно «N символов от
+   вхождения» для этого не годится: строки обвязки короткие, и такое окно захватывает
+   СЛЕДУЮЩУЮ строку таблицы — проверка количества в строке суппорта проходила из-за
+   количества у коробки под ней (обе по 2 шт.) и не покраснела бы при count:1 у суппорта.
+   Границы режем по разметке: назад до ближайшего «<tr», вперёд до ближайшего «</tr>». */
+const tableRowWith = (html, needle) => {
+  const at = html.indexOf(needle);
+  assert.notEqual(at, -1, `в документе нет строки с «${needle}»`);
+  const from = html.lastIndexOf("<tr", at);
+  const to = html.indexOf("</tr>", at);
+  assert.ok(from >= 0 && to > from, `«${needle}» найдено вне строки таблицы`);
+  return html.slice(from, to + "</tr>".length);
+};
+
 test("одиночный пост: заголовок с номером, таблица модулей и обвязка", () => {
   const html = buildHtml({ posts: [italianPost] }, deps);
   assert.match(html, /Пост № 3/, "номер поста в шапке");
@@ -43,6 +66,153 @@ test("немецкий стандарт: примечание о разбиен�
   const html = buildHtml({ posts: [dePost] }, deps);
   assert.match(html, /импост/i, "монтажнику показано, что коробок несколько");
   assert.match(html, /2</, "число постов из german.postCount");
+  assert.ok(!/суппорт/i.test(germanNoteOf(html)),
+    "старый вызов без supportCount печатает примечание как прежде");
+});
+
+test("немецкий стандарт: в примечании есть и число суппортов (планка в каждую коробку)", () => {
+  /* По прежнему тексту монтажник вёз одну планку на два поста: про суппорты примечание
+     молчало вовсе, хотя их столько же, сколько коробок. */
+  const dePost = Object.assign({}, italianPost, { number: 5, german: { postCount: 2, supportCount: 2 } });
+  const note = germanNoteOf(buildHtml({ posts: [dePost] }, deps));
+  assert.match(note, /2<\/b> суппорта/, "число суппортов напечатано");
+  assert.match(note, /импост/i, "про импосты не потеряли");
+});
+
+test("обвязка: количество суппортов печатается в колонке «Кол.»", () => {
+  /* Немецко-французская сборка: две планки. Раньше оркестратор клал в лист жёсткую
+     единицу, и монтажник по документу получал один суппорт на два поста. */
+  const dePost = Object.assign({}, italianPost, {
+    number: 6,
+    fittings: [
+      { role: "Суппорт", name: "Суппорт Plana 2М", code: "14613", count: 2 },
+      { role: "Монтажная коробка", name: "Коробка кругл.", code: "V71001", count: 2 }
+    ],
+    german: { postCount: 2, supportCount: 2 }
+  });
+  const fit = buildHtml({ posts: [dePost] }, deps);
+  /* Проверяем количество ИМЕННО в строке суппорта: вырезаем один <tr>…</tr>. Прежняя
+     версия брала окно в 200 символов от имени суппорта, а в него попадала и следующая
+     строка — коробка, у которой count тоже 2; тест был ложно-зелёным и прошёл бы при
+     count:1 у суппорта. */
+  const row = tableRowWith(fit, "Суппорт Plana 2М");
+  assert.ok(!row.includes("Коробка кругл."), "в срезе только строка суппорта, без соседней");
+  assert.match(row, /class="right">2</, "в строке суппорта стоит 2, а не 1");
+  assert.equal(row.match(/class="right">/g).length, 1, "в строке ровно одна ячейка «Кол.»");
+});
+
+test("обвязка: узел «не требуется» печатается словами, а в «Кол.» — прочерк", () => {
+  /* Крышки IP55 (принцип NO_SUPPORT) монтируются в коробку без планки. Пустая строка в
+     обвязке читается монтажником как забытая позиция, а «0» — как ошибка расчёта. */
+  const ip55 = Object.assign({}, italianPost, {
+    number: 7,
+    fittings: [
+      { role: "Суппорт", name: "не требуется", code: null, count: 0 },
+      { role: "Монтажная коробка", name: "Коробка 3М", code: "V71303", count: 1 }
+    ]
+  });
+  const html = buildHtml({ posts: [ip55] }, deps);
+  const row = tableRowWith(html, ">не требуется<");
+  assert.match(row, /class="code">—</, "артикула нет — прочерк");
+  assert.match(row, /class="right">—</, "количества нет — прочерк, а не 0");
+  /* Коробка названа и в шапке поста, и в обвязке — берём строку таблицы из блока обвязки. */
+  const boxRow = tableRowWith(html.slice(html.indexOf("Обвязка поста")), "Коробка 3М");
+  assert.match(boxRow, /class="right">1</, "обычные узлы печатают число как прежде");
+});
+
+/* --- buildFittings: сборка обвязки из состава поста ---------------------------------
+   Раньше эти строки собирал оркестратор (app.js), где количество суппорта стояло
+   литералом «1»; app.js в тесты не грузится, поэтому дефект жил незамеченным. Теперь
+   правило здесь и проверяется напрямую — на составе (comp), а не на готовых строках. */
+
+/* Состав поста в том виде, в каком его отдаёт EPPosts.postComposition: итальянская
+   накладка — одна коробка, одна планка. */
+const italianComp = {
+  frame: { name: "Накладка Neve Up 3М", code: "09663" },
+  support: { name: "Суппорт Neve Up 3М", code: "09613" },
+  supportCount: 1,
+  boxCount: 1,
+  box: { name: "Коробка 3М", code: "V71303" }
+};
+
+test("buildFittings: порядок сборки — суппорт → коробка → накладка", () => {
+  const rows = buildFittings(italianComp, italianComp.box);
+  assert.deepEqual(rows.map(f => f.role), ["Суппорт", "Монтажная коробка", "Накладка"],
+    "узлы идут в том порядке, в каком монтажник собирает пост");
+  assert.deepEqual(rows.map(f => f.count), [1, 1, 1], "итальянский пост — по одной штуке каждого");
+  assert.equal(rows[0].code, "09613", "артикул суппорта из состава");
+});
+
+test("buildFittings: суппортов столько же, сколько коробок (а не жёсткая единица)", () => {
+  /* ИСХОДНЫЙ ДЕФЕКТ: в лист монтажника уходило count:1 при любой сборке, и по
+     немецко-французской накладке (2 поста = 2 коробки) монтажник вёз одну планку
+     на два поста. */
+  const de = Object.assign({}, italianComp, { supportCount: 2, boxCount: 2 });
+  const rows = buildFittings(de, de.box);
+  assert.equal(rows[0].role, "Суппорт");
+  assert.equal(rows[0].count, 2, "две планки — по одной в каждую коробку");
+  assert.equal(rows[1].count, 2, "и столько же коробок");
+  assert.equal(rows[2].count, 1, "накладка на всю сборку одна — импосты делят её изнутри");
+});
+
+test("buildFittings: NO_SUPPORT даёт строку «не требуется» с нулём, а не пропуск", () => {
+  /* Крышки IP55 садятся в коробку без планки. Пропущенная строка читается монтажником
+     как забытая позиция; ноль buildHtml печатает прочерком (см. тест ниже по колонке). */
+  const ip55 = { frame: italianComp.frame, support: null, supportCount: 0, supportNotRequired: true,
+    boxCount: 1, box: italianComp.box };
+  const rows = buildFittings(ip55, ip55.box);
+  assert.equal(rows[0].role, "Суппорт", "узел в обвязке остался");
+  assert.equal(rows[0].name, "не требуется", "причина написана словами");
+  assert.equal(rows[0].count, 0, "количества нет");
+  assert.match(buildHtml({ posts: [Object.assign({}, italianPost, { fittings: rows })] }, deps),
+    /не требуется<\/td><td class="code">—<\/td><td class="right">—</, "в листе — прочерки, а не «0»");
+});
+
+test("buildFittings: неподобранный суппорт молчит, «не требуется» не выдумываем", () => {
+  /* Подбор не нашёл планку (supportNotRequired не выставлен) — это пробел каталога, а не
+     свойство изделия: строку «не требуется» здесь печатать нельзя, она бы соврала. */
+  const gap = { frame: italianComp.frame, support: null, supportCount: 0, boxCount: 1, box: italianComp.box };
+  assert.deepEqual(buildFittings(gap, gap.box).map(f => f.role), ["Монтажная коробка", "Накладка"],
+    "строки суппорта нет вовсе");
+});
+
+test("buildFittings: пустой пост и отсутствие коробки/накладки не роняют обвязку", () => {
+  /* Пост без механизмов: обвязка нулевая (ни коробки, ни планки) — остаётся одна накладка.
+     Коробка не подобрана (box=null) — узел просто не печатается, а не «undefined». */
+  const empty = Object.assign({}, italianComp, { supportCount: 0, boxCount: 0 });
+  assert.deepEqual(buildFittings(empty, null).map(f => f.role), ["Накладка"], "пустой пост — только накладка");
+  assert.deepEqual(buildFittings({}, null), [], "состав без полей — пустая обвязка");
+  assert.deepEqual(buildFittings(null, null), [], "состава нет вовсе — тоже пусто");
+});
+
+/* --- «(предположительно)»: артикул подобран нами, заказчиком не подтверждён ------------
+   Решение владельца: планку в лист ставим (иначе поста не собрать), но монтажник должен
+   видеть, что артикул под вопросом, ДО поездки на объект. */
+test("buildFittings: supportAssumed доезжает до строки обвязки", () => {
+  const guess = Object.assign({}, italianComp, { supportAssumed: true });
+  assert.equal(buildFittings(guess, guess.box)[0].assumed, true, "признак у строки суппорта");
+  assert.equal(buildFittings(italianComp, italianComp.box)[0].assumed, false,
+    "подтверждённая пара признака не несёт");
+});
+
+test("лист монтажника: пометка «(предположительно)» стоит в строке суппорта рядом с артикулом", () => {
+  const guess = Object.assign({}, italianComp, { supportAssumed: true });
+  const rows = buildFittings(guess, guess.box);
+  const html = buildHtml({ posts: [Object.assign({}, italianPost, { fittings: rows })] }, deps);
+  const row = tableRowWith(html.slice(html.indexOf("Обвязка поста")), "Суппорт Neve Up 3М");
+  assert.match(row, /09613 \(предположительно\)/, "пометка вплотную к артикулу, в его же ячейке");
+  /* Ровно там, где надо: у коробки и накладки того же поста пометки быть не должно. */
+  const boxRow = tableRowWith(html.slice(html.indexOf("Обвязка поста")), "Коробка 3М");
+  assert.ok(!/предположительно/.test(boxRow), "коробка подобрана правилом — не помечается");
+});
+
+test("лист монтажника: подтверждённая пара печатается БЕЗ пометки", () => {
+  /* Пометка ценна ровно до тех пор, пока стоит у меньшинства: 36 накладок из 1631. */
+  const rows = buildFittings(italianComp, italianComp.box);
+  const html = buildHtml({ posts: [Object.assign({}, italianPost, { fittings: rows })] }, deps);
+  assert.ok(!/предположительно/.test(html), "во всём листе пометки нет");
+  const row = tableRowWith(html.slice(html.indexOf("Обвязка поста")), "Суппорт Neve Up 3М");
+  assert.match(row, /class="code">09613</, "артикул напечатан как обычно");
 });
 
 test("пустые поля шапки не печатаются, а введённые — экранируются", () => {
@@ -106,4 +276,25 @@ test("автопечать ждёт загрузки картинок и печ�
   assert.match(html, /if\(done\)return;done=true/, "флаг done — печать ровно один раз");
   assert.match(html, /setTimeout\(pr,4000\)/, "предохранитель: печать не позже 4000 мс");
   assert.ok(!/setTimeout\(\(\)=>window\.print\(\),400\)/.test(html), "прежней печати по таймеру больше нет");
+});
+
+/* Контракт вставки плана: лист монтажника печатает готовую секцию «план с бирками»
+   (EPPlanLabels) сразу после шапки и ПЕРЕД карточками постов — монтажник сначала видит,
+   где какой пост на объекте, и только потом читает состав. Контракт закрепляем тестом,
+   иначе вставку можно молча удалить или переставить и ничего не покраснеет. */
+test("план с бирками попадает в лист монтажника и стоит перед карточками постов", () => {
+  const marker = '<section data-test="plan-block">план</section>';
+  const html = buildHtml({ posts: [italianPost], planBlockHtml: marker }, deps);
+  assert.ok(html.includes(marker), "секция плана напечатана");
+  const posPlan = html.indexOf(marker);
+  const posCard = html.indexOf("<section class=\"post-card\">");
+  assert.ok(posCard > -1, "карточка поста на месте");
+  assert.ok(posPlan < posCard, "план идёт ДО карточек постов");
+});
+
+test("лист монтажника без плана собирается как раньше", () => {
+  const withOut = buildHtml({ posts: [italianPost], planBlockHtml: "" }, deps);
+  const undef = buildHtml({ posts: [italianPost] }, deps);
+  assert.ok(!/data-test="plan-block"/.test(withOut), "секции плана нет");
+  assert.equal(withOut, undef, "пустая строка и отсутствие поля дают одинаковый документ");
 });

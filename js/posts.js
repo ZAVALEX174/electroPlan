@@ -86,10 +86,23 @@ function postComposition(post, deps) {
     : null;
   /* Суппорт подбираем ПОСЛЕ коробки: по правилу заказчика тип суппорта (602/603) задаёт
      подобранная коробка (см. postfit.findSupport). Передаём фактическую коробку поста
-     (точную или фолбэк). */
-  const support = deps.findSupport
-    ? deps.findSupport({ frame, standard, modules, series: frame && frame.series, box: box || boxFallback }) || null
-    : null;
+     (точную или фолбэк).
+     Отдельный случай — изделия, которые монтируются В КОРОБКУ БЕЗ СУППОРТА (крышки IP55,
+     «Принцип обработки» = NO_SUPPORT): подбор им не нужен вовсе. Отличаем это от «суппорт
+     не подобрался» явным флагом supportNotRequired — «не требуется» и «не нашли» для сметы
+     и листа монтажника разные вещи, и раньше обе выглядели одинаково пустым местом.
+     deps.supportRequired — необязательная зависимость (старые вызовы и тесты без неё
+     считают, что суппорт нужен всегда, как было).
+     deps.resolveSupport (EPPostFit.resolveSupport) отдаёт не только планку, но и признак
+     «артикул наш, заказчиком не подтверждён» — им документы помечают догадку. Старый набор
+     deps с одним findSupport работает как раньше, просто без признака. */
+  const needsSupport = deps.supportRequired ? deps.supportRequired(frame) !== false : true;
+  const supportArgs = { frame, standard, modules, series: frame && frame.series, box: box || boxFallback };
+  const found = !needsSupport ? { support: null, assumed: false }
+    : deps.resolveSupport ? (deps.resolveSupport(supportArgs) || { support: null, assumed: false })
+    : deps.findSupport ? { support: deps.findSupport(supportArgs) || null, assumed: false }
+    : { support: null, assumed: false };
+  const support = found.support || null;
   return {
     frame, standard, model,
     approximate: !model,      /* модель коробок для стандарта неизвестна */
@@ -98,12 +111,37 @@ function postComposition(post, deps) {
     boxUnit: model === "post" ? "post" : model === "assembly" ? "assembly" : "place",
     postCount,
     support,
+    /* Суппортов ровно столько же, сколько монтажных коробок: планка садится В коробку,
+       поэтому «одна коробка — один суппорт». Для немецко-французского стандарта накладка
+       физически разбита импостами на несколько постов, и заказчик подтвердил (26.08):
+       «с суппортом мы тоже два берём, два по два модуля, как и коробок». Раньше суппорт
+       везде считался за 1 шт. — смета занижалась на (N−1) суппортов в каждом DE/FR-посте.
+       Считаем от того же count, а не по своей формуле: вторая копия правила «сколько
+       постов» рано или поздно разошлась бы с boxCount(). Отсюда же берётся ноль у пустого
+       поста (нет механизмов — нет ни коробки, ни планки). Суппорт не подобран → 0, иначе
+       в документах появилась бы деталь без артикула, а в цене — множитель ни на что. */
+    supportCount: support ? count : 0,
+    /* «Суппорт не требуется» (а не «не подобран»): по номенклатуре изделие садится в коробку
+       без планки. Пусть представление напишет это словами — пустая строка в листе монтажника
+       читается как недоработка подбора. */
+    supportNotRequired: !needsSupport,
+    /* Суппорт подобран НАМИ, а не назван заказчиком: у накладки монтажное правило в
+       номенклатуре есть, но выделенной под него планки в каталоге нет (09671.*, 22673.1.* и 22683.1.* —
+       «в коробку и супорт на 3 модуля», без артикула; 09679.* — принцип 2_OFFSET), и планка
+       выбрана общим правилом по серии и модульности. Артикул в расчёт ставим — иначе поста
+       не собрать, — но КАЖДЫЙ документ обязан пометить его «(предположительно)»: 36 накладок
+       из 1631, вопрос заказчику отправлен 26.08. Подтверждённые пары (09661.* → 09602.1/09603.1,
+       09672.* → 09606, обычные накладки) флага не несут — иначе пометка обесценится. */
+    supportAssumed: !!(support && found.assumed),
     box,
     boxFallback
   };
 }
 
-/* Стоимость поста = механизмы + накладка + суппорт (если подобран) + коробки.
+/* Стоимость поста = механизмы + накладка + суппорты + коробки.
+   Суппорт умножается на comp.supportCount (столько же, сколько коробок) — раньше он
+   входил в цену ровно один раз при любом числе постов, и немецко-французская сборка
+   на 2–4 поста занижала смету на (N−1) планок.
    Цена коробки: точная (comp.box) → её цена; иначе стандартно-совместимый фолбэк
    (comp.boxFallback) — приложение гарантирует, что он не противоречит стандарту накладки.
    Нет ни того, ни другого — цена коробки НЕ добавляется: честный пробел в смете лучше
@@ -115,7 +153,7 @@ function postCost(post, deps) {
   const mechSum = (post.mechanismIds || []).reduce((s, id) => s + price(deps.product(id)), 0);
   let boxUnit = comp.box || comp.boxFallback;
   if (!boxUnit && !deps.fallbackBox && deps.socketBox) boxUnit = deps.socketBox();
-  return mechSum + price(comp.frame) + price(comp.support) + price(boxUnit) * comp.boxCount;
+  return mechSum + price(comp.frame) + price(comp.support) * comp.supportCount + price(boxUnit) * comp.boxCount;
 }
 
 /* Раскладка механизмов по модулям поста: слева направо, каждый механизм занимает

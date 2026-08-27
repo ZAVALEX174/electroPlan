@@ -211,10 +211,17 @@ const fallbackBox=({frame,standard,modules,wallType}={})=>EPPostFit.fallbackBox(
    тип суппорта (602/603). Пробрасываем в чистый EPPostFit.findSupport. */
 const findSupport=({frame,standard,modules,box}={})=>EPPostFit.findSupport({
   supports:byKind("support"),frame,standard,modules,frameModules:frameSlotCount(frame),seriesOf:productSeries,box});
+/* resolveSupport — тот же подбор, но с признаком «артикул подобран нами, заказчиком не
+   подтверждён» (assumed): состав поста несёт его дальше в смету, лист монтажника и панель
+   состава, где он печатается пометкой «(предположительно)». */
+const resolveSupport=({frame,standard,modules,box}={})=>EPPostFit.resolveSupport({
+  supports:byKind("support"),frame,standard,modules,frameModules:frameSlotCount(frame),seriesOf:productSeries,box});
 /* Единый набор зависимостей для чистой логики поста (EPPosts): каталог, подбор
-   суппорта/коробки (точный findBox + стандартно-совместимый фолбэк fallbackBox) и тип
+   суппорта/коробки (точный findBox + стандартно-совместимый фолбэк fallbackBox), признак
+   «суппорт вообще не нужен» (крышки IP55 по номенклатуре монтируются без планки) и тип
    стены проекта. */
-const postDeps=()=>({product,frameProduct,socketBox,mechanismSpan,findBox,fallbackBox,findSupport,wallType:EP_DATA.settings.wallType});
+const postDeps=()=>({product,frameProduct,socketBox,mechanismSpan,findBox,fallbackBox,findSupport,resolveSupport,
+  supportRequired:EPPostFit.supportRequired,wallType:EP_DATA.settings.wallType});
 const postCost=p=>EPPosts.postCost(p,postDeps());
 const postComposition=p=>EPPosts.postComposition(p,postDeps());
 /* Единое изображение собранного поста (EPPostImage): собираем spec из каталога — накладка,
@@ -1273,14 +1280,33 @@ function renderBuilderComposition(selectedFrame,errorHtml=""){
   if(!selectedFrame){host.innerHTML=errorHtml||"";return;}
   const post={frameId:Number($("postFrameSelect").value),mechanismIds:state.builder.mechanismIds};
   const comp=postComposition(post);
-  /* Суппорт: подобран → артикул с ценой; нет → «не подобран» + отдельная приглушённая
-     строка с причиной (никакой подстановки чужого суппорта). */
+  /* Суппорт, три исхода: не нужен по номенклатуре → «не требуется»; подобран → количество +
+     артикул с ценой; не нашёлся → «не подобран» + отдельная приглушённая строка с причиной
+     (никакой подстановки чужого суппорта). Первые два — норма, третий — пробел. Количество
+     показываем так же, как у коробки ниже («N × имя · цена»): у немецко-французской
+     накладки планок столько же, сколько постов, и пользователь должен видеть это в
+     составе, а не только в итоговой сумме. Пустой пост (supportCount 0) — прочерк,
+     как и у коробки: пока механизмов нет, обвязка не нужна. */
   const frameSeriesLabel=productSeries(selectedFrame).join(", ")||"этой серии";
   const frameMods=frameSlotCount(selectedFrame)||comp.modulesTotal||0;
-  const supportRow=comp.support
-    ? `<div class="composition-row"><span>Суппорт (планка для модулей)</span><b>${esc(comp.support.name)} · ${money(comp.support.price)}</b></div>`
-    : `<div class="composition-row is-missing"><span>Суппорт (планка для модулей)</span><b>не подобран</b></div>`
-      +`<div class="composition-note">подходящего суппорта серии «${esc(frameSeriesLabel)}» на ${frameMods} мод. нет в каталоге</div>`;
+  const supportRow=comp.supportNotRequired
+    /* «Не требуется» — не пробел подбора, а свойство изделия (крышки IP55 садятся прямо
+       в коробку): показываем обычной строкой, без пометки is-missing. */
+    ? `<div class="composition-row"><span>Суппорт (планка для модулей)</span><b>не требуется</b></div>`
+      +`<div class="composition-note">по номенклатуре изделие монтируется в коробку без суппорта</div>`
+    : !comp.support
+    ? `<div class="composition-row is-missing"><span>Суппорт (планка для модулей)</span><b>не подобран</b></div>`
+      +`<div class="composition-note">подходящего суппорта серии «${esc(frameSeriesLabel)}» на ${(comp.frame&&Number(comp.frame.boxModularity))||frameMods} мод. нет в каталоге</div>`
+    : !comp.supportCount
+      ? `<div class="composition-row"><span>Суппорт (планка для модулей)</span><b>—</b></div>`
+      /* Подобран, но заказчиком НЕ подтверждён (comp.supportAssumed): в номенклатуре у накладки
+         монтажное правило есть, а артикула планки под него нет — мы взяли планку той же серии
+         и модульности. Пометка «(предположительно)» стоит вплотную к артикулу и повторяет
+         формулировку сметы и листа монтажника; приглушённой строкой ниже — почему так.
+         Это НЕ пробел подбора (is-missing не ставим): деталь в расчёте есть, под вопросом
+         только её артикул. */
+      : `<div class="composition-row"><span>Суппорт (планка для модулей)</span><b>${comp.supportCount} × ${esc(comp.support.name)}${comp.supportAssumed?" (предположительно)":""} · ${money(comp.support.price)}</b></div>`
+        +(comp.supportAssumed?`<div class="composition-note">артикул не подтверждён заказчиком: в номенклатуре для этой накладки указан только тип коробки и суппорта, без артикула — планка подобрана по серии и модульности</div>`:"");
   /* Коробка: количество и подпись разнесены. Точная (comp.box) → артикул с ценой.
      Стандартно-совместимый фолбэк (comp.boxFallback) → «подобрана по стандарту» + причина
      и цена приглушённой строкой. Ничего совместимого со стандартом → «не подобрана» БЕЗ
@@ -1779,6 +1805,71 @@ function buildPostLayout(){
   });
 }
 
+/* ---- План с бирками номеров постов для документов (D9) ----
+   Заказчик сверяет номер поста в таблице с местом на чертеже: «дальше вот этот план
+   обязательно нужен, чтобы было с чем сверяться». Секцию рисует чистый EPPlanLabels, здесь
+   остаётся то, что знает только приложение: где живая подложка и в какой системе координат
+   лежат посты. */
+
+/* Полуразмер иконки поста на плане: .plan-icon — 24×24 px, и addPending кладёт пост
+   как {x:клик-12, y:клик-12}, то есть post.x/post.y — ЛЕВЫЙ ВЕРХНИЙ угол иконки.
+   Бирке нужна точка, которую пользователь видит как «место поста», — центр иконки. */
+const POST_ICON_HALF=12;
+/* Подложка для документа. Растеризованный PDF-чертёж — это data-URL на несколько мегабайт
+   (длинная сторона 3200 px, planImport.RASTER_LONG_SIDE), и он уходит в document.write окна
+   печати целиком. Крупную подложку пережимаем в JPEG с длинной стороной DOC_PLAN_LONG_SIDE:
+   для справочного плана с бирками этого хватает с большим запасом, а окно печати открывается
+   и рисуется быстро. Мелкую подложку не трогаем — перекодировать её незачем. Любая осечка
+   (SVG без внутренних размеров, отказ toDataURL) — печатаем оригинал как есть. */
+const DOC_PLAN_LONG_SIDE=1800, DOC_PLAN_KEEP_BYTES=700*1024;
+function planImageForDoc(img){
+  const src=img.src||"";
+  const long=Math.max(img.naturalWidth,img.naturalHeight);
+  /* Оригинал оставляем только когда подложка И лёгкая, И невысокого разрешения. Через ИЛИ
+     здесь была дыра: детальный план 1200×900 весом 15 МБ проходил по второму условию и
+     попадал в документ несжатым — бюджет по весу не работал вовсе. */
+  if(src.length<=DOC_PLAN_KEEP_BYTES&&long<=DOC_PLAN_LONG_SIDE)return src;
+  try{
+    /* k<=1: тяжёлую, но мелкую подложку не растягиваем — её ужимает уже перекодировка в JPEG */
+    const k=Math.min(1,DOC_PLAN_LONG_SIDE/long);
+    const w=Math.max(1,Math.round(img.naturalWidth*k)),h=Math.max(1,Math.round(img.naturalHeight*k));
+    const c=document.createElement("canvas");c.width=w;c.height=h;
+    const ctx=c.getContext("2d");
+    /* белый фон обязателен: у PNG/SVG прозрачность в JPEG стала бы чёрной заливкой */
+    ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
+    ctx.drawImage(img,0,0,w,h);
+    const out=c.toDataURL("image/jpeg",0.9);
+    return out.length<src.length?out:src;
+  }catch(e){return src}
+}
+/* Данные блока «план с бирками» для EPPlanLabels. null — блока в документе не будет
+   (плана не загружали; проект восстановлен без плана — persistProject при переполнении
+   localStorage сохраняет plan:null; постов нет).
+   ПОДЛОЖКУ ЧИТАЕМ ЖИВУЮ ($("planImage")), а не из снимка проекта — по той же причине.
+   Зум и панораму вида (state.scale/panX/panY) компенсировать НЕ надо: applyView — это одна
+   CSS-трансформация #canvas, в мировые координаты постов она не входит. А вот леттербокс
+   подложки (object-fit:contain внутри мирового бокса) снимает уже сам EPPlanLabels — для
+   этого ему и передаются размеры бокса. */
+function planLabelsSpec(){
+  const img=$("planImage");
+  if(!state.planLoaded||!img||!img.src||!img.naturalWidth||!img.naturalHeight)return null;
+  if(!state.posts.length)return null;
+  return {
+    imageUrl:planImageForDoc(img),
+    natW:img.naturalWidth,natH:img.naturalHeight,
+    canvasW:canvas.clientWidth,canvasH:canvas.clientHeight,
+    posts:state.posts.map(p=>({number:p.number,x:p.x+POST_ICON_HALF,y:p.y+POST_ICON_HALF}))
+  };
+}
+/* Готовая секция плана для документа — пустая строка, если рисовать нечего.
+   Режим «подложка скрыта» (planVisibility) документ НЕ подавляет: это переключатель
+   рабочего вида, а печатный план нужен для сверки в любом случае. */
+function planBlockHtml(opts){
+  const spec=planLabelsSpec();
+  if(!spec)return "";
+  return EPPlanLabels.buildHtml(Object.assign(spec,opts||{}),{esc});
+}
+
 /* Детали поста для взрыв-схемы листа монтажника (EPExplodedView). Собираем ИЗ УЖЕ ПОСЧИТАННОГО:
    comp (суппорт/коробка/накладка — товары каталога с kind/categoryId/icon), layout (механизмы с
    позицией и товаром) и frameSpec (фото/окна накладки, что уже собрал assembledPostSpec) — второй
@@ -1815,10 +1906,16 @@ function buildExplodedSpec(comp,box,layout,frameSpec){
       photo:photo?{imageUrl:photo}:null
     });
   });
-  if(comp.support){
+  /* Количество суппортов — кикером роли («Суппорт ×2»), ровно как у коробки ниже: на
+     схеме деталь одна, но монтажник по подписи видит, сколько планок ставить.
+     Туда же — пометка неподтверждённого артикула: взрыв-схема печатается ВНУТРИ листа
+     монтажника, рядом с таблицей обвязки, и артикул без пометки на схеме спорил бы с
+     пометкой в таблице над ней. Формулировка та же, что в смете и в панели состава. */
+  if(comp.support&&comp.supportCount){
     const photo=photoOf(comp.support);
     parts.push({
-      role:"Суппорт",name:comp.support.name,code:comp.support.code,
+      role:(comp.supportCount>1?`Суппорт ×${comp.supportCount}`:"Суппорт")+(comp.supportAssumed?" (предположительно)":""),
+      name:comp.support.name,code:comp.support.code,
       icon:{categoryId:comp.support.categoryId,icon:comp.support.icon,name:comp.support.name},
       photo:photo?{imageUrl:photo}:null
     });
@@ -1854,11 +1951,13 @@ function buildPostSheet(post){
   const modules=layout.map(moduleRow);
   const moduleGroups=EPPosts.postModuleGroups(post.mechanismIds,frame,{product,mechanismSpan})
     .map(g=>({post:g.post,capacity:g.capacity,modules:g.modules.map(moduleRow)}));
+  /* Точная коробка либо стандартно-совместимый фолбэк — выбор наш: только приложение знает
+     тип стены проекта. Дальше обвязку (суппорт → коробка → накладка) собирает чистая
+     EPInstallSheet.buildFittings — формат её строк принадлежит документу, а не оркестратору,
+     и там же под тестом живёт правило «суппортов столько же, сколько коробок» (раньше здесь
+     стоял литерал count:1, и монтажник вёз одну планку на два немецко-французских поста). */
   const box=comp.box||comp.boxFallback;
-  const fittings=[];
-  if(comp.support)fittings.push({role:"Суппорт",name:comp.support.name,code:comp.support.code,count:1});
-  if(box&&comp.boxCount)fittings.push({role:"Монтажная коробка",name:box.name,code:box.code,count:comp.boxCount});
-  if(frame)fittings.push({role:"Накладка",name:frame.name,code:frame.code,count:1});
+  const fittings=EPInstallSheet.buildFittings(comp,box);
   const room=state.rooms.find(r=>r.id===post.roomId);
   /* Собранное изображение и взрыв-схему кормим ОДНИМ spec (assembledPostSpec) — в каталог за
      фото/окнами накладки ходим один раз. assembledImageHtml остаётся байт-в-байт как прежде
@@ -1882,8 +1981,9 @@ function buildPostSheet(post){
     explodedViewHtml:EPExplodedView.buildHtml(
       buildExplodedSpec(comp,box,layout,spec.frame),
       {esc,pickIcon:EPPostImage.pickIcon,iconSvg:EPPostImage.iconSvg}),
-    /* немецко-французский: коробок несколько (пост = 2 модуля) + импосты — важно монтажнику */
-    german:(comp.model==="post"&&comp.postCount>1)?{postCount:comp.postCount}:null
+    /* немецко-французский: коробок и суппортов несколько (пост = 2 модуля) + импосты —
+       важно монтажнику: по прежнему примечанию он вёз одну планку на всю сборку */
+    german:(comp.model==="post"&&comp.postCount>1)?{postCount:comp.postCount,supportCount:comp.supportCount}:null
   };
 }
 function openInstallSheet(data){
@@ -1914,7 +2014,12 @@ function installSheetForProject(){
     const rb=roomIndex.has(b.roomId)?roomIndex.get(b.roomId):Infinity;
     return ra-rb||(Number(a.number)||0)-(Number(b.number)||0);
   });
-  openInstallSheet({posts:ordered.map(buildPostSheet),subtitle:"Помодульная раскладка постов по проекту"});
+  openInstallSheet({posts:ordered.map(buildPostSheet),subtitle:"Помодульная раскладка постов по проекту",
+    /* План с бирками — только в листе НА ВЕСЬ ПРОЕКТ: в листе одного поста из конструктора
+       (installSheetForBuilder) чертёж со всеми чужими номерами только мешает. Поля листа
+       монтажника 14 мм (см. @page в installSheet.js). */
+    planBlockHtml:planBlockHtml({maxWidthMm:182,maxHeightMm:226,
+      note:"Номер на бирке — номер поста в карточках ниже."})});
 }
 /* Осознанная перенумерация постов к 1..N по расположению на плане (сверху вниз, слева
    направо) — как обычно обходят точки на чертеже. Пока пользователь не нажал, номера
@@ -1935,7 +2040,10 @@ function generateCommercialOffer(){
   const win=window.open("","_blank");
   if(!win){toast("Разрешите всплывающие окна для формирования PDF");return}
   win.document.write(EPOfferPdf.buildHtml(est,{money,esc,displayCurrency,effectiveRate:EPRates.effectiveRate,
-    settings:EP_DATA.settings,header:docHeader(),postLayout:buildPostLayout()}));
+    settings:EP_DATA.settings,header:docHeader(),postLayout:buildPostLayout(),
+    /* план с бирками — отдельной страницей перед раскладкой постов: клиент сверяет номер в
+       таблице с местом на чертеже. Поля КП 16 мм (см. @page в offerPdf.js). */
+    planBlockHtml:planBlockHtml({maxWidthMm:178,maxHeightMm:222})}));
   win.document.close();
 }
 

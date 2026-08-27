@@ -34,3 +34,30 @@ test("автопечать ждёт загрузки картинок и печ�
   assert.match(html, /setTimeout\(pr,4000\)/, "предохранитель: печать не позже 4000 мс");
   assert.ok(!/setTimeout\(\(\)=>window\.print\(\),500\)/.test(html), "прежней печати по таймеру больше нет");
 });
+
+/* Контракт вставки плана: КП печатает готовую секцию «план с бирками» (EPPlanLabels) и ставит
+   её ПЕРЕД «Раскладкой постов» — так устроен эталонный документ заказчика (титул → план →
+   таблица постов), по нему клиент сверяет номер на бирке с номером в таблице. Без этих тестов
+   вставку можно было бы случайно удалить или переставить, и ни один тест бы не покраснел. */
+test("план с бирками попадает в КП и стоит перед раскладкой постов", () => {
+  const marker = '<section data-test="plan-block">план</section>';
+  /* Раздел «Раскладка постов» рисуется только при непустом postLayout — иначе сверять
+     порядок было бы не с чем, и тест ничего бы не доказывал. */
+  const withPosts = Object.assign({}, deps, {
+    planBlockHtml: marker,
+    postLayout: [{ number: 1, modules: 2, fill: [{ word: "Выключатель", count: 2 }], assembledImageHtml: "", frameName: "Рамка" }]
+  });
+  const html = buildHtml(est, withPosts);
+  assert.ok(html.includes(marker), "секция плана напечатана");
+  const posPlan = html.indexOf(marker);
+  const posLayout = html.indexOf("Раскладка постов");
+  assert.ok(posLayout > -1, "раздел «Раскладка постов» на месте");
+  assert.ok(posPlan < posLayout, "план идёт ДО раскладки постов, как в эталоне заказчика");
+});
+
+test("без плана КП собирается как раньше — пустого места не остаётся", () => {
+  const withOut = buildHtml(est, Object.assign({}, deps, { planBlockHtml: "" }));
+  const undef = buildHtml(est, deps);
+  assert.ok(!/data-test="plan-block"/.test(withOut), "секции плана нет");
+  assert.equal(withOut, undef, "пустая строка и отсутствие поля дают одинаковый документ");
+});

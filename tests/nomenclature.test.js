@@ -131,7 +131,7 @@ test("buildAttrs: формат признаков для рантайма (stand
     { code: "14653.01", kind: "frame", standard: "IT" },
     { code: "14613", kind: "support", standard: "IT", moduleSize: 3, pitchMm: null },
     { code: "V71303", kind: "socket_box", standard: "IT", wallType: "solid", boxShape: "rect", moduleSize: 3, boxStandards: ["IT"] },
-    { code: "09001", kind: "mechanism", standard: "BOTH" },  // механизм в attrs не попадает
+    { code: "09001", kind: "mechanism", standard: "BOTH" },  // механизм без правила в attrs не попадает
   ];
   const a = N.buildAttrs(records);
   assert.deepEqual(a.standards["14653.01"], { standard: "IT", postCount: null });
@@ -140,4 +140,62 @@ test("buildAttrs: формат признаков для рантайма (stand
   assert.equal(a.wallTypes["V71303"], "solid");
   assert.equal("09001" in a.standards, false);
   assert.equal("09001" in a.supports, false);
+  assert.equal("09001" in a.mounting, false);   // и в mounting тоже: правила у записи нет
+});
+
+test("buildAttrs: монтажное правило (принцип + модульность коробки) доходит до рантайма", () => {
+  /* Без этих двух полей подбор считает коробку и суппорт по ёмкости накладки, и все
+     «центральные» позиции получают не то: 09672 (2М-накладка в коробку на 3 модуля)
+     подбирала обычный 2М-суппорт вместо выделенного 09606. Поля нужны И накладке, И
+     суппорту — именно совпадение пары связывает их между собой. */
+  const records = [
+    { code: "09672.01", kind: "frame", standard: "IT", principle: "2M_CENTRAL", boxModularity: 3 },
+    { code: "09606", kind: "support", standard: "IT", moduleSize: 2, pitchMm: null, principle: "2M_CENTRAL", boxModularity: 3 },
+  ];
+  const a = N.buildAttrs(records);
+  assert.deepEqual(a.standards["09672.01"], { standard: "IT", postCount: null, principle: "2M_CENTRAL", boxModularity: 3 });
+  assert.deepEqual(a.supports["09606"], { standard: "IT", modules: 2, pitchMm: null, principle: "2M_CENTRAL", boxModularity: 3 });
+});
+
+test("buildAttrs: у позиции без монтажного правила ключей principle/boxModularity нет", () => {
+  /* Правило есть у 449 позиций из 2146 — пустые ключи у остальных раздули бы файл
+     атрибутов и заставили бы рантайм отличать «нет правила» от «правило пустое». */
+  const a = N.buildAttrs([{ code: "14613", kind: "support", standard: "IT", moduleSize: 3, pitchMm: null, principle: null, boxModularity: null }]);
+  assert.equal("principle" in a.supports["14613"], false);
+  assert.equal("boxModularity" in a.supports["14613"], false);
+});
+
+test("buildAttrs: принцип обработки МЕХАНИЗМА едет в рантайм разделом mounting", () => {
+  /* Своего раздела признаков у механизмов нет (стандарт сборки и модульность поста им
+     ни к чему), и правило им долго не проставлялось вовсе: addMountingRule звался только
+     в ветках накладки и суппорта, из-за чего 158 механизмов с заполненным «Принципом
+     обработки» (BUTTON, SCHUP, Bluetooth) до каталога не доезжали. Ключ — артикул. */
+  const records = [
+    { code: "09001", kind: "mechanism", standard: "BOTH", principle: "BUTTON" },
+    { code: "03925", kind: "mechanism", standard: "IT", principle: "Bluetooth" },
+    { code: "00935.A", kind: "accessory", principle: "LED", boxModularity: 1 },   // прочие виды — туда же
+  ];
+  const a = N.buildAttrs(records);
+  assert.deepEqual(a.mounting["09001"], { principle: "BUTTON" });
+  assert.deepEqual(a.mounting["03925"], { principle: "Bluetooth" });
+  assert.deepEqual(a.mounting["00935.A"], { principle: "LED", boxModularity: 1 });
+  // механизм не должен просочиться в разделы накладок/суппортов/коробок
+  assert.equal("09001" in a.standards, false);
+  assert.equal("09001" in a.boxes, false);
+});
+
+test("buildAttrs: принцип обработки КОРОБКИ едет в её запись boxes", () => {
+  /* IP55-корпуса 14901–14904 переклассифицированы из накладок в socket_box
+     (tools/data/kind-overrides.json), а ветка socket_box монтажное правило не переносила —
+     «NO_INNERS, AQUAPLATE» терялся ровно у тех четырёх позиций, ради которых оверрайд
+     и делался. Правило живёт в самой записи коробки, а не в mounting: раздел признаков
+     у коробки есть, и js/data.js читает её одним лукапом. */
+  const a = N.buildAttrs([
+    { code: "14901", kind: "socket_box", wallType: "unknown", boxShape: "rect", moduleSize: 1, boxStandards: ["IT"], principle: "NO_INNERS, AQUAPLATE" },
+  ]);
+  assert.deepEqual(a.boxes["14901"], {
+    wallType: "unknown", shape: "rect", modules: 1, standards: ["IT"], principle: "NO_INNERS, AQUAPLATE",
+  });
+  assert.equal("14901" in a.mounting, false);   // без дублирования между разделами
+  assert.equal("14901" in a.wallTypes, false);  // тип стены неизвестен — в подбор не идёт
 });

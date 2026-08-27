@@ -328,13 +328,36 @@ export function resolveCatalogPrice(nomPrice, priceEntry) {
 }
 
 /*
+ * Монтажное правило позиции из номенклатуры — «Принцип обработки» + «Модульность для
+ * коробки». Раньше подбор коробки/суппорта угадывал их по ёмкости накладки, и все
+ * «центральные» позиции (1М-накладка в коробку на 2 модуля, 2М — в коробку на 3) получали
+ * коробку и суппорт по своей ёмкости, то есть неверные. Оба поля несут и НАКЛАДКИ, и
+ * СУППОРТЫ: пара (principle + boxModularity) прямо связывает накладку 09672 с суппортом
+ * 09606, 14652 с 14612 и т. д. — именно то, что ремарки номенклатуры пишут словами.
+ * Кладём ТОЛЬКО заполненные значения (как layoutRows): у подавляющего большинства позиций
+ * их нет, и пустые ключи раздули бы файл атрибутов без пользы.
+ */
+function addMountingRule(entry, rec) {
+  if (rec.principle) entry.principle = rec.principle;
+  if (rec.boxModularity != null) entry.boxModularity = rec.boxModularity;
+  return entry;
+}
+
+/*
  * Признаки автосостава поста для рантайма (window.EP_VIMAR_ATTRS) — в том же формате,
- * что читает js/data.js: standards (накладки), supports, boxes, wallTypes. Раньше их
+ * что читает js/data.js: standards (накладки), supports, boxes, wallTypes + mounting
+ * (монтажное правило видов, у которых своего раздела признаков нет). Раньше их
  * собирал build-catalog-attrs.mjs из price-parsed.csv + внешнего каталога совместимости;
  * теперь всё есть в номенклатуре явно.
+ *
+ * Монтажное правило (principle + boxModularity) проставляется КАЖДОМУ виду, у которого
+ * номенклатура его заполнила, а не только накладкам и суппортам: механизмы несут принцип
+ * обработки (BUTTON/SCHUP/Bluetooth — 158 позиций), IP55-корпуса 14901–14904 — «NO_INNERS,
+ * AQUAPLATE». Раньше addMountingRule звался лишь в двух ветках, и до рантайма доходило
+ * 287 правил из 449 — остальные молча терялись на сборке.
  */
 export function buildAttrs(records) {
-  const standards = {}, supports = {}, boxes = {}, wallTypes = {};
+  const standards = {}, supports = {}, boxes = {}, wallTypes = {}, mounting = {};
   for (const rec of records) {
     if (rec.kind === "frame") {
       // Раскладку на посты считаем здесь, на сборке (задача: признак ставится как остальные
@@ -344,16 +367,33 @@ export function buildAttrs(records) {
       const layoutRows = postLayoutOf({ name: rec.name, moduleSize: rec.moduleSize, levels: rec.levels });
       const entry = { standard: rec.standard, postCount: postCountOf(layoutRows) };
       if (layoutRows) entry.layoutRows = layoutRows;   // число постов = boxCount немецкого стандарта
+      addMountingRule(entry, rec);
       standards[rec.code] = entry;
     } else if (rec.kind === "support") {
-      supports[rec.code] = { standard: rec.standard, modules: rec.moduleSize, pitchMm: rec.pitchMm ?? null };
+      const entry = { standard: rec.standard, modules: rec.moduleSize, pitchMm: rec.pitchMm ?? null };
+      addMountingRule(entry, rec);
+      supports[rec.code] = entry;
     } else if (rec.kind === "socket_box") {
-      boxes[rec.code] = {
+      const entry = {
         wallType: rec.wallType, shape: rec.boxShape,
         modules: rec.moduleSize, standards: rec.boxStandards,
       };
+      // У корпусов IP55 (14901–14904, переклассифицированы из накладок через
+      // kind-overrides.json) принцип обработки заполнен — «NO_INNERS, AQUAPLATE»: изделие
+      // монтируется без внутренностей и относится к влагозащищённой линейке. Без этой
+      // строки правило пропадало ровно у тех позиций, ради которых оверрайд и делался.
+      addMountingRule(entry, rec);
+      boxes[rec.code] = entry;
       if (rec.wallType && rec.wallType !== "unknown") wallTypes[rec.code] = rec.wallType;
+    } else {
+      /* Механизмы (и прочие виды вроде accessory) собственного раздела признаков не имеют:
+         стандарт сборки и модульность поста им ни к чему. Но «Принцип обработки» у них
+         заполнен — держим его в отдельном разделе mounting, ключ на артикул. Кладём только
+         непустое правило (как layoutRows у накладок): у большинства механизмов его нет, и
+         пустые записи раздули бы файл атрибутов без пользы. */
+      const entry = addMountingRule({}, rec);
+      if (Object.keys(entry).length) mounting[rec.code] = entry;
     }
   }
-  return { standards, supports, boxes, wallTypes };
+  return { standards, supports, boxes, wallTypes, mounting };
 }
