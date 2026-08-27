@@ -40,9 +40,16 @@ window.EP_DATA = {
      (стандарт → unknown, тип стены → не подтверждён), приложение это переживает. */
   products: (function enrichCatalog(){
     const list = window.EP_VIMAR_CATALOG?.products || [];
-    const attrs = window.EP_VIMAR_ATTRS || {standards:{},supports:{},wallTypes:{},boxes:{},mounting:{}};
+    const attrs = window.EP_VIMAR_ATTRS || {standards:{},supports:{},wallTypes:{},boxes:{},mounting:{},roles:{}};
     const supports = attrs.supports || {};
     const boxes = attrs.boxes || {};
+    /* Роль детали в посте и роль управления — из колонок номенклатуры «Функциональная группа»
+       и «Тип управления», а не из эвристики по названию. До этого раздела отличить клавишу от
+       голого механизма в рантайме можно было только косвенно: по categoryId=900 (его ставит
+       classify() за слово «клавиш» — заодно со словами «накладк», «крышк», «винт») и по
+       отсутствию moduleSpan. Оба — побочный эффект, и любая новая строка «Крышка…» стала бы
+       «клавишей». Ключ раздела — артикул, запись {part, control}. */
+    const roles = attrs.roles || {};
     // Монтажное правило видов, у которых своего раздела признаков нет (механизмы, аксессуары):
     // «Принцип обработки» номенклатуры заполнен и им (BUTTON/SCHUP/Bluetooth). У накладок,
     // суппортов и коробок правило приезжает вместе с их атрибутами — см. ветки ниже.
@@ -128,6 +135,20 @@ window.EP_DATA = {
       // суппортам, и до рантайма не доходил ни один из 158 механизмов с заполненным полем.
       const m = mounting[p.code];
       if (m) out = applyRule(out === p ? {...p} : out, m);
+      /* Роль детали: partRole — "bare_mechanism" (изделие без клавиши, её надо подобрать
+         отдельно) либо "key" (клавиша, садится на голый механизм); controlRole — "switch" /
+         "changeover" / "button" / "inverter" / "sensor" / "bluetooth", те же строки, что ROLES
+         в js/lightingGroups.js, чтобы подбор механизма по роли места сравнивал их напрямую.
+         Полей нет, если номенклатура признака не даёт, — «нет роли» отличается от «роль пустая»
+         по отсутствию ключа, как у principle/boxModularity. Раздел сквозной (роли есть только
+         у механизмов и клавиш — у накладок, суппортов и коробок «Тип управления» не заполнен
+         ни у одной позиции, проверено на сборке), поэтому лежит здесь, рядом с mounting. */
+      const r = roles[p.code];
+      if (r) {
+        out = out === p ? {...p} : out;
+        if (r.part) out.partRole = r.part;
+        if (r.control) out.controlRole = r.control;
+      }
       return out;
     });
   })()

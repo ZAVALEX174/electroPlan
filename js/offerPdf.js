@@ -22,10 +22,20 @@ const printScript = `<script>(function(){var done=false;function pr(){if(done)re
 
 /* est   — результат EPEstimate.build (groups, equipment, discount, vat, total, …)
    deps  — { money(n), esc(s), displayCurrency(), effectiveRate(settings), settings,
-             header, postLayout, planBlockHtml }
+             header, postLayout, planBlockHtml, supplierSpecHtml }
    planBlockHtml — готовая секция «план с бирками» (EPPlanLabels.buildHtml), собирает её
    оркестратор: только он знает про #canvas и state. Приходит СТРОКОЙ ровно как
    assembledImageHtml в раскладке постов — этот документ вёрстку блока не трогает.
+   supplierSpecHtml — готовая секция «сводная спецификация по артикулам» (EPSupplierSpec):
+   те же позиции, но в разрезе артикулов и БЕЗ ЦЕН — её отправляют поставщику. Печатается
+   ПОСЛЕ денежных итогов, своей страницей: КП читают ради цены, свод — приложение к нему,
+   и вклинившись перед итогами он бы отодвинул главное.
+   Свод идёт ПОСЛЕДНИМ блоком документа, ниже обоих подвалов (курс пересчёта и оговорка о
+   ценах). Раньше подвал стоял после него и печатался НА ЕГО СТРАНИЦЕ: страницу отрывают и
+   отдают поставщику, а он читал «Цены являются ориентировочными…» — денежные формулировки
+   КП на листе, где цен нет по замыслу. Заказчик 24.08 просил разделять, что кому уходит:
+   «этот лист отправляется поставщику». Всё, что относится к сделке, обязано остаться на
+   страницах КП, а не уезжать с отрывным листом.
    Возвращает строку полного HTML-документа с авто-печатью. */
 function buildHtml(est, deps) {
   const money = deps.money;
@@ -100,6 +110,7 @@ function buildHtml(est, deps) {
   <div class="grand"><span>Итого${est.vat ? " с НДС" : ""}</span><b>${money(total)}</b></div></div>
   ${displayCurrency() === "RUB" ? rateFooter() : ""}
   <div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>
+  ${deps.supplierSpecHtml || ""}
   ${printScript}</body></html>`;
 }
 

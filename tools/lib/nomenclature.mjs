@@ -14,8 +14,10 @@
  *   A Бренд · B Серия · C Артикул · D Наименование · E Размер в модулях ·
  *   F цена, евро · G Тип управления · H Функциональная группа · I Тип стены ·
  *   J Монтажный стандарт · K Количество уровней в рамке · L Цвет элемента ·
- *   M Группа доступа · … · V Принцип обработки · W Подгруппы · Y Модульность для коробки.
+ *   M Группа доступа · … · V Принцип обработки · W «Подгруппы » · Y Модульность для коробки.
  * Колонки статуса в файле НЕТ — фильтровать по «Активному» нечем (см. отчёт).
+ * ⚠ Заголовок W в .xls написан с ПРОБЕЛОМ на конце — поиск колонки это переживает
+ * (нормализует и заголовки, и искомое имя), см. readNomenclature.
  */
 
 import path from "node:path";
@@ -166,6 +168,68 @@ export function categoryAndIcon(kind, name) {
 }
 
 /*
+ * «Тип управления» (колонка G) → машинный код роли управления.
+ * Значения в файле: В (36), П (23), Кн (28), И (19), Д (14), Bluetooth (17) — всего 137
+ * заполненных строк из 2146. Английские коды выбраны НЕ произвольно: switch/changeover/
+ * button/inverter — ровно те строки, которыми оперирует ROLES в js/lightingGroups.js
+ * (подбор механизма по роли места сравнивает их напрямую, без словаря-переходника).
+ * Неизвестное/пустое значение → null: признак не выдумываем.
+ */
+const CONTROL_ROLES = new Map([
+  ["в", "switch"],          // выключатель
+  ["п", "changeover"],      // переключатель (проходной)
+  ["кн", "button"],         // кнопка
+  ["и", "inverter"],        // инвертор (перекрёстный переключатель, 4 контакта)
+  ["д", "sensor"],          // датчик — механизмом под клавишу не бывает, но колонку доводим целиком
+  ["bluetooth", "bluetooth"],
+]);
+export function controlRoleOf(raw) {
+  return CONTROL_ROLES.get(norm(raw).toLowerCase()) || null;
+}
+
+/*
+ * РОЛЬ ДЕТАЛИ В ПОСТЕ: «голый механизм» (нужна отдельная клавиша) или «клавиша».
+ *
+ * Зачем признак. В рантайме эти два вида различались только КОСВЕННО: по categoryId=900
+ * (его ставит эвристика classify() за слово «клавиш» в названии — вместе с «накладк»,
+ * «крышк», «винт») и по ОТСУТСТВИЮ moduleSpan у голого механизма (в номенклатуре у него
+ * пуст «Размер в модулях»). Оба признака — побочный эффект: строка «Крышка…» стала бы
+ * «клавишей», а любая позиция с незаполненной модульностью — «механизмом». Здесь признак
+ * берётся из ДАННЫХ заказчика.
+ *
+ * Правило:
+ *   голый механизм = «Функциональная группа» == «Механизмы» И роль управления ∈
+ *                    {switch, changeover, button, inverter}
+ *   клавиша        = название начинается со СЛОВА «Клавиша» и позиция не голый механизм
+ *
+ * Фильтр по типу управления у механизма обязателен: в группе «Механизмы» лежат ещё
+ * 03925 «2 кнопки Bluetooth» (серии ARKE+ARKE FIT+EIKON EVO+EIKON EXE+PLANA — без фильтра
+ * подцепилась бы сразу ко всем клавишам) и пять готовых изделий Eikon Tactil
+ * (21041/21119/21122/21134/21174) с пустым типом управления.
+ *
+ * Клавишу отдельной колонкой номенклатура не помечает, поэтому на её стороне остаётся имя.
+ * Но проверка ЯКОРНАЯ — первое слово названия, а не «клавиш» где угодно в строке, — и идёт
+ * после проверки механизма. \b в JS по кириллице не работает вовсе (\w — только латиница,
+ * цифры и «_»), так что «конец слова» пишем явным «дальше не буква»: иначе получили бы
+ * ровно ту же тихую ловушку, что и с колонкой «Подгруппы ».
+ *
+ * ЗАМЕР по текущей номенклатуре: 18 голых механизмов (Plana 14001.0/14005.0/14008.0/14013.0,
+ * Arke 19*, Eikon Evo+Exe 20*, осевые Eikon Flat 22104/22108 и четыре Neve Up) и 34 клавиши.
+ * Из клавиш 32 с пустым типом управления, а 14506.2/14506.2.SL («Клавиша для устройсв на
+ * радиочастоте») несут «Тип управления» = Bluetooth: это тоже клавиши, но радиочастотные,
+ * и от классических их отличает поле control — по нему потребитель их и отсеет.
+ */
+const BARE_MECHANISM_CONTROLS = new Set(["switch", "changeover", "button", "inverter"]);
+const KEY_NAME_RE = /^клавиша(?![а-яёa-z])/i;
+export function partRoleOf({ group, controlRole, name } = {}) {
+  if (norm(group).toLowerCase() === "механизмы" && BARE_MECHANISM_CONTROLS.has(controlRole)) {
+    return "bare_mechanism";
+  }
+  if (KEY_NAME_RE.test(norm(name))) return "key";
+  return null;
+}
+
+/*
  * Явные переклассификации kind поверх «Функциональной группы» номенклатуры
  * (tools/data/kind-overrides.json, утверждено владельцем по сверке с vimar.ru).
  * Чистая функция: мутирует переданные записи и пересчитывает ЗАВИСЯЩИЕ ОТ kind
@@ -207,7 +271,9 @@ const COL = {
   moduleSize: "Размер в модулях", price: "цена, евро", control: "Тип управления",
   group: "Функциональная группа", wall: "Тип стены", standard: "Монтажный стандарт",
   levels: "Количество уровней в рамке", color: "Цвет элемента", access: "Группа доступа",
-  principle: "Принцип обработки", subgroup: "Подгруппы ", boxModularity: "Модульность для коробки",
+  // Внимание: в .xls заголовок колонки W — «Подгруппы » с ПРОБЕЛОМ на конце. Имя здесь
+  // держим чистым, а расхождение по пробелам гасит нормализация в поиске колонки (см. ниже).
+  principle: "Принцип обработки", subgroup: "Подгруппы", boxModularity: "Модульность для коробки",
   note: "Описание особенностей элемента",
 };
 
@@ -224,9 +290,19 @@ export function readNomenclature(xlsPath, { excludeSeries = ["idea"] } = {}) {
   const ws = wb.Sheets[sheetName];
   const grid = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: true });
   const header = (grid[0] || []).map(norm);
+  /* Индекс колонок строим по УЖЕ нормализованным заголовкам И нормализуем искомое имя.
+     Раньше здесь был header.indexOf(name) по сырому имени из COL, и колонка «Подгруппы »
+     (в .xls она с пробелом на конце) не находилась НИКОГДА: заголовки тримятся строкой выше,
+     а имя в COL — нет. rec.subgroup молча оказывался null у всех 2146 строк, в том числе у
+     161 позиции, где подгруппа заполнена («Выключатели», «Выключатели с подсветкой»,
+     «Осевые механизмы», «Диммеры», «Датчики движения», «Bluetooth»). Ловушка классовая —
+     чиним не одну константу, а сам поиск: разойтись по пробелам больше нечему.
+     Дубли заголовков разрешаем как прежний indexOf — побеждает первое вхождение. */
+  const colIndex = new Map();
+  header.forEach((h, i) => { if (h && !colIndex.has(h)) colIndex.set(h, i); });
   const at = (row, name) => {
-    const i = header.indexOf(name);
-    return i < 0 ? null : row[i];
+    const i = colIndex.get(norm(name));
+    return i == null ? null : row[i];
   };
   const excluded = new Set(excludeSeries.map((s) => norm(s).toLowerCase()));
 
@@ -235,6 +311,9 @@ export function readNomenclature(xlsPath, { excludeSeries = ["idea"] } = {}) {
     sheet: sheetName, ref: ws["!ref"], totalRows: grid.length - 1,
     withCode: 0, excluded: 0, byKind: {}, bySeries: {}, byStandard: {}, byGroup: {},
     dupCodes: [], missingModule: 0,
+    // Счётчики для сверки при пересборке: подгруппа (та самая колонка, что не читалась),
+    // роль детали в посте и роль управления. Ими же меряются ожидания владельца (18/34).
+    withSubgroup: 0, byPartRole: {}, byControlRole: {},
   };
   const seen = new Set();
 
@@ -266,6 +345,8 @@ export function readNomenclature(xlsPath, { excludeSeries = ["idea"] } = {}) {
     const levelsCell = at(row, COL.levels);
     const boxModCell = at(row, COL.boxModularity);
     const accessCell = at(row, COL.access);
+    const controlType = norm(at(row, COL.control)) || null;
+    const controlRole = controlRoleOf(controlType);
 
     const rec = {
       sourceRow: r + 1,
@@ -287,7 +368,11 @@ export function readNomenclature(xlsPath, { excludeSeries = ["idea"] } = {}) {
       boxModularity: typeof boxModCell === "number" ? boxModCell : null,
       accessGroup: typeof accessCell === "number" ? accessCell : null,
       color: norm(at(row, COL.color)) || null,
-      controlType: norm(at(row, COL.control)) || null,
+      controlType,
+      // Производные признаки роли детали — считаем здесь, как categoryId/icon: рантайм
+      // не должен разбирать названия и «Функциональную группу» заново.
+      controlRole,
+      partRole: partRoleOf({ group, controlRole, name }),
       principle: norm(at(row, COL.principle)) || null,
       subgroup: norm(at(row, COL.subgroup)) || null,
       note: norm(at(row, COL.note)) || null,
@@ -307,6 +392,9 @@ export function readNomenclature(xlsPath, { excludeSeries = ["idea"] } = {}) {
     stats.byKind[kind] = (stats.byKind[kind] || 0) + 1;
     stats.byGroup[group] = (stats.byGroup[group] || 0) + 1;
     stats.byStandard[standard] = (stats.byStandard[standard] || 0) + 1;
+    if (rec.subgroup) stats.withSubgroup++;
+    if (rec.partRole) stats.byPartRole[rec.partRole] = (stats.byPartRole[rec.partRole] || 0) + 1;
+    if (rec.controlRole) stats.byControlRole[rec.controlRole] = (stats.byControlRole[rec.controlRole] || 0) + 1;
     for (const s of rec.series) stats.bySeries[s] = (stats.bySeries[s] || 0) + 1;
   }
   return { header, records, stats };
@@ -357,8 +445,27 @@ function addMountingRule(entry, rec) {
  * 287 правил из 449 — остальные молча терялись на сборке.
  */
 export function buildAttrs(records) {
-  const standards = {}, supports = {}, boxes = {}, wallTypes = {}, mounting = {};
+  const standards = {}, supports = {}, boxes = {}, wallTypes = {}, mounting = {}, roles = {};
   for (const rec of records) {
+    /* Роль детали в посте + роль управления (см. partRoleOf/controlRoleOf) — сквозной раздел
+       roles, ключ на артикул, как у mounting. Схема записи: { part, control }.
+         part    — "bare_mechanism" (нужна отдельная клавиша) | "key" (клавиша)
+         control — "switch"|"changeover"|"button"|"inverter"|"sensor"|"bluetooth"
+       Почему два поля, а не одна строка вроде "mech:switch": рантайм спрашивает их порознь —
+       «это клавиша или механизм» решает раскладку поста, а роль управления сравнивается со
+       строкой ROLES из js/lightingGroups.js напрямую. Разбирать составной код в рантайме
+       значило бы завести второй парсер там, где мы как раз убираем эвристики.
+       Почему в attrs, а не в js/catalog-vimar.js: горячий каталог (910 КБ) грузится синхронно
+       при каждом открытии, и правило проекта (комментарий перед `const product = {` в
+       build-catalog.mjs) — новые рантайм-поля класть сюда. Проверено: правило актуально,
+       principle/boxModularity живут именно здесь.
+       Пустых записей не кладём: признак есть у 169 позиций из 2146, у остальных ключа просто
+       нет — рантайм отличает «признака нет» по отсутствию ключа, как у principle. */
+    const role = {};
+    if (rec.partRole) role.part = rec.partRole;
+    if (rec.controlRole) role.control = rec.controlRole;
+    if (Object.keys(role).length) roles[rec.code] = role;
+
     if (rec.kind === "frame") {
       // Раскладку на посты считаем здесь, на сборке (задача: признак ставится как остальные
       // атрибуты, не разбором названия в рантайме). Немецкая «(2+2)» → [[2,2]], двухрядная
@@ -395,5 +502,5 @@ export function buildAttrs(records) {
       if (Object.keys(entry).length) mounting[rec.code] = entry;
     }
   }
-  return { standards, supports, boxes, wallTypes, mounting };
+  return { standards, supports, boxes, wallTypes, mounting, roles };
 }
