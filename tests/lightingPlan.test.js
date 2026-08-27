@@ -85,6 +85,68 @@ test("пост без keyGroups (старый проект) даёт места 
   assert.ok(plan.gaps.some(g => g.kind === LG.GAPS.NO_GROUP));
 });
 
+/* ── потерянная клавиша: товара нет в каталоге (прайс перезалит) ───────────────────── */
+
+/* Три поста одной группы «Кухня»: по классической схеме первые два места — переключатели,
+   третье — инвертор. Дальше из каталога пропадает товар ПЕРВОЙ клавиши (заказчик перезаливает
+   прайс до 7 раз в год, а старые проекты обязаны открываться). Прежде такое место исчезало
+   молча — и N группы падал с 3 до 2, из-за чего ТРЕТИЙ, нетронутый пост получал переключатель
+   вместо инвертора: механизм дешевле и физически неверный, проходная схема не работает. */
+const KITCHEN3 = [
+  { id: "p1", number: 1, mechanismIds: [1], keyGroups: ["Кухня"] },
+  { id: "p2", number: 2, mechanismIds: [1], keyGroups: ["Кухня"] },
+  { id: "p3", number: 3, mechanismIds: [1], keyGroups: ["Кухня"] }
+];
+const lostKeyPosts = () => [
+  { id: "p1", number: 1, mechanismIds: [999], keyGroups: ["Кухня"] },   /* 999 нет в каталоге */
+  KITCHEN3[1], KITCHEN3[2]
+];
+
+test("клавиша, пропавшая из каталога, становится ПРОБЕЛОМ, а не исчезает", () => {
+  const { plan } = planOf(lostKeyPosts());
+  assert.equal(plan.places.length, 3, "место осталось в расчёте");
+  const lost = plan.places[0];
+  assert.equal(lost.missing, true);
+  assert.equal(lost.missingReason, LG.GAPS.KEY_UNKNOWN);
+  assert.equal(lost.product, null, "механизм не подобран — догадок нет");
+  assert.match(LG.GAP_TEXTS[LG.GAPS.KEY_UNKNOWN], /не найден в каталоге/);
+  assert.ok(plan.gaps.some(g => g.kind === LG.GAPS.KEY_UNKNOWN && g.groupLabel === "Кухня"),
+    "пробел назван в списке пробелов с группой");
+});
+
+test("потеря товара НЕ роняет N группы и НЕ меняет механизмы соседних постов", () => {
+  const whole = planOf(KITCHEN3).plan;
+  const broken = planOf(lostKeyPosts()).plan;
+  assert.equal(whole.groups[0].placeCount, 3);
+  assert.equal(broken.groups[0].placeCount, 3, "число мест группы прежнее");
+  /* соседи — те же роли и те же артикулы, что и в целом проекте */
+  assert.deepEqual(broken.places.slice(1).map(p => p.role), whole.places.slice(1).map(p => p.role));
+  assert.deepEqual(broken.places.slice(1).map(p => p.code), ["20005.0", "20013.0"]);
+  assert.equal(broken.places[0].role, LG.ROLES.CHANGEOVER, "роль у потерянного места названа");
+});
+
+test("пробел потерянной клавиши — пробел ПОСТАВКИ: поставщик и монтажник обязаны его видеть", () => {
+  /* «Изделие нужно, а заказать нечего» — это накладная и обвязка, а не блок «дозаполните
+     проект» (там место только у NO_GROUP и нераспознанной схемы). */
+  assert.equal(LG.isSupplyGap(LG.GAPS.KEY_UNKNOWN), true);
+  assert.equal(LG.isProjectGap(LG.GAPS.KEY_UNKNOWN), false);
+});
+
+test("пропавший товар БЕЗ группы местом не становится — розетка не выдаёт себя за клавишу", () => {
+  /* Группу назначают месту управления, и поле для неё есть только у клавиши. Без группы о
+     пропавшем товаре сказать нечего, а на расчёт он не влияет: место без группы и так не
+     попало бы ни в одну группу. Печатать его «клавишей без группы» значило бы соврать. */
+  const places = collect([{ id: "p1", number: 1, mechanismIds: [999], keyGroups: [""] }]);
+  assert.deepEqual(places, []);
+});
+
+test("найденный НЕ-клавишный товар местом не становится даже с группой", () => {
+  /* Каталог о розетке знает и знает, что механизм под ней не нужен. Устаревшая группа
+     (осталась от замены клавиши) не должна раздувать N и менять механизмы соседей. */
+  const places = collect([{ id: "p1", number: 1, mechanismIds: [3], keyGroups: ["Кухня"] }]);
+  assert.deepEqual(places, []);
+});
+
 /* ── подбор механизма ─────────────────────────────────────────────────────────────── */
 
 test("подбор строго по серии: клавише Plana механизм Eikon НЕ подставляется", () => {

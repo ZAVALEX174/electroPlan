@@ -65,7 +65,7 @@ const frameProduct=id=>product(id);
 /* Чистая доменная логика каталога (модули/серии/совместимость/рамки/картинки)
    вынесена в js/catalog.js (EPCatalog) — PLAN 2.1; берём её алиасами. Accessor'ы
    product/byKind над state и генерация HTML/DOM остаются в этом файле. */
-const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,defaultPostName,productImage,frameOpening,frameOpenings,moduleFace}=EPCatalog;
+const {moduleWord,placeWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,defaultPostName,productImage,frameOpening,frameOpenings,moduleFace}=EPCatalog;
 const productMoney=item=>money(item?.price);
 const productOptionLabel=item=>`[${item?.code||"без артикула"}] ${item?.name||"Без названия"} — ${productMoney(item)}`;
 const mechanismModulesTotal=ids=>ids.reduce((sum,id)=>sum+mechanismSpan(product(id)),0);
@@ -292,6 +292,7 @@ async function init(){
   loadCachedRate();
   fillDocHeaderInputs();   /* реквизиты КП: заполнить поля (и дату «сегодня» на чистом старте) */
   renderCatalog();renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();
+  renderLightingSchemeSelect();   /* селектор схемы в панели проекта: заполняем и на чистом старте */
   applyGridStyle();syncMarkupControls();updateZoomUi();applyView();   /* сетка/переключатели/зум/вид — из state (в т.ч. восстановленного) */
   _autosaveOn=true;   /* включаем ПОСЛЕ восстановления, иначе пустой старт затрёт сохранённое */
   if(restored){
@@ -323,7 +324,7 @@ function renderTemplates(){
      разделение на посты/импосты и модули. Раньше здесь была россыпь иконок механизмов —
      по замечанию владельца «нет получившегося полного изображения рамки и модулей». */
   list.innerHTML=state.templates.map(t=>`<div class="library-card">
-    <div class="library-title"><strong>${esc(t.name)}</strong><span>${t.mechanismIds.length} места</span></div>
+    <div class="library-title"><strong>${esc(t.name)}</strong><span>${esc(placeWord(t.mechanismIds.length))}</span></div>
     <div class="library-thumb">${assembledPostHtml(t,{size:"sm"})}</div>
     <div class="library-actions"><button class="place" data-place-template="${t.id}">Разместить</button><button data-edit-template="${t.id}">✎</button><button data-delete-template="${t.id}">×</button></div>
   </div>`).join("");
@@ -860,7 +861,7 @@ function showHover(kind,obj,e){
     /* Миниатюра собранного поста (та же EPPostImage, что в конструкторе) вместо простыни
        названий — сразу видно рамку, посты и импосты. */
     hover.innerHTML=`<h4>${esc(postNumberLabel(obj))}</h4><div class="hover-thumb">${assembledPostHtml(obj,{size:"sm"})}</div>
-    <dl><dt>Накладка</dt><dd>${esc(frame?.name)}</dd><dt>Коробки</dt><dd>${boxCell}</dd><dt>Стоимость поста</dt><dd>${money(postCost(obj))}</dd></dl>`;
+    <dl><dt>Накладка</dt><dd>${esc(frame?.name)}</dd><dt>Коробки</dt><dd>${boxCell}</dd><dt>Стоимость поста</dt><dd>${money(postTotalCost(obj))}</dd></dl>`;
   }
   hover.classList.add("show");positionHover(e);
 }
@@ -1071,7 +1072,7 @@ function renderProperties(){
     props.innerHTML=`<label>Пост<input value="${esc(postNumberLabel(p))}" disabled></label>
     <label>Комната<input value="${esc(room?.name||"Не назначена")}" disabled></label>
     <label>Механизмов / коробок<input value="${p.mechanismIds.length} / ${postComposition(p).boxCount}" disabled></label>
-    <label>Стоимость<input value="${money(postCost(p))}" disabled></label>
+    <label>Стоимость<input value="${money(postTotalCost(p))}" disabled></label>
     <div class="property-actions"><button class="btn primary" id="editSelected">Редактировать</button><button class="btn ghost" id="removeSelected">Удалить</button></div>`;
     $("editSelected").onclick=()=>openPostBuilder({placedId:id});$("removeSelected").onclick=()=>removeEntity(kind,id);
   }else if(kind==="wall"){
@@ -1157,8 +1158,12 @@ function lightingFor(posts){
     ambiguous:[...ambiguous.values()]};
 }
 /* Строки групп света ОДНОГО поста с номером модуля клавиши. Номер берём из той же
-   EPPosts.moduleLayout, что рисует слоты конструктора и таблицу листа монтажника: две разные
-   нумерации развели бы «модуль 2» в документе и в конструкторе на разные клавиши. */
+   EPPosts.moduleLayout, что рисует слоты конструктора: там сборка показана одним рядом слева
+   направо, и «модуль 2» на экране обязан быть тем же модулем, что в строке группы света.
+   ⚠️ ЛИСТ МОНТАЖНИКА ПЕРЕПИСЫВАЕТ ЭТОТ НОМЕР НА СВОЙ (см. buildPostSheet): в его карточке
+   немецко-французская сборка разложена ПО ПОСТАМ-коробкам, и адрес модуля там «пост.модуль».
+   Это не две нумерации одного экрана, а разные адреса разных представлений — внутри каждого
+   документа адрес ровно один, и это то, что читает человек. */
 function lightingRowsFor(post,light){
   if(!light)return[];
   const rows=light.rows.get(EPLightingPlan.postKey(post))||[];
@@ -1169,6 +1174,32 @@ function lightingRowsFor(post,light){
 /* Сумма подставленных механизмов по проекту — подпись в блоке «Группы света». Считается по
    тем же place.product, что и цена в смете (estimate.js берёт их из lightingOf). */
 const lightingSum=light=>(((light&&light.plan.places)||[]).reduce((sum,p)=>sum+(p&&p.product?(Number(p.product.price)||0):0),0));
+
+/* ---- Цена поста: ОДНА функция на все экраны и документы --------------------------------
+   Дефект, ради которого это здесь: панель свойств и подсказка на плане считали postCost БЕЗ
+   механизмов групп света, а конструктор и строка сметы — с ними, и один и тот же пост стоил
+   77,86 € на плане и 103,65 € в смете. Формула теперь ровно одна и лежит в EPEstimate.postPrice
+   (рядом со сметой, которая ею же считает строку поста), а здесь только подстановка
+   зависимостей приложения — как и везде в оркестраторе.
+
+   РАСЧЁТ ГРУПП СВЕТА КЭШИРУЕТСЯ, потому что теперь его спрашивают и подсказка (на каждое
+   наведение), и панель свойств (на каждое выделение). Подпись кэша — ВСЁ, от чего расчёт
+   зависит: схема электрики проекта, адреса постов (номер решает канонический порядок ролей!),
+   наборы клавиш, их группы и сам факт загруженности каталога. Изменилось что-то из этого —
+   считаем заново; не изменилось — ответ обязан быть тем же, иначе расходились бы уже два
+   вызова подряд. Кэш здесь именно оптимизация: убери его — поведение не изменится. */
+let _lightCache={sig:null,value:null};
+function projectLighting(){
+  const sig=JSON.stringify([lightingScheme(),state.products.length,
+    state.posts.map(p=>[p.id,p.number,p.mechanismIds,p.keyGroups])]);
+  if(_lightCache.sig!==sig)_lightCache={sig,value:lightingFor(state.posts)};
+  return _lightCache.value;
+}
+/* Полная цена поста = его состав + механизмы его групп света. light передают те, у кого расчёт
+   уже на руках (конструктор, смета); остальные берут проектный (projectLighting). */
+function postTotalCost(post,light){
+  return EPEstimate.postPrice(postCost(post),lightingRowsFor(post,light===undefined?projectLighting():light));
+}
 /* Неоднозначный подбор: в серии клавиши на нужную роль нашлось НЕСКОЛЬКО голых механизмов, и
    разобрать их данными нечем. Молча выбрать один нельзя — это деньги и монтаж, поэтому
    показываем кандидатов человеку отдельным блоком (в расчёт такое место не попадает). */
@@ -1197,7 +1228,7 @@ function lightingHtml(light,title){
    внутри, чтобы ОДИН и тот же расчёт ушёл и в смету, и в блок «Группы света» рядом: два
    независимых прохода могли бы разойтись между экраном и документом. */
 function buildEstimate(light){
-  const l=light||lightingFor(state.posts);
+  const l=light||projectLighting();
   return EPEstimate.build({
     devices:state.devices,posts:state.posts,
     product,frameProduct,postCost,postComposition,
@@ -1208,7 +1239,7 @@ function buildEstimate(light){
   });
 }
 function renderSummary(){
-  const light=lightingFor(state.posts);
+  const light=projectLighting();
   const est=buildEstimate(light);
   $("equipmentTotal").textContent=money(est.equipment);$("materialsTotal").textContent=money(est.materials);
   $("workTotal").textContent=money(est.work);$("grandTotal").textContent=money(est.total);
@@ -1229,15 +1260,24 @@ function renderSummary(){
 
 /* Селектор схемы электрики: список строится ИЗ EPLightingGroups.SCHEMES, включая
    нереализованную «Звонковые кнопки» с её собственной пометкой. Второй копии названий и
-   пояснений у интерфейса нет намеренно — она разошлась бы с расчётом. */
+   пояснений у интерфейса нет намеренно — она разошлась бы с расчётом.
+   Селекторов ДВА и это одна настройка: главный — в панели проекта (схема электрики его
+   свойство, как тип стены), второй — в конструкторе, где клавишам назначают группы и схема
+   нужна под рукой. Рисуются они одним кодом и слушаются одним обработчиком, поэтому разойтись
+   не могут; отсутствующий в разметке узел просто пропускается. */
+const LIGHTING_SCHEME_HOSTS=[["lightingSchemeSelect","lightingSchemeHint"],
+  ["lightingSchemeSelectBuilder","lightingSchemeHintBuilder"]];
 function renderLightingSchemeSelect(){
-  const sel=$("lightingSchemeSelect");if(!sel)return;
   const current=lightingScheme();
-  sel.innerHTML=EPLightingGroups.SCHEMES.map(item=>
-    `<option value="${esc(item.id)}"${item.id===current?" selected":""}>${esc(item.label)}${item.supported?"":" — расчёт недоступен"}</option>`).join("");
-  sel.value=current;
   const found=EPLightingGroups.SCHEMES.find(item=>item.id===current);
-  $("lightingSchemeHint").textContent=found?found.note:"";
+  const options=EPLightingGroups.SCHEMES.map(item=>
+    `<option value="${esc(item.id)}"${item.id===current?" selected":""}>${esc(item.label)}${item.supported?"":" — расчёт недоступен"}</option>`).join("");
+  LIGHTING_SCHEME_HOSTS.forEach(([selectId,hintId])=>{
+    const sel=$(selectId);
+    if(sel){sel.innerHTML=options;sel.value=current}
+    const hint=$(hintId);
+    if(hint)hint.textContent=found?found.note:"";
+  });
 }
 
 function openPostBuilder({templateId=null,placedId=null}={}){
@@ -1418,6 +1458,7 @@ function renderBuilder(){
 /* Выбранные модули поста. Товар выбирается КАРТОЧКОЙ в каталоге справа, поэтому строка слота
    показывает выбранное, действия («заменить» / «убрать»), поле группы света у клавиши и
    подставленный расчётом механизм. lightRows — строки групп света ЭТОГО поста (по keyIndex). */
+const GROUP_NAME_MAX=40;   /* предел длины имени группы света в поле ввода (см. groupField ниже) */
 function renderBuilderSlots(layout,remaining,lightRows){
   const byKey=new Map((lightRows||[]).map(r=>[Number(r.keyIndex),r]));
   const target=state.builder.target;
@@ -1438,7 +1479,11 @@ function renderBuilderSlots(layout,remaining,lightRows){
        гадать, куда он делся. */
     const groupField=!isKeyProduct(item)?""
       : state.builder.editingPlacedId
-        ? `<label class="slot-group">Группа света<input type="text" data-slot-group="${index}" value="${esc(state.builder.slots[index]?.group||"")}" placeholder="например «Кухня» или «4.1»" autocomplete="off"></label>`
+        /* maxlength — не украшение: имя группы печатается ЦЕЛИКОМ в блоке «Группы света» КП,
+           листа монтажника и панели проекта, и без ограничения одно поле выдавливало соседнюю
+           колонку документа. 40 знаков с запасом хватает и «Кухне», и «4.1», и «Спальня,
+           бра у кровати» — а длиннее это уже не имя группы, а примечание. */
+        ? `<label class="slot-group">Группа света<input type="text" data-slot-group="${index}" value="${esc(state.builder.slots[index]?.group||"")}" maxlength="${GROUP_NAME_MAX}" placeholder="например «Кухня» или «4.1»" autocomplete="off"></label>`
         : `<div class="slot-group-note">Группа света задаётся у поста на плане: разместите пост и укажите группу там. У шаблона её нет намеренно — один шаблон в трёх комнатах это три разные группы, а не одна на три места.</div>`;
     return `<div class="builder-slot${isTarget?" is-target":""}">
       <div class="slot-number" title="${esc(moduleWord(slot.span))}">${esc(slot.label)}</div>
@@ -1693,9 +1738,10 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
     : "";
   /* Механизмы групп света — ОТДЕЛЬНАЯ строка состава и ОТДЕЛЬНОЕ слагаемое цены, ровно как в
      смете (estimate.js): в post.mechanismIds они не входят и входить не могут (удвоили бы
-     modulesTotal и сменили бы коробку с суппортом). Складываем их к postCost здесь же, чтобы
-     «Стоимость поста» на экране совпадала со строкой этого поста в смете и в КП. */
-  const lightRows=(lightingRowsFor(post,light)||[]).filter(r=>!r.missing&&r.code);
+     modulesTotal и сменили бы коробку с суппортом). Что именно идёт в деньги, решает тот же
+     EPEstimate.billableLighting, что и в смете, а итог — postTotalCost: «Стоимость поста» на
+     этом экране обязана совпадать и со строкой сметы, и с подсказкой на плане. */
+  const lightRows=EPEstimate.billableLighting(lightingRowsFor(post,light));
   const lightSum=lightRows.reduce((sum,r)=>sum+(Number(r.price)||0),0);
   const lightRow=lightRows.length
     ? `<div class="composition-row"><span>Механизмы групп света</span><b>${lightRows.length} шт. · ${money(lightSum)}</b></div>`
@@ -1706,7 +1752,7 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
   const lightBlock=light?lightingHtml(light,"Группы света в проекте"):"";
   host.innerHTML=`${errorHtml||""}<div class="composition-head"><strong>Состав поста</strong><span>Стандарт: ${esc(STANDARD_LABEL[comp.standard]||comp.standard)}</span></div>
     ${supportRow}${boxRow}${lightRow}
-    <div class="composition-row total"><span>Стоимость поста</span><b>${money(postCost(post)+lightSum)}</b></div>${note}${lightBlock}`;
+    <div class="composition-row total"><span>Стоимость поста</span><b>${money(postTotalCost(post,light))}</b></div>${note}${lightBlock}`;
 }
 function changePostSlotCount(){
   const currentName=$("postName").value.trim();
@@ -2369,7 +2415,12 @@ function supplierSpecHtml(opts,light){
    крупный кадр для печати; в отличие от photoReady оно НЕ требует размеченных окон (окна нужны
    только для композитинга клавиш на СОБРАННОЙ картинке, здесь фото стоит отдельно), поэтому
    закрывает намного больше накладок. Нет своего фото → EPExplodedView нарисует глиф по kind. */
-function buildExplodedSpec(comp,box,layout,frameSpec,lightRows){
+/* moduleLabelOf(index, slot) — адрес модуля В ЭТОЙ КАРТОЧКЕ (см. buildPostSheet): у сборки из
+   нескольких постов «пост.модуль», у обычной накладки сквозной номер. Схема обязана называть
+   модули теми же номерами, что таблица и обвязка над ней, — иначе монтажник читает про разное.
+   По умолчанию — номер самой раскладки: старые вызовы работают как раньше. */
+function buildExplodedSpec(comp,box,layout,frameSpec,lightRows,moduleLabelOf){
+  const labelOf=moduleLabelOf||((index,slot)=>slot&&slot.label);
   const parts=[];
   const frame=comp.frame;
   const photoOf=item=>productImage(item,{detail:true});   // "" если фото нет/плейсхолдер (сам фильтрует)
@@ -2392,9 +2443,10 @@ function buildExplodedSpec(comp,box,layout,frameSpec,lightRows){
   const lightByKey=new Map((lightRows||[]).map(r=>[Number(r.keyIndex),r]));
   layout.forEach((s,index)=>{
     const item=s.item;
+    const label=labelOf(index,s);
     const photo=photoOf(item);   // item может быть null (механизм не в каталоге) — productImage вернёт ""
     parts.push({
-      role:"Модуль",pos:s.label,
+      role:"Модуль",pos:label,
       name:item?item.name:`Механизм не найден (арт. ${s.id})`,
       code:item?item.code:"",
       icon:{categoryId:item?.categoryId,icon:item?.icon,name:item?.name},
@@ -2404,7 +2456,7 @@ function buildExplodedSpec(comp,box,layout,frameSpec,lightRows){
     if(row&&!row.missing&&row.product){
       const mechPhoto=photoOf(row.product);
       parts.push({
-        role:"Модуль",pos:`${s.label} · механизм`,
+        role:"Модуль",pos:`${label} · механизм`,
         name:row.product.name,code:row.code,
         icon:{categoryId:row.product.categoryId,icon:row.product.icon,name:row.product.name},
         photo:mechPhoto?{imageUrl:mechPhoto}:null
@@ -2443,8 +2495,38 @@ function buildExplodedSpec(comp,box,layout,frameSpec,lightRows){
 function buildPostSheet(post,light){
   const comp=postComposition(post);
   const frame=comp.frame;
-  /* Группы света этого поста, ключ — позиция клавиши в посте (keyIndex контракта). */
-  const lightRows=lightingRowsFor(post,light);
+  /* Две раскладки одного и того же набора: плоская (слева направо по всей накладке) и ПО
+     ПОСТАМ-коробкам — монтажнику важно, что коробки разные. Обе считает EPPosts, чтобы позиции
+     совпадали с конструктором и превью; адрес модуля для карточки собирается ниже из второй.
+     Нумерацию ПО ПОСТАМ считаем над ТОКЕНАМИ-позициями (js/builderSlots.js): упаковка может
+     переставить механизмы между постами накладки, и без токенов было бы не узнать, какая
+     позиция исходного набора попала в какой пост, — примечание с группой света уехало бы к
+     чужой клавише. Товары при этом настоящие: их отдаёт tokenDeps.product. */
+  const layout=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan});
+  const slots=EPBuilderSlots.fromPost(post);
+  const tokenDeps=EPBuilderSlots.tokenDeps(slots,{product,mechanismSpan});
+  const groups=EPPosts.postModuleGroups(EPBuilderSlots.tokens(slots),frame,tokenDeps);
+  /* ⚠️ ОДНА НУМЕРАЦИЯ МОДУЛЕЙ НА ВСЮ КАРТОЧКУ ПОСТА. Монтажник читает таблицу модулей, обвязку
+     и взрыв-схему рядом, глазами, — и один и тот же модуль обязан называться в них ОДИНАКОВО.
+     Пока таблица немецко-французской сборки печаталась по постам («пост 2, модуль 1»), а
+     обвязка сквозной нумерацией («модуль 3»), одна и та же клавиша имела в одной карточке два
+     номера, и понять, о какой из них речь, было нельзя.
+     Форма адреса: у сборки из НЕСКОЛЬКИХ постов — «пост.модуль» («2.1», двухмодульный —
+     «2.1–2»), у обычной одной накладки — прежний сквозной номер («1», «2–3») байт в байт.
+     Считается по РАСКЛАДКЕ ПО ПОСТАМ, потому что физическую позицию (в какой коробке стоит
+     механизм) знает только она; для позиции, которой в раскладке нет (механизм шире накладки —
+     ушёл в overflow), остаётся плоский номер, иначе строка потеряла бы адрес вовсе. */
+  const multiPost=groups.length>1;
+  const labelByKey=new Map();
+  groups.forEach(g=>(g.modules||[]).forEach(m=>
+    labelByKey.set(Number(m.id),multiPost?`${g.post}.${m.label}`:m.label)));
+  const moduleLabelOf=(index,slot)=>labelByKey.has(Number(index))?labelByKey.get(Number(index))
+    :(slot&&slot.label!=null?slot.label:String(Number(index)+1));
+  /* Группы света этого поста, ключ — позиция клавиши в посте (keyIndex контракта). Номер модуля
+     переписываем на адрес этой карточки: lightingRowsFor считает его плоским (он же нужен
+     конструктору, где сборка всегда одна), а здесь у клавиши адрес «пост.модуль». */
+  const lightRows=lightingRowsFor(post,light)
+    .map(r=>Object.assign({},r,{moduleLabel:moduleLabelOf(r.keyIndex,layout[r.keyIndex])}));
   const lightByKey=new Map(lightRows.map(r=>[Number(r.keyIndex),r]));
   /* Примечание клавиши: группа, номер места в ней и подставленная роль с артикулом — либо
      причина пробела СЛОВАМИ РАСЧЁТА (EPLightingGroups.GAP_TEXTS). Монтажник читает строку
@@ -2455,24 +2537,14 @@ function buildPostSheet(post,light){
   /* index — позиция клавиши в post.mechanismIds, а НЕ порядок в таблице: у нумерации по
      постам порядок другой (см. moduleGroups ниже), а адрес клавиши обязан быть один. */
   const moduleRow=(s,index)=>({
-    label:s.label,
+    label:moduleLabelOf(index,s),
     name:s.item?s.item.name:`Механизм не найден (арт. ${(post.mechanismIds||[])[index]})`,
     code:s.item?s.item.code:"",
     note:s.item?lightNote(lightByKey.get(index)):"нет в каталоге"
   });
-  /* Плоская нумерация (совместимость) + нумерация ПО ПОСТАМ: в каждом посте счёт модулей
-     с 1 («пост 1, модули 1–2», «пост 2, модуль 1») — монтажнику важно, что это разные
-     коробки. Обе считает EPPosts, чтобы позиции совпадали с конструктором и превью. */
-  const layout=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan});
   const modules=layout.map((s,index)=>moduleRow(s,index));
-  /* Нумерацию ПО ПОСТАМ считаем над ТОКЕНАМИ-позициями (js/builderSlots.js): упаковка может
-     переставить механизмы между постами накладки, и без токенов было бы не узнать, какая
-     позиция исходного набора попала в какой пост, — примечание с группой света уехало бы к
-     чужой клавише. Товары при этом настоящие: их отдаёт tokenDeps.product. */
-  const slots=EPBuilderSlots.fromPost(post);
-  const tokenDeps=EPBuilderSlots.tokenDeps(slots,{product,mechanismSpan});
-  const moduleGroups=EPPosts.postModuleGroups(EPBuilderSlots.tokens(slots),frame,tokenDeps)
-    .map(g=>({post:g.post,capacity:g.capacity,modules:g.modules.map(m=>moduleRow(m,Number(m.id)))}));
+  const moduleGroups=groups.map(g=>({post:g.post,capacity:g.capacity,
+    modules:g.modules.map(m=>moduleRow(m,Number(m.id)))}));
   /* Точная коробка либо стандартно-совместимый фолбэк — выбор наш: только приложение знает
      тип стены проекта. Дальше обвязку (суппорт → коробка → накладка) собирает чистая
      EPInstallSheet.buildFittings — формат её строк принадлежит документу, а не оркестратору,
@@ -2508,7 +2580,7 @@ function buildPostSheet(post,light){
     /* Взрыв-схема ДОПОЛНЯЕТ собранную картинку: деталь → выносная линия → артикул. Глиф детали —
        из каталожной системы иконок (pickIcon/iconSvg EPPostImage), фото накладки — из того же spec. */
     explodedViewHtml:EPExplodedView.buildHtml(
-      buildExplodedSpec(comp,box,layout,spec.frame,lightRows),
+      buildExplodedSpec(comp,box,layout,spec.frame,lightRows,moduleLabelOf),
       {esc,pickIcon:EPPostImage.pickIcon,iconSvg:EPPostImage.iconSvg}),
     /* немецко-французский: коробок и суппортов несколько (пост = 2 модуля) + импосты —
        важно монтажнику: по прежнему примечанию он вёз одну планку на всю сборку */
@@ -2550,7 +2622,7 @@ function installSheetForProject(){
     const rb=roomIndex.has(b.roomId)?roomIndex.get(b.roomId):Infinity;
     return ra-rb||(Number(a.number)||0)-(Number(b.number)||0);
   });
-  const light=lightingFor(state.posts);
+  const light=projectLighting();
   openInstallSheet({posts:ordered.map(p=>buildPostSheet(p,light)),subtitle:"Помодульная раскладка постов по проекту",
     /* Свод по группам света — после карточек постов: какие механизмы подставил расчёт,
        сколько нужно импульсных реле и что осталось незаполненным. */
@@ -2567,12 +2639,57 @@ function installSheetForProject(){
 }
 /* Осознанная перенумерация постов к 1..N по расположению на плане (сверху вниз, слева
    направо) — как обычно обходят точки на чертеже. Пока пользователь не нажал, номера
-   закреплены и не прыгают при удалении (иначе распечатанные документы разошлись бы). */
+   закреплены и не прыгают при удалении (иначе распечатанные документы разошлись бы).
+
+   ⚠️ ПЕРЕНУМЕРАЦИЯ МОЖЕТ ИЗМЕНИТЬ ПОДБОР МЕХАНИЗМОВ — И ЭТО НЕ ДЕФЕКТ, А СЛЕДСТВИЕ, О КОТОРОМ
+   ОБЯЗАН ЗНАТЬ ЧЕЛОВЕК. В классической схеме переключатели достаются ПЕРВЫМ ДВУМ местам группы,
+   а «первые» считаются в каноническом порядке EPLightingGroups.canonicalOrder — по номерам
+   постов. Сменив номера, мы меняем и порядок: инвертор переезжает в другой пост, а если у
+   клавиш разные серии, меняется и СУММА (в Neve Up инвертора нет вовсе — там, где он выпал,
+   стоит честный пробел, а после перестановки он может выпасть у соседа или не выпасть совсем).
+
+   ПОЧЕМУ МЫ ПРЕДУПРЕЖДАЕМ, А НЕ ОТВЯЗЫВАЕМ ПОРЯДОК ОТ НОМЕРОВ. Требование «один и тот же проект
+   обязан давать один и тот же расчёт» не нарушено: номер поста — ЧАСТЬ ПРОЕКТА (он печатается
+   на бирках плана, в КП и в листе монтажника), и перенумерация — это правка проекта, а не
+   повторный расчёт того же. Отвязать роли от номеров можно было бы только привязав их к
+   внутреннему id (порядку создания постов) — и тогда порядок мест в документах («место 2 из 3»)
+   перестал бы совпадать с порядком, в котором монтажник обходит план: печатали бы одно, а
+   считали по другому, причём невидимо. Порядок «как человек читает план» — осознанное правило
+   модуля, и перенумерация как раз приводит план к этому порядку. Значит правильное поведение —
+   не отменить пересчёт, а показать его цену ДО того, как он применён.
+
+   Подтверждение — ПОВТОРОМ ТОГО ЖЕ ДЕЙСТВИЯ, как при закрытии конструктора с несохранённой
+   работой (см. requestClosePostBuilder): своих модальных диалогов в приложении нет, а
+   системный confirm() в проекте не используется. Окно шире (6 с против 4 с): здесь человеку
+   надо прочитать сумму, а не просто вспомнить, что он делал. Если расчёт не меняется —
+   не спрашиваем вовсе: лишний вопрос обесценивает предупреждение. */
+const RENUMBER_CONFIRM_MS=6000;
+let _renumberArmed=0;
+/* Подпись подбора: роль и артикул КАЖДОГО места в порядке входного списка постов. Порядок
+   входа один и тот же в обоих расчётах, поэтому сравнение поэлементное и от номеров не
+   зависит — оно показывает ровно то, что изменится у конкретных постов. */
+const lightingSignature=light=>JSON.stringify((((light&&light.plan)||{}).places||[]).map(p=>[p&&p.role,p&&p.code]));
 function renumberPosts(){
   if(!state.posts.length){toast("В проекте нет постов");return}
-  state.posts.slice().sort((a,b)=>(a.y-b.y)||(a.x-b.x)).forEach((p,i)=>p.number=i+1);
+  const ordered=state.posts.slice().sort((a,b)=>(a.y-b.y)||(a.x-b.x));
+  const numbers=new Map(ordered.map((p,i)=>[p.id,i+1]));
+  /* Считаем будущий расчёт НА КОПИЯХ постов — состояние проекта до подтверждения не трогаем. */
+  const before=projectLighting();
+  const after=lightingFor(state.posts.map(p=>Object.assign({},p,{number:numbers.get(p.id)})));
+  const changed=lightingSignature(before)!==lightingSignature(after);
+  const now=Date.now();
+  if(changed&&!(_renumberArmed&&now-_renumberArmed<RENUMBER_CONFIRM_MS)){
+    _renumberArmed=now;
+    const sumBefore=lightingSum(before),sumAfter=lightingSum(after);
+    toast(Math.abs(sumBefore-sumAfter)>=0.005
+      ? `Перенумерация пересоберёт механизмы групп света: ${money(sumBefore)} → ${money(sumAfter)}. Нажмите ещё раз, чтобы подтвердить`
+      : "Перенумерация переставит механизмы групп света между постами (сумма прежняя). Нажмите ещё раз, чтобы подтвердить");
+    return;
+  }
+  _renumberArmed=0;
+  ordered.forEach(p=>p.number=numbers.get(p.id));
   renderAll();renderProperties();renderSummary();persistProject();
-  toast("Посты перенумерованы по расположению на плане");
+  toast(changed?"Посты перенумерованы, механизмы групп света пересчитаны":"Посты перенумерованы по расположению на плане");
 }
 
 /* Оркестратор КП: считаем ту же смету, что и панель справа (единый buildEstimate —
@@ -2581,7 +2698,7 @@ function renumberPosts(){
 function generateCommercialOffer(){
   /* ОДИН расчёт групп света на весь документ: он же уходит в смету (цены механизмов), он же в
      блок «Группы света» и он же в свод поставщика — двум проходам разойтись негде. */
-  const light=lightingFor(state.posts);
+  const light=projectLighting();
   const est=buildEstimate(light);
   if(est.missing.length)toast(`Внимание: позиций без товара в каталоге — ${est.missing.length}`);
   const win=window.open("","_blank");
@@ -2722,12 +2839,17 @@ $("savePost").onclick=savePostBuilder;$("postSlotCount").onchange=changePostSlot
 $("builderSearch").oninput=e=>{state.builder.query=e.target.value;renderBuilderCatalog()};
 /* Схема электрики — свойство проекта, как и тип стены: меняет подстановку механизмов во ВСЕХ
    постах, поэтому перерисовываем конструктор и смету и сохраняем. */
-$("lightingSchemeSelect").onchange=e=>{
-  EP_DATA.settings.lightingScheme=e.target.value;
-  renderLightingSchemeSelect();
-  if($("postModal").classList.contains("open"))renderBuilder();
-  renderSummary();scheduleSave();
-};
+/* Оба селектора схемы (панель проекта и конструктор) меняют ОДНУ настройку одним обработчиком:
+   вторая копия правил переключения разошлась бы с первой при первой же правке. */
+LIGHTING_SCHEME_HOSTS.forEach(([selectId])=>{
+  const sel=$(selectId);if(!sel)return;
+  sel.onchange=e=>{
+    EP_DATA.settings.lightingScheme=e.target.value;
+    renderLightingSchemeSelect();   /* второй селектор обязан показать то же значение */
+    if($("postModal").classList.contains("open"))renderBuilder();
+    renderSummary();scheduleSave();
+  };
+});
 /* Тип стены — первый шаг конструктора и свойство проекта: меняет подбор коробки,
    поэтому перерисовываем состав и смету и сохраняем. */
 document.querySelectorAll("#postWallType .wall-type-option").forEach(b=>b.onclick=()=>{

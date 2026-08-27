@@ -4,7 +4,7 @@
    поэтому браузер поднимать не нужно. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { build } = require("../js/estimate.js");
+const { build, postPrice, billableLighting } = require("../js/estimate.js");
 
 /* Каталог-заглушка: розетка 10 € за штуку и кабель-канал 5 € за метр. */
 const CATALOG = {
@@ -241,6 +241,39 @@ test("группы света: пробел подбора позиции НЕ �
     lightingOf: () => [lightRow({ missing: true, code: "", price: 0, name: "" })] });
   assert.ok(!/группа «Кухня»/.test(e.groups[0].composition));
   near(e.equipment, 30, "пробел не стоит денег");
+});
+
+/* ── одна формула цены поста на все экраны ────────────────────────────────────────────
+   Дефект, который эти три теста держат закрытым: цену поста считали в четырёх местах, и две
+   копии формулы забывали про механизмы групп света. Панель свойств и подсказка на плане
+   показывали 77,86 €, конструктор и строка сметы — 103,65 €; пользователь видел две разные
+   цены одного поста. Формула теперь одна — EPEstimate.postPrice, — и смета обязана считать
+   строку поста ЕЮ ЖЕ, иначе копия заведётся снова. */
+
+test("строка сметы считается ровно postPrice — той же функцией, что зовут экраны", () => {
+  const post = { id: "p1", name: "Пост", frameId: 2, mechanismIds: [1] };
+  const rows = [lightRow()];
+  const e = run({ posts: [post], postCost: () => 30, postComposition: () => ({ boxCount: 1 }),
+    lightingOf: () => rows });
+  near(e.groups[0].sum, postPrice(30, rows), "цена строки = postPrice(состав поста, строки групп света)");
+  near(postPrice(30, rows), 55.79, "и это состав поста плюс механизм");
+});
+
+test("postPrice берёт в деньги ровно то, что идёт в состав позиции", () => {
+  /* Пробел подбора не даёт ни строки состава, ни цены — фильтр на оба случая ОДИН
+     (billableLighting), иначе состав в КП и его цена разошлись бы. */
+  const gap = lightRow({ missing: true, code: "", price: 99, name: "" });
+  const good = lightRow();
+  assert.deepEqual(billableLighting([good, gap]), [good]);
+  near(postPrice(30, [good, gap]), 55.79, "пробел не стоит денег");
+  near(postPrice(30, []), 30, "без групп света цена поста прежняя");
+  near(postPrice(30), 30, "строк нет вовсе — тоже прежняя");
+});
+
+test("postPrice устойчив к мусору на входе — цена не становится NaN", () => {
+  near(postPrice(undefined, null), 0, "нет ни состава, ни строк");
+  near(postPrice("30", [lightRow({ price: "25.79" })]), 55.79, "числа из строк читаются числами");
+  near(postPrice(30, [lightRow({ price: null })]), 30, "цена без числа не портит сумму");
 });
 
 test("группы света: одинаковые посты с РАЗНЫМИ механизмами не схлопываются в одну строку", () => {

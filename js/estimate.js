@@ -11,6 +11,24 @@
 (() => {
 "use strict";
 
+/* ⚠️ ЦЕНА ОДНОГО ПОСТА — ОДНА ФУНКЦИЯ НА ВСЕ ЭКРАНЫ И ДОКУМЕНТЫ, И ЖИВЁТ ОНА ЗДЕСЬ.
+   Пост стоит из ДВУХ слагаемых: собственный состав (EPPosts.postCost — механизмы, накладка,
+   суппорты, коробки) и механизмы его групп света (EPLightingPlan.rowsByPost). Второе слагаемое
+   в post.mechanismIds не входит и войти не может: механизм стоит ЗА клавишей, модуля рамки не
+   занимает, и положить его в набор значило бы удвоить modulesTotal, сменить коробку с суппортом
+   и увести раскладку по постам в overflow. Поэтому цена поста — это СУММА, а не одно число, и
+   собирать её каждому потребителю самому нельзя: пока формула была скопирована, панель свойств
+   и подсказка на плане показывали 77,86 €, а конструктор и строка сметы за тот же пост —
+   103,65 €. Пользователь видел две разные цены одного поста и не мог знать, какая настоящая.
+   billableLighting — тот же фильтр, что решает, какие строки идут в СОСТАВ позиции: в деньги и
+   в состав обязано попадать одно и то же. Пробел подбора позиции не даёт вовсе (пустая строка
+   «не подобран» в КП соврала бы про состав), а причину человек видит в блоке «Группы света».
+   Функция отдана наружу (EPEstimate.postPrice) именно затем, чтобы приложение звало ЕЁ, а не
+   повторяло формулу у каждого экрана. */
+const billableLighting = rows => (Array.isArray(rows) ? rows : []).filter(r => r && !r.missing && r.code);
+const lightingSum = rows => billableLighting(rows).reduce((sum, r) => sum + (Number(r.price) || 0), 0);
+const postPrice = (baseCost, lightRows) => (Number(baseCost) || 0) + lightingSum(lightRows);
+
 /* Печатный вид ОДНОЙ позиции состава. Строка «Состав / артикул» в КП собирается ТОЛЬКО
    отсюда — из items (структурного состава строки, см. build ниже), а не параллельно с ним.
    Это не украшение: пока текст собирался сам по себе, единственным способом узнать, что
@@ -183,10 +201,9 @@ function build(input) {
        ПОДОБРАННЫЕ — пробел подбора позиции не даёт вовсе, ровно как пробел суппорта выше:
        пустая строка «не подобран» в КП соврала бы про состав, а причину пробела клиент видит
        отдельным блоком «Группы света» (EPLightingPlan.buildHtml). */
-    const lightRows = (lightingOf(po) || []).filter(r => r && !r.missing && r.code);
+    const lightRows = billableLighting(lightingOf(po));
     const lightItems = lightRows.map(r => ({ kind: "lighting", code: r.code || null, name: r.name,
       count: 1, group: r.groupLabel || "", role: r.roleLabel || "" }));
-    const lightSum = lightRows.reduce((sum, r) => sum + (Number(r.price) || 0), 0);
     /* Порядок состава — как при сборке и как у заказчика: механизмы → суппорт →
        коробка → накладка (раньше был обратный). */
     const items = [...mechItems, ...lightItems, supportItem, boxItem, frameItem].filter(Boolean);
@@ -229,8 +246,10 @@ function build(input) {
       /* Цена подставленных механизмов входит В СТРОКУ ПОСТА, а не отдельной строкой сметы:
          equipment считается как сумма lines[].price (ниже), и второй путь для тех же денег
          означал бы двойной счёт. postCost про механизмы групп света не знает и знать не
-         должен — он считает состав ПОСТА, а подбор идёт по всему проекту. */
-      price: postCost(po) + lightSum
+         должен — он считает состав ПОСТА, а подбор идёт по всему проекту. Складывает их
+         postPrice — ТА ЖЕ функция, которой цену этого поста считают панель свойств,
+         подсказка на плане и конструктор (см. её комментарий выше). */
+      price: postPrice(postCost(po), lightRows)
     });
   });
 
@@ -266,6 +285,9 @@ function build(input) {
 /* Двойной экспорт: в браузере — глобальный namespace (сборщика в проекте нет,
    см. PLAN 2.2), в Node — module.exports, чтобы автотесты (PLAN 7.1) могли
    подключить расчёт напрямую, не поднимая приложение и DOM. */
-if (typeof window !== "undefined") window.EPEstimate = { build };
-if (typeof module !== "undefined" && module.exports) module.exports = { build };
+/* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
+   подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию. */
+const api = { build, postPrice, billableLighting };
+if (typeof window !== "undefined") window.EPEstimate = api;
+if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

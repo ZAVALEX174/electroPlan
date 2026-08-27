@@ -10,8 +10,23 @@
 (() => {
 "use strict";
 
-/* «1 модуль / 2 модуля / 5 модулей» — русское склонение. */
-const moduleWord = count => `${count} ${count === 1 ? "модуль" : count >= 2 && count <= 4 ? "модуля" : "модулей"}`;
+/* Русское склонение по числу — ОДНО правило на все счётные подписи интерфейса.
+   Прежняя формула («1 → одна форма, 2–4 → вторая, иначе третья») врала на втором десятке:
+   «11 модуля», «22 модулей». Правило языка смотрит на ПОСЛЕДНИЕ ДВЕ цифры: 11–14 всегда
+   множественная форма, иначе решает последняя цифра. Нечисловой вход — множественная форма
+   («— мест»), а не падение подписи. */
+function pluralRu(count, one, few, many) {
+  const n = Math.abs(Number(count));
+  if (!Number.isFinite(n)) return many;
+  const hundred = Math.floor(n) % 100, digit = hundred % 10;
+  if (hundred > 10 && hundred < 20) return many;
+  if (digit > 1 && digit < 5) return few;
+  return digit === 1 ? one : many;
+}
+/* «1 модуль / 2 модуля / 5 модулей». */
+const moduleWord = count => `${count} ${pluralRu(count, "модуль", "модуля", "модулей")}`;
+/* «1 место / 2 места / 5 мест» — подпись карточки библиотеки и всё, что считает места поста. */
+const placeWord = count => `${count} ${pluralRu(count, "место", "места", "мест")}`;
 
 /* Сколько модулей рамки занимает механизм: явное поле, иначе «N модуль…» из названия, иначе 1.
    Формы в названиях каталога: «на 2 модуля», «1 модуль», «2 modules», а также краткая «2М»
@@ -179,7 +194,7 @@ const productImage = (item, { detail = false } = {}) => {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { moduleWord, mechanismSpan, productSeries, compatibleMechanisms, frameSlotCount, defaultPostName, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage };
+const api = { pluralRu, moduleWord, placeWord, mechanismSpan, productSeries, compatibleMechanisms, frameSlotCount, defaultPostName, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage };
 if (typeof window !== "undefined") window.EPCatalog = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

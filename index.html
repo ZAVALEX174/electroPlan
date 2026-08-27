@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260828.3">
+  <link rel="stylesheet" href="css/styles.css?v=20260828.4">
 </head>
 <body>
 <div class="app">
@@ -216,6 +216,17 @@
       <section>
         <div class="section-head"><h3>Спецификация</h3><span class="count-pill" id="objectCount">0</span></div>
         <div class="spec-list" id="specList"></div>
+        <!-- Схема электрики — настройка ПРОЕКТА (лежит в EP_DATA.settings рядом с типом стены
+             и едет в terms), поэтому её орган управления стоит ЗДЕСЬ, в панели проекта, прямо
+             над блоком, который она и определяет. Раньше единственный селектор жил внутри
+             модалки конструктора поста: настройку всего проекта нельзя было ни увидеть, ни
+             сменить, не открыв редактирование какого-нибудь поста. В конструкторе селектор
+             остался (там же назначают группы клавишам, и схема нужна под рукой) — оба
+             показывают одно значение и меняют его одним обработчиком. -->
+        <label class="scheme-field">Схема электрики проекта
+          <select id="lightingSchemeSelect" aria-describedby="lightingSchemeHint"></select>
+        </label>
+        <small class="hint-line" id="lightingSchemeHint"></small>
         <!-- Группы света: тот же блок, что печатается в КП и листе монтажника
              (EPLightingPlan.buildHtml) — чтобы экран и документы не могли разойтись. -->
         <div id="lightingSummary"></div>
@@ -269,11 +280,14 @@
           </fieldset>
           <!-- Схема электрики — свойство ПРОЕКТА, как и тип стены (хранится в EP_DATA.settings
                и едет в terms проекта). Список схем строится из EPLightingGroups.SCHEMES, чтобы
-               у интерфейса не было второй копии названий и пометки «схема не реализована». -->
+               у интерфейса не было второй копии названий и пометки «схема не реализована».
+               ГЛАВНЫЙ орган управления этой настройкой стоит в панели проекта (см. секцию
+               «Спецификация»); здесь он продублирован потому, что группы клавишам назначают
+               именно тут и схема нужна под рукой. Значение и обработчик у обоих ОДНИ. -->
           <fieldset class="wall-type-step">
             <legend>Схема электрики проекта</legend>
-            <select id="lightingSchemeSelect" aria-describedby="lightingSchemeHint"></select>
-            <small class="wall-type-hint" id="lightingSchemeHint"></small>
+            <select id="lightingSchemeSelectBuilder" aria-describedby="lightingSchemeHintBuilder"></select>
+            <small class="wall-type-hint" id="lightingSchemeHintBuilder"></small>
           </fieldset>
           <div class="builder-composition" id="builderComposition"></div>
         </div>
@@ -341,23 +355,23 @@
   <script src="js/data.js?v=20260828.1"></script>
 <script src="js/store.js?v=20260723"></script>
 <script src="js/config.js?v=20260801.2"></script>
-<script src="js/catalog.js?v=20260801.8"></script>
+<script src="js/catalog.js?v=20260828.1"></script>
 <!-- Чистый модуль (ни DOM, ни state): подбор механизма по группе света и схеме электрики.
      Считается по ВСЕМУ проекту, результат отдаётся в состав поста, поэтому грузится до postfit/posts. -->
-<script src="js/lightingGroups.js?v=20260828.4"></script>
+<script src="js/lightingGroups.js?v=20260828.6"></script>
 <!-- Связка модуля групп света с проектом: сборка мест управления из постов, строгий подбор
      механизма по роли и серии, печатный блок для документов. Грузится ПОСЛЕ lightingGroups
      (использует его тексты пробелов) и до estimate/installSheet, которые его результат печатают. -->
-<script src="js/lightingPlan.js?v=20260828.1"></script>
+<script src="js/lightingPlan.js?v=20260828.4"></script>
 <script src="js/postfit.js?v=20260826.2"></script>
 <script src="js/posts.js?v=20260828.3"></script>
 <script src="js/picker.js?v=20260801.1"></script>
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
 <script src="js/catalogSections.js?v=20260828.1"></script>
 <script src="js/builderSlots.js?v=20260828.3"></script>
-<script src="js/estimate.js?v=20260828.3"></script>
+<script src="js/estimate.js?v=20260828.4"></script>
 <script src="js/offerPdf.js?v=20260828.1"></script>
-<script src="js/installSheet.js?v=20260828.1"></script>
+<script src="js/installSheet.js?v=20260828.2"></script>
 <script src="js/supplierSpec.js?v=20260827.3"></script>
 <script src="js/postImage.js?v=20260805.1"></script>
 <script src="js/explodedView.js?v=20260805.5"></script>
@@ -371,6 +385,6 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-  <script src="js/app.js?v=20260828.4"></script>
+  <script src="js/app.js?v=20260828.10"></script>
 </body>
 </html>

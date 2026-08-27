@@ -39,6 +39,31 @@ const text = v => (v === null || v === undefined) ? "" : String(v);
    19022 широкую, а по факту конфигуратор уже сам считает нам механизм». Готовое изделие
    (выключатель в сборе) механизма под собой не требует и местом управления не является —
    иначе проект оплатил бы второй механизм за уже собранное изделие.
+
+   ⚠️ ВТОРОЙ ПРИЗНАК МЕСТА — ТОВАРА НЕТ В КАТАЛОГЕ, А ГРУППА У ПОЗИЦИИ НАЗНАЧЕНА. Это не
+   послабление правила, а защита от МОЛЧАЛИВОЙ ПОТЕРИ. Пока условие было одно («товар опознан
+   клавишей»), позиция, товар которой ПРОПАЛ ИЗ КАТАЛОГА (прайс перезаливают до 7 раз в год, а
+   старые проекты обязаны открываться), исчезала совсем: ни в расчёт, ни в пробелы. Хуже всего,
+   что она ЗАРАЖАЛА СОСЕДЕЙ — N группы падал, и ДРУГИЕ, нетронутые посты получали другой
+   механизм: вместо двух переключателей один выключатель, и проходная схема переставала
+   работать. Такое место уходит в расчёт с признаком keyUnknown: оно считается в группе (N не
+   падает, соседи сохраняют свои механизмы), но механизм ему не подбирается — честный пробел
+   GAPS.KEY_UNKNOWN вместо правдоподобной догадки за деньги.
+   ОБА УСЛОВИЯ ОБЯЗАТЕЛЬНЫ, и вот почему:
+     • «товара нет в каталоге» — только про ненайденный товар. Найденный, но не клавиша (розетка,
+       готовое изделие) местом не становится, как и раньше: каталог о нём знает, и знает, что
+       механизм под ним не нужен;
+     • «группа назначена» — свидетельство замысла человека. Группу назначают МЕСТУ УПРАВЛЕНИЯ, и
+       поле для неё есть только у клавиши, поэтому непустая группа у пропавшего товара говорит:
+       здесь стояла клавиша. Без этого условия любая исчезнувшая из прайса розетка печаталась бы
+       в документах как «клавиша без группы» — ложное утверждение о проекте. Клавиша без группы
+       при этом ничего не теряет в деньгах: без группы место не попадает ни в одну группу и на
+       механизмы соседей не влияет никак.
+   ГРАНИЦА ЧЕСТНО: если товар в каталоге ЕСТЬ, но перестал опознаваться клавишей (пропал
+   partRole при пересборке каталога), место по-прежнему не собирается. Отличить такой товар от
+   законной розетки в данных нечем — у розеток partRole не заполнен штатно, — а считать местом
+   всё подряд с непустой группой опаснее: устаревшая группа на розетке (например, оставшаяся от
+   замены клавиши) раздула бы N и сменила бы механизмы соседних постов.
    Возвращаемые объекты несут и служебные поля (moduleLabel, postName) — модуль групп света
    читает только известные ему поля и лишние игнорирует, а документам они нужны, чтобы не
    ходить в каталог второй раз. */
@@ -54,16 +79,22 @@ function collect(posts, deps) {
     const groups = Array.isArray(p.keyGroups) ? p.keyGroups : [];
     ids.forEach((id, keyIndex) => {
       const item = product(id);
-      if (!isKey(item)) return;
+      const key = !!isKey(item);
+      const group = groupText(groups[keyIndex]);
+      /* потерянная клавиша: товара нет в каталоге, но группа у позиции назначена */
+      const lostKey = !key && !item && group.trim() !== "";
+      if (!key && !lostKey) return;
       out.push({
         postId: p.id, postNumber: p.number,
         /* индекс — позицией перебора и только ей (см. шапку про indexOf) */
         keyIndex,
         keyId: item && item.id != null ? item.id : id,
-        series: seriesOf(item),
-        group: groupText(groups[keyIndex]),
-        /* служебное для документов: имя поста и сам товар-клавиша */
-        postName: p.name, key: item
+        /* У потерянного товара серии нет и взять её неоткуда — пустой список, а не догадка. */
+        series: key ? seriesOf(item) : [],
+        group,
+        keyUnknown: !key,
+        /* служебное для документов: имя поста и сам товар-клавиша (может быть не найден) */
+        postName: p.name, key: item || null
       });
     });
   });
@@ -221,8 +252,19 @@ function buildHtml(plan, deps) {
     box: "margin:14px 0;padding:10px 12px;border:1px solid #d5e4f0;border-radius:10px;background:#f7fbfe;font-family:Arial,sans-serif",
     head: "display:flex;justify-content:space-between;gap:10px;font-size:11px;font-weight:bold;margin-bottom:6px",
     muted: "color:#6b8199;font-weight:normal",
-    row: "display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-top:1px dashed #e2ecf4;font-size:11px",
-    gap: "padding:4px 0;border-top:1px dashed #e2ecf4;font-size:10px;color:#9a4a2f"
+    row: "display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-top:1px dashed #e2ecf4;font-size:11px;align-items:baseline",
+    /* ⚠️ ИМЯ ГРУППЫ ВВОДИТ ЧЕЛОВЕК, И ОНО БЫВАЕТ ДЛИННЫМ. Ячейки строки — flex-элементы, а те по
+       умолчанию не сжимаются уже своего содержимого (min-width:auto): длинное имя без пробелов
+       («ГостинаяВерхнийСветЦентральнаяЛюстра») распирало строку, наезжало на правую колонку и
+       уезжало за край блока — и на экране, и в печати КП, где ширину не подвинешь.
+       ЛЕВАЯ ячейка (имя группы) забирает всё сжатие: min-width:0 разрешает сжиматься, а
+       overflow-wrap:anywhere переносит внутри слова, потому что переносить больше негде.
+       ПРАВАЯ ячейка (подобранные роли) min-width НЕ обнуляет НАМЕРЕННО — иначе на узкой панели
+       ломались бы посреди слова и её подписи («Выклю чатель — 1»). Оставленный auto держит её
+       не уже самого длинного слова, а break-word разрывает его только когда иначе никак. */
+    cell: "min-width:0;overflow-wrap:anywhere",
+    cellRight: "text-align:right;overflow-wrap:break-word",
+    gap: "padding:4px 0;border-top:1px dashed #e2ecf4;font-size:10px;color:#9a4a2f;overflow-wrap:anywhere"
   };
 
   const groupRows = groups.map(g => {
@@ -231,15 +273,15 @@ function buildHtml(plan, deps) {
       .filter(x => x.need > 0)
       .map(x => `${esc(roleLabel(plan, x.role))} — ${x.got}${x.got === x.need ? "" : ` из ${x.need}`}`)
       .join(", ");
-    return `<div style="${S.row}"><span>Группа «${esc(g.label)}» · мест управления: ${g.placeCount}</span>`
-      + `<b style="text-align:right">${esc(done || "—")}</b></div>`;
+    return `<div style="${S.row}"><span style="${S.cell}">Группа «${esc(g.label)}» · мест управления: ${g.placeCount}</span>`
+      + `<b style="${S.cellRight}">${esc(done || "—")}</b></div>`;
   }).join("");
 
   /* Реле — количество есть, артикула нет. Печатаем ровно это, ничего не подставляя:
      03992 из ТЗ в каталоге и номенклатуре VIMAR отсутствует. */
   const relayRows = relays.filter(r => r.count > 0).map(r =>
-    `<div style="${S.row}"><span>Импульсное реле · группа «${esc(r.groupLabel)}» (кнопок: ${r.buttonCount})</span>`
-    + `<b style="text-align:right">${r.count} шт. · ${esc(r.note)}</b></div>`).join("");
+    `<div style="${S.row}"><span style="${S.cell}">Импульсное реле · группа «${esc(r.groupLabel)}» (кнопок: ${r.buttonCount})</span>`
+    + `<b style="${S.cellRight}">${r.count} шт. · ${esc(r.note)}</b></div>`).join("");
 
   const gapRows = gaps.map(g => {
     const where = g.groupLabel ? ` · группа «${g.groupLabel}»` : "";
@@ -259,7 +301,7 @@ function buildHtml(plan, deps) {
     + `<span style="${S.muted}">Схема: ${esc(plan.schemeLabel || plan.scheme || "—")}</span></div>`
     + groupRows
     + relayRows
-    + (total ? `<div style="${S.row}"><span>Механизмы подобраны расчётом</span><b style="text-align:right">${esc(total)}${sum ? ` · ${money(sum)}` : ""}</b></div>` : "")
+    + (total ? `<div style="${S.row}"><span style="${S.cell}">Механизмы подобраны расчётом</span><b style="${S.cellRight}">${esc(total)}${sum ? ` · ${money(sum)}` : ""}</b></div>` : "")
     + gapRows
     + `</div>`;
 }

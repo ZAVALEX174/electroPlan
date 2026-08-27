@@ -5,7 +5,30 @@
    конструктор пока не поддерживает (отложено владельцем). */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { mechanismSpan, frameSlotCount, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage } = require("../js/catalog.js");
+const { mechanismSpan, frameSlotCount, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage, moduleWord, placeWord } = require("../js/catalog.js");
+
+/* --- склонение счётных подписей (moduleWord/placeWord) --- */
+test("placeWord склоняет «место» по-русски — карточка библиотеки писала «1 места»", () => {
+  assert.equal(placeWord(1), "1 место");
+  assert.equal(placeWord(2), "2 места");
+  assert.equal(placeWord(4), "4 места");
+  assert.equal(placeWord(5), "5 мест");
+  assert.equal(placeWord(0), "0 мест");
+});
+test("склонение смотрит на последние ДВЕ цифры: 11–14 всегда «мест»", () => {
+  /* Прежняя формула («1 → одна форма, 2–4 → вторая») врала на втором десятке. */
+  assert.equal(placeWord(11), "11 мест");
+  assert.equal(placeWord(12), "12 мест");
+  assert.equal(placeWord(14), "14 мест");
+  assert.equal(placeWord(21), "21 место");
+  assert.equal(placeWord(22), "22 места");
+  assert.equal(moduleWord(11), "11 модулей");
+  assert.equal(moduleWord(21), "21 модуль");
+});
+test("moduleWord на рабочем диапазоне 1..8 остался прежним", () => {
+  assert.deepEqual([1,2,3,4,5,6,7,8].map(moduleWord),
+    ["1 модуль","2 модуля","3 модуля","4 модуля","5 модулей","6 модулей","7 модулей","8 модулей"]);
+});
 
 /* --- ёмкость механизма в модулях (mechanismSpan) --- */
 test("mechanismSpan: явное поле moduleSpan авторитетно (1..8)", () => {
