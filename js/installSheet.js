@@ -9,9 +9,10 @@
    state, ни DOM, ни window.open — открытие окна остаётся в app.js. Так документ можно
    проверить автотестом, не поднимая браузер (PLAN 7.1).
 
-   Интерфейс приложению — window.EPInstallSheet.buildHtml(data, deps) и
-   buildFittings(comp, box, lighting): обвязка поста собирается ЗДЕСЬ, а не в оркестраторе,
-   потому что её формат — часть контракта этого документа (см. fittings в описании data ниже).
+   Интерфейс приложению — window.EPInstallSheet.buildHtml(data, deps),
+   buildFittings(comp, box, lighting) и cardModuleOrder(moduleGroups, modules): и обвязка поста,
+   и порядок модулей в его карточке собираются ЗДЕСЬ, а не в оркестраторе, потому что это часть
+   контракта документа (см. fittings и cardModuleOrder ниже).
    lighting — необязательный третий аргумент: механизмы групп света, подставленные расчётом
    (EPLightingPlan). Старый вызов с двумя аргументами работает как раньше. */
 (() => {
@@ -78,6 +79,25 @@ function buildFittings(comp, box, lighting) {
      но заказывается она целиком — в отличие от коробок и планок. */
   if (comp.frame) fittings.push({ role: "Накладка", name: comp.frame.name, code: comp.frame.code, count: 1 });
   return fittings;
+}
+
+/* ПОРЯДОК МОДУЛЕЙ В КАРТОЧКЕ ПОСТА — ОДНО ПРАВИЛО НА ВЕСЬ ДОКУМЕНТ. Карточка показывает одни и
+   те же модули дважды: строками таблицы и деталями взрыв-схемы, и монтажник читает их рядом.
+   Таблица немецко-французской сборки идёт ПО ПОСТАМ (moduleGroups: «Пост 1 → 1.1, 1.2», «Пост 2
+   → 2.1–2»), а взрыв-схема шла плоским порядком набора — и адреса в двух блоках расходились
+   («1.1, 2.1–2, 1.2» против «1.1, 1.2, 2.1–2»). Номера при этом были верные: расходился ПОРЯДОК,
+   а это то же самое для человека, который ищет модуль глазами. Правило живёт здесь, рядом с
+   таблицей, которая по нему же и печатается, — вторая копия в оркестраторе рано или поздно
+   разошлась бы с первой.
+   Раскладка по постам применяется, только когда постов БОЛЬШЕ ОДНОГО: у обычной итальянской
+   накладки сборка одна, и порядок остаётся прежним плоским байт в байт.
+   Возвращает строки модулей (те же объекты, что пришли) в порядке карточки. */
+const byPosts = moduleGroups => Array.isArray(moduleGroups) && moduleGroups.length > 1;
+function cardModuleOrder(moduleGroups, modules) {
+  if (byPosts(moduleGroups)) {
+    return moduleGroups.reduce((all, g) => all.concat(Array.isArray(g.modules) ? g.modules : []), []);
+  }
+  return Array.isArray(modules) ? modules.slice() : [];
 }
 
 /* data = {
@@ -162,8 +182,8 @@ function buildHtml(data, deps) {
        ОДИН адрес модуля на всю карточку: та же строка стоит в таблице, в обвязке ниже и во
        взрыв-схеме, монтажник читает их рядом. Пока таблица нумеровала модули заново в каждом
        посте, а обвязка — сквозняком, одна клавиша имела в одной карточке два номера. */
-    const groups = Array.isArray(post.moduleGroups) ? post.moduleGroups : null;
-    const moduleRows = groups && groups.length > 1
+    const groups = post.moduleGroups;
+    const moduleRows = byPosts(groups)
       ? groups.map(g => {
           const rows = (g.modules || []).map(moduleTr).join("") || `<tr><td colspan="4" class="empty">Пост без механизмов</td></tr>`;
           return `<tr class="post-row"><td colspan="4">Пост ${esc(g.post)}${g.capacity ? ` · до ${esc(g.capacity)} мод.` : ""}</td></tr>${rows}`;
@@ -277,7 +297,7 @@ function buildHtml(data, deps) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { buildHtml, buildFittings };
+const api = { buildHtml, buildFittings, cardModuleOrder };
 if (typeof window !== "undefined") window.EPInstallSheet = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

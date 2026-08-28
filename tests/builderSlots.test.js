@@ -23,6 +23,9 @@ const product = id => CATALOG[id];
 const mechanismSpan = item => (item && item.moduleSpan) || 0;
 const deps = { product, mechanismSpan };
 const items = ids => ids.map(id => CATALOG[id]);
+/* Клавиша ли механизм, знает КАТАЛОГ приложения (partRole === "key"); модуль спрашивает об этом
+   предикатом. В фикстуре клавиши — 1 и 2, розетка — 3. */
+const isKey = id => /^Клавиша/.test((CATALOG[id] || {}).name || "");
 
 test("fromPost/toPost: группы едут вместе с механизмами и той же длины", () => {
   const slots = S.fromPost({ mechanismIds: [1, 2], keyGroups: ["Кухня", "Спальня"] });
@@ -83,10 +86,34 @@ test("ПЕРЕСТАНОВКА при упаковке по постам пер�
   assert.equal(next.length, 3);
 });
 
-test("замена механизма СОХРАНЯЕТ группу слота, добавление даёт пустую", () => {
+test("замена клавиши НА КЛАВИШУ сохраняет группу слота, добавление даёт пустую", () => {
   const slots = S.fromPost({ mechanismIds: [1], keyGroups: ["Кухня"] });
-  assert.deepEqual(S.toPost(S.replaceAt(slots, 0, 2)), { mechanismIds: [2], keyGroups: ["Кухня"] });
+  assert.deepEqual(S.toPost(S.replaceAt(slots, 0, 2, isKey)), { mechanismIds: [2], keyGroups: ["Кухня"] });
   assert.deepEqual(S.toPost(S.add(slots, 2)), { mechanismIds: [1, 2], keyGroups: ["Кухня", ""] });
+});
+
+test("замена клавиши на НЕ-клавишу уносит группу — она не переживает место управления", () => {
+  /* Розетка местом управления не является, и поля группы у неё в интерфейсе нет: оставшаяся
+     группа висела бы на позиции, где клавиши больше нет, — невидимо для человека и с двумя
+     последствиями (см. комментарий у replaceAt): фантомное место, когда артикул пропадёт из
+     прайса, и молчаливое воскрешение группы при обратной замене. */
+  const slots = S.fromPost({ mechanismIds: [1, 1], keyGroups: ["Кухня", "Холл"] });
+  assert.deepEqual(S.toPost(S.replaceAt(slots, 0, 3, isKey)),
+    { mechanismIds: [3, 1], keyGroups: ["", "Холл"] });
+  assert.deepEqual(S.toPost(slots).keyGroups, ["Кухня", "Холл"], "исходный массив не тронут");
+});
+
+test("замена на НЕ-клавишу и обратно не воскрешает старую группу", () => {
+  const slots = S.fromPost({ mechanismIds: [1], keyGroups: ["Кухня"] });
+  const back = S.replaceAt(S.replaceAt(slots, 0, 3, isKey), 0, 1, isKey);
+  assert.deepEqual(S.toPost(back), { mechanismIds: [1], keyGroups: [""] });
+});
+
+test("без предиката replaceAt ведёт себя как прежде — модуль о каталоге не знает", () => {
+  /* Старый контракт: приложение обязано передавать предикат, а чистый модуль сам решать,
+     что такое клавиша, не может и не должен. */
+  const slots = S.fromPost({ mechanismIds: [1], keyGroups: ["Кухня"] });
+  assert.deepEqual(S.toPost(S.replaceAt(slots, 0, 3)), { mechanismIds: [3], keyGroups: ["Кухня"] });
 });
 
 test("удаление слота уносит только его группу", () => {

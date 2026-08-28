@@ -10,23 +10,42 @@
 (() => {
 "use strict";
 
+/* Счётчик подписи: ЧИСЛО либо «числовая строка», иначе null («считать нечего»).
+   Голый Number() здесь врал бы молча: Number(null) === 0, и «счётчик не задан» становилось бы
+   честным нулём — подпись «0 мест» утверждала бы про проект то, чего расчёт не говорил. */
+function countValue(count) {
+  if (typeof count === "number") return Number.isFinite(count) ? count : null;
+  if (typeof count === "string" && count.trim() !== "") {
+    const n = Number(count.trim());
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
 /* Русское склонение по числу — ОДНО правило на все счётные подписи интерфейса.
    Прежняя формула («1 → одна форма, 2–4 → вторая, иначе третья») врала на втором десятке:
    «11 модуля», «22 модулей». Правило языка смотрит на ПОСЛЕДНИЕ ДВЕ цифры: 11–14 всегда
    множественная форма, иначе решает последняя цифра. Нечисловой вход — множественная форма
    («— мест»), а не падение подписи. */
 function pluralRu(count, one, few, many) {
-  const n = Math.abs(Number(count));
-  if (!Number.isFinite(n)) return many;
+  const value = countValue(count);
+  if (value === null) return many;
+  const n = Math.abs(value);
   const hundred = Math.floor(n) % 100, digit = hundred % 10;
   if (hundred > 10 && hundred < 20) return many;
   if (digit > 1 && digit < 5) return few;
   return digit === 1 ? one : many;
 }
-/* «1 модуль / 2 модуля / 5 модулей». */
-const moduleWord = count => `${count} ${pluralRu(count, "модуль", "модуля", "модулей")}`;
-/* «1 место / 2 места / 5 мест» — подпись карточки библиотеки и всё, что считает места поста. */
-const placeWord = count => `${count} ${pluralRu(count, "место", "места", "мест")}`;
+/* «1 модуль / 2 модуля / 5 модулей», «1 место / 2 места / 5 мест» — подписи всего, что считает
+   модули рамки и места поста.
+   ⚠️ СЧЁТЧИК ПОДСТАВЛЯЕТСЯ НЕ СЫРЫМ. Раньше число печаталось через шаблон как есть, а склонение
+   при нечисловом входе честно давало множественную форму, — и вместе они выдавали «null мест»,
+   «undefined модулей», «NaN модулей» прямо в интерфейс и в документы. Подпись обязана либо
+   назвать число, либо честно сказать, что числа нет: пробел «—» и множественная форма
+   («— мест»), как и описано у pluralRu. */
+const countWord = (count, one, few, many) =>
+  `${countValue(count) === null ? "—" : countValue(count)} ${pluralRu(count, one, few, many)}`;
+const moduleWord = count => countWord(count, "модуль", "модуля", "модулей");
+const placeWord = count => countWord(count, "место", "места", "мест");
 
 /* Сколько модулей рамки занимает механизм: явное поле, иначе «N модуль…» из названия, иначе 1.
    Формы в названиях каталога: «на 2 модуля», «1 модуль», «2 modules», а также краткая «2М»

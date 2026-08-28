@@ -276,7 +276,11 @@
               <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-wall="hollow">ГКЛ и полые стены</button>
               <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-wall="solid">Бетон, кирпич, сплошные стены</button>
             </div>
-            <small class="wall-type-hint">Влияет на подбор монтажной коробки. Свойство проекта.</small>
+            <!-- Раньше здесь было «Свойство проекта», и это было правдой: кнопка меняла тип
+                 стены сразу всему проекту. Заказчик (24.08) справедливо счёл это ошибкой —
+                 блок в перегородке из ГКЛ соседствует с блоками в бетоне. Теперь у поста на
+                 плане тип стены свой, а при сохранении окно спрашивает охват правки. -->
+            <small class="wall-type-hint">Влияет на подбор монтажной коробки. У поста на плане — свой; при сохранении спросим, менять только в нём или во всех однотипных.</small>
           </fieldset>
           <!-- Схема электрики — свойство ПРОЕКТА, как и тип стены (хранится в EP_DATA.settings
                и едет в terms проекта). Список схем строится из EPLightingGroups.SCHEMES, чтобы
@@ -347,6 +351,26 @@
   </div>
 </div>
 
+<!-- Охват правки типа стены у размещённого поста: «изменить в данном блоке или для всех
+     однотипных блоков» (дословная просьба заказчика 24.08). Разметка — та же конвенция, что
+     у #pdfPageModal и #scaleModal; окно всплывает ПОВЕРХ конструктора, поэтому у него нет
+     кнопки «Отмена» в футере: отказ — крестик, клик мимо или Esc, и тогда не сохраняется
+     ничего. Умолчание (primary и начальный фокус) — «Только в этом посте»: правка одного
+     поста обязана оставаться правкой одного поста. -->
+<div class="modal-backdrop" id="wallScopeModal" role="dialog" aria-modal="true" aria-labelledby="wallScopeModalTitle">
+  <div class="modal scale-modal">
+    <div class="modal-header">
+      <div><span class="eyebrow">Тип стены</span><h2 id="wallScopeModalTitle">Где изменить тип стены?</h2></div>
+      <button class="modal-close" id="closeWallScopeModal" type="button" aria-label="Закрыть">×</button>
+    </div>
+    <p class="scale-modal-copy" id="wallScopeCopy"></p>
+    <div class="modal-footer">
+      <button class="btn ghost" id="wallScopeAll" type="button">Во всех однотипных</button>
+      <button class="btn primary" id="wallScopeSelf" type="button">Только в этом посте</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
   <script src="js/catalog-vimar.js?v=20260827.2"></script>
   <script src="js/catalog-vimar-attrs.js?v=20260828.1"></script>
@@ -355,7 +379,11 @@
   <script src="js/data.js?v=20260828.1"></script>
 <script src="js/store.js?v=20260723"></script>
 <script src="js/config.js?v=20260801.2"></script>
-<script src="js/catalog.js?v=20260828.1"></script>
+<!-- Подтверждение необратимой команды повтором того же действия (у окна есть и нижняя, и
+     верхняя граница). Общий модуль: им пользуются и перенумерация постов, и закрытие
+     конструктора с несохранёнными правками. -->
+<script src="js/confirmRepeat.js?v=20260828.1"></script>
+<script src="js/catalog.js?v=20260828.2"></script>
 <!-- Чистый модуль (ни DOM, ни state): подбор механизма по группе света и схеме электрики.
      Считается по ВСЕМУ проекту, результат отдаётся в состав поста, поэтому грузится до postfit/posts. -->
 <script src="js/lightingGroups.js?v=20260828.6"></script>
@@ -364,14 +392,14 @@
      (использует его тексты пробелов) и до estimate/installSheet, которые его результат печатают. -->
 <script src="js/lightingPlan.js?v=20260828.4"></script>
 <script src="js/postfit.js?v=20260826.2"></script>
-<script src="js/posts.js?v=20260828.3"></script>
+<script src="js/posts.js?v=20260828.4"></script>
 <script src="js/picker.js?v=20260801.1"></script>
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
 <script src="js/catalogSections.js?v=20260828.1"></script>
-<script src="js/builderSlots.js?v=20260828.3"></script>
-<script src="js/estimate.js?v=20260828.4"></script>
+<script src="js/builderSlots.js?v=20260828.4"></script>
+<script src="js/estimate.js?v=20260828.5"></script>
 <script src="js/offerPdf.js?v=20260828.1"></script>
-<script src="js/installSheet.js?v=20260828.2"></script>
+<script src="js/installSheet.js?v=20260828.3"></script>
 <script src="js/supplierSpec.js?v=20260827.3"></script>
 <script src="js/postImage.js?v=20260805.1"></script>
 <script src="js/explodedView.js?v=20260805.5"></script>
@@ -385,6 +413,6 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-  <script src="js/app.js?v=20260828.10"></script>
+  <script src="js/app.js?v=20260828.13"></script>
 </body>
 </html>

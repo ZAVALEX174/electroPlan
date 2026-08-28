@@ -435,3 +435,99 @@ test("postModuleGroups: нумерация модулей начинается �
   assert.deepEqual(g[0].modules.map(m => m.label), ["1", "2"], "пост 1: модули 1 и 2");
   assert.deepEqual(g[1].modules.map(m => m.label), ["1–2"], "пост 2: 2М-механизм на модулях 1–2 (счёт заново)");
 });
+
+/* --- Тип стены поста и «однотипные блоки» (баг B5 со встречи 24.08) ------------------
+   Заказчик разместил один пост дважды, поменял тип стены у одного — «изменилось у обоих»
+   (на деле — у всего проекта: тип стены был только настройкой EP_DATA.settings). Теперь
+   тип стены может быть СВОИМ у поста, а настройка проекта осталась значением по умолчанию. */
+const { postWallType, postTypeKey, wallTypeTargets } = require("../js/posts.js");
+/* Коробки под ту же 3М-сборку: сплошная стена дешевле полой — по ним и видно, что подбор
+   пошёл по типу стены поста, а не проекта. */
+const BOX_SOLID = { id: 900, code: "V71303", name: "Коробка 3М (бетон)", price: 1.04, kind: "socket_box", wallType: "solid" };
+const BOX_HOLLOW = { id: 901, code: "V71703", name: "Коробка 3М (ГКЛ)", price: 6.04, kind: "socket_box", wallType: "hollow" };
+const wallDeps = projectWall => baseDeps({
+  wallType: projectWall,
+  findBox: ({ wallType }) => (wallType === "hollow" ? BOX_HOLLOW : wallType === "solid" ? BOX_SOLID : null),
+  fallbackBox: () => null
+});
+
+test("postWallType: своё значение поста главнее настройки проекта", () => {
+  assert.equal(postWallType({ wallType: "hollow" }, "solid"), "hollow");
+  assert.equal(postWallType({ wallType: "solid" }, "hollow"), "solid");
+});
+
+test("postWallType: у поста поля нет — читаем тип стены ПРОЕКТА (миграция старых проектов)", () => {
+  assert.equal(postWallType({}, "hollow"), "hollow");
+  assert.equal(postWallType({ wallType: "" }, "solid"), "solid", "пустая строка = поля нет");
+  assert.equal(postWallType({ wallType: "кирпич" }, "hollow"), "hollow", "мусор = поля нет");
+  assert.equal(postWallType(null, "solid"), "solid");
+  assert.equal(postWallType({}, null), "unknown", "нет ни своего, ни проектного — честное unknown");
+});
+
+test("postComposition: коробка подбирается по типу стены ПОСТА, а не проекта", () => {
+  const post = { frameId: 14653, mechanismIds: [1, 1, 1], wallType: "hollow" };
+  const comp = postComposition(post, wallDeps("solid"));
+  assert.equal(comp.box.id, BOX_HOLLOW.id, "пост в ГКЛ получает полую коробку, хотя проект — бетон");
+  near(postCost(post, wallDeps("solid")), 3 * 4.30 + 3.0 + 6.04, "в цену идёт коробка ПОСТА");
+});
+
+test("postComposition: пост без своего типа стены по-прежнему следует за проектом", () => {
+  const post = { frameId: 14653, mechanismIds: [1, 1, 1] };
+  assert.equal(postComposition(post, wallDeps("hollow")).box.id, BOX_HOLLOW.id);
+  assert.equal(postComposition(post, wallDeps("solid")).box.id, BOX_SOLID.id);
+});
+
+test("postTypeKey: однотипность — по накладке и набору механизмов, порядок клавиш не важен", () => {
+  const a = { frameId: 14653, mechanismIds: [1, 2, 1] };
+  const b = { frameId: 14653, mechanismIds: [1, 1, 2] };
+  assert.equal(postTypeKey(a), postTypeKey(b), "переставленные клавиши — тот же блок");
+  assert.notEqual(postTypeKey(a), postTypeKey({ frameId: 14643, mechanismIds: [1, 2, 1] }), "другая накладка");
+  assert.notEqual(postTypeKey(a), postTypeKey({ frameId: 14653, mechanismIds: [1, 1] }), "другой набор");
+});
+
+test("postTypeKey: templateId и группы света на однотипность НЕ влияют", () => {
+  /* templateId — мёртвое поле: после индивидуальной правки оно врёт (пост давно не такой,
+     как шаблон). Группа света — свойство МЕСТА на плане: «кухня» и «спальня» это те же
+     физически блоки, и стена у них может быть одна. */
+  const a = { frameId: 14653, mechanismIds: [1, 1, 1], templateId: "tplA", keyGroups: ["Кухня", "", ""] };
+  const b = { frameId: 14653, mechanismIds: [1, 1, 1], templateId: "tplB", keyGroups: ["Спальня", "", ""] };
+  assert.equal(postTypeKey(a), postTypeKey(b));
+});
+
+test("wallTypeTargets: по умолчанию (self) адресат ровно один — сам пост", () => {
+  const posts = [
+    { id: "p1", frameId: 14653, mechanismIds: [1, 1, 1] },
+    { id: "p2", frameId: 14653, mechanismIds: [1, 1, 1] },
+    { id: "p3", frameId: 9662, mechanismIds: [2] }
+  ];
+  assert.deepEqual(wallTypeTargets(posts, posts[0], "self").map(p => p.id), ["p1"]);
+  assert.deepEqual(wallTypeTargets(posts, posts[0]).map(p => p.id), ["p1"], "scope не задан — тоже только сам");
+});
+
+test("wallTypeTargets: sameType берёт все посты того же состава, включая уже правленные вручную", () => {
+  const posts = [
+    { id: "p1", frameId: 14653, mechanismIds: [1, 1, 1] },
+    { id: "p2", frameId: 14653, mechanismIds: [1, 1, 1], wallType: "hollow" },   // правился отдельно
+    { id: "p3", frameId: 14653, mechanismIds: [1, 2] },                          // другой набор
+    { id: "p4", frameId: 9662, mechanismIds: [1, 1, 1] }                         // другая накладка
+  ];
+  assert.deepEqual(wallTypeTargets(posts, posts[0], "sameType").map(p => p.id), ["p1", "p2"],
+    "«во всех однотипных» значит во ВСЕХ — иначе команда не делает того, что написано");
+});
+
+test("wallTypeTargets: черновик поста (ещё не записан в массив) ищет однотипные по НОВОМУ составу", () => {
+  /* Так конструктор спрашивает про охват ДО записи: пост уже «станет» 2-модульным,
+     и однотипными обязаны считаться блоки, похожие на собранный, а не на прежний. */
+  const posts = [
+    { id: "p1", frameId: 14653, mechanismIds: [1, 1, 1] },
+    { id: "p2", frameId: 9662, mechanismIds: [2] }
+  ];
+  const draft = { id: "p1", frameId: 9662, mechanismIds: [2] };
+  assert.deepEqual(wallTypeTargets(posts, draft, "sameType").map(p => p.id), ["p1", "p2"]);
+});
+
+test("wallTypeTargets: пост не из списка — целей нет (промах по id не делает массовую правку)", () => {
+  const posts = [{ id: "p1", frameId: 14653, mechanismIds: [1, 1, 1] }];
+  assert.deepEqual(wallTypeTargets(posts, { id: "нет-такого", frameId: 14653, mechanismIds: [1, 1, 1] }, "self"), []);
+  assert.deepEqual(wallTypeTargets(posts, null, "sameType"), []);
+});

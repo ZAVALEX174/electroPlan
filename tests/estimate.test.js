@@ -346,3 +346,27 @@ test("ключ группировки не зависит от ПОРЯДКА к
   assert.equal(e.groups.length, 1);
   assert.equal(e.groups[0].count, 2);
 });
+
+/* --- Тип стены поста в ключе группировки (баг B5 со встречи 24.08) -------------------
+   Раньше тип стены был один на проект, и в ключ его класть было незачем. Теперь у поста
+   может быть свой (post.wallType), а подрозетник от него прямо зависит: та же сборка в
+   бетоне и в ГКЛ — разная коробка и разная цена. */
+test("посты одного состава с РАЗНЫМ типом стены — разные строки сметы", () => {
+  const a = { name: "Пост", frameId: 2, mechanismIds: [1] };
+  const b = { name: "Пост", frameId: 2, mechanismIds: [1], wallType: "hollow" };
+  const boxOf = po => ({ boxCount: 1, supportCount: 0,
+    box: { name: po.wallType === "hollow" ? "Коробка ГКЛ" : "Коробка бетон", code: po.wallType === "hollow" ? "V71703" : "V71303" } });
+  const e = run({ posts: [a, b], postCost: () => 1, postComposition: boxOf, settings: settings({ wallType: "solid" }) });
+  assert.equal(e.groups.length, 2, "коробки разные — схлопывать в одну строку нельзя");
+  const codes = e.groups.map(g => g.items.find(it => it.kind === "box").code).sort();
+  assert.deepEqual(codes, ["V71303", "V71703"], "в КП уходит своя коробка у каждой строки");
+});
+
+test("тип стены поста СОВПАДАЕТ с проектным — прежняя одна строка (старые сметы не дробятся)", () => {
+  const a = { name: "Пост", frameId: 2, mechanismIds: [1] };                      // поля нет
+  const b = { name: "Пост", frameId: 2, mechanismIds: [1], wallType: "solid" };   // явно как в проекте
+  const comp = { boxCount: 1, supportCount: 0, box: { name: "Коробка бетон", code: "V71303" } };
+  const e = run({ posts: [a, b], postCost: () => 1, postComposition: () => comp, settings: settings({ wallType: "solid" }) });
+  assert.equal(e.groups.length, 1, "тип стены фактически один — одна строка с количеством 2");
+  assert.equal(e.groups[0].count, 2);
+});

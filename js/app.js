@@ -27,9 +27,14 @@ const state={
      query — строка поиска, openSections — какие разделы каталога раскрыты (по умолчанию все
      свёрнуты — прямая просьба заказчика 24.08).
      snapshot — подпись поста на момент открытия окна (есть ли что терять при закрытии),
-     escArmed — время первого Esc: закрытие с несохранёнными правками требует второго. */
+     escArmed — взвод подтверждения на закрытие (EPConfirmRepeat): закрытие с несохранёнными
+     правками требует ВТОРОГО, осознанного нажатия — см. requestClosePostBuilder.
+     wallType — ЧЕРНОВИК типа стены редактируемого поста. Раньше кнопки «Тип стены» писали
+     прямо в EP_DATA.settings.wallType и тут же сохраняли проект: правка у одного поста
+     меняла подбор коробки у ВСЕХ постов проекта и не откатывалась «Отменой». Теперь правка
+     живёт в черновике до «Сохранить» — как имя, накладка и слоты. */
   builder:{editingTemplateId:null,editingPlacedId:null,slots:[],target:{mode:"add"},query:"",openSections:new Set(),
-    snapshot:null,escArmed:0}
+    snapshot:null,escArmed:null,wallType:null}
 };
 const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -1069,10 +1074,22 @@ function renderProperties(){
   }else if(kind==="post"){
     const p=state.posts.find(x=>x.id===id);
     const room=state.rooms.find(r=>r.id===p.roomId);
+    /* ⚠️ КАРТОЧКА ОБЯЗАНА БЫТЬ СОГЛАСОВАНА САМА С СОБОЙ. «Механизмов / коробок» считает состав
+       ПОСТА (post.mechanismIds — то, что занимает модули рамки), а «Стоимость» — полная цена
+       поста, в которую входят и механизмы групп света (EPEstimate.postPrice; они стоят ЗА
+       клавишами и в mechanismIds не входят и войти не могут). Рядом стояли несогласованные
+       число и цена: три механизма, а денег на четыре. Поэтому подставленные расчётом механизмы
+       названы ОТДЕЛЬНОЙ строкой — теми же словами и тем же фильтром (billableLighting), что в
+       панели «Состав поста» конструктора и в смете. Расчёт групп света берём ОДИН на карточку
+       (он же уходит в цену), иначе панель считала бы его дважды на каждое выделение. */
+    const light=projectLighting();
+    const lightRows=EPEstimate.billableLighting(lightingRowsFor(p,light));
+    const lightSum=lightRows.reduce((sum,r)=>sum+(Number(r.price)||0),0);
     props.innerHTML=`<label>Пост<input value="${esc(postNumberLabel(p))}" disabled></label>
     <label>Комната<input value="${esc(room?.name||"Не назначена")}" disabled></label>
     <label>Механизмов / коробок<input value="${p.mechanismIds.length} / ${postComposition(p).boxCount}" disabled></label>
-    <label>Стоимость<input value="${money(postTotalCost(p))}" disabled></label>
+    ${lightRows.length?`<label>Механизмы групп света<input value="${esc(`${lightRows.length} шт. · ${money(lightSum)}`)}" disabled></label>`:""}
+    <label>Стоимость<input value="${money(postTotalCost(p,light))}" disabled></label>
     <div class="property-actions"><button class="btn primary" id="editSelected">Редактировать</button><button class="btn ghost" id="removeSelected">Удалить</button></div>`;
     $("editSelected").onclick=()=>openPostBuilder({placedId:id});$("removeSelected").onclick=()=>removeEntity(kind,id);
   }else if(kind==="wall"){
@@ -1303,6 +1320,11 @@ function openPostBuilder({templateId=null,placedId=null}={}){
      EPPosts.placementFields): шаблон, сохранённый до этого правила, отдаёт свои группы, и мы
      их здесь снимаем — иначе они уехали бы обратно в шаблон при следующем сохранении. */
   state.builder.slots=placedId?EPBuilderSlots.fromPost(src):EPBuilderSlots.clearGroups(EPBuilderSlots.fromPost(src));
+  /* Тип стены открываемого поста: СВОЙ, если у поста он задан, иначе тип стены проекта
+     (EPPosts.postWallType — то же правило, по которому его читает подбор коробки, второй
+     копии правила не заводим). У шаблона и у нового поста своего типа стены нет и быть не
+     может — они не стоят в стене, — поэтому оба открываются со значением проекта. */
+  state.builder.wallType=EPPosts.postWallType(src,EP_DATA.settings.wallType);
   $("postFrameSelect").dataset.preferredFrameId=String(src.frameId??"");
   $("builderSearch").value="";
   renderLightingSchemeSelect();
@@ -1311,7 +1333,7 @@ function openPostBuilder({templateId=null,placedId=null}={}){
      builderDirty). Берём ПОСЛЕ renderBuilder: он мог отфильтровать чужие механизмы и
      переупаковать порядок, и снимок «до» объявил бы нетронутый пост изменённым. */
   state.builder.snapshot=builderSignature();
-  state.builder.escArmed=0;
+  state.builder.escArmed=null;
   /* Фокус уводим ВНУТРЬ окна: без этого первый Tab уходит на элементы под модалкой (ловушка
      фокуса ниже держит его внутри, но начальную точку задать надо). */
   setTimeout(()=>{const el=$("builderSearch");if(el)el.focus()},0);
@@ -1323,13 +1345,20 @@ function openPostBuilder({templateId=null,placedId=null}={}){
    месте, в renderBuilder. */
 let builderCtx={mechs:[],addMax:0,maxPostCap:0,remaining:0,frame:null,errorHtml:""};
 
-/* Подпись текущего состояния конструктора: имя, накладка и набор слотов с группами. Нужна
-   ровно для одного вопроса — «есть ли что терять при закрытии» (см. builderDirty). Слоты
+/* Тип стены, с которым конструктор СЕЙЧАС считает состав поста: черновик окна, а не общая
+   настройка проекта. Пока окно закрыто (черновика нет), отвечает значением проекта — так
+   вызывающему не нужно знать, открыт ли конструктор. */
+const builderWallType=()=>state.builder.wallType||EP_DATA.settings.wallType||"solid";
+
+/* Подпись текущего состояния конструктора: имя, накладка, тип стены и набор слотов с группами.
+   Нужна ровно для одного вопроса — «есть ли что терять при закрытии» (см. builderDirty). Слоты
    кодирует чистая EPBuilderSlots.signature (JSON, а не склейка через разделитель: имя группы
-   вводит человек, и запятая в нём законна). */
+   вводит человек, и запятая в нём законна).
+   ТИП СТЕНЫ В ПОДПИСИ ОБЯЗАТЕЛЕН: он стал черновиком окна, и без него закрытие по Esc считало
+   бы пост нетронутым и молча выбрасывало бы правку, о которой человек не предупреждён. */
 function builderSignature(){
   return JSON.stringify([$("postName").value,String($("postFrameSelect").value||""),
-    EPBuilderSlots.signature(state.builder.slots)]);
+    builderWallType(),EPBuilderSlots.signature(state.builder.slots)]);
 }
 const builderDirty=()=>state.builder.snapshot!=null&&builderSignature()!==state.builder.snapshot;
 
@@ -1354,7 +1383,10 @@ function builderPostDraft(frame){
   const placed=state.builder.editingPlacedId?state.posts.find(x=>x.id===state.builder.editingPlacedId):null;
   return {id:placed?placed.id:"builder-draft",number:placed?placed.number:"—",
     name:$("postName").value,frameId:frame&&frame.id,roomId:placed?placed.roomId:null,
-    mechanismIds:fields.mechanismIds,keyGroups:fields.keyGroups};
+    mechanismIds:fields.mechanismIds,keyGroups:fields.keyGroups,
+    /* Тип стены — из ЧЕРНОВИКА окна: состав и цена в конструкторе обязаны показывать ту
+       коробку, которую человек только что выбрал кнопкой, а не ту, что записана в проекте. */
+    wallType:builderWallType()};
 }
 /* Проект глазами расчёта: посты плана + черновик — но черновик участвует ТОЛЬКО тогда, когда
    в конструкторе открыт пост, СТОЯЩИЙ НА ПЛАНЕ. Тогда он ПОДМЕНЯЕТ свой пост (фильтр по id), а
@@ -1378,10 +1410,39 @@ function renderBuilder(){
   const frameSelect=$("postFrameSelect"),allFrames=byKind("frame");
   const matchingFrames=allFrames.filter(frame=>frameSlotCount(frame)===count);
   const frames=matchingFrames.length?matchingFrames:allFrames;
-  const preferredFrameId=Number(frameSelect.value||frameSelect.dataset.preferredFrameId);
-  const selectedFrameId=frames.some(frame=>Number(frame.id)===preferredFrameId)?preferredFrameId:frames[0]?.id;
-  frameSelect.innerHTML=frames.length
-    ?frameOptions(frames,selectedFrameId)
+  /* ⚠️ dataset.preferredFrameId ГЛАВНЕЕ ТЕКУЩЕГО ЗНАЧЕНИЯ СЕЛЕКТА, а не наоборот.
+     Тут был баг «двойной клик по посту на плане сбрасывает редактирование» (заказчик, 24.08:
+     «вообще редактирование на плане у меня всё сбросилось… хотя причём при наведении показывает
+     правильно»). Условие читалось `frameSelect.value||dataset` — а <select> живёт в разметке
+     ПОСТОЯННО, и закрытие конструктора его не чистит. Со второго открытия в сессии в value
+     лежала накладка ПРОШЛОГО поста и побеждала накладку открываемого: если её нет среди рамок
+     нужной модульности, молча бралась frames[0] — первая накладка каталога, — механизмы поста
+     отсеивались по чужой серии, и окно показывало «Занято 0 из N» с пустыми слотами. Подсказка
+     на плане при этом читает сам пост и показывает верный состав, отсюда и «при наведении
+     показывает правильно». Двойной клик здесь ни при чём: тот же сброс давала кнопка
+     «Редактировать» в панели свойств.
+     dataset ставится ровно там, где накладка задана ЯВНО (openPostBuilder — накладка
+     открываемого поста; resolveMissingFrame — накладка, выбранная человеком в пустом поиске),
+     и снимается сразу после применения. Значит его присутствие — это «выбор сделан здесь и
+     сейчас», и спорить с ним остатку прошлой сессии нельзя. */
+  /* Пустая строка в dataset — это тоже ЯВНОЕ «накладки нет» (пост без накладки), а не «нечего
+     сказать»: подменять её остатком прошлой сессии так же неверно, как и настоящий артикул.
+     Поэтому смотрим на НАЛИЧИЕ атрибута, а не на истинность его значения. */
+  const hasExplicitFrame="preferredFrameId" in frameSelect.dataset;
+  const explicitFrameId=hasExplicitFrame?frameSelect.dataset.preferredFrameId:"";
+  const preferredFrameId=Number(hasExplicitFrame?explicitFrameId:frameSelect.value);
+  /* Накладка поста может не пройти фильтр по числу модулей (frameSlotCount не знает
+     многорядные 14/21-модульные накладки и отдаёт null) или выпасть из каталога как
+     неактивная. Раньше её в таком случае молча подменяла frames[0] — и «Сохранить» переписывал
+     post.frameId на первую попавшуюся накладку каталога, если она случайно оказалась
+     совместимой. Поэтому явно заданную накладку ДОБАВЛЯЕМ в список: пусть человек видит в поле
+     ту накладку, которая у поста на самом деле, и меняет её сам, если захочет. */
+  const explicitFrame=explicitFrameId?frameProduct(explicitFrameId):null;
+  const frameList=explicitFrame&&!frames.some(frame=>Number(frame.id)===Number(explicitFrame.id))
+    ?[explicitFrame,...frames]:frames;
+  const selectedFrameId=frameList.some(frame=>Number(frame.id)===preferredFrameId)?preferredFrameId:frameList[0]?.id;
+  frameSelect.innerHTML=frameList.length
+    ?frameOptions(frameList,selectedFrameId)
     :'<option value="">Рамки не загружены</option>';
   frameSelect.value=selectedFrameId==null?"":String(selectedFrameId);
   delete frameSelect.dataset.preferredFrameId;
@@ -1639,12 +1700,16 @@ function emptyCatalogHtml(){
     : base;
 }
 /* Выбор карточки: заменить помеченный слот либо добавить в конец. Группа света при ЗАМЕНЕ
-   сохраняется (человек меняет клавишу на другую в том же месте той же группы). */
+   сохраняется (человек меняет клавишу на другую в том же месте той же группы) — но ТОЛЬКО
+   если новый механизм сам является местом управления: чем клавиша стала розеткой или
+   фальшблоком, там группе стоять не на чем (см. EPBuilderSlots.replaceAt). Признак клавиши
+   даёт каталог, поэтому предикат подставляет оркестратор. */
 function pickBuilderProduct(id){
   const target=state.builder.target,count=Number($("postSlotCount").value);
   if(target.mode==="replace"&&state.builder.slots[target.index]){
     const index=Number(target.index);
-    state.builder.slots=EPBuilderSlots.replaceAt(state.builder.slots,index,id);
+    state.builder.slots=EPBuilderSlots.replaceAt(state.builder.slots,index,id,
+      newId=>isKeyProduct(product(newId)));
     /* Та же защита от переполнения, что стояла на смене значения слота: лишние выкидываются
        с конца, только что выбранный остаётся (EPPosts.fitMechanismIdsPreserving). */
     const deps=EPBuilderSlots.tokenDeps(state.builder.slots,{product,mechanismSpan});
@@ -1679,7 +1744,10 @@ function builderErrorHtml(dist){
   return `<div class="builder-error" role="alert"><strong>Несовместимое сочетание</strong>${parts.map(p=>`<span>${p}</span>`).join("")}</div>`;
 }
 function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=null){
-  const wall=EP_DATA.settings.wallType||"solid";
+  /* Тип стены берём из ЧЕРНОВИКА окна, а не из настроек проекта: кнопки теперь правят
+     черновик, и подсветка активной кнопки обязана показывать выбор человека, иначе он жмёт
+     «ГКЛ», а подсвеченным остаётся «бетон». */
+  const wall=builderWallType();
   document.querySelectorAll("#postWallType .wall-type-option").forEach(b=>{
     const on=b.dataset.wall===wall;
     b.classList.toggle("active",on);
@@ -1688,7 +1756,7 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
   const host=$("builderComposition");if(!host)return;
   if(!selectedFrame){host.innerHTML=errorHtml||"";return;}
   const post=draft||{frameId:Number($("postFrameSelect").value),
-    mechanismIds:EPBuilderSlots.toPost(state.builder.slots).mechanismIds};
+    mechanismIds:EPBuilderSlots.toPost(state.builder.slots).mechanismIds,wallType:wall};
   const comp=postComposition(post);
   /* Суппорт, три исхода: не нужен по номенклатуре → «не требуется»; подобран → количество +
      артикул с ценой; не нашёлся → «не подобран» + отдельная приглушённая строка с причиной
@@ -1759,6 +1827,35 @@ function changePostSlotCount(){
   if(/^Пост (?:на )?\d+ (?:мест|место|места|модул)/i.test(currentName))$("postName").value=defaultPostName(Number($("postSlotCount").value));
   renderBuilder();
 }
+/* «Изменить в данном блоке или для всех однотипных блоков» — дословная просьба заказчика
+   (24.08) после того, как правка типа стены у одного поста разъехалась по всему проекту.
+   Промис-модалка по конвенции проекта (см. choosePdfPage/askScaleLength): резолв лежит в
+   переменной модуля, разметка — та же .modal-backdrop > .modal, отказ (крестик, клик мимо,
+   Esc) даёт null. Своего компонента не заводим.
+   Защита от повторного открытия — как у choosePdfPage: висящий вопрос закрываем отказом,
+   иначе его промис остался бы неразрешённым навсегда и «Сохранить» молча перестало бы
+   работать. */
+let wallScopeResolve=null;
+function finishWallScope(scope){
+  if(!wallScopeResolve)return;
+  const resolve=wallScopeResolve;wallScopeResolve=null;
+  $("wallScopeModal").classList.remove("open");resolve(scope);
+}
+function askWallScope(sameTypeCount,wall){
+  if(wallScopeResolve)finishWallScope(null);
+  $("wallScopeCopy").textContent=`Тип стены «${WALL_STEP_LABEL[wall]||wall}» — применить только к этому посту `
+    +`или ко всем однотипным (${sameTypeCount} шт., считая этот)? Однотипные — посты с той же накладкой `
+    +`и тем же набором механизмов; у тех из них, где тип стены уже задавали отдельно, он будет заменён.`;
+  $("wallScopeAll").textContent=`Во всех однотипных (${sameTypeCount})`;
+  $("wallScopeModal").classList.add("open");
+  setTimeout(()=>$("wallScopeSelf").focus(),0);
+  return new Promise(resolve=>{wallScopeResolve=resolve});
+}
+$("wallScopeSelf").onclick=()=>finishWallScope("self");
+$("wallScopeAll").onclick=()=>finishWallScope("sameType");
+$("closeWallScopeModal").onclick=()=>finishWallScope(null);
+$("wallScopeModal").onclick=e=>{if(e.target===$("wallScopeModal"))finishWallScope(null)};
+
 async function savePostBuilder(){
   /* Проверяем сборку ПО ПОСТАМ: механизм не должен быть шире поста или «размазан» через
      импост (dist.valid), и все посты должны быть заполнены целиком (dist.full). Для
@@ -1774,8 +1871,47 @@ async function savePostBuilder(){
   const base={name:$("postName").value.trim()||"Пост",frameId:Number($("postFrameSelect").value),
     mechanismIds:[...fields.mechanismIds],keyGroups:[...fields.keyGroups],socketBoxProductId:socketBox()?.id};
   if(state.builder.editingPlacedId){
-    Object.assign(state.posts.find(x=>x.id===state.builder.editingPlacedId),base);renderAll();renderProperties();renderSummary();toast("Пост на плане обновлён");
+    const post=state.posts.find(x=>x.id===state.builder.editingPlacedId);
+    /* ⚠️ ОХВАТ ПРАВКИ ТИПА СТЕНЫ СПРАШИВАЕМ ДО ЛЮБЫХ ЗАПИСЕЙ. Иначе отказ от вопроса (Esc,
+       крестик, клик мимо) оставил бы пост наполовину сохранённым: имя и механизмы уже
+       записаны, а стена — нет. Вопрос задаётся по посту В ТОМ ВИДЕ, КАКИМ ОН СТАНЕТ после
+       сохранения (base уже применён к копии): «однотипные» — это блоки, похожие на тот, что
+       человек только что собрал, а не на тот, что был до правки. */
+    const next=Object.assign({},post,base);
+    const wall=builderWallType();
+    const wallChanged=wall!==EPPosts.postWallType(post,EP_DATA.settings.wallType);
+    let scope="self";
+    if(wallChanged){
+      /* Вопрос — только когда есть из чего выбирать. Единственный в проекте блок такого
+         состава менять «во всех однотипных» не из чего, и лишний диалог на самом обычном
+         действии был бы чистым шумом (см. ту же логику у подтверждений повтором). */
+      const twins=EPPosts.wallTypeTargets(state.posts,next,"sameType");
+      if(twins.length>1){
+        scope=await askWallScope(twins.length,wall);
+        if(!scope)return;   /* вопрос закрыт без ответа — не сохраняем ничего, окно остаётся */
+      }
+    }
+    Object.assign(post,base);
+    /* Тип стены записываем ЯВНО каждому адресату, даже если он совпал с настройкой проекта:
+       «я выбрал для этого поста бетон» — это решение о посте, и оно не должно потом уехать
+       вслед за изменившимся значением проекта. Посты, у которых поля нет, продолжают читать
+       проект (EPPosts.postWallType) — старые проекты этим не задеты. */
+    if(wallChanged)EPPosts.wallTypeTargets(state.posts,post,scope).forEach(p=>{p.wallType=wall});
+    renderAll();renderProperties();renderSummary();
+    toast(wallChanged&&scope==="sameType"?"Обновлён пост и все однотипные посты":"Пост на плане обновлён");
   }else{
+    /* Шаблон и новый пост в стене не стоят — своего типа стены у них нет. Кнопки «Тип стены»
+       в их окне правят ЗНАЧЕНИЕ ПРОЕКТА (как было до этой правки): это единственное место в
+       интерфейсе, где тип стены всего объекта вообще задаётся, и первичная настройка «весь
+       объект — ГКЛ» обязана остаться одним действием без всяких вопросов. Разница с
+       размещённым постом в том, что теперь она применяется по «Сохранить», а не мгновенно по
+       клику, и «Отмена» её больше не оставляет. */
+    if(builderWallType()!==(EP_DATA.settings.wallType||"solid")){
+      /* scheduleSave здесь обязателен: ветка шаблона не зовёт renderAll (посты не менялись), а
+         renderAll — единственная точка автосохранения. Без него тип стены проекта дожил бы
+         только до перезагрузки. */
+      EP_DATA.settings.wallType=builderWallType();renderSummary();scheduleSave();
+    }
     const existing=state.builder.editingTemplateId;
     const template={id:existing||uid("tpl_"),...base};
     await DataService.savePost(template);state.templates=await DataService.getSavedPosts();renderTemplates();toast(existing?"Шаблон обновлён":"Пост сохранён в библиотеку");
@@ -1785,20 +1921,26 @@ async function savePostBuilder(){
 function closePostBuilder(){
   $("postModal").classList.remove("open");
   state.builder={editingTemplateId:null,editingPlacedId:null,slots:[],target:{mode:"add"},query:"",openSections:new Set(),
-    snapshot:null,escArmed:0};
+    snapshot:null,escArmed:null,wallType:null};
 }
 /* СЛУЧАЙНОЕ закрытие (Esc, клик мимо окна) с потерей несохранённой работы просит подтверждения
    — повтором того же действия, а не системным confirm(): своих модальных диалогов в приложении
    нет, а окно конструктора и так модальное. Нетронутый пост закрывается сразу — лишний вопрос
    на выходе из просмотра раздражал бы. Подтверждение живёт 4 секунды: «ещё раз» через минуту
    это уже не то же действие. Кнопки «Отмена» и «×» — ОСОЗНАННЫЙ отказ, они закрывают сразу.
-   Возвращает true, если закрыли. */
+   Возвращает true, если закрыли.
+   ⚠️ ГРАНИЦЫ ОКНА СЧИТАЕТ ОБЩИЙ EPConfirmRepeat, а не эта функция. Здесь была своя копия
+   «запомнили время — сравнили с окном», и вместе с копией в renumberPosts она несла один и тот
+   же дефект: верхняя граница есть, НИЖНЕЙ нет. Два Esc подряд (автоповтор зажатой клавиши даёт
+   их через ~30 мс) закрывали окно, пока предупреждение ещё висело на экране, — несохранённый
+   пост пропадал молча. Подписи (subject) у этого действия нет намеренно: показывать здесь
+   нечего, вопрос всегда один и тот же. */
 const ESC_CONFIRM_MS=4000;
 function requestClosePostBuilder(){
   if(!builderDirty()){closePostBuilder();return true}
-  const now=Date.now();
-  if(state.builder.escArmed&&now-state.builder.escArmed<ESC_CONFIRM_MS){closePostBuilder();return true}
-  state.builder.escArmed=now;
+  const step=EPConfirmRepeat.press(state.builder.escArmed,{now:Date.now(),maxMs:ESC_CONFIRM_MS});
+  state.builder.escArmed=step.armed;
+  if(step.action==="confirm"){closePostBuilder();return true}
   toast("Есть несохранённые изменения — повторите, чтобы закрыть без сохранения");
   return false;
 }
@@ -2418,7 +2560,10 @@ function supplierSpecHtml(opts,light){
 /* moduleLabelOf(index, slot) — адрес модуля В ЭТОЙ КАРТОЧКЕ (см. buildPostSheet): у сборки из
    нескольких постов «пост.модуль», у обычной накладки сквозной номер. Схема обязана называть
    модули теми же номерами, что таблица и обвязка над ней, — иначе монтажник читает про разное.
-   По умолчанию — номер самой раскладки: старые вызовы работают как раньше. */
+   По умолчанию — номер самой раскладки: старые вызовы работают как раньше.
+   layout — модули В ПОРЯДКЕ КАРТОЧКИ (EPInstallSheet.cardModuleOrder), каждый со своим keyIndex:
+   одних верных номеров мало, читаются они ПОДРЯД, и порядок обязан совпадать со строками
+   таблицы. */
 function buildExplodedSpec(comp,box,layout,frameSpec,lightRows,moduleLabelOf){
   const labelOf=moduleLabelOf||((index,slot)=>slot&&slot.label);
   const parts=[];
@@ -2441,7 +2586,13 @@ function buildExplodedSpec(comp,box,layout,frameSpec,lightRows,moduleLabelOf){
      не режет ряд на отдельную колонку, и позиции схемы остаются в том же порядке, что строки
      таблицы модулей над ней. В кикере — номер модуля клавиши, чтобы пара читалась. */
   const lightByKey=new Map((lightRows||[]).map(r=>[Number(r.keyIndex),r]));
-  layout.forEach((s,index)=>{
+  layout.forEach((s,order)=>{
+    /* Адрес модуля и его группа света читаются по ПОЗИЦИИ КЛАВИШИ В ПОСТЕ (keyIndex контракта
+       групп света), а НЕ по месту в этом массиве: порядок деталей схемы задаёт карточка
+       документа (EPInstallSheet.cardModuleOrder), и у немецко-французской сборки он другой —
+       по постам-коробкам. Вызов, пришедший без keyIndex (плоская раскладка), работает как
+       раньше: там позиция и есть индекс. */
+    const index=s.keyIndex!=null?Number(s.keyIndex):order;
     const item=s.item;
     const label=labelOf(index,s);
     const photo=photoOf(item);   // item может быть null (механизм не в каталоге) — productImage вернёт ""
@@ -2540,11 +2691,25 @@ function buildPostSheet(post,light){
     label:moduleLabelOf(index,s),
     name:s.item?s.item.name:`Механизм не найден (арт. ${(post.mechanismIds||[])[index]})`,
     code:s.item?s.item.code:"",
-    note:s.item?lightNote(lightByKey.get(index)):"нет в каталоге"
+    note:s.item?lightNote(lightByKey.get(index)):"нет в каталоге",
+    /* Позиция клавиши в посте едет ВМЕСТЕ со строкой: по ней взрыв-схема ниже собирается в том
+       же порядке, в каком документ печатает строки таблицы (см. cardModuleOrder). */
+    keyIndex:index
   });
   const modules=layout.map((s,index)=>moduleRow(s,index));
   const moduleGroups=groups.map(g=>({post:g.post,capacity:g.capacity,
     modules:g.modules.map(m=>moduleRow(m,Number(m.id)))}));
+  /* ⚠️ ВЗРЫВ-СХЕМА ИДЁТ В ТОМ ЖЕ ПОРЯДКЕ, ЧТО ТАБЛИЦА МОДУЛЕЙ. Порядок задаёт документ
+     (EPInstallSheet.cardModuleOrder — то же правило, по которому печатается таблица), а не
+     плоский post.mechanismIds: у немецко-французской сборки упаковка по постам переставляет
+     механизмы, и схема шла «1.1, 2.1–2, 1.2» против «1.1, 1.2, 2.1–2» в таблице над ней.
+     Номера при этом были верные — расходился порядок, а монтажник читает оба блока подряд.
+     Модуль, которого в раскладке по постам нет вовсе (шире накладки — ушёл в overflow),
+     добавляем в конец: из схемы деталь пропадать не должна, там она с плоским номером. */
+  const cardOrder=EPInstallSheet.cardModuleOrder(moduleGroups,modules);
+  const placed=new Set(cardOrder.map(r=>Number(r.keyIndex)));
+  const explodedLayout=cardOrder.map(r=>Object.assign({},layout[Number(r.keyIndex)],{keyIndex:Number(r.keyIndex)}))
+    .concat(layout.map((s,i)=>Object.assign({},s,{keyIndex:i})).filter(s=>!placed.has(s.keyIndex)));
   /* Точная коробка либо стандартно-совместимый фолбэк — выбор наш: только приложение знает
      тип стены проекта. Дальше обвязку (суппорт → коробка → накладка) собирает чистая
      EPInstallSheet.buildFittings — формат её строк принадлежит документу, а не оркестратору,
@@ -2580,7 +2745,7 @@ function buildPostSheet(post,light){
     /* Взрыв-схема ДОПОЛНЯЕТ собранную картинку: деталь → выносная линия → артикул. Глиф детали —
        из каталожной системы иконок (pickIcon/iconSvg EPPostImage), фото накладки — из того же spec. */
     explodedViewHtml:EPExplodedView.buildHtml(
-      buildExplodedSpec(comp,box,layout,spec.frame,lightRows,moduleLabelOf),
+      buildExplodedSpec(comp,box,explodedLayout,spec.frame,lightRows,moduleLabelOf),
       {esc,pickIcon:EPPostImage.pickIcon,iconSvg:EPPostImage.iconSvg}),
     /* немецко-французский: коробок и суппортов несколько (пост = 2 модуля) + импосты —
        важно монтажнику: по прежнему примечанию он вёз одну планку на всю сборку */
@@ -2603,7 +2768,10 @@ function installSheetForBuilder(){
   const post={id:placed?placed.id:"builder-draft",number:placed?placed.number:"—",
     frameId:Number($("postFrameSelect").value),
     mechanismIds:[...fields.mechanismIds],keyGroups:[...fields.keyGroups],
-    roomId:placed?placed.roomId:null,height:placed?.height,purpose:placed?.purpose};
+    roomId:placed?placed.roomId:null,height:placed?.height,purpose:placed?.purpose,
+    /* Тип стены — из черновика окна: лист монтажника обязан назвать ту коробку, что видна
+       в составе поста рядом, а не ту, что записана в проекте (правка ещё не сохранена). */
+    wallType:builderWallType()};
   if(!post.mechanismIds.length){toast("Добавьте механизмы в пост");return}
   /* Группы света считаем по ПРОЕКТУ вместе с этим постом: роль механизма зависит от числа
      мест группы во всём проекте, и лист монтажника обязан показать ту же роль, что видно в
@@ -2660,15 +2828,30 @@ function installSheetForProject(){
 
    Подтверждение — ПОВТОРОМ ТОГО ЖЕ ДЕЙСТВИЯ, как при закрытии конструктора с несохранённой
    работой (см. requestClosePostBuilder): своих модальных диалогов в приложении нет, а
-   системный confirm() в проекте не используется. Окно шире (6 с против 4 с): здесь человеку
-   надо прочитать сумму, а не просто вспомнить, что он делал. Если расчёт не меняется —
-   не спрашиваем вовсе: лишний вопрос обесценивает предупреждение. */
+   системный confirm() в проекте не используется. Границы окна считает ОБЩИЙ EPConfirmRepeat —
+   и здесь, и при закрытии конструктора: пока это были две копии «запомнили время — сравнили с
+   окном», обе несли один дефект (верхняя граница есть, нижней нет), и обычный ДВОЙНОЙ КЛИК
+   (два нажатия за 4 мс) применял пересборку молча — человек физически не успевал прочитать
+   «X € → Y €». Окно шире, чем у закрытия (6 с против 4 с): здесь надо прочитать сумму, а не
+   просто вспомнить, что делал. Если расчёт не меняется — не спрашиваем вовсе: лишний вопрос
+   обесценивает предупреждение.
+
+   ⚠️ ПОДТВЕРЖДАЮТ ИМЕННО ТО, ЧТО ПОКАЗАЛИ. Взвод несёт подпись посчитанного (renumberSubject):
+   пару «до/после», обе суммы и саму раскладку номеров. Голая метка времени этого не знала — и
+   если между нажатиями изменить проект (сдвинуть пост, поправить группу), второе нажатие
+   применяло ДРУГУЮ перенумерацию, про которую человеку показали ДРУГИЕ числа. Изменилась
+   подпись — это не подтверждение, а новый вопрос с новыми числами. */
 const RENUMBER_CONFIRM_MS=6000;
-let _renumberArmed=0;
+let _renumberArmed=null;
 /* Подпись подбора: роль и артикул КАЖДОГО места в порядке входного списка постов. Порядок
    входа один и тот же в обоих расчётах, поэтому сравнение поэлементное и от номеров не
    зависит — оно показывает ровно то, что изменится у конкретных постов. */
 const lightingSignature=light=>JSON.stringify((((light&&light.plan)||{}).places||[]).map(p=>[p&&p.role,p&&p.code]));
+/* Подпись ПОКАЗАННОГО: что именно применит подтверждение (раскладка номеров) и что человек про
+   это прочитал (обе подписи подбора и обе суммы). Любая правка проекта между нажатиями меняет
+   её — и подтверждение обязано спроситься заново. */
+const renumberSubject=(numbers,before,after)=>JSON.stringify([[...numbers].map(([id,n])=>[String(id),n]),
+  lightingSignature(before),lightingSignature(after),lightingSum(before),lightingSum(after)]);
 function renumberPosts(){
   if(!state.posts.length){toast("В проекте нет постов");return}
   const ordered=state.posts.slice().sort((a,b)=>(a.y-b.y)||(a.x-b.x));
@@ -2677,16 +2860,19 @@ function renumberPosts(){
   const before=projectLighting();
   const after=lightingFor(state.posts.map(p=>Object.assign({},p,{number:numbers.get(p.id)})));
   const changed=lightingSignature(before)!==lightingSignature(after);
-  const now=Date.now();
-  if(changed&&!(_renumberArmed&&now-_renumberArmed<RENUMBER_CONFIRM_MS)){
-    _renumberArmed=now;
-    const sumBefore=lightingSum(before),sumAfter=lightingSum(after);
-    toast(Math.abs(sumBefore-sumAfter)>=0.005
-      ? `Перенумерация пересоберёт механизмы групп света: ${money(sumBefore)} → ${money(sumAfter)}. Нажмите ещё раз, чтобы подтвердить`
-      : "Перенумерация переставит механизмы групп света между постами (сумма прежняя). Нажмите ещё раз, чтобы подтвердить");
-    return;
+  if(changed){
+    const step=EPConfirmRepeat.press(_renumberArmed,
+      {now:Date.now(),maxMs:RENUMBER_CONFIRM_MS,subject:renumberSubject(numbers,before,after)});
+    _renumberArmed=step.armed;
+    if(step.action!=="confirm"){
+      const sumBefore=lightingSum(before),sumAfter=lightingSum(after);
+      toast(Math.abs(sumBefore-sumAfter)>=0.005
+        ? `Перенумерация пересоберёт механизмы групп света: ${money(sumBefore)} → ${money(sumAfter)}. Нажмите ещё раз, чтобы подтвердить`
+        : "Перенумерация переставит механизмы групп света между постами (сумма прежняя). Нажмите ещё раз, чтобы подтвердить");
+      return;
+    }
   }
-  _renumberArmed=0;
+  _renumberArmed=null;
   ordered.forEach(p=>p.number=numbers.get(p.id));
   renderAll();renderProperties();renderSummary();persistProject();
   toast(changed?"Посты перенумерованы, механизмы групп света пересчитаны":"Посты перенумерованы по расположению на плане");
@@ -2850,10 +3036,15 @@ LIGHTING_SCHEME_HOSTS.forEach(([selectId])=>{
     renderSummary();scheduleSave();
   };
 });
-/* Тип стены — первый шаг конструктора и свойство проекта: меняет подбор коробки,
-   поэтому перерисовываем состав и смету и сохраняем. */
+/* Тип стены — ЧЕРНОВИК ОКНА, а не мгновенная правка проекта. Кнопка писала прямо в
+   EP_DATA.settings.wallType и тут же звала scheduleSave(): человек открывал ОДИН пост, менял
+   стену — и подбор коробки уезжал у ВСЕХ постов проекта, включая посты другой накладки и
+   другого состава; «Отмена» это не откатывала, потому что проект уже был сохранён.
+   Теперь кнопка меняет только черновик; куда правку применить — решает сохранение
+   (savePostBuilder → askWallScope). Смету отсюда не пересчитываем и проект не сохраняем:
+   пока не нажато «Сохранить», в проекте ничего не изменилось. */
 document.querySelectorAll("#postWallType .wall-type-option").forEach(b=>b.onclick=()=>{
-  EP_DATA.settings.wallType=b.dataset.wall;renderBuilder();renderSummary();scheduleSave();
+  state.builder.wallType=b.dataset.wall;renderBuilder();
 });
 /* Клик мимо окна — такое же СЛУЧАЙНОЕ закрытие, как Esc: с несохранёнными правками просит
    повтора (см. requestClosePostBuilder), а не выбрасывает собранный пост молча. */
@@ -3107,9 +3298,26 @@ document.onkeydown=e=>{
      группы света удалил бы выделенный на плане объект, а пробел на карточке товара вместо
      нажатия включил бы панораму. */
   const inBuilder=$("postModal").classList.contains("open");
-  if(inBuilder&&e.key==="Tab"){trapBuilderFocus(e);return}
+  /* Ловушку Tab снимаем, пока поверх конструктора висит вопрос об охвате правки типа стены:
+     иначе Tab утаскивал бы фокус обратно в окно поста, а по кнопкам самого вопроса пройти
+     было бы нельзя. return остаётся в обоих случаях — горячим клавишам холста под модалкой
+     делать нечего. */
+  if(inBuilder&&e.key==="Tab"){
+    if(!$("wallScopeModal").classList.contains("open"))trapBuilderFocus(e);
+    return;
+  }
   if(e.key==="Escape"){
+    /* АВТОПОВТОР ЗАЖАТОЙ КЛАВИШИ — НЕ ВТОРОЕ ДЕЙСТВИЕ. Удержанный Esc сыплет срабатываниями
+       каждые ~30 мс, и подтверждение «повторите, чтобы закрыть без сохранения» снималось
+       собственным же первым нажатием: несобранный пост пропадал молча. Ни одному разбору Esc
+       ниже автоповтор не нужен — гасим его сразу, до всех веток. Нижняя граница окна в
+       EPConfirmRepeat страхует то же самое со стороны логики (человек может и постучать по
+       клавише), но здесь дефект снимается в источнике. */
+    if(e.repeat)return;
     if($("pdfPageModal").classList.contains("open")){finishPdfPageSelection(null);return}
+    /* Вопрос об охвате правки типа стены висит ПОВЕРХ конструктора, поэтому разбирается
+       раньше конструктора: иначе Esc закрыл бы окно поста из-под неразрешённого промиса. */
+    if($("wallScopeModal").classList.contains("open")){finishWallScope(null);return}
     if(!uploadPopover.hidden)setUploadPopover(false,true);
     if(inBuilder){
       /* Esc В ПОЛЕ ВВОДА ВЫХОДИТ ИЗ ПОЛЯ, А НЕ ИЗ ОКНА. Человек набирает группу света и жмёт

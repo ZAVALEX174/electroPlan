@@ -4,7 +4,7 @@
    поэтому браузер поднимать не нужно. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildHtml, buildFittings } = require("../js/installSheet.js");
+const { buildHtml, buildFittings, cardModuleOrder } = require("../js/installSheet.js");
 /* Род пробела (поставка или незаполненный проект) — общий для всех документов словарь. */
 const LG = require("../js/lightingGroups.js");
 
@@ -260,6 +260,42 @@ test("один пост (нет moduleGroups>1) рисует плоскую та
   const html = buildHtml({ posts: [italianPost] }, deps);   // moduleGroups нет вовсе
   assert.match(html, /2–3/, "плоская нумерация сохранена для итальянской накладки");
   assert.ok(!/class="post-row"/.test(html), "подзаголовков-постов у однопостовой накладки нет");
+});
+
+/* ---- порядок модулей в карточке: таблица и взрыв-схема читаются подряд ------------------- */
+
+/* Немецко-французская сборка 2+2, набор 1М·2М·1М: упаковка по постам разводит его так, что
+   ВТОРОЙ по набору механизм (2М) уезжает во второй пост, а третий (1М) встаёт вторым модулем
+   первого. Порядок карточки от порядка набора отличается — на этом и расходились блоки. */
+const packedGroups = [
+  { post: 1, capacity: 2, modules: [{ label: "1", code: "09021.N", keyIndex: 0 }, { label: "2", code: "09021.N", keyIndex: 2 }] },
+  { post: 2, capacity: 2, modules: [{ label: "1–2", code: "09022.N", keyIndex: 1 }] }
+];
+const flatModules = [
+  { label: "1", code: "09021.N", keyIndex: 0 },
+  { label: "2–3", code: "09022.N", keyIndex: 1 },
+  { label: "4", code: "09021.N", keyIndex: 2 }
+];
+
+test("cardModuleOrder: у сборки из нескольких постов порядок карточки — ПО ПОСТАМ", () => {
+  assert.deepEqual(cardModuleOrder(packedGroups, flatModules).map(m => m.keyIndex), [0, 2, 1]);
+});
+
+test("cardModuleOrder: одна накладка — прежний плоский порядок набора", () => {
+  assert.deepEqual(cardModuleOrder(null, flatModules).map(m => m.keyIndex), [0, 1, 2]);
+  assert.deepEqual(cardModuleOrder([packedGroups[0]], flatModules).map(m => m.keyIndex), [0, 1, 2]);
+  assert.deepEqual(cardModuleOrder(undefined, undefined), []);
+});
+
+test("ПОРЯДОК СТРОК ТАБЛИЦЫ и cardModuleOrder — одно правило: взрыв-схеме не с чем разойтись", () => {
+  /* Взрыв-схему собирает оркестратор по cardModuleOrder, а таблицу печатает buildHtml. Пока
+     правило было записано дважды, адреса в двух блоках одной карточки шли в разном порядке
+     («1.1, 2.1–2, 1.2» против «1.1, 1.2, 2.1–2»). Сверяем порядок ячеек-модулей в напечатанной
+     таблице с порядком, который получает схема. */
+  const post = Object.assign({}, italianPost, { number: 7, modules: flatModules, moduleGroups: packedGroups });
+  const html = buildHtml({ posts: [post] }, deps);
+  const printed = [...html.matchAll(/class="mod">([^<]+)</g)].map(m => m[1]);
+  assert.deepEqual(printed, cardModuleOrder(packedGroups, flatModules).map(m => m.label));
 });
 
 test("assembledImageHtml вставляется в карточку поста как есть", () => {
