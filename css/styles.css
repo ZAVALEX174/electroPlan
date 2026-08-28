@@ -21,6 +21,15 @@ button{cursor:pointer}
 .workspace{min-height:0;display:grid;grid-template-columns:292px 1fr 310px;gap:12px;padding:12px}
 .sidebar,.main-panel{min-height:0;border:1px solid rgba(217,232,247,.92);border-radius:10px;background:#fff;box-shadow:var(--shadow)}
 .sidebar{padding:16px;overflow:auto}.sidebar section+section{margin-top:22px}
+/* «Одиночные элементы» убраны (заказчик 24.08 — элементы только внутри постов): левую
+   панель делаем флекс-колонкой, чтобы «Готовые посты» забирали освободившийся низ и
+   прокручивались внутри себя при большом числе постов, а не оставляли пустоту. Верхние
+   секции держат свою высоту; панель наружу не растёт (overflow:auto — общий предохранитель
+   на низких экранах). Селектор .library-section специфичнее, чем .left-panel>section. */
+.left-panel{display:flex;flex-direction:column}
+.left-panel>section{flex:0 0 auto}
+.left-panel>.library-section{flex:1 1 auto;min-height:140px;display:flex;flex-direction:column}
+.left-panel>.library-section .post-library{flex:1 1 auto;min-height:0;overflow:auto}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}.section-head h3{margin:0;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#52616f}
 .count-pill{min-width:24px;padding:4px 7px;border-radius:999px;text-align:center;font-size:10px;font-weight:900;color:var(--blue-dark);background:var(--blue-soft)}
 .upload-btn{display:block;text-align:center;padding:11px;border:1px dashed #8fc2ef;border-radius:12px;color:var(--blue-dark);font-weight:800;background:#f4faff;cursor:pointer}
@@ -32,19 +41,12 @@ button{cursor:pointer}
 .markup-check input{width:14px;height:14px;cursor:pointer}
 .markup-step{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#42627f}
 .markup-step select{padding:3px 6px;border:1px solid var(--line);border-radius:8px;background:#fff;color:#42627f;font-size:12px;font-weight:700;cursor:pointer}
-.search-box input,label input,label select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:#fff;color:var(--text)}
-.catalog{display:flex;flex-direction:column;gap:7px;margin-top:8px;max-height:300px;overflow:auto}
-.catalog-item{display:grid;grid-template-columns:34px 1fr 30px;gap:8px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:12px;background:var(--panel-soft)}
-.catalog-symbol{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:10px;font-weight:900;color:var(--blue-dark);background:var(--blue-soft)}
+label input,label select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:#fff;color:var(--text)}
 .product-picture{position:relative;display:grid;width:100%;height:100%;place-items:center;overflow:hidden;color:var(--blue-dark)}
 .product-picture img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain;background:#fff}
 .product-picture-fallback{display:grid;width:100%;height:100%;place-items:center}
 .product-picture.has-image .product-picture-fallback{display:none}
 .product-picture:not(.has-image) img{display:none}
-.catalog-symbol .product-picture{border-radius:8px}
-.catalog-symbol img{border-radius:8px}
-.catalog-item strong{display:block;font-size:12px}.catalog-item small{display:block;margin-top:2px;color:var(--muted);font-size:10px}
-.add-btn{width:29px;height:29px;border:0;border-radius:9px;color:var(--blue-dark);background:#dceeff;font-size:18px}
 .link-btn{border:0;background:transparent;color:var(--blue-dark);font-weight:900;font-size:11px}
 .post-library{display:flex;flex-direction:column;gap:8px}.library-empty{font-size:11px;color:var(--muted)}
 .library-card{padding:10px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(180deg,#fff,#f6fbff)}
@@ -100,6 +102,9 @@ button{cursor:pointer}
 .scale-row .hint-line.is-set{color:#14713b;font-weight:800}
 .canvas.measuring{cursor:crosshair}
 .prop-hint{display:block;margin:-4px 0 8px;color:var(--muted);font-size:9px;line-height:1.45}
+/* Источник типа стены поста: «унаследован от проекта» — приглушённо (обычный prop-hint),
+   «свой» — выделено цветом акцента, чтобы два состояния нельзя было спутать глазом. */
+.prop-wall-source.own{color:var(--blue-dark);font-weight:700}
 .prop-hint-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;color:var(--muted);font-size:9px}
 .prop-hint-row b{color:var(--text)}
 .terms-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
@@ -350,7 +355,7 @@ button{cursor:pointer}
 .canvas-toolbar,.canvas-footer{background:#f8f9fa}
 .grand-total{border-radius:6px;background:var(--navy)}
 .modal{border-radius:10px}
-.library-card,.catalog-item,.price-card,.spec-item{border-radius:6px}
+.library-card,.price-card,.spec-item{border-radius:6px}
 
 .room-object-count{display:block;margin-top:4px;padding-top:4px;border-top:1px solid #d9e0e7;color:#1769aa;font-size:8px;font-weight:800}
 .room-equipment-box{margin-top:12px;border:1px solid var(--line);border-radius:6px;overflow:hidden}

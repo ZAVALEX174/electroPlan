@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260828.5">
+  <link rel="stylesheet" href="css/styles.css?v=20260828.7">
 </head>
 <body>
 <div class="app">
@@ -103,13 +103,7 @@
         <button class="text-action" id="clearRoomLinesBtn" style="margin-top:7px">Очистить разметку помещений</button>
       </section>
 
-      <section>
-        <div class="section-head"><h3>Одиночные элементы</h3><span class="count-pill" id="catalogCount">0</span></div>
-        <div class="search-box"><input id="catalogSearch" placeholder="Найти элемент"></div>
-        <div class="catalog" id="catalog"></div>
-      </section>
-
-      <section>
+      <section class="library-section">
         <div class="section-head"><h3>Готовые посты</h3><button class="link-btn" id="newPostBtn">+ Создать</button></div>
         <div class="post-library" id="postLibrary"></div>
       </section>
@@ -295,9 +289,11 @@
             <!-- Раньше здесь было «Свойство проекта», и это было правдой: кнопка меняла тип
                  стены сразу всему проекту. Заказчик (24.08) справедливо счёл это ошибкой —
                  блок в перегородке из ГКЛ соседствует с блоками в бетоне. Теперь у поста на
-                 плане тип стены свой, а при сохранении окно спрашивает охват правки.
-                 Подпись динамическая (renderBuilderComposition): у ШАБЛОНА и нового поста
-                 своего типа стены нет — кнопки там выключены, показан тип стены проекта. -->
+                 плане тип стены свой, а при сохранении окно спрашивает охват правки. У ШАБЛОНА
+                 и нового поста кнопки тоже активны: выбранный тип стены сохраняется в шаблоне и
+                 переходит посту при размещении (владелец, 28.08). Общей настройки проекта эти
+                 кнопки НЕ трогают (дефект B5) — её орган в панели «Спецификация».
+                 Подпись динамическая (renderBuilderComposition). -->
             <small class="wall-type-hint" id="postWallTypeHint"></small>
           </fieldset>
           <!-- Схема электрики — свойство ПРОЕКТА (EP_DATA.settings, едет в terms), поэтому
@@ -412,7 +408,7 @@
      (использует его тексты пробелов) и до estimate/installSheet, которые его результат печатают. -->
 <script src="js/lightingPlan.js?v=20260828.5"></script>
 <script src="js/postfit.js?v=20260826.2"></script>
-<script src="js/posts.js?v=20260828.4"></script>
+<script src="js/posts.js?v=20260828.5"></script>
 <script src="js/picker.js?v=20260801.1"></script>
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
 <script src="js/catalogSections.js?v=20260828.1"></script>
@@ -434,6 +430,6 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-  <script src="js/app.js?v=20260828.21"></script>
+  <script src="js/app.js?v=20260828.24"></script>
 </body>
 </html>

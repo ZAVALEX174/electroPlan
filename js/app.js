@@ -296,7 +296,7 @@ async function init(){
   const restored=await restoreProject();
   loadCachedRate();
   fillDocHeaderInputs();   /* реквизиты КП: заполнить поля (и дату «сегодня» на чистом старте) */
-  renderCatalog();renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();
+  renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();
   renderLightingSchemeSelect();   /* селектор схемы в панели проекта: заполняем и на чистом старте */
   renderProjectWallTypeSelect();  /* тип стены проекта — там же, рядом со схемой */
   applyGridStyle();syncMarkupControls();updateZoomUi();applyView();   /* сетка/переключатели/зум/вид — из state (в т.ч. восстановленного) */
@@ -310,18 +310,6 @@ async function init(){
       ?"Проект восстановлен, но план не поместился — загрузите его заново"
       :`Проект восстановлен${when?" от "+when:""}`),120);
   }
-}
-function renderCatalog(filter=""){
-  const standalone=state.products.filter(x=>["standalone","mechanism","accessory"].includes(x.kind)&&x.active&&x.name.toLowerCase().includes(filter.toLowerCase()));
-  $("catalogCount").textContent=standalone.length;
-  $("catalog").innerHTML=standalone.map(p=>`<div class="catalog-item">
-    <div class="catalog-symbol">${productPicture(p,{label:p.name})}</div><div><strong>${esc(p.name)}</strong><small>${productMoney(p)} / ${esc(p.unit)}</small></div>
-    <button class="add-btn" data-add-product="${p.id}">+</button></div>`).join("");
-  bindProductPictureFallbacks($("catalog"));
-  document.querySelectorAll("[data-add-product]").forEach(b=>b.onclick=()=>{
-    state.pending={type:"device",productId:Number(b.dataset.addProduct)};canvas.classList.add("placing");
-    updateStatus("Кликните на плане для размещения элемента");
-  });
 }
 function renderTemplates(){
   const list=$("postLibrary");
@@ -908,7 +896,6 @@ function applyProjectSettings(){
   renderProjectWallTypeSelect();   /* тип стены проекта */
   /* 2) потребители: от настроек зависят состав постов, цены и суммы */
   renderAll();                     /* объекты плана: подбор коробки и механизмов мог измениться */
-  renderCatalog($("catalogSearch").value);
   renderTemplates();
   renderProperties();              /* карточка выбранного объекта — тот самый забываемый потребитель */
   renderSummary();
@@ -1195,13 +1182,47 @@ function renderProperties(){
        управления три, — пробел подбора из неё было не видно. */
     const light=projectLighting();
     const lightSummary=lightingRowSummary(lightingRowsFor(p,light));
+    /* Тип стены поста прямо в панели свойств. ⚠️ ОТСУТСТВИЕ post.wallType — это «как в проекте»,
+       а не «unknown» (EPPosts.postWallType), поэтому «свой» и «унаследован» — РАЗНЫЕ состояния,
+       и показываем их по-разному: ownWall различает наличие собственного поля у поста, curWall —
+       фактически действующий тип (свой либо проектный), projWall — значение проекта для подписи. */
+    const projWall=EP_DATA.settings.wallType==="hollow"?"hollow":"solid";
+    const ownWall=p.wallType==="solid"||p.wallType==="hollow";
+    const curWall=EPPosts.postWallType(p,EP_DATA.settings.wallType);
     props.innerHTML=`<label>Пост<input value="${esc(postNumberLabel(p))}" disabled></label>
     <label>Комната<input value="${esc(room?.name||"Не назначена")}" disabled></label>
     <label>Механизмов / коробок<input value="${p.mechanismIds.length} / ${postComposition(p).boxCount}" disabled></label>
+    <label>Тип стены<select id="postWallSelect">
+      <option value="solid"${curWall==="solid"?" selected":""}>Бетон, кирпич, сплошные стены</option>
+      <option value="hollow"${curWall==="hollow"?" selected":""}>ГКЛ и полые стены</option>
+    </select></label>
+    <small class="prop-hint prop-wall-source${ownWall?" own":""}">${ownWall?"Свой тип стены поста":`Унаследован от проекта: ${esc(WALL_STEP_LABEL[projWall]||projWall)}`}</small>
     ${lightSummary?`<label>Механизмы групп света<input value="${esc(lightSummary.text)}" disabled></label>`:""}
     <label>Стоимость<input value="${money(postTotalCost(p,light))}" disabled></label>
     <div class="property-actions"><button class="btn primary" id="editSelected">Редактировать</button><button class="btn ghost" id="removeSelected">Удалить</button></div>`;
     $("editSelected").onclick=()=>openPostBuilder({placedId:id});$("removeSelected").onclick=()=>removeEntity(kind,id);
+    /* Правка типа стены поста — тем же механизмом охвата, что и конструктор (savePostBuilder →
+       askWallScope): охват спрашиваем ДО любых записей, пишем ЯВНО каждому адресату из
+       EPPosts.wallTypeTargets (даже при совпадении с проектом — иначе выбор «уедет» вслед за
+       настройкой проекта), а вопрос задаём только когда однотипных больше одного. Настройку
+       проекта EP_DATA.settings.wallType отсюда НЕ трогаем — правится лишь в панели проекта
+       (принцип из бага B5); перерисовываем в обработчике по действию человека, а не в теле
+       renderProperties, поэтому renderAll здесь допустим. */
+    $("postWallSelect").onchange=async e=>{
+      const wall=e.target.value==="hollow"?"hollow":"solid";
+      /* Выбор уже действующего значения ничего не меняет и не «прибивает» унаследованный тип к
+         посту — то же условие, что wallChanged в savePostBuilder. */
+      if(wall===EPPosts.postWallType(p,EP_DATA.settings.wallType))return;
+      let scope="self";
+      const twins=EPPosts.wallTypeTargets(state.posts,p,"sameType");
+      if(twins.length>1){
+        scope=await askWallScope(twins.length,wall);
+        if(!scope){renderProperties();return}   /* отказ — ничего не пишем, select возвращаем к прежнему значению */
+      }
+      EPPosts.wallTypeTargets(state.posts,p,scope).forEach(x=>{x.wallType=wall});
+      renderAll();renderProperties();renderSummary();persistProject();
+      toast(scope==="sameType"?"Тип стены обновлён у поста и всех однотипных":"Тип стены поста обновлён");
+    };
   }else if(kind==="wall"){
     const wobj=[...state.walls,...state.autoWalls].find(x=>x.id===id);
     const len=wobj?Math.round(Math.hypot(wobj.b.x-wobj.a.x,wobj.b.y-wobj.a.y)):0;
@@ -1485,10 +1506,10 @@ function openPostBuilder({templateId=null,placedId=null}={}){
      фальшблок), снимается здесь же. Раньше она переживала цикл «открыть → Сохранить» и оживала
      фантомным местом управления после перезаливки прайса — см. EPBuilderSlots.fromPost. */
   state.builder.slots=placedId?EPBuilderSlots.fromPost(src,keySlotKind):EPBuilderSlots.clearGroups(EPBuilderSlots.fromPost(src,keySlotKind));
-  /* Тип стены открываемого поста: СВОЙ, если у поста он задан, иначе тип стены проекта
-     (EPPosts.postWallType — то же правило, по которому его читает подбор коробки, второй
-     копии правила не заводим). У шаблона и у нового поста своего типа стены нет и быть не
-     может — они не стоят в стене, — поэтому оба открываются со значением проекта. */
+  /* Тип стены открываемого объекта: СВОЙ, если он задан (у поста на плане ИЛИ у шаблона —
+     шаблон теперь тоже несёт свой тип стены), иначе тип стены проекта (EPPosts.postWallType —
+     то же правило, по которому его читает подбор коробки, второй копии правила не заводим).
+     Новый пост своего типа стены не имеет и открывается со значением проекта. */
   state.builder.wallType=EPPosts.postWallType(src,EP_DATA.settings.wallType);
   $("postFrameSelect").dataset.preferredFrameId=String(src.frameId??"");
   $("builderSearch").value="";
@@ -1912,22 +1933,23 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
      черновик, и подсветка активной кнопки обязана показывать выбор человека, иначе он жмёт
      «ГКЛ», а подсвеченным остаётся «бетон». */
   const wall=builderWallType();
-  /* СВОЙ тип стены есть только у поста НА ПЛАНЕ — он стоит в конкретной стене. У шаблона и у
-     нового поста его нет и быть не может, поэтому там кнопки выключены и показывают тип стены
-     проекта: раньше в этой ветке они правили EP_DATA.settings.wallType, то есть человек, открыв
-     ОДИН шаблон, менял подбор коробки всему проекту — тот же дефект, ради которого у поста
-     завели собственный тип стены. Менять значение проекта — в панели проекта. */
-  const ownWall=!!state.builder.editingPlacedId;
+  /* Кнопки «Тип стены» активны ВЕЗДЕ — и у поста на плане, и у шаблона/нового поста: владелец
+     решил, что шаблон несёт СВОЙ тип стены и передаёт его посту при размещении. Разница только
+     в подсказке: у поста на плане свой тип, у шаблона выбор доедет до будущего поста.
+     ⚠️ Ни в одном случае кнопки НЕ пишут EP_DATA.settings.wallType — иначе вернулся бы дефект B5
+     (правка «у одного шаблона» переставляла подбор коробки всему проекту). Настройку всего
+     проекта правят только в панели «Спецификация» (см. обработчик кнопок и savePostBuilder). */
+  const placed=!!state.builder.editingPlacedId;
   document.querySelectorAll("#postWallType .wall-type-option").forEach(b=>{
     const on=b.dataset.wall===wall;
     b.classList.toggle("active",on);
     b.setAttribute("aria-checked",on?"true":"false");
-    b.disabled=!ownWall;
+    b.disabled=false;
   });
   const wallHint=$("postWallTypeHint");
-  if(wallHint)wallHint.textContent=ownWall
+  if(wallHint)wallHint.textContent=placed
     ?"Влияет на подбор монтажной коробки. У поста на плане — свой; при сохранении спросим, менять только в нём или во всех однотипных."
-    :"Свой тип стены есть только у поста на плане. Здесь показан тип стены проекта — по нему посчитан состав ниже; менять его — в панели «Спецификация».";
+    :"Влияет на подбор монтажной коробки. Тип стены сохранится в шаблоне и перейдёт посту при размещении на плане; настройку всего проекта это не меняет — она в панели «Спецификация».";
   const host=$("builderComposition");if(!host)return;
   if(!selectedFrame){host.innerHTML=errorHtml||"";return;}
   const post=draft||{frameId:Number($("postFrameSelect").value),
@@ -2078,17 +2100,28 @@ async function savePostBuilder(){
     renderAll();renderProperties();renderSummary();
     toast(wallChanged&&scope==="sameType"?"Обновлён пост и все однотипные посты":"Пост на плане обновлён");
   }else{
-    /* ⚠️ ЗДЕСЬ НЕТ ЗАПИСИ EP_DATA.settings.wallType — И ЭТО ГЛАВНОЕ В ЭТОЙ ВЕТКЕ. Шаблон и
-       новый пост в стене не стоят, своего типа стены у них нет; раньше кнопки «Тип стены» в их
-       окне правили ЗНАЧЕНИЕ ПРОЕКТА, и правка «у одного шаблона» переставляла подбор коробки
-       всем постам проекта — тот же дефект, который у размещённого поста уже вылечен
-       собственным post.wallType. Оправдание «это единственное место, где тип стены объекта
-       вообще задаётся» больше не действует: орган управления переехал в панель проекта
-       (#projectWallTypeSelect), а кнопки в этой ветке выключены и лишь показывают значение
-       (см. renderBuilderComposition). Тип стены в шаблон не пишем и здесь: при размещении он
-       читается у проекта, а дальше пост правится своей кнопкой. */
+    /* ⚠️ ЗДЕСЬ НЕТ ЗАПИСИ EP_DATA.settings.wallType — И ЭТО ГЛАВНОЕ В ЭТОЙ ВЕТКЕ. Настройку
+       ВСЕГО ПРОЕКТА (#projectWallTypeSelect) правят только в панели «Спецификация»: правка «у
+       одного шаблона», уехавшая в EP_DATA.settings, переставляла подбор коробки всем постам
+       проекта — дефект B5, ради которого у поста и завели собственный тип стены. Владелец решил
+       иначе: теперь ШАБЛОН НЕСЁТ СВОЙ тип стены и передаёт его посту при размещении
+       (EPPosts.placementFields), но общей настройки проекта по-прежнему не касается.
+       В шаблон пишем тип стены ТОЛЬКО как ЯВНЫЙ выбор — отличный от типа стены проекта; совпал
+       с проектом — поле не пишем, тогда шаблон (и пост из него) следуют за проектом («нет поля =
+       как в проекте», то же правило, что у размещённого поста). Если шаблон уже нёс свой тип и
+       пользователь его не менял — сохраняем как было. Мусор/пустое значение как отсутствие
+       трактует сама placementFields при размещении. */
     const existing=state.builder.editingTemplateId;
+    const prev=existing?state.templates.find(x=>x.id===existing):null;
     const template={id:existing||uid("tpl_"),...base};
+    const wall=builderWallType();
+    /* Эффективный тип стены проекта — тот же, что показывает панель (renderProjectWallTypeSelect):
+       пусто/мусор → «solid». С ним и сравниваем, что выбор человека — осознанное расхождение. */
+    const projectWall=EP_DATA.settings.wallType==="hollow"?"hollow":"solid";
+    const ownWall=(wall==="solid"||wall==="hollow")&&wall!==projectWall
+      ? wall
+      : (prev&&(prev.wallType==="solid"||prev.wallType==="hollow")&&prev.wallType===wall?prev.wallType:null);
+    if(ownWall)template.wallType=ownWall;
     await DataService.savePost(template);state.templates=await DataService.getSavedPosts();renderTemplates();toast(existing?"Шаблон обновлён":"Пост сохранён в библиотеку");
   }
   closePostBuilder();
@@ -3273,7 +3306,6 @@ $("gridStepSelect").onchange=e=>{
 };
 $("clearRoomLinesBtn").onclick=clearRoomLines;
 $("planVisibilityBtn").onclick=cyclePlanVisibility;
-$("catalogSearch").oninput=e=>renderCatalog(e.target.value);
 $("newPostBtn").onclick=()=>openPostBuilder();
 $("closePostModal").onclick=$("cancelPost").onclick=closePostBuilder;
 $("savePost").onclick=savePostBuilder;$("postSlotCount").onchange=changePostSlotCount;$("postFrameSelect").onchange=renderBuilder;
@@ -3304,12 +3336,11 @@ $("projectWallTypeSelect").onchange=e=>{
    стену — и подбор коробки уезжал у ВСЕХ постов проекта, включая посты другой накладки и
    другого состава; «Отмена» это не откатывала, потому что проект уже был сохранён.
    Теперь кнопка меняет только черновик; куда правку применить — решает сохранение
-   (savePostBuilder → askWallScope). Смету отсюда не пересчитываем и проект не сохраняем:
-   пока не нажато «Сохранить», в проекте ничего не изменилось.
-   Проверка editingPlacedId — страховка к disabled в разметке: своего типа стены у шаблона и
-   нового поста нет, и черновик там менять нечему (renderBuilderComposition). */
+   (savePostBuilder → askWallScope у поста на плане, запись в шаблон у шаблона/нового поста).
+   Смету отсюда не пересчитываем и проект не сохраняем: пока не нажато «Сохранить», в проекте
+   ничего не изменилось. У шаблона и нового поста черновик тоже правится (владелец: шаблон
+   несёт свой тип стены) — прежнего запрета «только у поста на плане» здесь больше нет. */
 document.querySelectorAll("#postWallType .wall-type-option").forEach(b=>b.onclick=()=>{
-  if(!state.builder.editingPlacedId)return;
   state.builder.wallType=b.dataset.wall;renderBuilder();
 });
 /* Клик мимо окна — такое же СЛУЧАЙНОЕ закрытие, как Esc: с несохранёнными правками просит

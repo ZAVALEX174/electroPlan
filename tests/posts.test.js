@@ -440,7 +440,7 @@ test("postModuleGroups: нумерация модулей начинается �
    Заказчик разместил один пост дважды, поменял тип стены у одного — «изменилось у обоих»
    (на деле — у всего проекта: тип стены был только настройкой EP_DATA.settings). Теперь
    тип стены может быть СВОИМ у поста, а настройка проекта осталась значением по умолчанию. */
-const { postWallType, postTypeKey, wallTypeTargets } = require("../js/posts.js");
+const { postWallType, postTypeKey, wallTypeTargets, placementFields } = require("../js/posts.js");
 /* Коробки под ту же 3М-сборку: сплошная стена дешевле полой — по ним и видно, что подбор
    пошёл по типу стены поста, а не проекта. */
 const BOX_SOLID = { id: 900, code: "V71303", name: "Коробка 3М (бетон)", price: 1.04, kind: "socket_box", wallType: "solid" };
@@ -530,4 +530,36 @@ test("wallTypeTargets: пост не из списка — целей нет (п
   const posts = [{ id: "p1", frameId: 14653, mechanismIds: [1, 1, 1] }];
   assert.deepEqual(wallTypeTargets(posts, { id: "нет-такого", frameId: 14653, mechanismIds: [1, 1, 1] }, "self"), []);
   assert.deepEqual(wallTypeTargets(posts, null, "sameType"), []);
+});
+
+/* ── placementFields: тип стены доезжает из шаблона до поста ───────────────────────────
+   Владелец (28.08) решил, что шаблон несёт СВОЙ тип стены и передаёт его посту при размещении.
+   Ключевое свойство совместимости: ОТСУТСТВИЕ поля — это «как в проекте», а не значение.
+   Старые шаблоны (сохранены до правила) поля не имеют, и пост из них обязан следовать проекту —
+   поэтому placementFields не должна класть в пост wallType как undefined/пустую строку. */
+test("placementFields: шаблон с wallType hollow → пост получает hollow", () => {
+  const fields = placementFields({ id: "tpl", frameId: 100, mechanismIds: [1], wallType: "hollow" });
+  assert.equal(fields.wallType, "hollow");
+  assert.equal(postWallType(fields, "solid"), "hollow", "у поста свой тип главнее проекта");
+});
+
+test("placementFields: шаблон БЕЗ поля → у поста поля НЕТ (не undefined-значение), пост следует проекту", () => {
+  const fields = placementFields({ id: "tpl", frameId: 100, mechanismIds: [1] });
+  assert.ok(!("wallType" in fields), "поле именно отсутствует, а не лежит пустым значением");
+  assert.equal(postWallType(fields, "hollow"), "hollow", "нет поля = как в проекте");
+  assert.equal(postWallType(fields, "solid"), "solid");
+});
+
+test("placementFields: мусор/пустая строка в шаблоне трактуются как отсутствие поля", () => {
+  ["", "кирпич", "unknown", null, undefined].forEach(bad => {
+    const fields = placementFields({ id: "tpl", frameId: 100, mechanismIds: [1], wallType: bad });
+    assert.ok(!("wallType" in fields), `мусор ${JSON.stringify(bad)} не должен становиться полем поста`);
+    assert.equal(postWallType(fields, "hollow"), "hollow", "пост продолжает следовать проекту");
+  });
+});
+
+test("placementFields: шаблон с wallType solid → пост получает solid", () => {
+  const fields = placementFields({ id: "tpl", frameId: 100, mechanismIds: [1], wallType: "solid" });
+  assert.equal(fields.wallType, "solid");
+  assert.equal(postWallType(fields, "hollow"), "solid");
 });

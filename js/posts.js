@@ -331,13 +331,20 @@ function ensurePostNumbers(posts) {
 function placementFields(template) {
   const t = template || {};
   const mechanismIds = [...(Array.isArray(t.mechanismIds) ? t.mechanismIds : [])];
-  return {
+  const fields = {
     templateId: t.id, name: t.name, frameId: t.frameId, mechanismIds,
     /* Длина keyGroups всегда равна длине mechanismIds (контракт EPBuilderSlots.toPost):
        короткий массив развалил бы соответствие по индексу при первой правке середины поста. */
     keyGroups: mechanismIds.map(() => ""),
     socketBoxProductId: t.socketBoxProductId
   };
+  /* Тип стены переносим в пост ТОЛЬКО когда шаблон несёт валидный собственный (solid/hollow).
+     ⚠️ ОТСУТСТВИЕ/МУСОР — ОСТАВЛЯЕМ ПОЛЕ ОТСУТСТВУЮЩИМ, а не кладём undefined/пустую строку
+     как значение: для postWallType «нет поля» = «как в проекте», и старые шаблоны (сохранённые
+     до того, как шаблон стал нести тип стены) обязаны продолжать читать тип стены проекта.
+     Условие ровно как в postWallType — второй трактовки «валидности» в коде не появляется. */
+  if (t.wallType === "solid" || t.wallType === "hollow") fields.wallType = t.wallType;
+  return fields;
 }
 
 /* Отбирает из ids столько механизмов (по порядку), сколько влезает в capacity
