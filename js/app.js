@@ -1118,7 +1118,49 @@ function removeEntity(kind,id){
   if(kind==="wall"){removeWall(id);return}
   const key={device:"devices",post:"posts",room:"rooms"}[kind];state[key]=state[key].filter(x=>x.id!==id);state.selected=null;renderAll();renderProperties();renderSummary();
 }
+/* Какой комнате принадлежат СМОНТИРОВАННЫЕ сейчас поля #roomName/#roomArea. Нужен flushRoomDraft:
+   поля читаются из DOM, но по одному DOM не понять, чью комнату они правят, — а панель может уже
+   перерисовываться для ДРУГОЙ комнаты, и коммит обязан уйти в ту, чьи поля стоят на экране.
+   Пишется в ветке комнаты (см. ниже) там же, где монтируются поля; переживает смену выделения. */
+let mountedRoomId=null;
+/* Коммит незавершённого черновика комнаты ДО замены props.innerHTML (см. EPRoomDraft — там
+   зачем и почему). Решение о коммите — в чистой функции; здесь только чтение полей из DOM и
+   применение результата (renderRooms/persistProject, как в saveRoom, БЕЗ renderProperties —
+   рекурсии между ними нет). */
+/* Точечно обновить ТЕКСТ подписи комнаты на плане — без пересоздания слоя .room-label.
+   ЗАЧЕМ НЕ renderRooms(): flushRoomDraft зовётся в начале renderProperties, а та — из beginPress
+   в самом начале жеста перетаскивания (инвариант «сцена на нажатии не перерисовывается», см.
+   makeDraggable). renderRooms первой строкой сносит все .room-label, включая узел, на котором жест
+   только начинается: setPointerCapture ушёл бы в отсоединённый узел, перенос бы не сработал, а
+   повешенный на document обработчик Esc не снялся бы (onUp не пришёл) и глушил бы Esc во всём
+   приложении. Поэтому правим один узел на месте — тем же приёмом, что applySelectionClasses.
+   Меняются лишь name/area, поэтому обновляем название и подпись площади; счётчик объектов не трогаем. */
+function updateRoomLabelText(room){
+  const rid=String(room.id);
+  canvas.querySelectorAll(".room-label").forEach(el=>{
+    if(String(el.dataset.id)!==rid)return;
+    const title=el.querySelector(".room-title");
+    if(title)title.textContent=room.name;   /* textContent сам экранирует — эквивалент esc() в renderRooms */
+    const areaText=roomDisplayArea(room);
+    let small=el.querySelector("small");
+    if(areaText){
+      if(!small){small=document.createElement("small");el.insertBefore(small,el.querySelector(".room-object-count"))}
+      small.textContent=areaText;
+    }else if(small)small.remove();   /* ручную площадь стёрли и авторасчёта нет → подпись убираем */
+  });
+}
+function flushRoomDraft(){
+  const nameEl=$("roomName"),areaEl=$("roomArea");
+  if(!nameEl||!areaEl)return;                          /* ветка комнаты не смонтирована → но-оп */
+  const room=state.rooms.find(x=>x.id===mountedRoomId);   /* нет → комнату удалили, не воскрешаем */
+  const res=EPRoomDraft.commit({name:nameEl.value,area:areaEl.value},room||null);
+  if(!res.commit)return;
+  room.name=res.name;room.area=res.area;
+  updateRoomLabelText(room);   /* точечно, без renderRooms — flush идёт из beginPress (см. выше) */
+  persistProject();
+}
 function renderProperties(){
+  flushRoomDraft();   /* §7.1: правило «сначала закоммить черновик» в одной точке — покрывает все ~25 вызовов */
   if(!state.selected){props.className="empty-properties";props.innerHTML="Выберите объект на плане";return}
   props.className="";
   const {kind,id}=state.selected;
@@ -1185,6 +1227,7 @@ function renderProperties(){
     </div>
     <button class="btn primary full" id="saveRoomProps" style="margin-top:10px">Сохранить изменения</button>
     <div class="property-save-state" id="roomSaveState"></div>`;
+    mountedRoomId=r.id;   /* этим полям принадлежит комната r — flushRoomDraft коммитит именно в неё */
     const saveRoom=()=>{
       r.name=$("roomName").value.trim()||"Комната";
       r.area=$("roomArea").value.trim();
