@@ -70,7 +70,7 @@ const frameProduct=id=>product(id);
 /* Чистая доменная логика каталога (модули/серии/совместимость/рамки/картинки)
    вынесена в js/catalog.js (EPCatalog) — PLAN 2.1; берём её алиасами. Accessor'ы
    product/byKind над state и генерация HTML/DOM остаются в этом файле. */
-const {moduleWord,placeWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,defaultPostName,productImage,frameOpening,frameOpenings,moduleFace}=EPCatalog;
+const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,defaultPostName,productImage,frameOpening,frameOpenings,moduleFace}=EPCatalog;
 const productMoney=item=>money(item?.price);
 const productOptionLabel=item=>`[${item?.code||"без артикула"}] ${item?.name||"Без названия"} — ${productMoney(item)}`;
 const mechanismModulesTotal=ids=>ids.reduce((sum,id)=>sum+mechanismSpan(product(id)),0);
@@ -317,11 +317,22 @@ function renderTemplates(){
   /* Миниатюра — то же собранное изделие, что в конструкторе (единая EPPostImage): рамка,
      разделение на посты/импосты и модули. Раньше здесь была россыпь иконок механизмов —
      по замечанию владельца «нет получившегося полного изображения рамки и модулей». */
-  list.innerHTML=state.templates.map(t=>`<div class="library-card">
-    <div class="library-title"><strong>${esc(t.name)}</strong><span>${esc(placeWord(t.mechanismIds.length))}</span></div>
+  list.innerHTML=state.templates.map(t=>{
+    /* Бейдж — занятость модулей рамки (тот же расчёт, что в конструкторе: занятые модули
+       mechanismModulesTotal из ёмкости накладки frameSlotCount), а НЕ число механизмов.
+       Раньше показывали placeWord(число механизмов) — «2 места» рядом с авто-именем «Пост на
+       3 модуля» читалось как противоречие/счётчик размещений. Рамки может не быть (битый
+       шаблон из старого проекта) — тогда честно показываем только занятые модули, без
+       выдуманного «из N», а совсем пустой пост помечаем словом, а не «0 из 0». */
+    const cap=frameSlotCount(frameProduct(t.frameId));
+    const used=mechanismModulesTotal(t.mechanismIds);
+    const badge=cap?`Занято ${used} из ${cap}`:(used?moduleWord(used):"пустой пост");
+    return `<div class="library-card">
+    <div class="library-title"><strong>${esc(t.name)}</strong><span>${esc(badge)}</span></div>
     <div class="library-thumb">${assembledPostHtml(t,{size:"sm"})}</div>
     <div class="library-actions"><button class="place" data-place-template="${t.id}">Разместить</button><button data-edit-template="${t.id}">✎</button><button data-delete-template="${t.id}">×</button></div>
-  </div>`).join("");
+  </div>`;
+  }).join("");
   document.querySelectorAll("[data-place-template]").forEach(b=>b.onclick=()=>{
     state.pending={type:"post",templateId:b.dataset.placeTemplate};canvas.classList.add("placing");
     updateStatus("Кликните на плане для размещения готового поста");
