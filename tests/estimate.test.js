@@ -4,7 +4,7 @@
    поэтому браузер поднимать не нужно. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { build, postPrice, billableLighting } = require("../js/estimate.js");
+const { build, postPrice, billableLighting, lightingCounts } = require("../js/estimate.js");
 
 /* Каталог-заглушка: розетка 10 € за штуку и кабель-канал 5 € за метр. */
 const CATALOG = {
@@ -369,4 +369,40 @@ test("тип стены поста СОВПАДАЕТ с проектным — 
   const e = run({ posts: [a, b], postCost: () => 1, postComposition: () => comp, settings: settings({ wallType: "solid" }) });
   assert.equal(e.groups.length, 1, "тип стены фактически один — одна строка с количеством 2");
   assert.equal(e.groups[0].count, 2);
+});
+
+/* ---- «нужно» и «подобрано»: экран, согласованный только по найденным, врёт ---------------
+
+   Панель свойств поста и панель «Состав поста» печатали число ПОДОБРАННЫХ механизмов, и пост
+   с тремя клавишами, у которого один механизм не подобрался (в серии нет инвертора), показывал
+   рядом «3 механизма» и «2 механизма групп света» — числа спорили друг с другом, а про пробел
+   экран молчал вовсе. Счёт живёт здесь, рядом с billableLighting, чтобы у экранов не было своей
+   копии правила «что считается подобранным». */
+
+const lightGood = { code: "20005.0", name: "Переключатель", price: 25.79 };
+const lightGap = { code: "", name: "", price: 0, missing: true, missingReason: "no_product" };
+
+test("lightingCounts: пробел считается в «нужно», но не в «подобрано» и не в деньгах", () => {
+  const c = lightingCounts([lightGood, lightGood, lightGap]);
+  assert.equal(c.need, 3, "мест управления три");
+  assert.equal(c.found, 2, "механизмов подобрано два");
+  assert.equal(c.gaps, 1, "пробел назван отдельно, а не растворён в числе");
+  assert.equal(Number(c.sum.toFixed(2)), 51.58, "пробел стоит 0 — цена от него не меняется");
+});
+
+test("lightingCounts: всё подобрано — «нужно» и «подобрано» совпадают, пробелов нет", () => {
+  const c = lightingCounts([lightGood, lightGood]);
+  assert.deepEqual([c.need, c.found, c.gaps], [2, 2, 0]);
+});
+
+test("lightingCounts: мест нет вовсе — нули, и экрану нечего показывать", () => {
+  assert.deepEqual(lightingCounts([]), { need: 0, found: 0, gaps: 0, sum: 0 });
+  assert.deepEqual(lightingCounts(null), { need: 0, found: 0, gaps: 0, sum: 0 });
+});
+
+test("lightingCounts судит тем же фильтром, что и деньги (billableLighting)", () => {
+  /* Разойдись эти два правила — состав показывал бы одно, а цена считалась бы по другому. */
+  const rows = [lightGood, lightGap, { code: "", name: "", price: 7, missing: true }];
+  assert.equal(lightingCounts(rows).found, billableLighting(rows).length);
+  assert.equal(lightingCounts(rows).sum, postPrice(0, rows));
 });

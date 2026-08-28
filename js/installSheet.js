@@ -10,9 +10,10 @@
    проверить автотестом, не поднимая браузер (PLAN 7.1).
 
    Интерфейс приложению — window.EPInstallSheet.buildHtml(data, deps),
-   buildFittings(comp, box, lighting) и cardModuleOrder(moduleGroups, modules): и обвязка поста,
-   и порядок модулей в его карточке собираются ЗДЕСЬ, а не в оркестраторе, потому что это часть
-   контракта документа (см. fittings и cardModuleOrder ниже).
+   buildFittings(comp, box, lighting), cardModuleOrder(moduleGroups, modules) и
+   cardFittingOrder(fittings, moduleGroups, modules): и обвязка поста, и ПОРЯДОК всех трёх блоков
+   карточки (таблица модулей, взрыв-схема, обвязка) собираются ЗДЕСЬ, а не в оркестраторе, потому
+   что это часть контракта документа (см. fittings и cardModuleOrder ниже).
    lighting — необязательный третий аргумент: механизмы групп света, подставленные расчётом
    (EPLightingPlan). Старый вызов с двумя аргументами работает как раньше. */
 (() => {
@@ -55,8 +56,13 @@ function buildFittings(comp, box, lighting) {
   (Array.isArray(lighting) ? lighting : []).forEach(r => {
     if (!r) return;
     const where = `Механизм · модуль ${r.moduleLabel || "—"} · группа «${r.groupLabel || "—"}»`;
-    if (r.missing) fittings.push({ role: where, name: r.missingText || "механизм не подобран", code: null, count: 0 });
-    else fittings.push({ role: where, name: r.name, code: r.code, count: 1 });
+    /* keyIndex — позиция клавиши в посте — едет ВМЕСТЕ со строкой обвязки: по нему документ
+       раскладывает эти строки в ТОМ ЖЕ порядке, что таблицу модулей и взрыв-схему
+       (cardFittingOrder ниже). Без него обвязка печаталась плоским порядком набора, и адреса
+       «1.1 · 2.1–2 · 1.2» спорили с «1.1 · 1.2 · 2.1–2» в таблице над ней. */
+    const at = { keyIndex: r.keyIndex };
+    if (r.missing) fittings.push(Object.assign(at, { role: where, name: r.missingText || "механизм не подобран", code: null, count: 0 }));
+    else fittings.push(Object.assign(at, { role: where, name: r.name, code: r.code, count: 1 }));
   });
   /* Суппорт: сколько насчитал состав (столько же, сколько коробок), а не «одна планка».
      Изделие, которое по номенклатуре монтируется В КОРОБКУ БЕЗ ПЛАНКИ (крышки IP55,
@@ -81,14 +87,19 @@ function buildFittings(comp, box, lighting) {
   return fittings;
 }
 
-/* ПОРЯДОК МОДУЛЕЙ В КАРТОЧКЕ ПОСТА — ОДНО ПРАВИЛО НА ВЕСЬ ДОКУМЕНТ. Карточка показывает одни и
-   те же модули дважды: строками таблицы и деталями взрыв-схемы, и монтажник читает их рядом.
+/* ПОРЯДОК МОДУЛЕЙ В КАРТОЧКЕ ПОСТА — ОДНО ПРАВИЛО НА ВСЮ КАРТОЧКУ. Карточка показывает одни и те
+   же модули ТРИЖДЫ: строками таблицы, деталями взрыв-схемы и строками «Обвязка поста» (механизмы
+   групп света стоят ЗА клавишами и адресуются тем же «пост.модуль»). Монтажник читает все три
+   блока рядом.
    Таблица немецко-французской сборки идёт ПО ПОСТАМ (moduleGroups: «Пост 1 → 1.1, 1.2», «Пост 2
    → 2.1–2»), а взрыв-схема шла плоским порядком набора — и адреса в двух блоках расходились
    («1.1, 2.1–2, 1.2» против «1.1, 1.2, 2.1–2»). Номера при этом были верные: расходился ПОРЯДОК,
-   а это то же самое для человека, который ищет модуль глазами. Правило живёт здесь, рядом с
-   таблицей, которая по нему же и печатается, — вторая копия в оркестраторе рано или поздно
-   разошлась бы с первой.
+   а это то же самое для человека, который ищет модуль глазами.
+   ⚠️ ПРАВИЛО ПРИМЕНЯЕТСЯ КО ВСЕЙ КАРТОЧКЕ, А НЕ К ОТДЕЛЬНЫМ БЛОКАМ. Прежняя правка починила
+   таблицу и схему и забыла обвязку — та печатала механизмы групп света плоским порядком набора,
+   и адреса разошлись ровно так же, только в третьем блоке. Поэтому порядок обвязки считается
+   ЗДЕСЬ ЖЕ (cardFittingOrder) и из того же cardModuleOrder: чтобы «применили к двум блокам из
+   трёх» больше не могло случиться, третьего места, где порядок задаётся, просто нет.
    Раскладка по постам применяется, только когда постов БОЛЬШЕ ОДНОГО: у обычной итальянской
    накладки сборка одна, и порядок остаётся прежним плоским байт в байт.
    Возвращает строки модулей (те же объекты, что пришли) в порядке карточки. */
@@ -98,6 +109,33 @@ function cardModuleOrder(moduleGroups, modules) {
     return moduleGroups.reduce((all, g) => all.concat(Array.isArray(g.modules) ? g.modules : []), []);
   }
   return Array.isArray(modules) ? modules.slice() : [];
+}
+
+/* Позиция клавиши (keyIndex) → её место в порядке карточки. Читаем СТРОГО: keyIndex может не
+   прийти вовсе (старые вызовы buildFittings без него), и Number(undefined) = NaN не должен
+   становиться нулём — иначе строка без адреса уехала бы в начало обвязки. */
+const keyIndexOf = row => {
+  const k = Number(row && row.keyIndex);
+  return Number.isInteger(k) && k >= 0 ? k : null;
+};
+/* Обвязка поста в порядке карточки: строки механизмов групп света (они несут keyIndex своей
+   клавиши) идут в порядке cardModuleOrder, остальные узлы — суппорт → коробка → накладка —
+   остаются на своих местах и в своём порядке сборки.
+   Строку, чьей клавиши в раскладке по постам нет вовсе (механизм шире накладки — ушёл в
+   overflow), НЕ теряем: она встаёт после упорядоченных, как и деталь в схеме. */
+function cardFittingOrder(fittings, moduleGroups, modules) {
+  const list = Array.isArray(fittings) ? fittings : [];
+  const pos = new Map();
+  cardModuleOrder(moduleGroups, modules).forEach(m => {
+    const k = keyIndexOf(m);
+    if (k !== null && !pos.has(k)) pos.set(k, pos.size);
+  });
+  if (!pos.size) return list.slice();
+  const keyed = [], rest = [];
+  list.forEach(f => (keyIndexOf(f) === null ? rest : keyed).push(f));
+  const at = f => { const k = keyIndexOf(f); return pos.has(k) ? pos.get(k) : Infinity; };
+  keyed.sort((a, b) => at(a) - at(b));   /* сортировка устойчива: строки вне раскладки сохраняют свой порядок */
+  return keyed.concat(rest);
 }
 
 /* data = {
@@ -112,7 +150,11 @@ function cardModuleOrder(moduleGroups, modules) {
        moduleGroups?: [ { post, capacity, modules:[…] } ],  // нумерация ПО ПОСТАМ (если >1 поста)
        assembledImageHtml?: string,                     // готовая картинка собранного поста (EPPostImage)
        explodedViewHtml?: string,                       // взрыв-схема поста (EPExplodedView) — деталь → выносная линия → артикул
-       fittings: [ { role, name, code, count } ]        // обвязка: суппорт → коробка → накладка
+       fittings: [ { role, name, code, count, keyIndex? } ]  // обвязка: механизмы групп света →
+                                                        // суппорт → коробка → накладка. У строк
+                                                        // групп света keyIndex — позиция их
+                                                        // клавиши в посте: по нему документ сам
+                                                        // ставит их в порядок карточки
      } ],
      lightingHtml?: string,                      // блок «Группы света» (EPLightingPlan.buildHtml):
                                                  // какие механизмы подставил расчёт, сколько нужно
@@ -196,8 +238,12 @@ function buildHtml(data, deps) {
        f.assumed — артикул подобран нами и заказчиком не подтверждён: печатаем пометку
        ВПЛОТНУЮ к артикулу, иначе догадка неотличима от согласованной позиции. Формулировка
        та же, что в смете (estimate.js) и в панели «Состав поста» (app.js) — менять только
-       вместе, разнобой в документах хуже, чем отсутствие пометки. */
-    const fittingRows = (post.fittings || []).map(f =>
+       вместе, разнобой в документах хуже, чем отсутствие пометки.
+       ⚠️ ПОРЯДОК СТРОК — ТОТ ЖЕ, ЧТО У ТАБЛИЦЫ ВЫШЕ И У ВЗРЫВ-СХЕМЫ (cardFittingOrder поверх
+       cardModuleOrder): механизмы групп света адресуются модулями клавиш, и печатать их
+       порядком набора, пока таблица идёт по постам, значило бы дать монтажнику третий,
+       несогласованный список адресов. */
+    const fittingRows = cardFittingOrder(post.fittings, groups, post.modules).map(f =>
       `<tr><td>${esc(f.role)}</td><td>${esc(f.name)}</td><td class="code">${esc(f.code || "—")}${f.assumed ? " (предположительно)" : ""}</td><td class="right">${Number(f.count) > 0 ? Number(f.count) : "—"}</td></tr>`
     ).join("");
 
@@ -297,7 +343,7 @@ function buildHtml(data, deps) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { buildHtml, buildFittings, cardModuleOrder };
+const api = { buildHtml, buildFittings, cardModuleOrder, cardFittingOrder };
 if (typeof window !== "undefined") window.EPInstallSheet = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

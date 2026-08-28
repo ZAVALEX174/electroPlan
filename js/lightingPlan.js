@@ -315,9 +315,32 @@ function roleLabel(plan, role) {
   return found ? found.roleLabel : role;
 }
 
+/* ─────────────────── подписи расчёта: «изменится ли что-нибудь у человека» ───────────────────
+
+   Обе подписи сравнивают ДВА расчёта одного и того же списка постов (порядок мест в plan.places
+   повторяет порядок входа, поэтому сравнение поэлементное и от номеров постов не зависит).
+   Нужны они перенумерации постов: та меняет канонический порядок мест, и перед необратимой
+   правкой человеку показывают, что именно изменится.
+
+   planSignature — ВСЁ, ЧТО ПЕЧАТАЕТСЯ: роль, артикул И АДРЕС места («место N из M»).
+   ⚠️ Адрес в подписи обязателен. Пока сравнивались только роль и артикул, перенумерация,
+   меняющая ТОЛЬКО распределение мест внутри группы (два места одной роли меняются местами:
+   артикулы у обоих те же, а «место 1 из 2» уезжает в другой пост), считалась «ничего не
+   изменилось» и применялась без вопроса. Но «место N из M» стоит и в примечании к клавише в
+   листе монтажника, и в блоке групп света: документы после такой перенумерации ДРУГИЕ.
+
+   kitSignature — только роли и артикулы, БЕЗ адресов. Нужна ровно для того, чтобы назвать
+   человеку причину вопроса своими словами: «переставит механизмы» и «переставит адреса мест» —
+   разные новости, и одна формулировка на оба случая соврала бы в одном из них. */
+const planPlaces = plan => ((plan && Array.isArray(plan.places)) ? plan.places : []);
+const planSignature = plan => JSON.stringify(planPlaces(plan)
+  .map(p => [p && p.role, p && p.code, p && p.placeNo, p && p.placeCount]));
+const kitSignature = plan => JSON.stringify(planPlaces(plan).map(p => [p && p.role, p && p.code]));
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { collect, resolveMechanism, seriesMatch, isExtraLowVoltage, addressKey, postKey, rowsByPost, buildHtml };
+const api = { collect, resolveMechanism, seriesMatch, isExtraLowVoltage, addressKey, postKey, rowsByPost, buildHtml,
+  planSignature, kitSignature };
 if (typeof window !== "undefined") window.EPLightingPlan = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

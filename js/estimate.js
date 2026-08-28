@@ -29,6 +29,24 @@ const billableLighting = rows => (Array.isArray(rows) ? rows : []).filter(r => r
 const lightingSum = rows => billableLighting(rows).reduce((sum, r) => sum + (Number(r.price) || 0), 0);
 const postPrice = (baseCost, lightRows) => (Number(baseCost) || 0) + lightingSum(lightRows);
 
+/* СКОЛЬКО МЕСТ УПРАВЛЕНИЯ НУЖНО И СКОЛЬКО МЕХАНИЗМОВ ПОДОБРАНО — один счёт на все экраны.
+   ⚠️ ЭКРАН, СОГЛАСОВАННЫЙ ТОЛЬКО ПО НАЙДЕННЫМ, ВРЁТ. Панель свойств поста и панель «Состав
+   поста» печатали ЧИСЛО ПОДОБРАННЫХ («2 шт.»), и пост с тремя клавишами, у которого один
+   механизм не подобрался (в серии нет инвертора), показывал рядом «3 механизма» и «2 механизма
+   групп света» — числа спорили друг с другом, а про пробел экран молчал вовсе. Пробелы в этом
+   проекте называются словами везде, где они есть (суппорт «не требуется», коробка «не
+   подобрана», строка обвязки с нулём в листе монтажника), и состав поста не исключение.
+   Деньги считаются по-прежнему ТОЛЬКО по подобранным (billableLighting — тот же фильтр, что в
+   смете): пробел стоит 0 и цену не двигает, он меняет только то, что человек читает.
+   rows — строки мест ОДНОГО поста (EPLightingPlan.rowsByPost). Возвращает
+   {need, found, gaps, sum}. */
+function lightingCounts(rows) {
+  const all = Array.isArray(rows) ? rows : [];
+  const billable = billableLighting(all);
+  return { need: all.length, found: billable.length, gaps: all.length - billable.length,
+    sum: billable.reduce((sum, r) => sum + (Number(r.price) || 0), 0) };
+}
+
 /* Печатный вид ОДНОЙ позиции состава. Строка «Состав / артикул» в КП собирается ТОЛЬКО
    отсюда — из items (структурного состава строки, см. build ниже), а не параллельно с ним.
    Это не украшение: пока текст собирался сам по себе, единственным способом узнать, что
@@ -297,7 +315,7 @@ function build(input) {
    подключить расчёт напрямую, не поднимая приложение и DOM. */
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию. */
-const api = { build, postPrice, billableLighting };
+const api = { build, postPrice, billableLighting, lightingCounts };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

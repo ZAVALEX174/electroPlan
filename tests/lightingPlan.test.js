@@ -405,3 +405,42 @@ test("массив механизмов шаблона не мутируется
   fields.mechanismIds.push(3);
   assert.deepEqual(template.mechanismIds, [1, 2]);
 });
+
+/* ── подписи расчёта: что увидит человек перед перенумерацией ─────────────────────────
+
+   Перенумерация постов меняет канонический порядок мест, и перед необратимой правкой
+   приложение показывает, что именно изменится. Подпись, состоявшая из роли и артикула,
+   не замечала перестановку, которая меняет ТОЛЬКО адреса мест, — а «место N из M»
+   печатается и в примечании к клавише в листе монтажника, и в блоке групп света. */
+
+/* Два поста, по одной клавише в каждом, обе в группе «Холл». Мест два → обе получают
+   переключатель (один и тот же артикул), различаются они ТОЛЬКО адресом «место N из 2».
+   number задаёт канонический порядок; порядок входа списка постов при этом один и тот же. */
+const hallPosts = (firstNumber, secondNumber) => [
+  { id: "pA", number: firstNumber, mechanismIds: [1], keyGroups: ["Холл"] },
+  { id: "pB", number: secondNumber, mechanismIds: [1], keyGroups: ["Холл"] }
+];
+
+test("перенумерация, меняющая ТОЛЬКО адреса мест, видна в planSignature", () => {
+  const before = planOf(hallPosts(2, 1)).plan;
+  const after = planOf(hallPosts(1, 2)).plan;
+  /* механизмы не изменились — ни роль, ни артикул */
+  assert.deepEqual(before.places.map(p => p.code), after.places.map(p => p.code));
+  assert.equal(LP.kitSignature(before), LP.kitSignature(after), "по ролям и артикулам не отличить");
+  /* а адреса поменялись местами — документы будут другие */
+  assert.deepEqual(before.places.map(p => p.placeNo), [2, 1]);
+  assert.deepEqual(after.places.map(p => p.placeNo), [1, 2]);
+  assert.notEqual(LP.planSignature(before), LP.planSignature(after),
+    "подпись обязана заметить перестановку адресов — иначе перенумерация пройдёт без вопроса");
+});
+
+test("расчёт не изменился — обе подписи совпадают, лишнего вопроса не будет", () => {
+  const a = planOf(hallPosts(1, 2)).plan, b = planOf(hallPosts(1, 2)).plan;
+  assert.equal(LP.planSignature(a), LP.planSignature(b));
+  assert.equal(LP.kitSignature(a), LP.kitSignature(b));
+});
+
+test("подписи не падают на пустом и битом расчёте", () => {
+  assert.equal(LP.planSignature(null), "[]");
+  assert.equal(LP.kitSignature({}), "[]");
+});

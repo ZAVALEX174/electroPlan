@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260828.4">
+  <link rel="stylesheet" href="css/styles.css?v=20260828.5">
 </head>
 <body>
 <div class="app">
@@ -125,6 +125,15 @@
         </div>
         <div class="status" id="status">Выберите инструмент или элемент</div>
         <button class="btn ghost small" id="renumberPostsBtn" title="Перенумеровать посты по расположению на плане (1, 2, 3…)">Перенумеровать посты</button>
+        <!-- ⚠️ ОТДЕЛЬНАЯ КНОПКА ПОДТВЕРЖДЕНИЯ, А НЕ ПОВТОРНОЕ НАЖАТИЕ ПЕРВОЙ. Перенумерация
+             пересобирает механизмы групп света, и подтверждать её повтором того же нажатия
+             оказалось нечестно: поток срабатываний (нетерпеливые клики, зажатый Enter на кнопке
+             в фокусе) рано или поздно попадал в разрешённое окно и применял команду за человека
+             — любая граница по времени поток лишь ЗАДЕРЖИВАЕТ. Кнопка появляется только когда
+             расчёт действительно меняется, стоит РЯДОМ (исходная кнопка не двигается, поток по
+             ней сюда не попадает) и живёт столько же, сколько вопрос. Модалки нет: прочитал —
+             нажал соседнюю кнопку, одно движение. -->
+        <button class="btn primary small" id="renumberConfirmBtn" hidden>Подтвердить перенумерацию</button>
         <button class="btn ghost small" id="clearBtn">Очистить холст</button>
       </div>
 
@@ -216,13 +225,20 @@
       <section>
         <div class="section-head"><h3>Спецификация</h3><span class="count-pill" id="objectCount">0</span></div>
         <div class="spec-list" id="specList"></div>
-        <!-- Схема электрики — настройка ПРОЕКТА (лежит в EP_DATA.settings рядом с типом стены
-             и едет в terms), поэтому её орган управления стоит ЗДЕСЬ, в панели проекта, прямо
-             над блоком, который она и определяет. Раньше единственный селектор жил внутри
-             модалки конструктора поста: настройку всего проекта нельзя было ни увидеть, ни
-             сменить, не открыв редактирование какого-нибудь поста. В конструкторе селектор
-             остался (там же назначают группы клавишам, и схема нужна под рукой) — оба
-             показывают одно значение и меняют его одним обработчиком. -->
+        <!-- ⚠️ НАСТРОЙКИ ПРОЕКТА ПРАВЯТСЯ ТОЛЬКО ЗДЕСЬ. Тип стены и схема электрики лежат в
+             EP_DATA.settings и едут в terms проекта — это свойства всего объекта, а не поста.
+             Раньше органы управления обоими стояли ВНУТРИ модалки конструктора поста: человек
+             открывал ОДИН пост, переключал стену или схему — и менялся весь проект, включая
+             посты другой серии и другого состава. Теперь у поста на плане свой тип стены
+             (post.wallType), а значение проекта и схема живут здесь, в панели проекта. В окне
+             поста оба показаны ТОЛЬКО ДЛЯ ЧТЕНИЯ. -->
+        <label class="scheme-field">Тип стены проекта
+          <select id="projectWallTypeSelect" aria-describedby="projectWallTypeHint">
+            <option value="solid">Бетон, кирпич, сплошные стены</option>
+            <option value="hollow">ГКЛ и полые стены</option>
+          </select>
+        </label>
+        <small class="hint-line" id="projectWallTypeHint">Значение по умолчанию: по нему подбирается коробка у постов, которым тип стены не задавали отдельно.</small>
         <label class="scheme-field">Схема электрики проекта
           <select id="lightingSchemeSelect" aria-describedby="lightingSchemeHint"></select>
         </label>
@@ -279,19 +295,23 @@
             <!-- Раньше здесь было «Свойство проекта», и это было правдой: кнопка меняла тип
                  стены сразу всему проекту. Заказчик (24.08) справедливо счёл это ошибкой —
                  блок в перегородке из ГКЛ соседствует с блоками в бетоне. Теперь у поста на
-                 плане тип стены свой, а при сохранении окно спрашивает охват правки. -->
-            <small class="wall-type-hint">Влияет на подбор монтажной коробки. У поста на плане — свой; при сохранении спросим, менять только в нём или во всех однотипных.</small>
+                 плане тип стены свой, а при сохранении окно спрашивает охват правки.
+                 Подпись динамическая (renderBuilderComposition): у ШАБЛОНА и нового поста
+                 своего типа стены нет — кнопки там выключены, показан тип стены проекта. -->
+            <small class="wall-type-hint" id="postWallTypeHint"></small>
           </fieldset>
-          <!-- Схема электрики — свойство ПРОЕКТА, как и тип стены (хранится в EP_DATA.settings
-               и едет в terms проекта). Список схем строится из EPLightingGroups.SCHEMES, чтобы
-               у интерфейса не было второй копии названий и пометки «схема не реализована».
-               ГЛАВНЫЙ орган управления этой настройкой стоит в панели проекта (см. секцию
-               «Спецификация»); здесь он продублирован потому, что группы клавишам назначают
-               именно тут и схема нужна под рукой. Значение и обработчик у обоих ОДНИ. -->
+          <!-- Схема электрики — свойство ПРОЕКТА (EP_DATA.settings, едет в terms), поэтому
+               здесь она ТОЛЬКО ПОКАЗАНА: группы клавишам назначают в этом окне, и схема нужна
+               под рукой, но менять настройку всего проекта из окна отдельного поста нельзя —
+               смена пересобирает механизмы групп света во ВСЕХ постах. Орган управления —
+               один, в панели проекта. Название схемы и пояснение подставляет
+               renderLightingSchemeSelect из EPLightingGroups.SCHEMES (второй копии названий у
+               интерфейса нет). -->
           <fieldset class="wall-type-step">
             <legend>Схема электрики проекта</legend>
-            <select id="lightingSchemeSelectBuilder" aria-describedby="lightingSchemeHintBuilder"></select>
+            <div class="scheme-readonly" id="lightingSchemeValueBuilder" role="status">—</div>
             <small class="wall-type-hint" id="lightingSchemeHintBuilder"></small>
+            <small class="wall-type-hint">Настройка всего проекта — меняется в панели «Спецификация», не в окне поста.</small>
           </fieldset>
           <div class="builder-composition" id="builderComposition"></div>
         </div>
@@ -382,7 +402,7 @@
 <!-- Подтверждение необратимой команды повтором того же действия (у окна есть и нижняя, и
      верхняя граница). Общий модуль: им пользуются и перенумерация постов, и закрытие
      конструктора с несохранёнными правками. -->
-<script src="js/confirmRepeat.js?v=20260828.1"></script>
+<script src="js/confirmRepeat.js?v=20260828.4"></script>
 <script src="js/catalog.js?v=20260828.2"></script>
 <!-- Чистый модуль (ни DOM, ни state): подбор механизма по группе света и схеме электрики.
      Считается по ВСЕМУ проекту, результат отдаётся в состав поста, поэтому грузится до postfit/posts. -->
@@ -390,16 +410,16 @@
 <!-- Связка модуля групп света с проектом: сборка мест управления из постов, строгий подбор
      механизма по роли и серии, печатный блок для документов. Грузится ПОСЛЕ lightingGroups
      (использует его тексты пробелов) и до estimate/installSheet, которые его результат печатают. -->
-<script src="js/lightingPlan.js?v=20260828.4"></script>
+<script src="js/lightingPlan.js?v=20260828.5"></script>
 <script src="js/postfit.js?v=20260826.2"></script>
 <script src="js/posts.js?v=20260828.4"></script>
 <script src="js/picker.js?v=20260801.1"></script>
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
 <script src="js/catalogSections.js?v=20260828.1"></script>
-<script src="js/builderSlots.js?v=20260828.4"></script>
-<script src="js/estimate.js?v=20260828.5"></script>
+<script src="js/builderSlots.js?v=20260828.5"></script>
+<script src="js/estimate.js?v=20260828.6"></script>
 <script src="js/offerPdf.js?v=20260828.1"></script>
-<script src="js/installSheet.js?v=20260828.3"></script>
+<script src="js/installSheet.js?v=20260828.4"></script>
 <script src="js/supplierSpec.js?v=20260827.3"></script>
 <script src="js/postImage.js?v=20260805.1"></script>
 <script src="js/explodedView.js?v=20260805.5"></script>
@@ -413,6 +433,6 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-  <script src="js/app.js?v=20260828.13"></script>
+  <script src="js/app.js?v=20260828.19"></script>
 </body>
 </html>

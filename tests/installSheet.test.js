@@ -4,7 +4,7 @@
    поэтому браузер поднимать не нужно. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildHtml, buildFittings, cardModuleOrder } = require("../js/installSheet.js");
+const { buildHtml, buildFittings, cardModuleOrder, cardFittingOrder } = require("../js/installSheet.js");
 /* Род пробела (поставка или незаполненный проект) — общий для всех документов словарь. */
 const LG = require("../js/lightingGroups.js");
 
@@ -296,6 +296,71 @@ test("ПОРЯДОК СТРОК ТАБЛИЦЫ и cardModuleOrder — одно �
   const html = buildHtml({ posts: [post] }, deps);
   const printed = [...html.matchAll(/class="mod">([^<]+)</g)].map(m => m[1]);
   assert.deepEqual(printed, cardModuleOrder(packedGroups, flatModules).map(m => m.label));
+});
+
+/* ---- ОДИН ПОРЯДОК НА ВСЮ КАРТОЧКУ: таблица, взрыв-схема И ОБВЯЗКА ------------------------
+
+   Прежняя правка применила порядок по постам к ДВУМ блокам из трёх: таблица и взрыв-схема пошли
+   «1.1, 1.2, 2.1–2», а «Обвязка поста» осталась печатать механизмы групп света плоским порядком
+   набора — «1.1, 2.1–2, 1.2». Монтажник читает все три блока подряд, и адреса в них снова
+   расходились. Тесты ниже держат ровно это: правило одно, и блоков, которые о нём не знают,
+   больше нет. */
+
+/* Строки групп света ЭТОГО поста в порядке набора (keyIndex 0,1,2) — как их отдаёт расчёт. */
+const lightRows = [
+  { keyIndex: 0, moduleLabel: "1.1", groupLabel: "Кухня", name: "Выключатель 1П", code: "09001.0.250" },
+  { keyIndex: 1, moduleLabel: "2.1–2", groupLabel: "Кухня", name: "Переключатель 1П", code: "09004.0.250" },
+  { keyIndex: 2, moduleLabel: "1.2", groupLabel: "Кухня", name: "Переключатель 1П", code: "09004.0.250" }
+];
+const cardComp = { frame: { name: "Накладка 2+2", code: "09664.01" }, support: { name: "Суппорт 4М", code: "09614" },
+  supportCount: 2, boxCount: 2 };
+const cardBox = { name: "Коробка 2М", code: "V71302" };
+/* Адрес модуля из строки обвязки: «Механизм · модуль 2.1–2 · группа «…»». */
+const fittingModules = list => list.filter(f => /^Механизм · модуль /.test(f.role))
+  .map(f => f.role.replace(/^Механизм · модуль /, "").replace(/ · группа.*$/, ""));
+
+test("buildFittings несёт keyIndex клавиши — без него обвязке нечем встать в порядок карточки", () => {
+  const fittings = buildFittings(cardComp, cardBox, lightRows);
+  assert.deepEqual(fittings.filter(f => f.keyIndex !== undefined).map(f => f.keyIndex), [0, 1, 2]);
+  /* узлы сборки адреса не имеют и иметь не должны */
+  assert.deepEqual(fittings.filter(f => f.keyIndex === undefined).map(f => f.role),
+    ["Суппорт", "Монтажная коробка", "Накладка"]);
+});
+
+test("cardFittingOrder: механизмы групп света идут ПО ПОСТАМ, узлы сборки остаются в порядке сборки", () => {
+  const ordered = cardFittingOrder(buildFittings(cardComp, cardBox, lightRows), packedGroups, flatModules);
+  assert.deepEqual(fittingModules(ordered), ["1.1", "1.2", "2.1–2"], "обвязка идёт порядком карточки");
+  assert.deepEqual(ordered.slice(3).map(f => f.role), ["Суппорт", "Монтажная коробка", "Накладка"],
+    "суппорт → коробка → накладка не переставляются");
+});
+
+test("cardFittingOrder: одна накладка — прежний плоский порядок байт в байт", () => {
+  const fittings = buildFittings(cardComp, cardBox, lightRows);
+  assert.deepEqual(cardFittingOrder(fittings, null, flatModules), fittings);
+  assert.deepEqual(cardFittingOrder(fittings, [packedGroups[0]], flatModules), fittings);
+});
+
+test("cardFittingOrder не теряет строку клавиши, которой нет в раскладке по постам (overflow)", () => {
+  const extra = lightRows.concat([{ keyIndex: 7, moduleLabel: "8", groupLabel: "Кухня", missing: true, missingText: "механизма нет" }]);
+  const ordered = cardFittingOrder(buildFittings(cardComp, cardBox, extra), packedGroups, flatModules);
+  assert.deepEqual(fittingModules(ordered), ["1.1", "1.2", "2.1–2", "8"], "деталь вне раскладки уходит в конец, а не пропадает");
+});
+
+test("ВСЕ ТРИ БЛОКА КАРТОЧКИ ПЕЧАТАЮТ ОДИН ПОРЯДОК: таблица, взрыв-схема, обвязка", () => {
+  /* Взрыв-схему оркестратор собирает по cardModuleOrder — сравниваем с ней и таблицу, и обвязку,
+     как их напечатал документ. Расхождение любого блока с любым — провал теста. */
+  const post = Object.assign({}, italianPost, { number: 7, modules: flatModules, moduleGroups: packedGroups,
+    fittings: buildFittings(cardComp, cardBox, lightRows) });
+  const html = buildHtml({ posts: [post] }, deps);
+  /* Сверяем блоки ПО ПОЗИЦИЯМ КЛАВИШ (keyIndex): подписи у блоков свои (у таблицы — «модуль в
+     посте», у обвязки — полный адрес «пост.модуль»), а порядок обхода набора обязан быть один. */
+  const cardKeys = cardModuleOrder(packedGroups, flatModules).map(m => m.keyIndex);
+  const table = [...html.matchAll(/class="mod">([^<]+)</g)].map(m => m[1]);
+  const addressKey = new Map(lightRows.map(r => [r.moduleLabel, r.keyIndex]));
+  const fitted = [...html.matchAll(/<tr><td>Механизм · модуль ([^ ]+) ·/g)].map(m => addressKey.get(m[1]));
+  assert.deepEqual(table, cardModuleOrder(packedGroups, flatModules).map(m => m.label), "таблица и взрыв-схема");
+  assert.deepEqual(fitted, cardKeys, "ОБВЯЗКА и взрыв-схема — тот самый третий блок");
+  assert.deepEqual(cardKeys, [0, 2, 1], "порядок карточки и правда отличается от порядка набора");
 });
 
 test("assembledImageHtml вставляется в карточку поста как есть", () => {

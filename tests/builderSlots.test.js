@@ -10,6 +10,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const S = require("../js/builderSlots.js");
 const EPPosts = require("../js/posts.js");
+/* Сквозная проверка «фантом после перезаливки прайса» гоняет НАСТОЯЩИЙ сбор мест. */
+const EPLightingPlan = require("../js/lightingPlan.js");
 
 /* Каталог-заглушка: два ОДИНАКОВЫХ по id механизма в посте — обычное дело (две клавиши 1М),
    и именно на них ломается любая схема «группа по id». */
@@ -114,6 +116,67 @@ test("без предиката replaceAt ведёт себя как прежд�
      что такое клавиша, не может и не должен. */
   const slots = S.fromPost({ mechanismIds: [1], keyGroups: ["Кухня"] });
   assert.deepEqual(S.toPost(S.replaceAt(slots, 0, 3)), { mechanismIds: [3], keyGroups: ["Кухня"] });
+});
+
+/* ---- МИГРАЦИЯ ПРИ ЧТЕНИИ: осиротевшая группа не переживает открытие поста ----------------
+
+   Защита у replaceAt работала только ВПЕРЁД. Группа, записанная на не-клавишу ДО неё, спокойно
+   переживала полный цикл «открыть пост в конструкторе → Сохранить»: fromPost читал keyGroups как
+   есть, toPost писал обратно. В проектах, сохранённых раньше, фантомные места так и лежали — и
+   оживали при первой перезаливке прайса. Значит чистка обязана происходить и НА ЧТЕНИИ.
+
+   Предикат приложения ТРЁХЗНАЧНЫЙ: клавиша / не клавиша / товара в каталоге нет. Третий ответ не
+   равен второму — см. keepsGroup в модуле. */
+const keyKind = id => (CATALOG[id] ? /^Клавиша/.test(CATALOG[id].name) : null);
+
+test("СТАРЫЙ ПРОЕКТ: группа на не-клавише снимается уже при ЧТЕНИИ поста", () => {
+  /* Так выглядит пост, сохранённый до правила: розетка (id 3) с группой «Прихожая». */
+  const old = { mechanismIds: [1, 3], keyGroups: ["Прихожая", "Прихожая"] };
+  assert.deepEqual(S.fromPost(old, keyKind), [{ id: 1, group: "Прихожая" }, { id: 3, group: "" }]);
+});
+
+test("ЦИКЛ «открыть → Сохранить» больше не возвращает фантомную группу в проект", () => {
+  const old = { mechanismIds: [1, 3, 2], keyGroups: ["Прихожая", "Прихожая", "Кухня"] };
+  const saved = S.toPost(S.fromPost(old, keyKind));
+  assert.deepEqual(saved.keyGroups, ["Прихожая", "", "Кухня"]);
+  /* и повторный цикл ничего больше не меняет — миграция идемпотентна */
+  assert.deepEqual(S.toPost(S.fromPost(saved, keyKind)).keyGroups, saved.keyGroups);
+});
+
+test("ТОВАРА НЕТ В КАТАЛОГЕ — группу НЕ снимаем: это потерянная клавиша, а не мусор", () => {
+  /* Артикул выпал из прайса. Снять группу значило бы стереть настоящее место управления: N
+     группы упал бы, и нетронутые посты получили бы другие механизмы. Расчёт обязан показать
+     здесь честный пробел (EPLightingPlan.collect, lostKey), а для этого группа должна дожить. */
+  const post = { mechanismIds: [1, 404], keyGroups: ["Кухня", "Кухня"] };
+  assert.deepEqual(S.toPost(S.fromPost(post, keyKind)).keyGroups, ["Кухня", "Кухня"]);
+});
+
+test("без предиката fromPost читает пост как прежде — модуль о каталоге не знает", () => {
+  const old = { mechanismIds: [1, 3], keyGroups: ["Прихожая", "Прихожая"] };
+  assert.deepEqual(S.toPost(S.fromPost(old)).keyGroups, ["Прихожая", "Прихожая"]);
+});
+
+test("ЧТЕНИЕ И ЗАМЕНА СУДЯТ ОДНИМ ПРАВИЛОМ — иначе одно снимало бы то, что вернуло другое", () => {
+  const old = { mechanismIds: [3], keyGroups: ["Прихожая"] };
+  assert.deepEqual(S.fromPost(old, keyKind), S.replaceAt(S.fromPost(old), 0, 3, keyKind));
+  /* и «товара нет» обе трактуют одинаково — группа остаётся */
+  const lost = { mechanismIds: [404], keyGroups: ["Кухня"] };
+  assert.deepEqual(S.fromPost(lost, keyKind), S.replaceAt(S.fromPost(lost), 0, 404, keyKind));
+});
+
+test("ФАНТОМНОЕ МЕСТО НЕ ОЖИВАЕТ ПОСЛЕ ПЕРЕЗАЛИВКИ ПРАЙСА — сквозная проверка с расчётом", () => {
+  /* Тот самый сценарий приёмки. Пост: клавиша (1) + розетка (3), у обеих группа «Прихожая».
+     Завтра артикул розетки из прайса пропадает — каталог её больше не знает. */
+  const afterPriceReload = id => (id === 3 ? null : CATALOG[id]);
+  const places = post => EPLightingPlan.collect([Object.assign({ id: "p1", number: 1 }, post)],
+    { product: afterPriceReload, seriesOf: () => ["Neve Up"], isKey: item => !!item && /^Клавиша/.test(item.name) });
+
+  const stale = { mechanismIds: [1, 3], keyGroups: ["Прихожая", "Прихожая"] };
+  assert.equal(places(stale).length, 2, "непочиненные данные дают ДВА места вместо одного");
+  assert.equal(places(stale)[1].keyUnknown, true, "и второе из них — фантом на розетке");
+
+  const migrated = S.toPost(S.fromPost(stale, keyKind));
+  assert.equal(places(migrated).length, 1, "после миграции место ровно одно — настоящее");
 });
 
 test("удаление слота уносит только его группу", () => {

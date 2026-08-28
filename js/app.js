@@ -298,6 +298,7 @@ async function init(){
   fillDocHeaderInputs();   /* реквизиты КП: заполнить поля (и дату «сегодня» на чистом старте) */
   renderCatalog();renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();
   renderLightingSchemeSelect();   /* селектор схемы в панели проекта: заполняем и на чистом старте */
+  renderProjectWallTypeSelect();  /* тип стены проекта — там же, рядом со схемой */
   applyGridStyle();syncMarkupControls();updateZoomUi();applyView();   /* сетка/переключатели/зум/вид — из state (в т.ч. восстановленного) */
   _autosaveOn=true;   /* включаем ПОСЛЕ восстановления, иначе пустой старт затрёт сохранённое */
   if(restored){
@@ -614,7 +615,9 @@ async function refreshRate(){
   btn.disabled=true;const prev=btn.textContent;btn.textContent="Загрузка…";
   try{
     const e=applyRateEntry(await EPRates.fetchFresh());
-    updateRateUi();renderCatalog($("catalogSearch").value);renderSummary();renderTemplates();scheduleSave();
+    /* Курс — настройка проекта: пересчитывается КАЖДОЕ число с ценой, включая карточку
+       выбранного объекта. Перечисления потребителей здесь нет намеренно (applyProjectSettings). */
+    applyProjectSettings();
     toast(`Курс ЦБ РФ: 1 € = ${rubRate(e.rate)} ₽`);
   }catch(err){
     console.error(err);
@@ -854,6 +857,63 @@ function renderAll(){
   renderDevices();renderPosts();renderRooms();drawWalls();drawRoomLines();
   scheduleSave();   /* renderAll идёт после каждой правки состояния — точка автосохранения */
 }
+/* ⚠️ ЕДИНАЯ ТОЧКА «НАСТРОЙКА ПРОЕКТА ИЗМЕНИЛАСЬ». Обработчик настройки пишет значение
+   в EP_DATA.settings и зовёт ТОЛЬКО applyProjectSettings() — россыпь render* по обработчикам
+   больше не пишем.
+
+   ЗАЧЕМ. Настройка проекта (схема электрики, тип стены, валюта, курс, надбавка, условия
+   сделки) по определению касается ВСЕГО проекта, а не одного объекта: обновиться обязаны все,
+   кто её показывает. Пока каждый обработчик перечислял потребителей сам, каждый забывал
+   своего — и это был не единичный промах, а один класс дефекта, повторявшийся на каждой
+   новой настройке:
+     · смена схемы электрики не звала renderProperties — карточка выбранного поста держала
+       старый состав и старую стоимость, пока человек не переключится на другой объект;
+     · загрузка курса ЦБ (refreshRate) и ручной ввод курса — тот же пропуск renderProperties:
+       каталог и смета пересчитывались в рубли, а цена в карточке оставалась в евро;
+     · смена типа стены не трогала каталог/шаблоны, хотя подбор коробки у них тот же.
+   Расстановка недостающих вызовов по обработчикам этот класс НЕ лечит: следующая добавленная
+   настройка заводит его заново — ровно так он и появился здесь трижды.
+
+   ПОЧЕМУ ТАК. Список потребителей должен существовать в ОДНОМ месте — тогда у правки
+   физически нет краёв (то же правило, что у EPPosts.boxCount и EPEstimate.postPrice: правило
+   в чистой функции, а не размноженное по вызывающим). Новый обработчик настройки не обязан
+   помнить, кто ещё её показывает; новый потребитель дописывается сюда один раз и появляется
+   во всех обработчиках сразу.
+
+   ПЕРЕРИСОВЫВАЕМ ВСЁ, без разбора «эта настройка влияет только на смету». Такой разбор и есть
+   тот самый список, который каждый раз забывают: тип стены влияет на подбор коробки, схема —
+   на подстановку механизмов, курс и надбавка — на любое число с ценой, а цены живут и в
+   каталоге, и в шаблонах, и в карточке объекта, и в смете. Цена полной перерисовки мала:
+   смена настройки — редкое осознанное действие человека, а не кадр анимации.
+
+   ПОРЯДОК. Сперва органы самих настроек (селектор обязан показать записанное значение — иначе
+   панель уверяет одно, а расчёт идёт по другому), затем всё, что от настроек считается.
+   Сохранение — тоже здесь: изменённая настройка всегда часть проекта, отдельно помнить об
+   этом обработчику не нужно.
+
+   ГРАНИЦА. Сюда идёт всякая настройка, от которой зависит хоть что-то ПОКАЗАННОЕ НА ЭКРАНЕ —
+   состав, цена, сумма (это все поля EP_DATA.settings, уезжающие в снимок проекта как terms:
+   схема, тип стены, валюта, курс, надбавка, работы, материалы, скидка, НДС). Решение тут
+   двоичное («видно ли это где-то сейчас?»), а не список потребителей, и при сомнении верный
+   ответ — звать applyProjectSettings: лишняя перерисовка безвредна, пропущенная — дефект.
+   Снаружи остаются ровно две группы, и у обеих потребитель ровно один:
+     · режимы разметки (orthoMode, snapGrid, gridStep, planVisibility) — они в state, а не в
+       settings, и их читает только холст (snapPlanPoint / applyGridStyle / applyPlanVisibility);
+     · реквизиты КП (settings.docHeader) — их не показывает никто, кроме собственных полей
+       ввода; в документ они попадают в момент печати (docHeader() → offerPdf/installSheet). */
+function applyProjectSettings(){
+  /* 1) органы настроек — показывают ровно то, что записано в EP_DATA.settings */
+  updateRateUi();                  /* валюта, курс, надбавка */
+  renderLightingSchemeSelect();    /* схема: селектор в панели проекта + строка для чтения в конструкторе */
+  renderProjectWallTypeSelect();   /* тип стены проекта */
+  /* 2) потребители: от настроек зависят состав постов, цены и суммы */
+  renderAll();                     /* объекты плана: подбор коробки и механизмов мог измениться */
+  renderCatalog($("catalogSearch").value);
+  renderTemplates();
+  renderProperties();              /* карточка выбранного объекта — тот самый забываемый потребитель */
+  renderSummary();
+  scheduleSave();                  /* renderAll его уже зовёт, но здесь это явная часть контракта */
+}
 function showHover(kind,obj,e){
   if(kind==="device"){
     const p=product(obj.productId);
@@ -1070,7 +1130,13 @@ function renderProperties(){
     <label>Высота установки<input id="propHeight" value="${esc(d.height||"300 мм")}"></label>
     <label>Цена<input value="${productMoney(p)}" disabled></label>
     <div class="property-actions"><button class="btn ghost" id="removeSelected">Удалить</button></div>`;
-    $("propHeight").oninput=e=>d.height=e.target.value;$("removeSelected").onclick=()=>removeEntity(kind,id);
+    /* ⚠️ ПРАВКА В ПАНЕЛИ СВОЙСТВ ОБЯЗАНА СОХРАНЯТЬСЯ — то же правило, что у ветки комнаты ниже
+       (saveRoom → persistProject). Здесь высота писалась только в объект в памяти: она попадала
+       в подсказку и в лист монтажника, но исчезала при перезагрузке страницы, если после неё
+       ничего больше не двигали. Кнопки «Сохранить» у одиночного элемента нет — поле одно, —
+       поэтому сохраняем отложенно, прямо по вводу (scheduleSave склеивает поток нажатий). */
+    $("propHeight").oninput=e=>{d.height=e.target.value;scheduleSave()};
+    $("removeSelected").onclick=()=>removeEntity(kind,id);
   }else if(kind==="post"){
     const p=state.posts.find(x=>x.id===id);
     const room=state.rooms.find(r=>r.id===p.roomId);
@@ -1081,14 +1147,16 @@ function renderProperties(){
        число и цена: три механизма, а денег на четыре. Поэтому подставленные расчётом механизмы
        названы ОТДЕЛЬНОЙ строкой — теми же словами и тем же фильтром (billableLighting), что в
        панели «Состав поста» конструктора и в смете. Расчёт групп света берём ОДИН на карточку
-       (он же уходит в цену), иначе панель считала бы его дважды на каждое выделение. */
+       (он же уходит в цену), иначе панель считала бы его дважды на каждое выделение.
+       ⚠️ Формулировку строки собирает ОДНА функция lightingRowSummary — она же в конструкторе:
+       карточка была согласована ТОЛЬКО ПО НАЙДЕННЫМ и показывала «2 шт.» там, где мест
+       управления три, — пробел подбора из неё было не видно. */
     const light=projectLighting();
-    const lightRows=EPEstimate.billableLighting(lightingRowsFor(p,light));
-    const lightSum=lightRows.reduce((sum,r)=>sum+(Number(r.price)||0),0);
+    const lightSummary=lightingRowSummary(lightingRowsFor(p,light));
     props.innerHTML=`<label>Пост<input value="${esc(postNumberLabel(p))}" disabled></label>
     <label>Комната<input value="${esc(room?.name||"Не назначена")}" disabled></label>
     <label>Механизмов / коробок<input value="${p.mechanismIds.length} / ${postComposition(p).boxCount}" disabled></label>
-    ${lightRows.length?`<label>Механизмы групп света<input value="${esc(`${lightRows.length} шт. · ${money(lightSum)}`)}" disabled></label>`:""}
+    ${lightSummary?`<label>Механизмы групп света<input value="${esc(lightSummary.text)}" disabled></label>`:""}
     <label>Стоимость<input value="${money(postTotalCost(p,light))}" disabled></label>
     <div class="property-actions"><button class="btn primary" id="editSelected">Редактировать</button><button class="btn ghost" id="removeSelected">Удалить</button></div>`;
     $("editSelected").onclick=()=>openPostBuilder({placedId:id});$("removeSelected").onclick=()=>removeEntity(kind,id);
@@ -1140,6 +1208,13 @@ function renderProperties(){
    приложения: доступ к каталогу и к настройкам проекта. */
 const isKeyProduct=item=>!!item&&item.partRole==="key";
 const isBareMechanism=item=>!!item&&item.partRole==="bare_mechanism";
+/* Клавиша ли механизм с таким артикулом — ОДИН предикат на все правки слотов (чтение поста,
+   замена механизма, миграция старых проектов). Ответ ТРЁХЗНАЧНЫЙ, как того требует
+   EPBuilderSlots.keepsGroup: true — клавиша, false — товар в каталоге есть и клавишей не
+   является, null — товара в каталоге НЕТ. Третий ответ не равен второму: артикул мог выпасть из
+   прайса, и снимать по этому поводу группу нельзя — это стёрло бы настоящее место управления,
+   которое расчёт обязан показать пробелом «потерянная клавиша» (EPLightingPlan.collect). */
+const keySlotKind=id=>{const item=product(id);return item?isKeyProduct(item):null};
 /* Схема электрики — свойство ПРОЕКТА (лежит рядом с типом стены в EP_DATA.settings и едет в
    terms). Нераспознанный идентификатор откатываем на классическую: она же дефолт data.js и
    она же требуемое поведение для проектов, сохранённых до появления поля. */
@@ -1187,6 +1262,25 @@ function lightingRowsFor(post,light){
   const layout=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan});
   return rows.map(r=>Object.assign({},r,
     {moduleLabel:layout[r.keyIndex]?layout[r.keyIndex].label:String(Number(r.keyIndex)+1)}));
+}
+/* СТРОКА «МЕХАНИЗМЫ ГРУПП СВЕТА» — ОДНА ФОРМУЛИРОВКА НА ВСЕ ЭКРАНЫ (карточка поста на плане и
+   панель «Состав поста» в конструкторе).
+   ⚠️ СОГЛАСОВАНО ПО МЕСТАМ, А НЕ ПО НАЙДЕННЫМ. Обе панели печатали число ПОДОБРАННЫХ механизмов
+   («2 шт.»), и пост с тремя клавишами, у которого один механизм не подобрался (в Neve Up нет
+   инвертора), показывал «3 механизма» и «2 механизма групп света» рядом — числа спорили друг с
+   другом, а про пробел карточка молчала вовсе. Теперь строка называет и НУЖНО, и ПОДОБРАНО, и
+   сам пробел — тем же способом, каким пробел называется в смете и в листе монтажника: словами,
+   а не молчанием. Деньги при этом считаются по-прежнему только по подобранным (billableLighting
+   — тот же фильтр, что в смете), пробел стоит 0 и цену не двигает.
+   rows — строки мест ЭТОГО поста (lightingRowsFor). Мест нет вовсе → null: строки в панели не
+   будет, как и раньше. */
+function lightingRowSummary(rows){
+  const c=EPEstimate.lightingCounts(rows);   /* счёт — в смете, рядом с billableLighting; здесь только слова */
+  if(!c.need)return null;
+  return Object.assign({},c,{
+    text:c.gaps
+      ? `${c.found} из ${c.need} · ${money(c.sum)} · без механизма: ${c.gaps}`
+      : `${c.found} шт. · ${money(c.sum)}`});
 }
 /* Сумма подставленных механизмов по проекту — подпись в блоке «Группы света». Считается по
    тем же place.product, что и цена в смете (estimate.js берёт их из lightingOf). */
@@ -1278,26 +1372,51 @@ function renderSummary(){
 /* Селектор схемы электрики: список строится ИЗ EPLightingGroups.SCHEMES, включая
    нереализованную «Звонковые кнопки» с её собственной пометкой. Второй копии названий и
    пояснений у интерфейса нет намеренно — она разошлась бы с расчётом.
-   Селекторов ДВА и это одна настройка: главный — в панели проекта (схема электрики его
-   свойство, как тип стены), второй — в конструкторе, где клавишам назначают группы и схема
-   нужна под рукой. Рисуются они одним кодом и слушаются одним обработчиком, поэтому разойтись
-   не могут; отсутствующий в разметке узел просто пропускается. */
-const LIGHTING_SCHEME_HOSTS=[["lightingSchemeSelect","lightingSchemeHint"],
-  ["lightingSchemeSelectBuilder","lightingSchemeHintBuilder"]];
+   ⚠️ ОРГАН УПРАВЛЕНИЯ РОВНО ОДИН — в панели проекта. Схема электрики (как и тип стены) —
+   настройка ВСЕГО проекта: её смена пересобирает механизмы групп света во всех постах разом.
+   Раньше в конструкторе поста стоял ВТОРОЙ, полноценный select, писавший ту же настройку: человек
+   менял схему «в этом посте» — и молча менял её всему проекту, ровно тот же дефект, что был у
+   кнопок типа стены. Подтверждением его лечить неправильно: в окне конструктора КАЖДЫЙ орган —
+   черновик, применяемый по «Сохранить» и откатываемый «Отменой», а этот один действовал бы
+   мгновенно и необратимо; такой орган в этом окне — ловушка независимо от числа вопросов.
+   Поэтому в конструкторе осталась строка ТОЛЬКО ДЛЯ ЧТЕНИЯ (#lightingSchemeValueBuilder):
+   схема там нужна под рукой (в этом окне назначают группы клавишам), но не под правку.
+   Название и пояснение и там, и там строятся из EPLightingGroups.SCHEMES — второй копии
+   названий у интерфейса нет; отсутствующий в разметке узел просто пропускается. */
 function renderLightingSchemeSelect(){
   const current=lightingScheme();
   const found=EPLightingGroups.SCHEMES.find(item=>item.id===current);
-  const options=EPLightingGroups.SCHEMES.map(item=>
-    `<option value="${esc(item.id)}"${item.id===current?" selected":""}>${esc(item.label)}${item.supported?"":" — расчёт недоступен"}</option>`).join("");
-  LIGHTING_SCHEME_HOSTS.forEach(([selectId,hintId])=>{
-    const sel=$(selectId);
-    if(sel){sel.innerHTML=options;sel.value=current}
+  const label=item=>`${item.label}${item.supported?"":" — расчёт недоступен"}`;
+  const sel=$("lightingSchemeSelect");
+  if(sel){
+    sel.innerHTML=EPLightingGroups.SCHEMES.map(item=>
+      `<option value="${esc(item.id)}"${item.id===current?" selected":""}>${esc(label(item))}</option>`).join("");
+    sel.value=current;
+  }
+  /* Конструктор: то же значение, но текстом — правка отсюда невозможна по построению. */
+  const view=$("lightingSchemeValueBuilder");
+  if(view)view.textContent=found?label(found):(current||"—");
+  ["lightingSchemeHint","lightingSchemeHintBuilder"].forEach(hintId=>{
     const hint=$(hintId);
     if(hint)hint.textContent=found?found.note:"";
   });
 }
+/* Тип стены ПРОЕКТА — значение по умолчанию для постов, которым свой тип стены не задавали
+   (EPPosts.postWallType). Орган управления, как и у схемы, ровно один — в панели проекта:
+   из окна поста настройка всего объекта больше не правится (см. savePostBuilder). */
+function renderProjectWallTypeSelect(){
+  const sel=$("projectWallTypeSelect");
+  if(sel)sel.value=EP_DATA.settings.wallType==="hollow"?"hollow":"solid";
+}
 
 function openPostBuilder({templateId=null,placedId=null}={}){
+  /* ВЗВЕДЁННОЕ «Разместить» СНИМАЕМ. Человек нажал «Разместить» у шаблона, передумал и пошёл
+     редактировать — двойным кликом по посту на плане, кнопкой «✎» у шаблона или «Новый пост».
+     Режим размещения переживал открытие окна, и первый же клик по плану после закрытия
+     конструктора ставил объект, которого никто уже не ждал. Снимаем здесь, в ЕДИНОЙ точке
+     входа в конструктор, а не в обработчике двойного клика: тот же капкан был у всех трёх
+     путей открытия. */
+  if(state.pending){state.pending=null;canvas.classList.remove("placing");updateStatus()}
   state.builder.editingTemplateId=templateId;state.builder.editingPlacedId=placedId;
   /* Каждое открытие начинается с чистого выбора: цель «добавить», пустой поиск и ВСЕ разделы
      каталога свёрнуты — «разделы могут быть изначально не раскрыты» (заказчик, 24.08). */
@@ -1318,8 +1437,11 @@ function openPostBuilder({templateId=null,placedId=null}={}){
      указана» честнее молчаливой подстановки.
      У ШАБЛОНА групп нет по определению (группа — свойство поста на плане, см.
      EPPosts.placementFields): шаблон, сохранённый до этого правила, отдаёт свои группы, и мы
-     их здесь снимаем — иначе они уехали бы обратно в шаблон при следующем сохранении. */
-  state.builder.slots=placedId?EPBuilderSlots.fromPost(src):EPBuilderSlots.clearGroups(EPBuilderSlots.fromPost(src));
+     их здесь снимаем — иначе они уехали бы обратно в шаблон при следующем сохранении.
+     keySlotKind — миграция старых данных ПРИ ЧТЕНИИ: группа, оставшаяся на не-клавише (розетка,
+     фальшблок), снимается здесь же. Раньше она переживала цикл «открыть → Сохранить» и оживала
+     фантомным местом управления после перезаливки прайса — см. EPBuilderSlots.fromPost. */
+  state.builder.slots=placedId?EPBuilderSlots.fromPost(src,keySlotKind):EPBuilderSlots.clearGroups(EPBuilderSlots.fromPost(src,keySlotKind));
   /* Тип стены открываемого поста: СВОЙ, если у поста он задан, иначе тип стены проекта
      (EPPosts.postWallType — то же правило, по которому его читает подбор коробки, второй
      копии правила не заводим). У шаблона и у нового поста своего типа стены нет и быть не
@@ -1708,8 +1830,7 @@ function pickBuilderProduct(id){
   const target=state.builder.target,count=Number($("postSlotCount").value);
   if(target.mode==="replace"&&state.builder.slots[target.index]){
     const index=Number(target.index);
-    state.builder.slots=EPBuilderSlots.replaceAt(state.builder.slots,index,id,
-      newId=>isKeyProduct(product(newId)));
+    state.builder.slots=EPBuilderSlots.replaceAt(state.builder.slots,index,id,keySlotKind);
     /* Та же защита от переполнения, что стояла на смене значения слота: лишние выкидываются
        с конца, только что выбранный остаётся (EPPosts.fitMechanismIdsPreserving). */
     const deps=EPBuilderSlots.tokenDeps(state.builder.slots,{product,mechanismSpan});
@@ -1748,11 +1869,22 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
      черновик, и подсветка активной кнопки обязана показывать выбор человека, иначе он жмёт
      «ГКЛ», а подсвеченным остаётся «бетон». */
   const wall=builderWallType();
+  /* СВОЙ тип стены есть только у поста НА ПЛАНЕ — он стоит в конкретной стене. У шаблона и у
+     нового поста его нет и быть не может, поэтому там кнопки выключены и показывают тип стены
+     проекта: раньше в этой ветке они правили EP_DATA.settings.wallType, то есть человек, открыв
+     ОДИН шаблон, менял подбор коробки всему проекту — тот же дефект, ради которого у поста
+     завели собственный тип стены. Менять значение проекта — в панели проекта. */
+  const ownWall=!!state.builder.editingPlacedId;
   document.querySelectorAll("#postWallType .wall-type-option").forEach(b=>{
     const on=b.dataset.wall===wall;
     b.classList.toggle("active",on);
     b.setAttribute("aria-checked",on?"true":"false");
+    b.disabled=!ownWall;
   });
+  const wallHint=$("postWallTypeHint");
+  if(wallHint)wallHint.textContent=ownWall
+    ?"Влияет на подбор монтажной коробки. У поста на плане — свой; при сохранении спросим, менять только в нём или во всех однотипных."
+    :"Свой тип стены есть только у поста на плане. Здесь показан тип стены проекта — по нему посчитан состав ниже; менять его — в панели «Спецификация».";
   const host=$("builderComposition");if(!host)return;
   if(!selectedFrame){host.innerHTML=errorHtml||"";return;}
   const post=draft||{frameId:Number($("postFrameSelect").value),
@@ -1808,11 +1940,14 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
      смете (estimate.js): в post.mechanismIds они не входят и входить не могут (удвоили бы
      modulesTotal и сменили бы коробку с суппортом). Что именно идёт в деньги, решает тот же
      EPEstimate.billableLighting, что и в смете, а итог — postTotalCost: «Стоимость поста» на
-     этом экране обязана совпадать и со строкой сметы, и с подсказкой на плане. */
-  const lightRows=EPEstimate.billableLighting(lightingRowsFor(post,light));
-  const lightSum=lightRows.reduce((sum,r)=>sum+(Number(r.price)||0),0);
-  const lightRow=lightRows.length
-    ? `<div class="composition-row"><span>Механизмы групп света</span><b>${lightRows.length} шт. · ${money(lightSum)}</b></div>`
+     этом экране обязана совпадать и со строкой сметы, и с подсказкой на плане.
+     Формулировку строки собирает та же lightingRowSummary, что и карточка поста на плане: обе
+     панели обязаны называть и НУЖНО, и ПОДОБРАНО — иначе пост с неподобранным механизмом
+     показывает число, не совпадающее с числом мест управления. Пробел помечаем is-missing,
+     как и остальные пробелы подбора в этом же составе (суппорт, коробка). */
+  const lightSummary=lightingRowSummary(lightingRowsFor(post,light));
+  const lightRow=lightSummary
+    ? `<div class="composition-row${lightSummary.gaps?" is-missing":""}"><span>Механизмы групп света</span><b>${esc(lightSummary.text)}</b></div>`
     : "";
   /* Тот же блок «Группы света», что печатается в КП и листе монтажника: подставленные
      механизмы, реле и пробелы с причинами. Один источник — расхождению между конструктором
@@ -1900,18 +2035,15 @@ async function savePostBuilder(){
     renderAll();renderProperties();renderSummary();
     toast(wallChanged&&scope==="sameType"?"Обновлён пост и все однотипные посты":"Пост на плане обновлён");
   }else{
-    /* Шаблон и новый пост в стене не стоят — своего типа стены у них нет. Кнопки «Тип стены»
-       в их окне правят ЗНАЧЕНИЕ ПРОЕКТА (как было до этой правки): это единственное место в
-       интерфейсе, где тип стены всего объекта вообще задаётся, и первичная настройка «весь
-       объект — ГКЛ» обязана остаться одним действием без всяких вопросов. Разница с
-       размещённым постом в том, что теперь она применяется по «Сохранить», а не мгновенно по
-       клику, и «Отмена» её больше не оставляет. */
-    if(builderWallType()!==(EP_DATA.settings.wallType||"solid")){
-      /* scheduleSave здесь обязателен: ветка шаблона не зовёт renderAll (посты не менялись), а
-         renderAll — единственная точка автосохранения. Без него тип стены проекта дожил бы
-         только до перезагрузки. */
-      EP_DATA.settings.wallType=builderWallType();renderSummary();scheduleSave();
-    }
+    /* ⚠️ ЗДЕСЬ НЕТ ЗАПИСИ EP_DATA.settings.wallType — И ЭТО ГЛАВНОЕ В ЭТОЙ ВЕТКЕ. Шаблон и
+       новый пост в стене не стоят, своего типа стены у них нет; раньше кнопки «Тип стены» в их
+       окне правили ЗНАЧЕНИЕ ПРОЕКТА, и правка «у одного шаблона» переставляла подбор коробки
+       всем постам проекта — тот же дефект, который у размещённого поста уже вылечен
+       собственным post.wallType. Оправдание «это единственное место, где тип стены объекта
+       вообще задаётся» больше не действует: орган управления переехал в панель проекта
+       (#projectWallTypeSelect), а кнопки в этой ветке выключены и лишь показывают значение
+       (см. renderBuilderComposition). Тип стены в шаблон не пишем и здесь: при размещении он
+       читается у проекта, а дальше пост правится своей кнопкой. */
     const existing=state.builder.editingTemplateId;
     const template={id:existing||uid("tpl_"),...base};
     await DataService.savePost(template);state.templates=await DataService.getSavedPosts();renderTemplates();toast(existing?"Шаблон обновлён":"Пост сохранён в библиотеку");
@@ -1941,7 +2073,11 @@ function requestClosePostBuilder(){
   const step=EPConfirmRepeat.press(state.builder.escArmed,{now:Date.now(),maxMs:ESC_CONFIRM_MS});
   state.builder.escArmed=step.armed;
   if(step.action==="confirm"){closePostBuilder();return true}
-  toast("Есть несохранённые изменения — повторите, чтобы закрыть без сохранения");
+  /* «wait» — нажатие из потока (зажатый Esc, дребезг): говорим прямо, чего ждём, иначе человек
+     продолжает стучать по клавише и не понимает, почему окно не закрывается. */
+  toast(step.action==="wait"
+    ? "Есть несохранённые изменения — слишком быстро, нажмите Esc ещё раз, не спеша"
+    : "Есть несохранённые изменения — повторите, чтобы закрыть без сохранения");
   return false;
 }
 
@@ -2293,6 +2429,27 @@ function saveProject(){
     :r?"Проект сохранён, но план не поместился — загрузите его заново после перезагрузки"
     :"Не удалось сохранить: в браузере кончилось место");
 }
+/* МИГРАЦИЯ ОСИРОТЕВШИХ ГРУПП СВЕТА при открытии проекта. Правило одно и то же на всё
+   приложение — EPBuilderSlots.fromPost (там же под тестом): группа остаётся только на клавише,
+   с известного каталогу НЕ-места управления снимается, а с товара, которого в каталоге НЕТ, не
+   снимается никогда (потерянная клавиша — честный пробел, а не мусор).
+   Зачем на ЗАГРУЗКЕ, а не только в конструкторе: чинить фантомные места «когда человек случайно
+   откроет этот пост» значит не чинить вовсе — в проекте их десятки, и оживают они все разом,
+   при первой перезаливке прайса. Расчёт от миграции не меняется ни на копейку: группу на
+   известной каталогу не-клавише EPLightingPlan.collect и сегодня не считает местом — меняются
+   только сохранённые данные, которые завтра стали бы местом. Возвращает число вычищенных
+   позиций (для отладки; молчаливая правка данных всё равно должна быть видна в консоли). */
+function dropOrphanKeyGroups(posts){
+  let cleaned=0;
+  (Array.isArray(posts)?posts:[]).forEach(po=>{
+    if(!po||!Array.isArray(po.keyGroups)||!po.keyGroups.some(g=>String(g??"").trim()!==""))return;
+    const next=EPBuilderSlots.toPost(EPBuilderSlots.fromPost(po,keySlotKind)).keyGroups;
+    next.forEach((g,i)=>{if(g!==String(po.keyGroups[i]??""))cleaned++});
+    po.keyGroups=next;
+  });
+  if(cleaned)console.info(`Миграция: снято групп света с позиций, где стоит не клавиша — ${cleaned}`);
+  return cleaned;
+}
 async function restoreProject(){
   let p=null;
   try{p=ProjectStore.load()}catch(e){return null}
@@ -2302,6 +2459,7 @@ async function restoreProject(){
      недостающие по порядку массива (существующие номера не трогаем), чтобы номер был
      стабильным идентификатором и на плане, и в документах */
   EPPosts.ensurePostNumbers(state.posts);
+  dropOrphanKeyGroups(state.posts);
   state.walls=p.walls||[];state.autoWalls=p.autoWalls||[];
   /* старые проекты без разметки и без флага видимости открываются штатно:
      roomLines → [], planVisibility → "show" (обратная совместимость) */
@@ -2340,6 +2498,9 @@ async function restoreProject(){
        его не трогает, и остаётся дефолт data.js («Классическая»). Это и есть требуемое
        поведение, никакой отдельной миграции (в отличие от надбавки к курсу) не нужно. */
     renderLightingSchemeSelect();
+    /* Тип стены проекта едет в terms тем же Object.assign — селектор в панели обязан показать
+       восстановленное значение, иначе панель уверяет «бетон», а коробки подбираются под ГКЛ. */
+    renderProjectWallTypeSelect();
   }
   /* реквизиты документа: старый проект без них открывается с пустыми полями и датой
      «сегодня» (fillDocHeaderInputs подставит) — обратная совместимость */
@@ -2654,7 +2815,7 @@ function buildPostSheet(post,light){
      позиция исходного набора попала в какой пост, — примечание с группой света уехало бы к
      чужой клавише. Товары при этом настоящие: их отдаёт tokenDeps.product. */
   const layout=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan});
-  const slots=EPBuilderSlots.fromPost(post);
+  const slots=EPBuilderSlots.fromPost(post,keySlotKind);
   const tokenDeps=EPBuilderSlots.tokenDeps(slots,{product,mechanismSpan});
   const groups=EPPosts.postModuleGroups(EPBuilderSlots.tokens(slots),frame,tokenDeps);
   /* ⚠️ ОДНА НУМЕРАЦИЯ МОДУЛЕЙ НА ВСЮ КАРТОЧКУ ПОСТА. Монтажник читает таблицу модулей, обвязку
@@ -2826,56 +2987,109 @@ function installSheetForProject(){
    модуля, и перенумерация как раз приводит план к этому порядку. Значит правильное поведение —
    не отменить пересчёт, а показать его цену ДО того, как он применён.
 
-   Подтверждение — ПОВТОРОМ ТОГО ЖЕ ДЕЙСТВИЯ, как при закрытии конструктора с несохранённой
-   работой (см. requestClosePostBuilder): своих модальных диалогов в приложении нет, а
-   системный confirm() в проекте не используется. Границы окна считает ОБЩИЙ EPConfirmRepeat —
-   и здесь, и при закрытии конструктора: пока это были две копии «запомнили время — сравнили с
-   окном», обе несли один дефект (верхняя граница есть, нижней нет), и обычный ДВОЙНОЙ КЛИК
-   (два нажатия за 4 мс) применял пересборку молча — человек физически не успевал прочитать
-   «X € → Y €». Окно шире, чем у закрытия (6 с против 4 с): здесь надо прочитать сумму, а не
-   просто вспомнить, что делал. Если расчёт не меняется — не спрашиваем вовсе: лишний вопрос
-   обесценивает предупреждение.
+   ⚠️ ПОДТВЕРЖДАЕТ ОТДЕЛЬНАЯ КНОПКА, А НЕ ПОВТОРНОЕ НАЖАТИЕ ЭТОЙ. Сначала подтверждение было
+   повтором того же действия (как у закрытия конструктора), и это оказалось нечестно: любая
+   граница по времени поток срабатываний только ЗАДЕРЖИВАЕТ. Нетерпеливые клики и зажатый Enter
+   на кнопке в фокусе сыплют нажатиями бесконечно, и одно из них рано или поздно попадает в
+   разрешённое окно — команда применяется, хотя человек ничего не решал. Осознанность даёт не
+   другое время, а ДРУГОЙ ЖЕСТ: нажатие на эту кнопку теперь ТОЛЬКО задаёт вопрос (сколько бы их
+   ни пришло), а применяет его кнопка «Подтвердить перенумерацию», которой до вопроса на экране
+   не было и в которую поток по этой кнопке физически не попадает. Заказчику это ничего не
+   стоит: вопрос появляется, только когда расчёт правда меняется, а подтверждение — одно
+   движение к соседней кнопке, без модалки и без ожидания.
+   Оба режима считает ОБЩИЙ EPConfirmRepeat: здесь — «две кнопки», у закрытия конструктора
+   (requestClosePostBuilder), где второй кнопке взяться неоткуда, — «повтор с паузой».
+   Окно 12 с: надо прочитать сумму и дотянуться до кнопки. Если расчёт не меняется — не
+   спрашиваем вовсе: лишний вопрос обесценивает предупреждение.
 
    ⚠️ ПОДТВЕРЖДАЮТ ИМЕННО ТО, ЧТО ПОКАЗАЛИ. Взвод несёт подпись посчитанного (renumberSubject):
    пару «до/после», обе суммы и саму раскладку номеров. Голая метка времени этого не знала — и
    если между нажатиями изменить проект (сдвинуть пост, поправить группу), второе нажатие
    применяло ДРУГУЮ перенумерацию, про которую человеку показали ДРУГИЕ числа. Изменилась
    подпись — это не подтверждение, а новый вопрос с новыми числами. */
-const RENUMBER_CONFIRM_MS=6000;
-let _renumberArmed=null;
-/* Подпись подбора: роль и артикул КАЖДОГО места в порядке входного списка постов. Порядок
-   входа один и тот же в обоих расчётах, поэтому сравнение поэлементное и от номеров не
-   зависит — оно показывает ровно то, что изменится у конкретных постов. */
-const lightingSignature=light=>JSON.stringify((((light&&light.plan)||{}).places||[]).map(p=>[p&&p.role,p&&p.code]));
+const RENUMBER_CONFIRM_MS=12000;
+let _renumberArmed=null,_renumberHideTimer=null;
+/* Кнопка подтверждения живёт ровно столько же, сколько вопрос: пропал вопрос — пропала кнопка.
+   Без таймера она осталась бы висеть после истечения окна и обещала бы то, чего уже нет. */
+function showRenumberConfirm(on){
+  const btn=$("renumberConfirmBtn");if(!btn)return;
+  btn.hidden=!on;
+  clearTimeout(_renumberHideTimer);
+  if(on)_renumberHideTimer=setTimeout(()=>{_renumberArmed=null;showRenumberConfirm(false)},RENUMBER_CONFIRM_MS+200);
+}
+/* Подписи расчёта «до/после» считает чистый EPLightingPlan — там же они и под тестом.
+   planSignature включает АДРЕС места («место N из M»), и это не украшение: пока подпись
+   состояла из роли и артикула, перенумерация, меняющая ТОЛЬКО распределение мест внутри группы
+   (артикулы те же, «место 1 из 2» уезжает в другой пост), считалась «ничего не изменилось» и
+   применялась молча — хотя документы после неё другие. kitSignature (без адресов) нужна только
+   чтобы назвать человеку ПРИЧИНУ вопроса верными словами. */
+const lightingSignature=light=>EPLightingPlan.planSignature(light&&light.plan);
+const lightingKitSignature=light=>EPLightingPlan.kitSignature(light&&light.plan);
 /* Подпись ПОКАЗАННОГО: что именно применит подтверждение (раскладка номеров) и что человек про
    это прочитал (обе подписи подбора и обе суммы). Любая правка проекта между нажатиями меняет
    её — и подтверждение обязано спроситься заново. */
 const renumberSubject=(numbers,before,after)=>JSON.stringify([[...numbers].map(([id,n])=>[String(id),n]),
   lightingSignature(before),lightingSignature(after),lightingSum(before),lightingSum(after)]);
-function renumberPosts(){
-  if(!state.posts.length){toast("В проекте нет постов");return}
+/* Что именно изменит перенумерация — тремя разными новостями: сумма, состав, только адреса мест.
+   Последний случай раньше вообще не спрашивал (см. lightingSignature). */
+function renumberNews(before,after){
+  const sumBefore=lightingSum(before),sumAfter=lightingSum(after);
+  return Math.abs(sumBefore-sumAfter)>=0.005
+    ? `Перенумерация пересоберёт механизмы групп света: ${money(sumBefore)} → ${money(sumAfter)}`
+    : lightingKitSignature(before)!==lightingKitSignature(after)
+      ? "Перенумерация переставит механизмы групп света между постами (сумма прежняя)"
+      : "Перенумерация изменит адреса мест управления в группах («место N из M») — механизмы и сумма прежние, документы изменятся";
+}
+/* Раскладка «пост → новый номер» и оба расчёта. Считается ЗАНОВО и при вопросе, и при
+   подтверждении: между ними проект можно изменить, и применять надо то, что посчитано сейчас, —
+   а совпадает ли оно с показанным, решает подпись (subject). */
+function renumberPlan(){
   const ordered=state.posts.slice().sort((a,b)=>(a.y-b.y)||(a.x-b.x));
   const numbers=new Map(ordered.map((p,i)=>[p.id,i+1]));
   /* Считаем будущий расчёт НА КОПИЯХ постов — состояние проекта до подтверждения не трогаем. */
   const before=projectLighting();
   const after=lightingFor(state.posts.map(p=>Object.assign({},p,{number:numbers.get(p.id)})));
-  const changed=lightingSignature(before)!==lightingSignature(after);
-  if(changed){
-    const step=EPConfirmRepeat.press(_renumberArmed,
-      {now:Date.now(),maxMs:RENUMBER_CONFIRM_MS,subject:renumberSubject(numbers,before,after)});
-    _renumberArmed=step.armed;
-    if(step.action!=="confirm"){
-      const sumBefore=lightingSum(before),sumAfter=lightingSum(after);
-      toast(Math.abs(sumBefore-sumAfter)>=0.005
-        ? `Перенумерация пересоберёт механизмы групп света: ${money(sumBefore)} → ${money(sumAfter)}. Нажмите ещё раз, чтобы подтвердить`
-        : "Перенумерация переставит механизмы групп света между постами (сумма прежняя). Нажмите ещё раз, чтобы подтвердить");
-      return;
-    }
-  }
-  _renumberArmed=null;
-  ordered.forEach(p=>p.number=numbers.get(p.id));
+  return {ordered,numbers,before,after,changed:lightingSignature(before)!==lightingSignature(after)};
+}
+function applyRenumber(plan){
+  _renumberArmed=null;showRenumberConfirm(false);
+  plan.ordered.forEach(p=>p.number=plan.numbers.get(p.id));
   renderAll();renderProperties();renderSummary();persistProject();
-  toast(changed?"Посты перенумерованы, механизмы групп света пересчитаны":"Посты перенумерованы по расположению на плане");
+  toast(plan.changed?"Посты перенумерованы, группы света пересчитаны":"Посты перенумерованы по расположению на плане");
+}
+/* Нажатие на САМУ команду. Расчёт не меняется — делаем сразу; меняется — только задаём вопрос
+   (via:"arm" не подтверждает никогда, сколько бы нажатий ни пришло) и показываем кнопку
+   подтверждения. */
+function renumberPosts(){
+  if(!state.posts.length){toast("В проекте нет постов");return}
+  const plan=renumberPlan();
+  if(!plan.changed){applyRenumber(plan);return}
+  const step=EPConfirmRepeat.press(_renumberArmed,{now:Date.now(),maxMs:RENUMBER_CONFIRM_MS,
+    subject:renumberSubject(plan.numbers,plan.before,plan.after),via:"arm"});
+  _renumberArmed=step.armed;
+  showRenumberConfirm(true);
+  toast(`${renumberNews(plan.before,plan.after)}. Нажмите «Подтвердить перенумерацию»`);
+}
+/* Нажатие на кнопку подтверждения — ДРУГОЙ орган управления, поэтому ни паузы, ни повторов не
+   требуется: поток по кнопке «Перенумеровать посты» сюда не попадает. Остаются подпись
+   («подтверждают именно то, что показали») и окно. */
+function confirmRenumberPosts(){
+  const plan=state.posts.length?renumberPlan():null;
+  const step=EPConfirmRepeat.press(_renumberArmed,{now:Date.now(),maxMs:RENUMBER_CONFIRM_MS,
+    /* Подпись считаем ВСЕГДА (пустая строка, если постов уже нет): её несовпадение — это и есть
+       «показывали другое», и пропустить проверку, подав undefined, значило бы применить
+       перенумерацию, про которую человеку показали другие числа. */
+    subject:plan?renumberSubject(plan.numbers,plan.before,plan.after):"",via:"confirm"});
+  _renumberArmed=step.armed;
+  /* «wait» — нажатие пришло в тот же миг, когда кнопка появилась: это промах по соседней
+     команде из-за сдвига разметки, а не подтверждение. Вопрос остаётся на экране как был. */
+  if(step.action==="wait")return;
+  if(step.action!=="confirm"){
+    showRenumberConfirm(false);
+    toast("Проект изменился — нажмите «Перенумеровать посты» ещё раз, чтобы увидеть новые числа");
+    return;
+  }
+  applyRenumber(plan);
 }
 
 /* Оркестратор КП: считаем ту же смету, что и панель справа (единый buildEstimate —
@@ -3023,27 +3237,36 @@ $("savePost").onclick=savePostBuilder;$("postSlotCount").onchange=changePostSlot
 /* Поиск по каталогу конструктора перерисовывает ТОЛЬКО карточки: поле ввода лежит снаружи
    #builderCatalog, поэтому фокус и каретка на месте, а раскладка по постам не пересчитывается. */
 $("builderSearch").oninput=e=>{state.builder.query=e.target.value;renderBuilderCatalog()};
-/* Схема электрики — свойство проекта, как и тип стены: меняет подстановку механизмов во ВСЕХ
-   постах, поэтому перерисовываем конструктор и смету и сохраняем. */
-/* Оба селектора схемы (панель проекта и конструктор) меняют ОДНУ настройку одним обработчиком:
-   вторая копия правил переключения разошлась бы с первой при первой же правке. */
-LIGHTING_SCHEME_HOSTS.forEach(([selectId])=>{
-  const sel=$(selectId);if(!sel)return;
-  sel.onchange=e=>{
-    EP_DATA.settings.lightingScheme=e.target.value;
-    renderLightingSchemeSelect();   /* второй селектор обязан показать то же значение */
-    if($("postModal").classList.contains("open"))renderBuilder();
-    renderSummary();scheduleSave();
-  };
-});
-/* Тип стены — ЧЕРНОВИК ОКНА, а не мгновенная правка проекта. Кнопка писала прямо в
+/* Схема электрики — настройка ВСЕГО проекта: меняет подстановку механизмов во ВСЕХ постах.
+   Селектор ровно один — в панели проекта; в конструкторе осталась строка только для чтения
+   (см. renderLightingSchemeSelect). Кого перерисовывать — не наше дело: обработчик пишет
+   значение и зовёт applyProjectSettings(). Раньше здесь стоял свой список, в котором не было
+   renderProperties, и карточка выбранного поста показывала старую схему и старую стоимость. */
+$("lightingSchemeSelect").onchange=e=>{
+  EP_DATA.settings.lightingScheme=e.target.value;
+  applyProjectSettings();
+};
+/* Тип стены ПРОЕКТА — значение по умолчанию для постов без своего post.wallType. Меняется
+   ТОЛЬКО отсюда, из панели проекта: правка настройки всего объекта из окна отдельного поста
+   и была тем дефектом, ради которого у поста завели собственный тип стены.
+   У постов, которым тип стены не задавали, меняется подобранная коробка — а с ней состав,
+   цена поста и смета; всех потребителей обновляет applyProjectSettings. */
+$("projectWallTypeSelect").onchange=e=>{
+  EP_DATA.settings.wallType=e.target.value==="hollow"?"hollow":"solid";
+  applyProjectSettings();
+  toast("Тип стены проекта изменён — посты со своим типом стены не затронуты");
+};
+/* Тип стены ПОСТА — ЧЕРНОВИК ОКНА, а не мгновенная правка проекта. Кнопка писала прямо в
    EP_DATA.settings.wallType и тут же звала scheduleSave(): человек открывал ОДИН пост, менял
    стену — и подбор коробки уезжал у ВСЕХ постов проекта, включая посты другой накладки и
    другого состава; «Отмена» это не откатывала, потому что проект уже был сохранён.
    Теперь кнопка меняет только черновик; куда правку применить — решает сохранение
    (savePostBuilder → askWallScope). Смету отсюда не пересчитываем и проект не сохраняем:
-   пока не нажато «Сохранить», в проекте ничего не изменилось. */
+   пока не нажато «Сохранить», в проекте ничего не изменилось.
+   Проверка editingPlacedId — страховка к disabled в разметке: своего типа стены у шаблона и
+   нового поста нет, и черновик там менять нечему (renderBuilderComposition). */
 document.querySelectorAll("#postWallType .wall-type-option").forEach(b=>b.onclick=()=>{
+  if(!state.builder.editingPlacedId)return;
   state.builder.wallType=b.dataset.wall;renderBuilder();
 });
 /* Клик мимо окна — такое же СЛУЧАЙНОЕ закрытие, как Esc: с несохранёнными правками просит
@@ -3236,10 +3459,22 @@ $("traceSensitivity").oninput=e=>$("traceSensitivityValue").textContent=e.target
 $("saveProjectBtn").onclick=saveProject;$("pdfBtn").onclick=generateCommercialOffer;
 $("installSheetBtn").onclick=installSheetForProject;
 $("renumberPostsBtn").onclick=renumberPosts;
+/* Подтверждение — С ДРУГОЙ КНОПКИ (см. renumberPosts): поток нажатий по кнопке слева сюда не
+   попадает, а значит и применить перенумерацию за человека не может. */
+$("renumberConfirmBtn").onclick=confirmRenumberPosts;
+/* АВТОПОВТОР НА КНОПКЕ В ФОКУСЕ — НЕ ВТОРОЕ ДЕЙСТВИЕ. Удержанные Enter/Пробел на кнопке в фокусе
+   шлют поток click-событий (у клавиатурного click detail = 0, от настоящего его не отличить).
+   Кнопку подтверждения это касается напрямую: удержанный Enter на ней применил бы команду
+   мгновенно после её появления. Гасим автоповтор в источнике — ровно как у Esc в конструкторе. */
+[$("renumberPostsBtn"),$("renumberConfirmBtn")].forEach(b=>{
+  b.onkeydown=e=>{if(e.repeat&&(e.key==="Enter"||e.key===" "))e.preventDefault()};
+});
 $("builderInstallSheet").onclick=installSheetForBuilder;
 /* реквизиты КП: правки полей сохраняются в проект (settings.docHeader) */
 Object.keys(DOC_FIELDS).forEach(id=>{$(id).oninput=applyDocHeader});
-/* условия сделки: скидка, ставка НДС и его наличие в КП */
+/* Условия сделки: работы, материалы, скидка, ставка НДС и его наличие в КП. Всё это —
+   настройки проекта, поэтому потребителей не перечисляем (applyProjectSettings). Строка
+   с disabled остаётся здесь: это состояние самого органа ввода, а не чужое представление. */
 function applyTerms(){
   EP_DATA.settings.workPercent=Math.max(0,Math.min(200,Number($("workInput").value)||0));
   EP_DATA.settings.materialsPercent=Math.max(0,Math.min(200,Number($("materialsInput").value)||0));
@@ -3247,32 +3482,30 @@ function applyTerms(){
   EP_DATA.settings.vatPercent=Math.max(0,Math.min(30,Number($("vatInput").value)||0));
   EP_DATA.settings.vatEnabled=$("vatEnabled").checked;
   $("vatInput").disabled=!EP_DATA.settings.vatEnabled;
-  renderSummary();scheduleSave();
+  applyProjectSettings();
 }
 ["workInput","materialsInput","discountInput","vatInput"].forEach(id=>{$(id).oninput=applyTerms});
 $("vatEnabled").onchange=applyTerms;
 /* валюта отображения и курс */
 function applyCurrency(){
   EP_DATA.settings.displayCurrency=$("currencySelect").value;
-  updateRateUi();
-  renderCatalog($("catalogSearch").value);renderSummary();renderTemplates();renderProperties();
-  scheduleSave();
+  applyProjectSettings();
   if(EP_DATA.settings.displayCurrency==="RUB"&&!(EP_DATA.settings.eurRate>0))refreshRate();
 }
 $("currencySelect").onchange=applyCurrency;
 $("rateRefreshBtn").onclick=refreshRate;
+/* Ручной курс: пустое/нечитаемое значение EPRates.manual отвергает — тогда настройка не
+   изменилась и перерисовывать нечего. */
 $("rateInput").oninput=()=>{
   if(!applyRateEntry(EPRates.manual($("rateInput").value)))return;
-  updateRateUi();renderCatalog($("catalogSearch").value);renderSummary();renderTemplates();scheduleSave();
+  applyProjectSettings();
 };
 /* Надбавка к курсу — часть условий сделки, но влияет и на рублёвое представление
-   каталога/сметы/шаблонов/свойств, поэтому перерисовываем их так же, как applyCurrency
-   при смене валюты (в EUR-режиме money() всё равно вернёт евро — перерисовка безвредна). */
+   каталога/сметы/шаблонов/свойств (в EUR-режиме money() всё равно вернёт евро — перерисовка
+   безвредна). Список потребителей — там же, где у всех настроек. */
 function applySurcharge(){
   EP_DATA.settings.rateSurchargePercent=Math.max(0,Math.min(100,Number($("surchargeInput").value)||0));
-  updateRateUi();
-  renderCatalog($("catalogSearch").value);renderSummary();renderTemplates();renderProperties();
-  scheduleSave();
+  applyProjectSettings();
 }
 $("surchargeInput").oninput=applySurcharge;
 /* Ловушка фокуса полноэкранного конструктора: Tab обязан ходить ПО ОКНУ, а не уводить на
