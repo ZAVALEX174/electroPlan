@@ -400,6 +400,18 @@ const SVG_NS="http://www.w3.org/2000/svg";
 function svgTitle(node,text){const t=document.createElementNS(SVG_NS,"title");t.textContent=text;node.appendChild(t)}
 /* правка делает комнату «ручной»: она переживает повторное авто-определение */
 function markRoomEdited(room){room.autoPolygon=false;room.edited=true}
+/* Тонкая обёртка над EPRoomCarry: пересчёт уничтожает авто-комнаты и заводит новые, а набранное
+   человеком имя/площадь (в отличие от правки вершин) autoPolygon не снимает и теряется. Чистое
+   сопоставление старых и новых по геометрии — в модуле; здесь только применяем его план к
+   свежепостроенным объектам. Ручные комнаты (autoPolygon===false) не источники и не цели. */
+function carryUserRoomFields(oldAutoRooms,newRooms){
+  EPRoomCarry.carry(oldAutoRooms,newRooms,EPGeom).forEach(t=>{
+    const room=newRooms.find(r=>r.id===t.toId);
+    if(!room)return;
+    if(t.name!=null)room.name=t.name;
+    if(t.area!=null)room.area=t.area;
+  });
+}
 function refreshRoomAfterEdit(room){
   const c=polygonCentroid(room.polygon);
   room.seedX=c.x;room.seedY=c.y;room.x=c.x-45;room.y=c.y-16;
@@ -528,16 +540,21 @@ async function detectRooms(){
     await new Promise(r=>setTimeout(r,40));
     const res=EPRoomSeg.segment(img);
     const cw=canvas.clientWidth,ch=canvas.clientHeight;
+    /* уничтожаемые авто-комнаты — источники переноса ручных полей на новые (по геометрии) */
+    const oldAuto=state.rooms.filter(r=>r.autoPolygon);
     /* вручную поправленные контуры (autoPolygon=false) сохраняются */
     state.rooms=state.rooms.filter(r=>!r.autoPolygon);
     const kept=state.rooms.length;
     /* нумеруем дальше существующих, чтобы имена не дублировались */
     let next=state.rooms.reduce((max,r)=>{const m=/^Комната\s+(\d+)$/.exec(r.name||"");return m?Math.max(max,Number(m[1])):max},0);
+    const built=[];
     res.rooms.forEach(rm=>{
       const poly=EPRoomSeg.mapPolygon(rm.polygon,res,cw,ch);
       const c=polygonCentroid(poly);
-      state.rooms.push({id:uid("room_"),name:"Комната "+(++next),area:"",polygon:poly,autoPolygon:true,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16});
+      const room={id:uid("room_"),name:"Комната "+(++next),area:"",polygon:poly,autoPolygon:true,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16};
+      state.rooms.push(room);built.push(room);
     });
+    carryUserRoomFields(oldAuto,built);   /* вернуть имя/площадь, введённые вручную, на совпавшие комнаты */
     recalculateRoomAssignments();renderAll();renderProperties();renderSummary();
     showTraceProgress(false);
     toast(res.rooms.length?`Найдено комнат: ${res.rooms.length}`:"Комнаты не найдены");
@@ -556,15 +573,20 @@ async function detectRoomsML(){
       onProgress:msg=>showTraceProgress(true,"Распознавание плана",msg||"Анализ чертежа…")
     });
     const cw=canvas.clientWidth,ch=canvas.clientHeight;
+    /* уничтожаемые авто-комнаты — источники переноса ручных полей на новые (по геометрии) */
+    const oldAuto=state.rooms.filter(r=>r.autoPolygon);
     /* вручную поправленные контуры сохраняем, как и в OpenCV-режиме */
     state.rooms=state.rooms.filter(r=>!r.autoPolygon);
     const kept=state.rooms.length;
     let next=state.rooms.reduce((max,r)=>{const m=/^Комната\s+(\d+)$/.exec(r.name||"");return m?Math.max(max,Number(m[1])):max},0);
+    const built=[];
     res.rooms.forEach(rm=>{
       const poly=EPFloorplanML.mapPolygon(rm.polygon,res,cw,ch);
       const c=polygonCentroid(poly);
-      state.rooms.push({id:uid("room_"),name:"Комната "+(++next),area:"",polygon:poly,autoPolygon:true,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16});
+      const room={id:uid("room_"),name:"Комната "+(++next),area:"",polygon:poly,autoPolygon:true,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16};
+      state.rooms.push(room);built.push(room);
     });
+    carryUserRoomFields(oldAuto,built);   /* вернуть имя/площадь, введённые вручную, на совпавшие комнаты */
     recalculateRoomAssignments();renderAll();renderProperties();renderSummary();
     showTraceProgress(false);
     toast(res.rooms.length?`Найдено комнат: ${res.rooms.length}`:"Комнаты не найдены");
@@ -2401,17 +2423,22 @@ function buildRoomsFromLines(opts){
     if(!silent){toast("Контур не замкнут — помещение не определено");updateStatus("Контур не замкнут — помещение не определено")}
     return;
   }
+  /* уничтожаемые авто-комнаты — источники переноса ручных полей на новые (по геометрии) */
+  const oldAuto=state.rooms.filter(r=>r.autoPolygon);
   /* ручные контуры (autoPolygon===false) переживают пересчёт — как в detectRooms* */
   state.rooms=state.rooms.filter(r=>!r.autoPolygon);
   const kept=state.rooms.length;
   /* нумеруем «Помещение N» дальше существующих одноимённых, чтобы имена не дублировались */
   let next=state.rooms.reduce((max,r)=>{const m=/^Помещение\s+(\d+)$/.exec(r.name||"");return m?Math.max(max,Number(m[1])):max},0);
+  const built=[];
   res.rooms.forEach(rm=>{
     const poly=rm.polygon,c=polygonCentroid(poly);
     /* roomSource — признак способа получения контура (по линиям/по сетке): запасной
        проход не подменяет основной молча, источник виден и в state, и в отчётах */
-    state.rooms.push({id:uid("room_"),name:"Помещение "+(++next),area:"",polygon:poly,autoPolygon:true,roomSource:rm.source,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16});
+    const room={id:uid("room_"),name:"Помещение "+(++next),area:"",polygon:poly,autoPolygon:true,roomSource:rm.source,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16};
+    state.rooms.push(room);built.push(room);
   });
+  carryUserRoomFields(oldAuto,built);   /* вернуть имя/площадь, введённые вручную, на совпавшие комнаты */
   recalculateRoomAssignments();renderAll();renderProperties();renderSummary();persistProject();
   if(!silent){
     const byGrid=res.rooms.filter(r=>r.source==="grid").length;
