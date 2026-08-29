@@ -410,6 +410,11 @@ function carryUserRoomFields(oldAutoRooms,newRooms){
     if(!room)return;
     if(t.name!=null)room.name=t.name;
     if(t.area!=null)room.area=t.area;
+    /* Своя схема электрики комнаты переносится вместе с именем/площадью: пересчёт контуров зовётся
+       автоматически (scheduleRoomsFromLines), и без переноса схема стиралась бы при каждой правке
+       линий разметки. Отсутствие в переносе (t.lightingScheme==null) поля не создаёт — комната
+       остаётся «как в проекте». */
+    if(t.lightingScheme!=null)room.lightingScheme=t.lightingScheme;
   });
 }
 function refreshRoomAfterEdit(room){
@@ -1289,6 +1294,20 @@ function renderProperties(){
     const areaHint=!isPoly?"Контур не определён — площадь задаётся вручную"
       :state.pxPerMeter?`Расчёт по контуру: ${autoArea}`
       :`Задайте масштаб плана, чтобы получить м². Сейчас контур: ${Math.round(polygonAreaPx(r.polygon)).toLocaleString("ru-RU")} px²`;
+    /* Схема электрики комнаты. ⚠️ ОТСУТСТВИЕ r.lightingScheme — это «как в проекте», а не «своя»
+       (EPRoom.roomLightingScheme): ownScheme различает наличие собственной валидной схемы у
+       комнаты, curScheme — фактически действующую (свою либо проектную). Названия и пометку
+       «расчёт недоступен» берём из единого списка EPLightingGroups.SCHEMES — второй копии нет.
+       В отличие от типа стены поста, у комнаты есть ЯВНЫЙ возврат к наследованию — пункт «Как в
+       проекте»: он снимает поле (см. обработчик), а не пишет в него значение проекта. */
+    const projScheme=lightingScheme();
+    const projSchemeItem=EPLightingGroups.SCHEMES.find(s=>s.id===projScheme);
+    const ownScheme=EPLightingGroups.SCHEMES.some(s=>s.id===r.lightingScheme)?r.lightingScheme:null;
+    const curScheme=EPRoom.roomLightingScheme(r,projScheme,EPLightingGroups.SCHEMES);
+    const curSchemeItem=EPLightingGroups.SCHEMES.find(s=>s.id===curScheme);
+    const schemeLabel=item=>`${item.label}${item.supported?"":" — расчёт недоступен"}`;
+    const schemeOptions=`<option value=""${ownScheme?"":" selected"}>Как в проекте${projSchemeItem?` (${esc(projSchemeItem.label)})`:""}</option>`
+      +EPLightingGroups.SCHEMES.map(item=>`<option value="${esc(item.id)}"${item.id===ownScheme?" selected":""}>${esc(schemeLabel(item))}</option>`).join("");
     props.innerHTML=`<label>Название комнаты<input id="roomName" value="${esc(r.name)}" autocomplete="off"></label>
     <label>Площадь<input id="roomArea" value="${esc(r.area||"")}" placeholder="${esc(autoArea||"Например, 18,6 м²")}" autocomplete="off"></label>
     <small class="prop-hint">${esc(areaHint)}${r.area?.trim()?" · сейчас показано ручное значение":""}</small>
@@ -1298,7 +1317,10 @@ function renderProperties(){
       ${roomObjects.length?roomObjects.map(o=>`<div class="room-equipment-row"><span>${esc(o.name)}</span><small>${o.kind==="post"?"Пост":"Элемент"}</small></div>`).join(""):'<div class="room-equipment-empty">В этой комнате пока нет оборудования</div>'}
     </div>
     <button class="btn primary full" id="saveRoomProps" style="margin-top:10px">Сохранить изменения</button>
-    <div class="property-save-state" id="roomSaveState"></div>`;
+    <div class="property-save-state" id="roomSaveState"></div>
+    <label class="room-scheme-field">Схема электрики<select id="roomSchemeSelect">${schemeOptions}</select></label>
+    <small class="prop-hint prop-scheme-source${ownScheme?" own":""}">${ownScheme?"Своя схема комнаты":`Унаследована от проекта: ${esc(projSchemeItem?projSchemeItem.label:projScheme)}`}</small>
+    ${curSchemeItem&&!curSchemeItem.supported?`<small class="prop-hint prop-scheme-note">${esc(curSchemeItem.note)}</small>`:""}`;
     mountedRoomId=r.id;   /* этим полям принадлежит комната r — flushRoomDraft коммитит именно в неё */
     const saveRoom=()=>{
       r.name=$("roomName").value.trim()||"Комната";
@@ -1314,6 +1336,17 @@ function renderProperties(){
       $(field).onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();saveRoom()}};
       $(field).onblur=saveRoom;
     });
+    /* Схема электрики применяется СРАЗУ по change (как тип стены поста и высота элемента), а не
+       через черновик имени/площади: у неё свой орган и своё немедленное действие. «Как в проекте»
+       (value="") СНИМАЕТ поле — так комната возвращается к наследованию, а не запоминает текущую
+       схему проекта как свою (иначе смена настройки проекта её бы уже не двигала). Перерисовку
+       зовём из обработчика по действию человека (инвариант beginPress не нарушается — он про тело
+       renderProperties). Расчёт групп света здесь НЕ трогаем (часть 3) — только хранение и вид. */
+    $("roomSchemeSelect").onchange=e=>{
+      const val=e.target.value;
+      if(val)r.lightingScheme=val; else delete r.lightingScheme;
+      renderProperties();persistProject();
+    };
   }
 }
 /* ---- Группы света и схема электрики проекта (C8) ------------------------------------

@@ -8,9 +8,9 @@
    пользовательские поля на какую новую комнату перенести. Само чтение state.rooms и запись
    полей остаются в app.js — здесь только чистое сопоставление, без state и без DOM.
 
-   ЧТО ПЕРЕНОСИМ. Только введённое человеком: имя (если оно НЕ авто-формата) и непустую площадь.
-   Список полей будет РАСШИРЯТЬСЯ (следующая задача — схема электрики у комнаты); добавлять новые
-   переносимые поля нужно в normUserFields, чтобы правило сбора «ручного» осталось в одной точке.
+   ЧТО ПЕРЕНОСИМ. Только введённое человеком: имя (если оно НЕ авто-формата), непустую площадь и
+   схему электрики комнаты (room.lightingScheme — своя схема, отличная от проектной). Список полей
+   расширяется в normUserFields — правило сбора «ручного» держим в одной точке.
    НЕ переносим геометрию (polygon, seedX/seedY, x/y, roomSource) и id — они на то и
    пересчитываются, а привязка объектов к комнатам всё равно пересчитывается заново.
 
@@ -71,7 +71,15 @@ function normUserFields(o) {
   const name = rawName && !isAutoName(rawName) ? rawName : null;
   const rawArea = String(o.area == null ? "" : o.area).trim();
   const area = rawArea ? rawArea : null;
-  return { name, area };
+  /* Схема электрики комнаты (её ввёл человек, autoPolygon это не снимает — как и имя/площадь).
+     Переносим ТОЛЬКО непустую строку: отсутствие поля = «как в проекте» (EPRoom.roomLightingScheme),
+     и материализовать его в значение при переносе нельзя — иначе комната, которая следовала за
+     проектом, после первого же пересчёта контуров молча прибила бы к себе схему. Валидность id
+     здесь не проверяем: список схем — забота представления, перенос обязан сохранить ровно то,
+     что стоит в поле. */
+  const rawScheme = o.lightingScheme;
+  const lightingScheme = typeof rawScheme === "string" && rawScheme ? rawScheme : null;
+  return { name, area, lightingScheme };
 }
 
 /* carry(oldRooms, newRooms[, geom]) → массив переносов [{ toId, fromId, name, area }].
@@ -112,9 +120,10 @@ function carry(oldRooms, newRooms, geom) {
   cands.forEach(c => {
     if (usedSrc.has(c.s.room) || usedDst.has(c.d.room)) return;   /* один-к-одному */
     const f = normUserFields(c.s.room);
-    if (f.name == null && f.area == null) { usedSrc.add(c.s.room); usedDst.add(c.d.room); return; }
+    /* пара занята в любом случае (один-к-одному), но перенос добавляем, только если есть что нести */
+    if (f.name == null && f.area == null && f.lightingScheme == null) { usedSrc.add(c.s.room); usedDst.add(c.d.room); return; }
     usedSrc.add(c.s.room); usedDst.add(c.d.room);
-    out.push({ toId: c.d.room.id, fromId: c.s.room.id, name: f.name, area: f.area });
+    out.push({ toId: c.d.room.id, fromId: c.s.room.id, name: f.name, area: f.area, lightingScheme: f.lightingScheme });
   });
   return out;
 }

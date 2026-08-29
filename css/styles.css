@@ -110,6 +110,11 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 /* Источник типа стены поста: «унаследован от проекта» — приглушённо (обычный prop-hint),
    «свой» — выделено цветом акцента, чтобы два состояния нельзя было спутать глазом. */
 .prop-wall-source.own{color:var(--blue-dark);font-weight:700}
+/* Схема электрики комнаты стоит НИЖЕ кнопки «Сохранить изменения» (та относится к черновику
+   имени/площади, а схема применяется сразу) — отбивка сверху отделяет её от блока сохранения. */
+.room-scheme-field{margin-top:12px}
+/* «Своя схема» — тем же акцентом, что «свой тип стены»: два состояния нельзя спутать. */
+.prop-scheme-source.own{color:var(--blue-dark);font-weight:700}
 .prop-hint-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;color:var(--muted);font-size:9px}
 .prop-hint-row b{color:var(--text)}
 .terms-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
