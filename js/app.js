@@ -1370,10 +1370,15 @@ function lightingScheme(){
   const id=EP_DATA.settings.lightingScheme;
   return EPLightingGroups.SCHEMES.some(s=>s.id===id)?id:"classic";
 }
-/* Один расчёт на весь проект: роль механизма (выключатель / переключатель / инвертор) зависит
-   от того, сколько раз группа встретилась ВО ВСЁМ ПРОЕКТЕ, а не в одном посте. posts обычно
-   state.posts; конструктор подаёт проект вместе с редактируемым постом (см. builderPostDraft),
-   иначе показал бы выключатель там, где в проекте уже второе место той же группы. */
+/* Расчёт групп света ПО КОМНАТАМ: роль механизма (выключатель / переключатель / инвертор) зависит
+   от числа мест группы, а у каждой комнаты своя схема электрики и свои группы — «Кухня» в двух
+   комнатах это ДВЕ независимые группы (ЧАСТЬ 3). Раскрой по комнатам и слияние обратно в один план
+   делает чистый EPLightingByRoom.planByRooms; здесь только подстановка зависимостей приложения.
+   posts обычно state.posts; конструктор подаёт проект вместе с редактируемым постом (см.
+   builderPostDraft), иначе показал бы выключатель там, где в проекте уже второе место той же группы.
+   ⚠️ КОМНАТУ МЕСТА берём из поста (post.roomId), а не из места: место её не несёт, а привязка
+   пересчитывается recalculateRoomAssignments на каждый renderAll. Карту строим из ТЕХ ЖЕ posts,
+   по которым собраны места, — тогда и черновик конструктора попадает в свою комнату. */
 function lightingFor(posts){
   const places=EPLightingPlan.collect(posts,{product,seriesOf:productSeries,isKey:isKeyProduct});
   const mechs=byKind("mechanism");
@@ -1383,15 +1388,30 @@ function lightingFor(posts){
      Eikon это неверная цена и физически несобираемый пост. Контракт модуля требует строгий
      null и изделие обязательно с артикулом.
      Неоднозначность (в серии несколько кандидатов на роль, разобрать нечем) не решаем монетой:
-     копим и показываем человеку — см. ambiguityHtml. */
+     копим и показываем человеку — см. ambiguityHtml. findMechanism — ОДНА замыкающая функция на
+     все партиции, поэтому ambiguous копится сквозь них (planByRooms отдаёт ей один и тот же deps). */
   const ambiguous=new Map();
-  const plan=EPLightingGroups.plan({scheme:lightingScheme(),places},{
+  const planDeps={
     seriesOf:productSeries,
     findMechanism:({role,series})=>{
       const found=EPLightingPlan.resolveMechanism({role,series},mechs);
       if(found.ambiguous)ambiguous.set(role+"|"+series.join("|"),{role,series,candidates:found.candidates});
       return found.product;
     }
+  };
+  const projScheme=lightingScheme();
+  const roomById=new Map(state.rooms.map(r=>[r.id,r]));
+  const roomOfPost=new Map((Array.isArray(posts)?posts:[]).map(p=>[p&&p.id, p&&p.roomId!=null?p.roomId:null]));
+  const plan=EPLightingByRoom.planByRooms({
+    places,
+    projectScheme:projScheme,
+    projectSchemeLabel:(EPLightingGroups.SCHEMES.find(s=>s.id===projScheme)||{}).label||"",
+    /* пост без комнаты (roomId пустой) → отдельная партиция со схемой проекта */
+    partitionKeyOf:place=>{const rid=roomOfPost.get(place.postId);return rid==null?null:rid;},
+    /* нераспознанный/отсутствующий id схемы у комнаты откатывается на проект — EPRoom.roomLightingScheme */
+    schemeForPartition:key=>key==null?projScheme:EPRoom.roomLightingScheme(roomById.get(key),projScheme,EPLightingGroups.SCHEMES),
+    plan:EPLightingGroups.plan,
+    planDeps
   });
   return {plan,places,
     rows:EPLightingPlan.rowsByPost(plan,places,EPLightingGroups.GAP_TEXTS),
@@ -1444,13 +1464,19 @@ const lightingSum=light=>(((light&&light.plan.places)||[]).reduce((sum,p)=>sum+(
    РАСЧЁТ ГРУПП СВЕТА КЭШИРУЕТСЯ, потому что теперь его спрашивают и подсказка (на каждое
    наведение), и панель свойств (на каждое выделение). Подпись кэша — ВСЁ, от чего расчёт
    зависит: схема электрики проекта, адреса постов (номер решает канонический порядок ролей!),
-   наборы клавиш, их группы и сам факт загруженности каталога. Изменилось что-то из этого —
-   считаем заново; не изменилось — ответ обязан быть тем же, иначе расходились бы уже два
-   вызова подряд. Кэш здесь именно оптимизация: убери его — поведение не изменится. */
+   наборы клавиш, их группы, ПРИВЯЗКА ПОСТА К КОМНАТЕ и ДЕЙСТВУЮЩАЯ СХЕМА КАЖДОЙ КОМНАТЫ (расчёт
+   теперь идёт по комнатам — ЧАСТЬ 3), и сам факт загруженности каталога. Без комнат в подписи
+   смена схемы у одной комнаты или переезд поста в другую комнату кэш не сбрасывали бы, и расчёт
+   молча остался бы старым. Саму подпись собирает чистый EPLightingByRoom.cacheSignature — она
+   под тестом. Изменилось что-то — считаем заново; не изменилось — ответ обязан быть тем же.
+   Кэш здесь именно оптимизация: убери его — поведение не изменится. */
 let _lightCache={sig:null,value:null};
 function projectLighting(){
-  const sig=JSON.stringify([lightingScheme(),state.products.length,
-    state.posts.map(p=>[p.id,p.number,p.mechanismIds,p.keyGroups])]);
+  const projScheme=lightingScheme();
+  const sig=EPLightingByRoom.cacheSignature({
+    projectScheme:projScheme,productCount:state.products.length,
+    posts:state.posts,rooms:state.rooms,
+    schemeOf:r=>EPRoom.roomLightingScheme(r,projScheme,EPLightingGroups.SCHEMES)});
   if(_lightCache.sig!==sig)_lightCache={sig,value:lightingFor(state.posts)};
   return _lightCache.value;
 }
