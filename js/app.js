@@ -1345,7 +1345,12 @@ function renderProperties(){
     $("roomSchemeSelect").onchange=e=>{
       const val=e.target.value;
       if(val)r.lightingScheme=val; else delete r.lightingScheme;
-      renderProperties();persistProject();
+      /* ⚠️ СХЕМА КОМНАТЫ — ДЕНЕЖНАЯ НАСТРОЙКА (часть 3: расчёт групп света идёт по комнатам).
+         renderSummary обязателен: #grandTotal/#specList/#lightingSummary пишутся ТОЛЬКО в нём,
+         и без него панель показывала бы старую сумму, а кэш уже сброшен — следующий экспорт КП
+         напечатал бы новую. Экран и документ об одном проекте противоречить не могут.
+         Список потребителей тот же, что у схемы ПРОЕКТА (applyProjectSettings). */
+      renderAll();renderProperties();renderSummary();persistProject();
     };
   }
 }
