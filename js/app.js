@@ -1179,13 +1179,31 @@ function flushRoomDraft(){
   updateRoomLabelText(room);   /* точечно, без renderRooms — flush идёт из beginPress (см. выше) */
   persistProject();
 }
+/* §7.1: где живёт выделенная сущность — ОДНА карта kind→поиск на входе панели свойств. Ветки
+   берут готовый объект отсюда и второй способ его искать не заводят. Стена лежит в двух
+   списках (ручные + автообрисовка) — склейка та же, что в applySelectionClasses/removeWall. */
+function findSelectedEntity(kind,id){
+  if(kind==="device")return state.devices.find(x=>x.id===id);
+  if(kind==="post")return state.posts.find(x=>x.id===id);
+  if(kind==="wall")return [...state.walls,...state.autoWalls].find(x=>x.id===id);
+  if(kind==="room")return state.rooms.find(x=>x.id===id);
+  return null;
+}
 function renderProperties(){
   flushRoomDraft();   /* §7.1: правило «сначала закоммить черновик» в одной точке — покрывает все ~25 вызовов */
   if(!state.selected){props.className="empty-properties";props.innerHTML="Выберите объект на плане";return}
-  props.className="";
   const {kind,id}=state.selected;
+  /* §7.1: одна проверка «выделенная сущность ещё жива» ДО входа в ветки. Пересчёт контуров
+     (buildRoomsFromLines) удаляет авто-комнаты и создаёт заново с новым id, а state.selected
+     на старую комнату никто не чистит — та же дыра во всех ветках (d/p/r читались без проверки).
+     Нет объекта → выделение недействительно: снимаем его, гасим подсветку на холсте точечно
+     (applySelectionClasses, без renderAll — инвариант beginPress), показываем то же пустое
+     состояние, что при !state.selected, вместо TypeError. */
+  const entity=findSelectedEntity(kind,id);
+  if(!entity){state.selected=null;applySelectionClasses();props.className="empty-properties";props.innerHTML="Выберите объект на плане";return}
+  props.className="";
   if(kind==="device"){
-    const d=state.devices.find(x=>x.id===id),p=product(d.productId);
+    const d=entity,p=product(d.productId);
     const room=state.rooms.find(r=>r.id===d.roomId);
     props.innerHTML=`<label>Элемент<input value="${esc(p.name)}" disabled></label>
     <label>Комната<input value="${esc(room?.name||"Не назначена")}" disabled></label>
@@ -1200,7 +1218,7 @@ function renderProperties(){
     $("propHeight").oninput=e=>{d.height=e.target.value;scheduleSave()};
     $("removeSelected").onclick=()=>removeEntity(kind,id);
   }else if(kind==="post"){
-    const p=state.posts.find(x=>x.id===id);
+    const p=entity;
     const room=state.rooms.find(r=>r.id===p.roomId);
     /* ⚠️ КАРТОЧКА ОБЯЗАНА БЫТЬ СОГЛАСОВАНА САМА С СОБОЙ. «Механизмов / коробок» считает состав
        ПОСТА (post.mechanismIds — то, что занимает модули рамки), а «Стоимость» — полная цена
@@ -1257,14 +1275,14 @@ function renderProperties(){
       toast(scope==="sameType"?"Тип стены обновлён у поста и всех однотипных":"Тип стены поста обновлён");
     };
   }else if(kind==="wall"){
-    const wobj=[...state.walls,...state.autoWalls].find(x=>x.id===id);
+    const wobj=entity;
     const len=wobj?Math.round(Math.hypot(wobj.b.x-wobj.a.x,wobj.b.y-wobj.a.y)):0;
     props.innerHTML=`<label>Тип<input value="${wobj?.auto?"Стена (автообрисовка)":"Стена (вручную)"}" disabled></label>
     <label>Длина на холсте<input value="${len} px" disabled></label>
     <div class="property-actions"><button class="btn ghost" id="removeSelected">Удалить линию</button></div>`;
     $("removeSelected").onclick=()=>removeWall(id);
   }else{
-    const r=state.rooms.find(x=>x.id===id);
+    const r=entity;
     const roomObjects=getObjectsInRoom(r.id);
     const isPoly=r.polygon&&r.polygon.length>2;
     const autoArea=roomAutoAreaText(r);
