@@ -195,3 +195,91 @@ test("подпись кэша стабильна, когда ничего зна
   const posts = [post("p1", "A", "Свет")];
   assert.equal(sigOf(posts, rooms), sigOf(posts.map(p => Object.assign({}, p)), rooms.map(r => Object.assign({}, r))));
 });
+
+/* ── склейка пробелов подпланов (дефект: planByRooms конкатенировал gaps вместо склейки) ── */
+
+test("одинаковые пробелы из разных комнат склеиваются в одну печатную строку", () => {
+  const rooms = [{ id: "A" }, { id: "B" }, { id: "C" }];
+  /* по посту БЕЗ группы в каждой из трёх комнат — три одинаковых пробела group-not-set */
+  const posts = [post("a", "A", ""), post("b", "B", ""), post("c", "C", "")];
+  const plan = planByRoomsFor(posts, rooms, "classic");
+  const notSet = plan.gaps.filter(g => g.kind === "group-not-set");
+  assert.equal(notSet.length, 1, "один пробел на все три комнаты, а не три");
+  assert.equal(notSet[0].places.length, 3, "места всех трёх комнат объединены (мест: 3)");
+  const html = LP.buildHtml(plan, {});
+  assert.ok(html.includes("мест: 3"), "печать: одна строка с «мест: 3»");
+  assert.equal((html.match(/Не указана группа света/g) || []).length, 1, "предупреждение не размножено");
+});
+
+test("relay-article из разных relay-комнат склеивается в одну строку", () => {
+  const rooms = [{ id: "A", lightingScheme: "relay" }, { id: "B", lightingScheme: "relay" }];
+  const posts = [post("a", "A", "Свет"), post("b", "B", "Свет")];
+  const plan = planByRoomsFor(posts, rooms, "classic");
+  const relayGap = plan.gaps.filter(g => g.kind === "relay-article-unknown");
+  assert.equal(relayGap.length, 1, "одна строка relay-article на обе relay-комнаты");
+});
+
+/* ── разреженный список и битые места (forEach проскакивал дыры, undefined ронял расчёт) ── */
+
+test("разреженный список мест — дыра попадает в партицию и получает честный пробел", () => {
+  const places = collect([post("p1", "A", "Свет"), post("p2", "A", "Свет"), post("p3", "A", "Свет")]);
+  delete places[1];   /* приложение так делает после удаления клавиши — индекс 1 остаётся дырой */
+  const plan = LBR.planByRooms({
+    places, projectScheme: "classic", projectSchemeLabel: "",
+    partitionKeyOf: place => (place && place.postId != null ? "A" : null),
+    schemeForPartition: () => "classic",
+    plan: LG.plan, planDeps: { seriesOf, findMechanism }
+  });
+  assert.equal(plan.places.length, 3, "длина выдачи равна длине входа, дыр в ней нет");
+  assert.equal(plan.missingTotal, 1, "дыра честно учтена как пробел, не потеряна");
+  assert.ok(plan.gaps.some(g => g.kind === "group-not-set" && g.places.includes(1)),
+    "у дыры честный пробел «группа не назначена» на её индексе");
+});
+
+test("undefined в списке мест не роняет расчёт — честный пробел, как у одиночного plan", () => {
+  const places = collect([post("p1", "A", "Свет")]);
+  places.push(undefined);   /* «битое» место; partitionKeyOf приложения читает place.postId */
+  const run = () => LBR.planByRooms({
+    places, projectScheme: "classic", projectSchemeLabel: "",
+    partitionKeyOf: place => (place.postId === "p1" ? "A" : null),   /* без своей защиты — как в app.js */
+    schemeForPartition: () => "classic",
+    plan: LG.plan, planDeps: { seriesOf, findMechanism }
+  });
+  assert.doesNotThrow(run, "защита на входе не даёт TypeError");
+  const plan = run();
+  assert.equal(plan.places.length, 2, "битое место занимает свою позицию");
+  assert.ok(plan.gaps.some(g => g.kind === "group-not-set"), "битое место — честный пробел");
+});
+
+/* ── supported при смешанных схемах (одна bell-комната не должна лгать про весь проект) ── */
+
+test("одна bell-комната не делает supported:false всему проекту", () => {
+  const rooms = [{ id: "A", lightingScheme: "classic" }, { id: "B", lightingScheme: "bell" }];
+  const posts = [post("a", "A", "Свет"), post("b", "B", "Свет")];
+  const plan = planByRoomsFor(posts, rooms, "classic");
+  assert.equal(plan.supported, true, "classic-часть посчитана — план поддержан, totals непусты");
+  assert.ok(plan.totals.switch >= 1, "механизм classic-комнаты в totals — supported=false лгал бы");
+  assert.ok(plan.gaps.some(g => g.kind === "scheme-not-implemented"), "bell-часть не потеряна — её пробел на месте");
+});
+
+test("проект целиком из bell-комнат — supported:false и totals пусты (это правда)", () => {
+  const rooms = [{ id: "A", lightingScheme: "bell" }, { id: "B", lightingScheme: "bell" }];
+  const posts = [post("a", "A", "Свет"), post("b", "B", "Свет")];
+  const plan = planByRoomsFor(posts, rooms, "classic");
+  assert.equal(plan.supported, false, "ни одна партиция не поддержана");
+  assert.equal(Object.keys(plan.totals).reduce((s, k) => s + plan.totals[k], 0), 0,
+    "механизмов нет — supported=false не лжёт");
+});
+
+/* ── порядок партиций: «без комнаты» идёт первой (ключ partitionNorm сортируется раньше "r:") ── */
+
+test("партиция «без комнаты» печатается раньше комнатных — порядок ключа сохранён", () => {
+  const rooms = [{ id: "A" }];
+  /* roomless-группа «zzz» и комнатная «aaa»: если бы порядок партиций шёл по имени группы или
+     по порядку входа, «aaa» встала бы первой. Первой обязана быть roomless — она сортируется
+     раньше любого ключа комнаты ("r:"). */
+  const posts = [post("p2", "A", "aaa"), post("p1", null, "zzz")];
+  const plan = planByRoomsFor(posts, rooms, "classic");
+  assert.equal(plan.groups[0].key, "zzz", "первой идёт группа партиции «без комнаты»");
+  assert.equal(plan.groups[1].key, "aaa", "затем — группа комнаты A");
+});

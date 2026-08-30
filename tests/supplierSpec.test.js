@@ -384,9 +384,12 @@ const CATALOG = {
   41: { id: 41, kind: "mechanism", code: "09005.0.250", name: "Механизм переключателя 1П 16AX", unit: "шт.", price: 9,
         partRole: "bare_mechanism", controlRole: "changeover", series: ["Neve Up"] }
 };
-/* Расчёт групп света ровно так, как его подставляет приложение (app.js lightingFor):
-   места из постов → правила схемы → строгий подбор по серии → строки по постам.
-   Второй копии правил здесь нет: работают настоящие EPLightingPlan и EPLightingGroups. */
+/* Расчёт групп света: места из постов → правила схемы → строгий подбор по серии → строки по постам.
+   Здесь считаем ОДНИМ EPLightingGroups.plan (проект без раскроя по комнатам). Приложение
+   (app.js lightingFor) сейчас идёт через EPLightingByRoom.planByRooms — раскрой по комнатам со
+   своей схемой у каждой; на проекте без своих схем у комнат planByRooms сводится к одному plan,
+   поэтому для этих проверок поставки результат тот же. Второй копии правил здесь нет: работают
+   настоящие EPLightingPlan и EPLightingGroups. */
 const seriesOf = item => (item && item.series) || [];
 const BARE = [CATALOG[40], CATALOG[41]];
 function lightingFromProject(posts) {
