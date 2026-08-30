@@ -1603,11 +1603,25 @@ function buildEstimate(light){
    lightingHtml — иначе она уехала бы и в КП/лист монтажника (документы вне этой правки).
    Показываем, лишь когда комнаты в проекте есть и кто-то реально выпал. */
 function orphanObjectsWarningHtml(){
-  if(!state.rooms.length)return "";
-  const orphans=[...state.devices,...state.posts].filter(o=>o.roomId==null).length;
-  if(!orphans)return "";
-  return `<div class="lighting-orphan-note">⚠ Вне помещений: ${orphans} — отмечены на плане. `
-    +`Схема электрики у них считается по проекту; перетащите объект в комнату или подвиньте контур.</div>`;
+  /* Счёт идёт через ЕДИНЫЙ критерий EPRoomAssign.isOutsideRooms (§7.1) — тот же, что метит
+     иконки на плане (compactIcon/syncNoRoomClass). Собственного условия у счётчика быть не должно:
+     со своей проверкой без учёта числа комнат на плане без единой комнаты метки нет, а счётчик
+     насчитал бы всё подряд и написал «отмечены на плане» — экран противоречил бы тексту.
+     isOutsideRooms сам гасит случай «комнат нет» (roomCount>0), отдельный guard тут не нужен. */
+  const rc=state.rooms.length;
+  const posts=state.posts.filter(p=>EPRoomAssign.isOutsideRooms(p.roomId,rc)).length;
+  const devices=state.devices.filter(d=>EPRoomAssign.isOutsideRooms(d.roomId,rc)).length;
+  const total=posts+devices;
+  if(!total)return "";
+  /* «Отмечены на плане» относится ко ВСЕМ выпавшим объектам: метку no-room получают и посты, и
+     устройства, поэтому общий счётчик обязан совпасть с числом колец на плане. А денежную оговорку
+     «считается по схеме проекта» пишем ТОЛЬКО про посты и только когда выпал хоть один: roomId
+     устройства не участвует ни в одном денежном пути (проверено по estimate/offerPdf/installSheet —
+     привязка к комнате есть лишь у поста), поэтому розетки вне комнат смету не меняют и ложной
+     денежной тревоги поднимать не должны. */
+  const money=posts?` Из них постов: ${posts} — их схема электрики считается по проекту.`:"";
+  return `<div class="lighting-orphan-note">⚠ Вне помещений: ${total} — отмечены на плане.${money} `
+    +`Перетащите объект в комнату или подвиньте контур.</div>`;
 }
 function renderSummary(){
   const light=projectLighting();
@@ -2392,7 +2406,12 @@ function addWallPoint(e){
   const p={x,y};state.wallPoints.push(p);
   if(state.wallPoints.length>1){
     state.walls.push(makeWall(state.wallPoints.at(-2),p,false));
-    recalculateRoomAssignments();drawWalls();renderRooms()
+    /* renderSummary обязателен: новая стена-перегородка могла вывести объект из комнаты. Метку на
+       плане ставит recalculateRoomAssignments, а строку «Вне помещений» — только renderSummary
+       (#lightingSummary пишется ТОЛЬКО в нём). Без него кольцо на плане загорается, а счётчик молчит
+       — экран противоречит сам себе. Тот же контракт, что у addRoomLinePoint (стены и линии разметки
+       одинаково двигают привязку к комнате). */
+    recalculateRoomAssignments();drawWalls();renderRooms();renderSummary()
   }
 }
 function drawWalls(){
