@@ -350,6 +350,12 @@ function compactIcon(entity,kind){
   /* kind/id на узле — чтобы выделение и клавиатура находили этот элемент точечно,
      без пересоздания сцены (корневой дефект: renderAll на нажатии) */
   el.dataset.kind=kind;el.dataset.id=entity.id;
+  /* Объект, не попавший ни в одну комнату (даже с допуском у границы), помечаем ВИДИМО — раньше
+     это всплывало только в toast при перетаскивании, и пост, выпавший из комнаты из-за
+     перетрассировки контуров, оставался незамеченным (а теперь это решает деньги: другая схема
+     проводки). Помечаем только когда комнаты в проекте вообще есть — иначе «без комнаты» у всего
+     подряд было бы шумом. roomId уже пересчитан recalculateRoomAssignments перед этим рендером. */
+  if(state.rooms.length&&entity.roomId==null)el.classList.add("no-room");
   el.style.left=entity.x+"px";el.style.top=entity.y+"px";
   if(kind==="device") el.textContent=product(entity.productId)?.icon||"?";
   /* метка поста = его сквозной номер (раньше рисовали «P» + число мест) — чтобы номер
@@ -833,20 +839,43 @@ function buildSpaceComponents(){
   return EPGeom.buildSpaceComponents(g.width,g.height,allWalls(),g.cell,wallRadiusFor(g.cell),g.originX,g.originY);
 }
 
+/* Контекст привязки: комнаты, разделённые на контурные (polygon) и grid-комнаты (без контура,
+   привязка по компоненту связности), и одна карта пространства на всех. Готовит его вызывающий
+   ОДИН раз — recalculateRoomAssignments не должен строить карту на каждый объект. prebuiltMap —
+   карта, снятая на старте перетаскивания (переиспользуется в getRoomForPoint при подсветке). */
+function roomResolveContext(prebuiltMap=null){
+  const polyRooms=state.rooms.filter(r=>r.polygon&&r.polygon.length>2);
+  const gridRooms=state.rooms.filter(r=>!(r.polygon&&r.polygon.length>2));
+  let map=prebuiltMap;
+  if(gridRooms.length){
+    map=map||buildSpaceComponents();
+    gridRooms.forEach(r=>{if(r.seedX==null){r.seedX=r.x+55;r.seedY=r.y+18}r.componentId=componentAt(map,r.seedX,r.seedY)});
+  }
+  return {polyRooms,gridRooms,map};
+}
+
+/* ⚠️ ЕДИНОЕ ПРАВИЛО «В КАКОЙ КОМНАТЕ ТОЧКА». Раньше оно жило в ДВУХ местах (getRoomForPoint для
+   подсветки при перетаскивании и отдельная копия в recalculateRoomAssignments для фактической
+   привязки) — расхождение показало бы одну комнату под курсором, а записало бы другую. Сведено
+   сюда, потребители лишь готовят контекст. Порядок строгий:
+     1) настоящее попадание в КОНТУР комнаты;
+     2) настоящее попадание в GRID-комнату (по компоненту связности) — для комнат без контура;
+     3) и только если не попал никуда — ДОПУСК у границы (EPRoomAssign): выключатель у дверного
+        проёма стоит центром ровно на линии, pointInPolygon считает это «снаружи». Допуск ищет
+        ближайший КОНТУР, поэтому grid-комнаты в нём не участвуют — у них контура нет. */
+function resolveRoomForPoint(cx,cy,ctx){
+  const hit=ctx.polyRooms.find(r=>pointInPolygon(cx,cy,r.polygon));
+  if(hit)return hit;
+  if(ctx.map&&ctx.gridRooms.length){
+    const component=componentAt(ctx.map,cx,cy);
+    if(component>=0){const g=ctx.gridRooms.find(r=>r.componentId===component);if(g)return g}
+  }
+  return EPRoomAssign.nearestRoomWithinTolerance(cx,cy,ctx.polyRooms,EPConfig.roomEdgeTolerance,distancePointToSegment)||null;
+}
+
 function getRoomForPoint(x,y,map=null){
   if(!state.rooms.length)return null;
-  const poly=state.rooms.find(r=>r.polygon&&r.polygon.length>2&&pointInPolygon(x,y,r.polygon));
-  if(poly)return poly;
-  const gridRooms=state.rooms.filter(r=>!(r.polygon&&r.polygon.length>2));
-  if(!gridRooms.length)return null;
-  map=map||buildSpaceComponents();
-  const target=componentAt(map,x,y);
-  if(target<0)return null;
-  for(const room of gridRooms){
-    const rx=(room.seedX??room.x+55),ry=(room.seedY??room.y+18);
-    if(componentAt(map,rx,ry)===target)return room;
-  }
-  return null;
+  return resolveRoomForPoint(x,y,roomResolveContext(map));
 }
 
 function updateObjectRoom(entity){
@@ -856,18 +885,9 @@ function updateObjectRoom(entity){
 }
 
 function recalculateRoomAssignments(){
-  const polyRooms=state.rooms.filter(r=>r.polygon&&r.polygon.length>2);
-  const gridRooms=state.rooms.filter(r=>!(r.polygon&&r.polygon.length>2));
-  let map=null;
-  if(gridRooms.length){
-    map=buildSpaceComponents();
-    gridRooms.forEach(r=>{if(r.seedX==null){r.seedX=r.x+55;r.seedY=r.y+18}r.componentId=componentAt(map,r.seedX,r.seedY)});
-  }
+  const ctx=roomResolveContext();   /* карта пространства строится один раз на весь пересчёт */
   [...state.devices,...state.posts].forEach(obj=>{
-    const cx=obj.x+12,cy=obj.y+12;
-    let room=polyRooms.find(r=>pointInPolygon(cx,cy,r.polygon));
-    if(!room&&map){const component=componentAt(map,cx,cy);room=gridRooms.find(r=>r.componentId===component)}
-    obj.roomId=room?.id||null;
+    obj.roomId=resolveRoomForPoint(obj.x+12,obj.y+12,ctx)?.id||null;
   });
 }
 
@@ -1536,6 +1556,20 @@ function buildEstimate(light){
     settings:EP_DATA.settings
   });
 }
+/* Явное предупреждение «часть объектов вне помещений» под блоком групп света НА ЭКРANE.
+   ЗАЧЕМ отдельной строкой, а не только суффиксом «· Без помещения» у групп: тот суффикс
+   виден, лишь когда осиротевший пост участвует в группе света; розетка или пост без групп
+   его не покажут — а пост без комнаты теперь считается по схеме проекта, а не по своей, и
+   это деньги. Строку добавляем ТОЛЬКО в #lightingSummary (renderSummary), не внутрь
+   lightingHtml — иначе она уехала бы и в КП/лист монтажника (документы вне этой правки).
+   Показываем, лишь когда комнаты в проекте есть и кто-то реально выпал. */
+function orphanObjectsWarningHtml(){
+  if(!state.rooms.length)return "";
+  const orphans=[...state.devices,...state.posts].filter(o=>o.roomId==null).length;
+  if(!orphans)return "";
+  return `<div class="lighting-orphan-note">⚠ Вне помещений: ${orphans} — отмечены на плане. `
+    +`Схема электрики у них считается по проекту; перетащите объект в комнату или подвиньте контур.</div>`;
+}
 function renderSummary(){
   const light=projectLighting();
   const est=buildEstimate(light);
@@ -1552,7 +1586,7 @@ function renderSummary(){
     :'<div class="library-empty">Проект пока пуст</div>';
   /* Тот же блок, что печатается в КП и листе монтажника: подставленные механизмы, потребность
      в импульсных реле и пробелы с их причинами. */
-  $("lightingSummary").innerHTML=lightingHtml(light,"Группы света");
+  $("lightingSummary").innerHTML=lightingHtml(light,"Группы света")+orphanObjectsWarningHtml();
   updateStatus();
 }
 
