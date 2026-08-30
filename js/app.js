@@ -354,8 +354,9 @@ function compactIcon(entity,kind){
      это всплывало только в toast при перетаскивании, и пост, выпавший из комнаты из-за
      перетрассировки контуров, оставался незамеченным (а теперь это решает деньги: другая схема
      проводки). Помечаем только когда комнаты в проекте вообще есть — иначе «без комнаты» у всего
-     подряд было бы шумом. roomId уже пересчитан recalculateRoomAssignments перед этим рендером. */
-  if(state.rooms.length&&entity.roomId==null)el.classList.add("no-room");
+     подряд было бы шумом. Критерий — общий EPRoomAssign.isOutsideRooms (§7.1), тот же вызов в
+     syncNoRoomClass. roomId уже пересчитан recalculateRoomAssignments перед этим рендером. */
+  if(EPRoomAssign.isOutsideRooms(entity.roomId,state.rooms.length))el.classList.add("no-room");
   el.style.left=entity.x+"px";el.style.top=entity.y+"px";
   if(kind==="device") el.textContent=product(entity.productId)?.icon||"?";
   /* метка поста = его сквозной номер (раньше рисовали «P» + число мест) — чтобы номер
@@ -905,12 +906,13 @@ function getRoomForPoint(x,y,map=null){
    Метку пишем ТАМ ЖЕ, где меняется roomId (updateObjectRoom / recalculateRoomAssignments),
    а не в рендере: roomId правится и по путям, которые renderAll не зовут (перенос объекта,
    правка вершин контура), — при простановке только в compactIcon метка расходилась с фактом
-   (пост уехал из комнаты, а «!» не появился; вернулся — «!» остался). Критерий тот же, что в
-   compactIcon: помечаем только когда комнаты в проекте есть. Узел ищем по глобально уникальному
+   (пост уехал из комнаты, а «!» не появился; вернулся — «!» остался). Критерий «объект вне
+   помещений» один на оба потребителя — EPRoomAssign.isOutsideRooms (§7.1), тот же вызов и в
+   compactIcon. Узел ищем по глобально уникальному
    data-id (uid с префиксом) — сам класс переключаем без пересоздания сцены. */
 function syncNoRoomClass(entity){
   const el=canvas.querySelector('.plan-icon[data-id="'+entity.id+'"]');
-  if(el)el.classList.toggle("no-room",state.rooms.length>0&&entity.roomId==null);
+  if(el)el.classList.toggle("no-room",EPRoomAssign.isOutsideRooms(entity.roomId,state.rooms.length));
 }
 
 function updateObjectRoom(entity){
