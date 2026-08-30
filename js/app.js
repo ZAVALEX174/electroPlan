@@ -887,9 +887,22 @@ function getRoomForPoint(x,y,map=null){
   return resolveRoomForPoint(x,y,roomResolveContext(map));
 }
 
+/* Точечная синхронизация метки «вне помещений» с DOM — по образцу applySelectionClasses.
+   Метку пишем ТАМ ЖЕ, где меняется roomId (updateObjectRoom / recalculateRoomAssignments),
+   а не в рендере: roomId правится и по путям, которые renderAll не зовут (перенос объекта,
+   правка вершин контура), — при простановке только в compactIcon метка расходилась с фактом
+   (пост уехал из комнаты, а «!» не появился; вернулся — «!» остался). Критерий тот же, что в
+   compactIcon: помечаем только когда комнаты в проекте есть. Узел ищем по глобально уникальному
+   data-id (uid с префиксом) — сам класс переключаем без пересоздания сцены. */
+function syncNoRoomClass(entity){
+  const el=canvas.querySelector('.plan-icon[data-id="'+entity.id+'"]');
+  if(el)el.classList.toggle("no-room",state.rooms.length>0&&entity.roomId==null);
+}
+
 function updateObjectRoom(entity){
   const room=getRoomForPoint(entity.x+12,entity.y+12);
   entity.roomId=room?.id||null;
+  syncNoRoomClass(entity);   /* метка «вне помещений» — там же, где пишется roomId, а не в рендере */
   return room;
 }
 
@@ -897,6 +910,7 @@ function recalculateRoomAssignments(){
   const ctx=roomResolveContext();   /* карта пространства строится один раз на весь пересчёт */
   [...state.devices,...state.posts].forEach(obj=>{
     obj.roomId=resolveRoomForPoint(obj.x+12,obj.y+12,ctx)?.id||null;
+    syncNoRoomClass(obj);   /* метка синхронна с только что записанным roomId; при renderAll иконки затем пересоздаст compactIcon из того же roomId — результат тот же */
   });
 }
 
