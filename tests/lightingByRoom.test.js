@@ -135,9 +135,13 @@ test("результат не зависит от порядка постов н
     assert.equal(q.code, p.code, "артикул места " + key);
     assert.equal(q.placeNo, p.placeNo, "адрес места " + key);
   });
-  /* порядок групп в слитом плане тоже стабилен (сортировка партиций по ключу комнаты) */
+  /* Порядок групп в слитом плане стабилен благодаря СОРТИРОВКЕ ПАРТИЦИЙ по ключу комнаты.
+     ⚠️ Перестановка обязана начинаться с поста комнаты B (posts[2] = b1), иначе тест бессилен:
+     если во ВХОДЕ первой встречается комната A в обоих случаях, то и порядок Map (по первому
+     появлению), и отсортированный порядок совпадут — и «сортировку убрали» тест не заметит.
+     С b1 впереди без сортировки Map отдал бы группы B раньше A, и keysB разошёлся бы с keysA. */
   const keysA = planByRoomsFor(posts, rooms, "classic").groups.map(g => g.key + "@" + g.placeCount);
-  const keysB = planByRoomsFor([posts[3], posts[1], posts[2], posts[0]], rooms, "classic").groups.map(g => g.key + "@" + g.placeCount);
+  const keysB = planByRoomsFor([posts[2], posts[0], posts[1], posts[3]], rooms, "classic").groups.map(g => g.key + "@" + g.placeCount);
   assert.deepEqual(keysA, keysB);
 });
 
@@ -282,4 +286,98 @@ test("партиция «без комнаты» печатается раньш
   const plan = planByRoomsFor(posts, rooms, "classic");
   assert.equal(plan.groups[0].key, "zzz", "первой идёт группа партиции «без комнаты»");
   assert.equal(plan.groups[1].key, "aaa", "затем — группа комнаты A");
+});
+
+/* ── слияние переводит ВСЕ индексы подпланов в глобальные (перемап) ──────────────────────
+   Общий приём: комната B во ВХОДЕ идёт первой (индексы 0,1), но сортируется ПОЗЖЕ A ("r:A" <
+   "r:B"), поэтому подсписок A обрабатывается первым и его место с глобальным индексом 2 получает
+   в подплане суб-индекс 0. Если перемап где-то потерян, суб-индекс уедет в выдачу как глобальный —
+   ровно это ловят три теста ниже. Без такого расхождения (когда партиции идут по возрастанию
+   индекса) суб-индекс совпал бы с глобальным и мутация осталась бы зелёной. */
+const remapScenario = () => {
+  const rooms = [{ id: "A" }, { id: "B" }];
+  const posts = [post("b1", "B", "Свет"), post("b2", "B", "Свет"), post("a1", "A", "Зал")];
+  return planByRoomsFor(posts, rooms, "classic");   /* A: «Зал» N=1; B: «Свет» N=2 */
+};
+
+test("index каждого места слитого плана — его ГЛОБАЛЬНАЯ позиция во входе", () => {
+  /* Мутация «place.index не переписан на глобальный»: место A с глобальным индексом 2 несло бы
+     суб-индекс 0 — любой потребитель, адресующий место по .index, прочитал бы чужую клавишу. */
+  const plan = remapScenario();
+  plan.places.forEach((p, i) => { if (p) assert.equal(p.index, i, "index места на позиции " + i); });
+});
+
+test("group.places — глобальные индексы, и каждый указывает на место ЭТОЙ группы", () => {
+  /* Мутация «groups[].places не перемаплены»: places группы «Зал» держали бы суб-индекс [0],
+     а по нему в слитом плане лежит место комнаты B из группы «Свет» — группа ссылалась бы на
+     чужие места, а placeCount разошёлся бы с длиной списка. */
+  const plan = remapScenario();
+  plan.groups.forEach(g => {
+    assert.equal(g.places.length, g.placeCount, "placeCount группы «" + g.key + "» = длине places");
+    g.places.forEach(gi => {
+      const pl = plan.places[gi];
+      assert.ok(pl, "место группы «" + g.key + "» существует по индексу " + gi);
+      assert.equal(pl.groupKey, g.key, "место индекса " + gi + " принадлежит группе «" + g.key + "»");
+    });
+  });
+});
+
+test("order слитого плана — перестановка всех глобальных индексов входа, без дыр и дублей", () => {
+  /* Мутация «order не перемаплен»: обе партиции толкали бы суб-индексы, order стал бы [0,0,1] —
+     дубль 0 и потерянный 2. order обязан быть канонической перестановкой ВСЕХ входных индексов. */
+  const plan = remapScenario();
+  const idxs = plan.order.slice().sort((a, b) => a - b);
+  assert.deepEqual(idxs, [0, 1, 2], "order накрывает ровно индексы 0..n-1 по разу");
+  plan.order.forEach(i => assert.ok(plan.places[i], "order[" + i + "] указывает на существующее место"));
+});
+
+test("unassigned.places — глобальные индексы мест без группы", () => {
+  /* Мутация «unassigned.places не перемаплены»: место без группы в комнате A (глобальный индекс 1,
+     суб-индекс 0) попало бы в список как индекс 0 — а там место комнаты B, у которого группа ЕСТЬ. */
+  const rooms = [{ id: "A" }, { id: "B" }];
+  const posts = [post("b1", "B", "Свет"), post("a1", "A", "")];   /* a1 без группы, глоб. индекс 1 */
+  const plan = planByRoomsFor(posts, rooms, "classic");
+  assert.deepEqual(plan.unassigned.places, [1], "место без группы адресуется глобальным индексом");
+  plan.unassigned.places.forEach(i => {
+    const pl = plan.places[i];
+    assert.ok(pl, "место без группы существует по индексу " + i);
+    assert.equal(pl.groupKey, "", "место индекса " + i + " действительно без группы");
+  });
+});
+
+test("unassigned.placeCount копится по партициям и равен числу мест без группы", () => {
+  /* Мутация «placeCount не копится»: счётчик остался бы 0, хотя мест без группы два (по одному в
+     каждой комнате). Счётчик обязан совпасть с длиной списка — иначе интерфейс покажет «0
+     недозаполненных» при двух пустых. */
+  const rooms = [{ id: "A" }, { id: "B" }];
+  const posts = [post("a1", "A", ""), post("b1", "B", "")];   /* оба без группы, разные комнаты */
+  const plan = planByRoomsFor(posts, rooms, "classic");
+  assert.equal(plan.unassigned.places.length, 2, "два места без группы собраны из двух комнат");
+  assert.equal(plan.unassigned.placeCount, plan.unassigned.places.length, "счётчик = длине списка");
+});
+
+test("реле relay-комнаты переносится в слитый план и печатается в КП", () => {
+  /* Мутация «relays не переносятся»: relays слитого плана остались бы пустыми, и блок групп света
+     в КП НЕ напечатал бы строку реле — при том что relayTotal (другой счётчик) считался бы верно.
+     Смотрим на наблюдаемый результат — печать buildHtml, ровно то, что видит человек. */
+  const rooms = [{ id: "R", lightingScheme: "relay" }];
+  const posts = [post("r1", "R", "Свет"), post("r2", "R", "Свет")];   /* relay, N=2 → count>0 */
+  const plan = planByRoomsFor(posts, rooms, "classic");
+  assert.ok(plan.relays.filter(r => r.count > 0).length >= 1, "в слитом плане есть запись реле");
+  const html = LP.buildHtml(plan, {});
+  assert.ok(html.includes("Импульсное реле"), "строка реле напечатана в блоке групп света");
+});
+
+test("totalsRequired складывается по партициям — равен числу назначенных ролей во всех местах", () => {
+  /* Мутация «totalsRequired не складывается»: остался бы пустой {} при двух местах роли switch.
+     Правило: totalsRequired[role] = сколько мест слитого плана получили эту роль (независимо от
+     того, найден ли товар). Проверяем против самих мест, а не против ожидаемого числа руками. */
+  const rooms = [{ id: "A" }, { id: "B" }];
+  const posts = [post("a1", "A", "Свет"), post("b1", "B", "Свет")];   /* по одному месту N=1 → switch */
+  const plan = planByRoomsFor(posts, rooms, "classic");
+  const need = {};
+  plan.places.forEach(p => { if (p && p.role) need[p.role] = (need[p.role] || 0) + 1; });
+  Object.keys(need).forEach(role =>
+    assert.equal(plan.totalsRequired[role] || 0, need[role], "totalsRequired." + role));
+  assert.equal(plan.totalsRequired.switch, 2, "две комнаты по одному «Свет» — два выключателя требуются");
 });
