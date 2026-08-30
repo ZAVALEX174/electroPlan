@@ -267,26 +267,33 @@ function buildHtml(plan, deps) {
     gap: "padding:4px 0;border-top:1px dashed #e2ecf4;font-size:10px;color:#9a4a2f;overflow-wrap:anywhere"
   };
 
+  /* Комната у строки. Расчёт по комнатам кладёт roomLabel на группу/реле/пробел; при печати её
+     ДОБАВЛЯЕМ, чтобы одноимённые группы разных комнат («Кухня» и «Кухня») не были неразличимы
+     (дефект 2). Известна не всегда: одиночный plan комнат не знает (roomLabel undefined), а
+     склеенный из нескольких комнат пробел единой комнаты не имеет (roomLabel === null) — в обоих
+     случаях суффикса нет, врать про комнату мы не станем. */
+  const room = label => label ? ` · ${esc(label)}` : "";
+
   const groupRows = groups.map(g => {
     const done = ["switch", "changeover", "inverter", "button"]
       .map(role => ({ role, need: g.rolesRequired[role] || 0, got: g.roles[role] || 0 }))
       .filter(x => x.need > 0)
       .map(x => `${esc(roleLabel(plan, x.role))} — ${x.got}${x.got === x.need ? "" : ` из ${x.need}`}`)
       .join(", ");
-    return `<div style="${S.row}"><span style="${S.cell}">Группа «${esc(g.label)}» · мест управления: ${g.placeCount}</span>`
+    return `<div style="${S.row}"><span style="${S.cell}">Группа «${esc(g.label)}»${room(g.roomLabel)} · мест управления: ${g.placeCount}</span>`
       + `<b style="${S.cellRight}">${esc(done || "—")}</b></div>`;
   }).join("");
 
   /* Реле — количество есть, артикула нет. Печатаем ровно это, ничего не подставляя:
      03992 из ТЗ в каталоге и номенклатуре VIMAR отсутствует. */
   const relayRows = relays.filter(r => r.count > 0).map(r =>
-    `<div style="${S.row}"><span style="${S.cell}">Импульсное реле · группа «${esc(r.groupLabel)}» (кнопок: ${r.buttonCount})</span>`
+    `<div style="${S.row}"><span style="${S.cell}">Импульсное реле · группа «${esc(r.groupLabel)}»${room(r.roomLabel)} (кнопок: ${r.buttonCount})</span>`
     + `<b style="${S.cellRight}">${r.count} шт. · ${esc(r.note)}</b></div>`).join("");
 
   const gapRows = gaps.map(g => {
     const where = g.groupLabel ? ` · группа «${g.groupLabel}»` : "";
     const count = Array.isArray(g.places) && g.places.length ? ` · мест: ${g.places.length}` : "";
-    return `<div style="${S.gap}">${esc(g.text || "")}${esc(where)}${esc(count)}</div>`;
+    return `<div style="${S.gap}">${esc(g.text || "")}${room(g.roomLabel)}${esc(where)}${esc(count)}</div>`;
   }).join("");
 
   const total = ["switch", "changeover", "inverter", "button"]
@@ -296,9 +303,13 @@ function buildHtml(plan, deps) {
     .join(", ");
   const sum = Number(d.total) || 0;
 
+  /* Схема в шапке. Расчёт по комнатам (EPLightingByRoom) поднимает schemesByRoom, когда партиции
+     считались РАЗНЫМИ схемами: назвать одну нельзя — над механизмами чужой схемы стояло бы имя
+     схемы, которой пост не пользовался (дефект 1). Когда схема на все комнаты одна — печатаем её. */
+  const schemeText = plan.schemesByRoom ? "по комнатам" : (plan.schemeLabel || plan.scheme || "—");
   return `<div style="${S.box}">`
     + `<div style="${S.head}"><span>${esc(title)}</span>`
-    + `<span style="${S.muted}">Схема: ${esc(plan.schemeLabel || plan.scheme || "—")}</span></div>`
+    + `<span style="${S.muted}">Схема: ${esc(schemeText)}</span></div>`
     + groupRows
     + relayRows
     + (total ? `<div style="${S.row}"><span style="${S.cell}">Механизмы подобраны расчётом</span><b style="${S.cellRight}">${esc(total)}${sum ? ` · ${money(sum)}` : ""}</b></div>` : "")

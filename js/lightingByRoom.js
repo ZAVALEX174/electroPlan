@@ -39,15 +39,27 @@ function addCounts(target, src) {
    комнату, где оно встретилось («Не указана группа света…» ×3 вместо «…· мест: 3», relay-article —
    по строке на relay-комнату): деньги это не двигает, но КП размножает дубли. Списки places (уже
    глобальные после перемапа) объединяем — «мест: N» в печати есть длина places, так что счётчик
-   собирается сам. Печатная строка комнату не называет (EPLightingPlan.buildHtml), поэтому склейка
-   одноимённых пробелов из разных комнат ничего не теряет. groupKey у пробелов без группы приходит
-   null (у групповых — ключ группы); undefined приводим к null тем же приёмом, что и addGap, иначе
-   undefined !== null плодил бы отдельные записи. Первое вхождение задаёт позицию и текст записи —
-   порядок детерминирован сортировкой партиций и каноническим порядком пробелов внутри подплана. */
+   собирается сам. groupKey у пробелов без группы приходит null (у групповых — ключ группы);
+   undefined приводим к null тем же приёмом, что и addGap, иначе undefined !== null плодил бы
+   отдельные записи. Первое вхождение задаёт позицию и текст записи — порядок детерминирован
+   сортировкой партиций и каноническим порядком пробелов внутри подплана.
+
+   КОМНАТА У СКЛЕЕННОГО ПРОБЕЛА. Теперь документ называет комнату у пробела (дефект 2), а склейку
+   мы СОХРАНЯЕМ — размножать одинаковое предупреждение по комнатам хуже, чем не назвать комнату у
+   объединённой строки. Компромисс честный: пока пробел жил в одной комнате, roomLabel у него та
+   самая комната и печатается; как только к нему подклеился пробел ДРУГОЙ комнаты, единой комнаты
+   у строки больше нет — roomLabel гасим в null, и печать комнату не называет (врать «мест: 3, все
+   в Кухне», когда они в трёх комнатах, нельзя). Так одиночный пробел получает свою комнату, а
+   действительно общий (три пустые группы, реле без артикула во всех relay-комнатах) остаётся одной
+   строкой без ложной привязки. */
 function mergeGap(gaps, gap) {
   const groupKey = gap.groupKey != null ? gap.groupKey : null;
   const same = gaps.find(g => g.kind === gap.kind && g.groupKey === groupKey);
-  if (same) { same.places = same.places.concat(gap.places || []); return; }
+  if (same) {
+    same.places = same.places.concat(gap.places || []);
+    if (same.roomLabel !== gap.roomLabel) same.roomLabel = null;   /* склейка из разных комнат — единой нет */
+    return;
+  }
   gaps.push(Object.assign({}, gap, { groupKey, places: (gap.places || []).slice() }));
 }
 
@@ -56,9 +68,10 @@ function mergeGap(gaps, gap) {
    комната с id "" и «нет комнаты» не должны слиться, а число 1 и строка "1" как id комнаты — это
    одна и та же комната приложения, поэтому оба идут через String. Ключ «нет комнаты» — обычная
    читаемая строка без префикса "r:": она заведомо не совпадёт ни с одним ключом комнаты (все они
-   начинаются с "r:") и сортируется раньше них ('n' < 'r'), поэтому «нет комнаты» стабильно идёт
-   первой — это лишь стабильность порядка, а не смысл. Раньше здесь стоял СЫРОЙ НУЛЕВОЙ БАЙТ: из-за
-   него git и ripgrep считали файл бинарным, а дифф нечитаемым; читаемая строка тот же порядок даёт. */
+   начинаются с "r:"). ПОРЯДОК партиций в документе задаёт orderForPartition (ранг комнаты), а norm
+   служит лишь ДЕТЕРМИНИРОВАННЫМ тайбрейком при равных рангах — сам по себе он смысла не несёт.
+   Раньше здесь стоял СЫРОЙ НУЛЕВОЙ БАЙТ: из-за него git и ripgrep считали файл бинарным, а дифф
+   нечитаемым; читаемая строка тот же порядок даёт. */
 const partitionNorm = key => (key == null ? "no-room" : "r:" + String(key));
 
 /* planByRooms(input) → слитый план в форме EPLightingGroups.plan.
@@ -66,8 +79,17 @@ const partitionNorm = key => (key == null ? "no-room" : "r:" + String(key));
      places,                 // МЕСТА управления (EPLightingPlan.collect), полный список проекта
      partitionKeyOf(place),  // место → id комнаты его поста, либо null (пост без комнаты)
      schemeForPartition(key),// id комнаты (или null) → id действующей схемы этой партиции
-     projectScheme,          // схема проекта — она же схема партиции «без комнаты» и заголовок блока
-     projectSchemeLabel,     // подпись схемы проекта для заголовка (документы этот пункт уточнят)
+     labelForPartition(key), // id комнаты (или null) → ПОДПИСЬ комнаты для документа (роль «без
+     //                         комнаты» даёт свою честную подпись, напр. «Без помещения»); нужна,
+     //                         чтобы группа/реле/пробел печатались с комнатой (одноимённые группы
+     //                         разных комнат в КП были неразличимы). Необязательна — по умолчанию "".
+     orderForPartition(key), // id комнаты (или null) → числовой РАНГ для порядка партиций в
+     //                         документе (обычно индекс комнаты в state.rooms, «без комнаты» —
+     //                         Infinity, чтобы шла последней, как в листе монтажника). Необязательна —
+     //                         по умолчанию все ранги равны, и порядок задаёт строковый ключ (см. ниже).
+     projectScheme,          // схема проекта — она же схема партиции «без комнаты»
+     projectSchemeLabel,     // подпись схемы проекта; в заголовок идёт, только если ВСЕ партиции
+     //                         посчитаны одной схемой — иначе шапка честно говорит «по комнатам».
      plan,                   // EPLightingGroups.plan — сам расчёт одной схемы (зависимость)
      planDeps                // deps для plan: { seriesOf, findMechanism } — ОДИН объект на все
    }                         //   партиции, чтобы побочный сбор (ambiguous) копился сквозь них.
@@ -80,6 +102,10 @@ function planByRooms(input) {
   const sources = Array.isArray(o.places) ? o.places : [];
   const partitionKeyOf = typeof o.partitionKeyOf === "function" ? o.partitionKeyOf : () => null;
   const schemeForPartition = typeof o.schemeForPartition === "function" ? o.schemeForPartition : () => o.projectScheme;
+  /* Подпись и ранг комнаты — чисто ДОКУМЕНТНЫЕ (деньги и раскладку ролей не трогают). По умолчанию
+     подписи нет ("") и ранги равны — тогда порядок задаёт строковый ключ, как было до дефекта 3. */
+  const labelForPartition = typeof o.labelForPartition === "function" ? o.labelForPartition : () => "";
+  const orderForPartition = typeof o.orderForPartition === "function" ? o.orderForPartition : () => 0;
   const runPlan = typeof o.plan === "function" ? o.plan : null;
   const planDeps = o.planDeps || {};
   const projectScheme = o.projectScheme;
@@ -109,9 +135,18 @@ function planByRooms(input) {
     bucket.indices.push(index);
   }
 
-  /* Детерминированный порядок партиций — по строковому ключу. Иначе и порядок групп в документе,
-     и порядок слияния зависели бы от того, в каком порядке комнаты встретились во входе. */
-  const ordered = [...buckets.values()].sort((a, b) => a.norm < b.norm ? -1 : (a.norm > b.norm ? 1 : 0));
+  /* Детерминированный порядок партиций. Сначала по РАНГУ комнаты (orderForPartition) — чтобы блок
+     групп света шёл в том же порядке, что помещения в листе монтажника (комнаты в порядке
+     state.rooms, «без комнаты» рангом Infinity уходит в конец, дефект 3). Сравнение через < / >,
+     а не вычитание: Infinity - Infinity = NaN сломал бы сортировку. При равных рангах (в т.ч.
+     дефолт, где ранги равны, и комнаты вне переданного порядка — им приложение даёт Infinity)
+     тайбрейк по строковому ключу держит детерминизм при любом порядке входа. */
+  const ordered = [...buckets.values()].sort((a, b) => {
+    const ra = orderForPartition(a.key), rb = orderForPartition(b.key);
+    if (ra < rb) return -1;
+    if (ra > rb) return 1;
+    return a.norm < b.norm ? -1 : (a.norm > b.norm ? 1 : 0);
+  });
 
   const merged = {
     scheme: projectScheme,
@@ -128,14 +163,25 @@ function planByRooms(input) {
     missingTotal: 0,
     relays: [],
     relayTotal: 0,
-    gaps: []
+    gaps: [],
+    /* Заголовок: одна схема на все партиции → её и печатаем; разные → «по комнатам» (см. ниже). */
+    schemesByRoom: false
   };
+
+  /* Какими схемами реально считались партиции — для честной шапки документа (дефект 1). Раньше
+     merged.schemeLabel всегда был схемой ПРОЕКТА, и над механизмами чужой схемы комнаты печаталось
+     имя схемы, которой ни одна комната не пользовалась. */
+  const usedSchemes = new Set();
+  let uniformSchemeLabel = "";
 
   ordered.forEach(bucket => {
     const idx = bucket.indices;                 /* входные индексы этой партиции, по возрастанию */
     const remap = j => idx[j];                   /* индекс внутри подплана → индекс входного списка */
+    const roomLabel = labelForPartition(bucket.key);   /* подпись комнаты для групп/реле/пробелов */
     const subPlaces = idx.map(i => sources[i]);
     const sub = runPlan({ scheme: schemeForPartition(bucket.key), places: subPlaces }, planDeps) || {};
+    usedSchemes.add(sub.scheme);
+    uniformSchemeLabel = sub.schemeLabel || uniformSchemeLabel;
 
     /* Места подплана возвращают выдачу на СВОИХ позициях (0..k-1); раскладываем их обратно на
        позиции входного списка проекта, чтобы rowsByPost и planSignature читали место по прежнему
@@ -148,7 +194,8 @@ function planByRooms(input) {
        иначе слитый план ссылался бы сам на себя не туда. */
     (Array.isArray(sub.order) ? sub.order : []).forEach(j => merged.order.push(remap(j)));
     (Array.isArray(sub.groups) ? sub.groups : []).forEach(g => {
-      merged.groups.push(Object.assign({}, g, { places: (g.places || []).map(remap) }));
+      /* roomLabel — чтобы одноимённые группы разных комнат («Кухня» и «Кухня») различались в КП. */
+      merged.groups.push(Object.assign({}, g, { places: (g.places || []).map(remap), roomLabel }));
     });
     if (sub.unassigned) {
       merged.unassigned.placeCount += Number(sub.unassigned.placeCount) || 0;
@@ -156,9 +203,9 @@ function planByRooms(input) {
     }
     (Array.isArray(sub.duplicates) ? sub.duplicates : []).forEach(j => merged.duplicates.push(remap(j)));
     (Array.isArray(sub.gaps) ? sub.gaps : []).forEach(g => {
-      mergeGap(merged.gaps, Object.assign({}, g, { places: (g.places || []).map(remap) }));
+      mergeGap(merged.gaps, Object.assign({}, g, { places: (g.places || []).map(remap), roomLabel }));
     });
-    (Array.isArray(sub.relays) ? sub.relays : []).forEach(r => merged.relays.push(r));
+    (Array.isArray(sub.relays) ? sub.relays : []).forEach(r => merged.relays.push(Object.assign({}, r, { roomLabel })));
 
     addCounts(merged.totals, sub.totals);
     addCounts(merged.totalsRequired, sub.totalsRequired);
@@ -174,6 +221,16 @@ function planByRooms(input) {
        говорит лишь «есть ли в плане хоть что-то посчитанное», а не «всё ли посчитано». */
     merged.supported = merged.supported || !!sub.supported;
   });
+
+  /* Шапка документа (дефект 1). Все партиции посчитаны ОДНОЙ схемой → печатаем её подпись, как
+     раньше. Схемы разошлись по комнатам → одну называть нельзя (над «Классической» стояло бы
+     «Импульсное реле» из relay-комнаты) — поднимаем флаг, и печать скажет «по комнатам». */
+  if (usedSchemes.size === 1) {
+    merged.scheme = [...usedSchemes][0];
+    merged.schemeLabel = uniformSchemeLabel;
+  } else {
+    merged.schemesByRoom = true;
+  }
 
   return merged;
 }

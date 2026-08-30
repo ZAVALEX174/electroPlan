@@ -34,10 +34,13 @@ const collect = posts => LP.collect(posts, { product, seriesOf, isKey });
 const post = (id, roomId, group, number) => ({ id, number: number == null ? id : number, roomId,
   mechanismIds: [KEY.id], keyGroups: [group] });
 
-/* Обёртка ровно как в app.js.lightingFor: карты пост→комната и комната→схема, дальше planByRooms. */
+/* Обёртка ровно как в app.js.lightingFor: карты пост→комната, комната→схема/подпись/ранг, дальше
+   planByRooms. labelForPartition и orderForPartition повторяют проводку app.js (подпись комнаты и
+   порядок «как в листе монтажника, без комнаты в конце»). */
 function planByRoomsFor(posts, rooms, projectScheme) {
   const scheme = projectScheme || "classic";
   const roomById = new Map((rooms || []).map(r => [r.id, r]));
+  const roomOrder = new Map((rooms || []).map((r, i) => [r.id, i]));
   const roomOfPost = new Map(posts.map(p => [p.id, p.roomId != null ? p.roomId : null]));
   return LBR.planByRooms({
     places: collect(posts),
@@ -45,6 +48,8 @@ function planByRoomsFor(posts, rooms, projectScheme) {
     projectSchemeLabel: (LG.SCHEMES.find(s => s.id === scheme) || {}).label || "",
     partitionKeyOf: place => { const rid = roomOfPost.get(place.postId); return rid == null ? null : rid; },
     schemeForPartition: key => key == null ? scheme : Room.roomLightingScheme(roomById.get(key), scheme, LG.SCHEMES),
+    labelForPartition: key => key == null ? "Без помещения" : ((roomById.get(key) || {}).name || ""),
+    orderForPartition: key => key == null ? Infinity : (roomOrder.has(key) ? roomOrder.get(key) : Infinity),
     plan: LG.plan,
     planDeps: { seriesOf, findMechanism }
   });
@@ -135,7 +140,8 @@ test("результат не зависит от порядка постов н
     assert.equal(q.code, p.code, "артикул места " + key);
     assert.equal(q.placeNo, p.placeNo, "адрес места " + key);
   });
-  /* Порядок групп в слитом плане стабилен благодаря СОРТИРОВКЕ ПАРТИЦИЙ по ключу комнаты.
+  /* Порядок групп в слитом плане стабилен благодаря СОРТИРОВКЕ ПАРТИЦИЙ (по рангу комнаты, при
+     равенстве — по строковому ключу), а не порядку появления комнат во входе.
      ⚠️ Перестановка обязана начинаться с поста комнаты B (posts[2] = b1), иначе тест бессилен:
      если во ВХОДЕ первой встречается комната A в обоих случаях, то и порядок Map (по первому
      появлению), и отсортированный порядок совпадут — и «сортировку убрали» тест не заметит.
@@ -275,17 +281,17 @@ test("проект целиком из bell-комнат — supported:false и 
     "механизмов нет — supported=false не лжёт");
 });
 
-/* ── порядок партиций: «без комнаты» идёт первой (ключ partitionNorm сортируется раньше "r:") ── */
+/* ── порядок партиций: как в листе монтажника — комнаты по state.rooms, «без комнаты» ПОСЛЕДНЕЙ ── */
 
-test("партиция «без комнаты» печатается раньше комнатных — порядок ключа сохранён", () => {
-  const rooms = [{ id: "A" }];
-  /* roomless-группа «zzz» и комнатная «aaa»: если бы порядок партиций шёл по имени группы или
-     по порядку входа, «aaa» встала бы первой. Первой обязана быть roomless — она сортируется
-     раньше любого ключа комнаты ("r:"). */
-  const posts = [post("p2", "A", "aaa"), post("p1", null, "zzz")];
+test("порядок групп = порядок комнат в проекте, «без комнаты» последней", () => {
+  /* Комнаты в проекте идут B, затем A (нарочно не по алфавиту — проверяем, что порядок берётся из
+     переданного roomOrder, а не из строкового ключа). «Без комнаты» обязана уйти в конец, как
+     «Без помещения» в листе монтажника — раньше она печаталась ПЕРВОЙ (дефект 3). */
+  const rooms = [{ id: "B" }, { id: "A" }];
+  const posts = [post("a1", "A", "aaa"), post("p0", null, "zzz"), post("b1", "B", "bbb")];
   const plan = planByRoomsFor(posts, rooms, "classic");
-  assert.equal(plan.groups[0].key, "zzz", "первой идёт группа партиции «без комнаты»");
-  assert.equal(plan.groups[1].key, "aaa", "затем — группа комнаты A");
+  assert.deepEqual(plan.groups.map(g => g.key), ["bbb", "aaa", "zzz"],
+    "сначала комната B, затем A (порядок state.rooms), «без комнаты» — последней");
 });
 
 /* ── слияние переводит ВСЕ индексы подпланов в глобальные (перемап) ──────────────────────
@@ -380,4 +386,100 @@ test("totalsRequired складывается по партициям — рав
   Object.keys(need).forEach(role =>
     assert.equal(plan.totalsRequired[role] || 0, need[role], "totalsRequired." + role));
   assert.equal(plan.totalsRequired.switch, 2, "две комнаты по одному «Свет» — два выключателя требуются");
+});
+
+/* ── ДОКУМЕНТ: шапка схемы, комната у строк, порядок и детерминизм (дефекты 1–3) ──────────
+   Проверяем через НАБЛЮДАЕМЫЙ результат — EPLightingPlan.buildHtml, — то, что видит человек. */
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const money = n => `${(Number(n) || 0).toFixed(2)} €`;
+const html = plan => LP.buildHtml(plan, { esc, money });
+/* Комната с именем — иначе labelForPartition вернёт "" и подпись не проверить. */
+const namedPost = (id, roomId, group, number) => post(id, roomId, group, number);
+
+/* ── дефект 1: шапка схемы ──────────────────────────────────────────────────────────── */
+
+test("шапка: одна схема на все комнаты — печатается её имя, не «по комнатам»", () => {
+  const rooms = [{ id: "A", name: "Гостиная" }, { id: "B", name: "Спальня" }];   /* обе classic */
+  const plan = planByRoomsFor([namedPost("a1", "A", "Свет"), namedPost("b1", "B", "Свет")], rooms, "classic");
+  assert.equal(plan.schemesByRoom, false);
+  const h = html(plan);
+  assert.ok(h.includes("Схема: Классическая"), "имя единой схемы в шапке");
+  assert.ok(!h.includes("по комнатам"), "не должно быть «по комнатам», когда схема одна");
+});
+
+test("шапка: схемы разных комнат различаются — «по комнатам», а не одна из них", () => {
+  const rooms = [{ id: "A", name: "Гостиная", lightingScheme: "classic" },
+                 { id: "B", name: "Спальня", lightingScheme: "relay" }];
+  const plan = planByRoomsFor([namedPost("a1", "A", "Свет"), namedPost("b1", "B", "Свет")], rooms, "classic");
+  assert.equal(plan.schemesByRoom, true);
+  const h = html(plan);
+  assert.ok(h.includes("Схема: по комнатам"), "шапка честно говорит про разные схемы");
+  assert.ok(!/Схема: (Классическая|Реле)</.test(h), "ни одна схема не выдаётся за общую");
+});
+
+/* ── дефект 2: комната у группы, реле, пробела; посты без комнаты — своя подпись ──────── */
+
+test("комната печатается у группы — одноимённые «Свет» разных комнат различимы", () => {
+  const rooms = [{ id: "A", name: "Гостиная" }, { id: "B", name: "Спальня" }];
+  const plan = planByRoomsFor([namedPost("a1", "A", "Свет"), namedPost("b1", "B", "Свет")], rooms, "classic");
+  const h = html(plan);
+  assert.ok(h.includes("Группа «Свет» · Гостиная"), "группа комнаты A с её именем");
+  assert.ok(h.includes("Группа «Свет» · Спальня"), "группа комнаты B с её именем");
+});
+
+test("комната печатается у реле", () => {
+  const rooms = [{ id: "R", name: "Холл", lightingScheme: "relay" }];
+  const posts = [namedPost("r1", "R", "Свет"), namedPost("r2", "R", "Свет")];   /* N=2 → реле нужно */
+  const h = html(planByRoomsFor(posts, rooms, "classic"));
+  assert.ok(/Импульсное реле · группа «Свет» · Холл/.test(h), "строка реле называет комнату");
+});
+
+test("комната печатается у пробела одной комнаты", () => {
+  const rooms = [{ id: "A", name: "Гостиная" }];
+  const plan = planByRoomsFor([namedPost("a1", "A", "")], rooms, "classic");   /* без группы → пробел */
+  const h = html(plan);
+  assert.ok(h.includes("Гостиная"), "пробел одной комнаты называет её");
+  assert.ok(h.includes("Не указана группа света"), "текст пробела на месте");
+});
+
+test("пост без комнаты — своя честная подпись «Без помещения», а не пустая", () => {
+  const plan = planByRoomsFor([namedPost("p1", null, "Свет")], [], "classic");
+  const h = html(plan);
+  assert.ok(h.includes("Группа «Свет» · Без помещения"), "roomless-группа подписана честно");
+});
+
+test("склеенный пробел РАЗНЫХ комнат единой комнаты не называет (склейка сохранена)", () => {
+  const rooms = [{ id: "A", name: "Гостиная" }, { id: "B", name: "Спальня" }, { id: "C", name: "Кухня" }];
+  const posts = [namedPost("a", "A", ""), namedPost("b", "B", ""), namedPost("c", "C", "")];
+  const plan = planByRoomsFor(posts, rooms, "classic");
+  const notSet = plan.gaps.filter(g => g.kind === "group-not-set");
+  assert.equal(notSet.length, 1, "три пустые группы склеены в одну строку");
+  assert.equal(notSet[0].roomLabel, null, "у склеенного из трёх комнат пробела единой комнаты нет");
+  const h = html(plan);
+  assert.ok(h.includes("мест: 3"), "печать: одна строка «мест: 3»");
+  assert.ok(!/Не указана группа света[^<]*(Гостиная|Спальня|Кухня)/.test(h),
+    "склеенная строка не приписана ни одной комнате — врать про место нельзя");
+});
+
+/* ── дефект 3: порядок групп в документе = порядок state.rooms, «без комнаты» последней ── */
+
+test("документ печатает группы в порядке state.rooms, «Без помещения» последней", () => {
+  const rooms = [{ id: "B", name: "Спальня" }, { id: "A", name: "Гостиная" }];   /* порядок B, A */
+  const posts = [namedPost("a1", "A", "Свет"), namedPost("x", null, "Свет"), namedPost("b1", "B", "Свет")];
+  const h = html(planByRoomsFor(posts, rooms, "classic"));
+  const iB = h.indexOf("Спальня"), iA = h.indexOf("Гостиная"), iN = h.indexOf("Без помещения");
+  assert.ok(iB >= 0 && iA >= 0 && iN >= 0, "все три партиции напечатаны");
+  assert.ok(iB < iA, "Спальня (B) раньше Гостиной (A) — порядок state.rooms, не алфавит");
+  assert.ok(iA < iN, "«Без помещения» — последней, как в листе монтажника");
+});
+
+/* ── детерминизм документа: перестановка входа не меняет HTML ─────────────────────────── */
+
+test("HTML документа не зависит от порядка постов на входе", () => {
+  const rooms = [{ id: "A", name: "Гостиная" }, { id: "B", name: "Спальня", lightingScheme: "relay" }];
+  const posts = [namedPost("a1", "A", "Кухня"), namedPost("a2", "A", "Кухня"),
+                 namedPost("b1", "B", "Холл"), namedPost("a3", "A", "Зал")];
+  const straight = html(planByRoomsFor(posts, rooms, "classic"));
+  const shuffled = html(planByRoomsFor([posts[2], posts[0], posts[3], posts[1]], rooms, "classic"));
+  assert.equal(straight, shuffled, "тот же документ при любом порядке входа");
 });

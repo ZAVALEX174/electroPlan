@@ -1407,6 +1407,10 @@ function lightingFor(posts){
   const projScheme=lightingScheme();
   const roomById=new Map(state.rooms.map(r=>[r.id,r]));
   const roomOfPost=new Map((Array.isArray(posts)?posts:[]).map(p=>[p&&p.id, p&&p.roomId!=null?p.roomId:null]));
+  /* Ранг комнаты для порядка блока групп света — тот же, что у листа монтажника (installSheetForProject):
+     помещения в порядке state.rooms, «без комнаты» последним. Порядок задаётся здесь, а не в документе,
+     чтобы он остался детерминированным (см. planByRooms). */
+  const roomOrder=new Map(state.rooms.map((r,i)=>[r.id,i]));
   const plan=EPLightingByRoom.planByRooms({
     places,
     projectScheme:projScheme,
@@ -1415,6 +1419,10 @@ function lightingFor(posts){
     partitionKeyOf:place=>{const rid=roomOfPost.get(place.postId);return rid==null?null:rid;},
     /* нераспознанный/отсутствующий id схемы у комнаты откатывается на проект — EPRoom.roomLightingScheme */
     schemeForPartition:key=>key==null?projScheme:EPRoom.roomLightingScheme(roomById.get(key),projScheme,EPLightingGroups.SCHEMES),
+    /* подпись комнаты у группы/реле/пробела в документе; «без комнаты» — как в листе монтажника */
+    labelForPartition:key=>key==null?"Без помещения":((roomById.get(key)||{}).name||""),
+    /* порядок партиций = порядок помещений в листе монтажника; неизвестная/«без комнаты» — в конец */
+    orderForPartition:key=>key==null?Infinity:(roomOrder.has(key)?roomOrder.get(key):Infinity),
     plan:EPLightingGroups.plan,
     planDeps
   });
