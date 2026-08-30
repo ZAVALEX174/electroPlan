@@ -509,7 +509,7 @@ function removeWall(id){
    Чистая геометрия (полигоны, площади, флуд-фолл свободного пространства) вынесена
    в js/geometry.js (EPGeom) — см. PLAN 2.1; здесь берём её через алиасы, а привязка
    к state/DOM остаётся в этом файле. */
-const {polygonCentroid,polygonAreaPx,pointInPolygon,componentAt}=EPGeom;
+const {polygonCentroid,polygonAreaPx,pointInPolygon,componentAt,distancePointToSegment}=EPGeom;
 /* площадь комнаты в м² — только если задан масштаб плана */
 function roomAreaM2(room){
   if(!state.pxPerMeter||!room?.polygon||room.polygon.length<3)return null;
@@ -857,20 +857,29 @@ function roomResolveContext(prebuiltMap=null){
 /* ⚠️ ЕДИНОЕ ПРАВИЛО «В КАКОЙ КОМНАТЕ ТОЧКА». Раньше оно жило в ДВУХ местах (getRoomForPoint для
    подсветки при перетаскивании и отдельная копия в recalculateRoomAssignments для фактической
    привязки) — расхождение показало бы одну комнату под курсором, а записало бы другую. Сведено
-   сюда, потребители лишь готовят контекст. Порядок строгий:
-     1) настоящее попадание в КОНТУР комнаты;
-     2) настоящее попадание в GRID-комнату (по компоненту связности) — для комнат без контура;
-     3) и только если не попал никуда — ДОПУСК у границы (EPRoomAssign): выключатель у дверного
-        проёма стоит центром ровно на линии, pointInPolygon считает это «снаружи». Допуск ищет
-        ближайший КОНТУР, поэтому grid-комнаты в нём не участвуют — у них контура нет. */
+   сюда, потребители лишь готовят контекст. Порядок ветвей — от сильнейшего свидетельства к
+   слабейшему; менять его нельзя:
+     1) настоящее попадание в КОНТУР комнаты (pointInPolygon) — прямое доказательство «точка внутри»;
+     2) ДОПУСК у границы контура (EPRoomAssign): выключатель у дверного проёма стоит центром ровно
+        на линии, pointInPolygon считает это «снаружи». Попадание в допуск означает «объект
+        фактически на этом контуре» — сильное свидетельство, поэтому идёт РАНЬШЕ grid. Допуск ищет
+        ближайший КОНТУР, grid-комнаты в нём не участвуют — у них контура нет;
+     3) и только в последнюю очередь — GRID-комната (по компоненту связности), для комнат без
+        контура. Grid-совпадение означает лишь «в той же компоненте связности, что и подпись
+        комнаты», а компонента через дверные проёмы накрывает всю квартиру — это самое слабое
+        свидетельство и обязано быть последним. Иначе одна ручная комната-подпись перехватывала бы
+        объект, стоящий ровно на контуре ДРУГОЙ, полигональной комнаты (замер ревью: пост на
+        контуре Спальни при наличии подписи «Кухня» доставался Кухне). */
 function resolveRoomForPoint(cx,cy,ctx){
   const hit=ctx.polyRooms.find(r=>pointInPolygon(cx,cy,r.polygon));
   if(hit)return hit;
+  const near=EPRoomAssign.nearestRoomWithinTolerance(cx,cy,ctx.polyRooms,EPConfig.roomEdgeTolerance,distancePointToSegment);
+  if(near)return near;
   if(ctx.map&&ctx.gridRooms.length){
     const component=componentAt(ctx.map,cx,cy);
     if(component>=0){const g=ctx.gridRooms.find(r=>r.componentId===component);if(g)return g}
   }
-  return EPRoomAssign.nearestRoomWithinTolerance(cx,cy,ctx.polyRooms,EPConfig.roomEdgeTolerance,distancePointToSegment)||null;
+  return null;
 }
 
 function getRoomForPoint(x,y,map=null){
