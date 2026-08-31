@@ -350,6 +350,13 @@ function compactIcon(entity,kind){
   /* kind/id на узле — чтобы выделение и клавиатура находили этот элемент точечно,
      без пересоздания сцены (корневой дефект: renderAll на нажатии) */
   el.dataset.kind=kind;el.dataset.id=entity.id;
+  /* Объект, не попавший ни в одну комнату, помечаем ВИДИМО — раньше об этом говорила только
+     строка статуса при перетаскивании, и пост, выпавший из комнаты из-за
+     перетрассировки контуров, оставался незамеченным (а теперь это решает деньги: другая схема
+     проводки). Помечаем только когда комнаты в проекте вообще есть — иначе «без комнаты» у всего
+     подряд было бы шумом. Критерий — общий EPRoomAssign.isOutsideRooms (§7.1), тот же вызов в
+     syncNoRoomClass. roomId уже пересчитан recalculateRoomAssignments перед этим рендером. */
+  if(EPRoomAssign.isOutsideRooms(entity.roomId,state.rooms.length))el.classList.add("no-room");
   el.style.left=entity.x+"px";el.style.top=entity.y+"px";
   if(kind==="device") el.textContent=product(entity.productId)?.icon||"?";
   /* метка поста = его сквозной номер (раньше рисовали «P» + число мест) — чтобы номер
@@ -420,8 +427,7 @@ function carryUserRoomFields(oldAutoRooms,newRooms){
 function refreshRoomAfterEdit(room){
   const c=polygonCentroid(room.polygon);
   room.seedX=c.x;room.seedY=c.y;room.x=c.x-45;room.y=c.y-16;
-  recalculateRoomAssignments();renderRooms();renderProperties();renderSummary();
-  persistProject();
+  refreshAfterRoomAssignments(renderRooms, persistProject);
 }
 function renderVertexHandles(svg,room){
   const poly=room.polygon;
@@ -496,7 +502,7 @@ function removeWall(id){
   state.walls=state.walls.filter(w=>w.id!==id);
   state.autoWalls=state.autoWalls.filter(w=>w.id!==id);
   if(state.selected?.kind==="wall")state.selected=null;
-  recalculateRoomAssignments();renderAll();renderProperties();renderSummary();
+  refreshAfterRoomAssignments(renderAll);
 }
 
 /* ---- Определение комнат (OpenCV.js, ленивая загрузка) ----
@@ -560,7 +566,7 @@ async function detectRooms(){
       state.rooms.push(room);built.push(room);
     });
     carryUserRoomFields(oldAuto,built);   /* вернуть имя/площадь, введённые вручную, на совпавшие комнаты */
-    recalculateRoomAssignments();renderAll();renderProperties();renderSummary();
+    refreshAfterRoomAssignments(renderAll);
     showTraceProgress(false);
     toast(res.rooms.length?`Найдено комнат: ${res.rooms.length}`:"Комнаты не найдены");
     updateStatus(kept
@@ -592,7 +598,7 @@ async function detectRoomsML(){
       state.rooms.push(room);built.push(room);
     });
     carryUserRoomFields(oldAuto,built);   /* вернуть имя/площадь, введённые вручную, на совпавшие комнаты */
-    recalculateRoomAssignments();renderAll();renderProperties();renderSummary();
+    refreshAfterRoomAssignments(renderAll);
     showTraceProgress(false);
     toast(res.rooms.length?`Найдено комнат: ${res.rooms.length}`:"Комнаты не найдены");
     updateStatus(kept
@@ -833,42 +839,107 @@ function buildSpaceComponents(){
   return EPGeom.buildSpaceComponents(g.width,g.height,allWalls(),g.cell,wallRadiusFor(g.cell),g.originX,g.originY);
 }
 
-function getRoomForPoint(x,y,map=null){
-  if(!state.rooms.length)return null;
-  const poly=state.rooms.find(r=>r.polygon&&r.polygon.length>2&&pointInPolygon(x,y,r.polygon));
-  if(poly)return poly;
+/* Контекст привязки: комнаты, разделённые на контурные (polygon) и grid-комнаты (без контура,
+   привязка по компоненту связности), и одна карта пространства на всех. Готовит его вызывающий
+   ОДИН раз — recalculateRoomAssignments не должен строить карту на каждый объект. prebuiltMap —
+   карта, снятая на старте перетаскивания (переиспользуется в getRoomForPoint при подсветке). */
+function roomResolveContext(prebuiltMap=null){
+  const polyRooms=state.rooms.filter(r=>r.polygon&&r.polygon.length>2);
   const gridRooms=state.rooms.filter(r=>!(r.polygon&&r.polygon.length>2));
-  if(!gridRooms.length)return null;
-  map=map||buildSpaceComponents();
-  const target=componentAt(map,x,y);
-  if(target<0)return null;
-  for(const room of gridRooms){
-    const rx=(room.seedX??room.x+55),ry=(room.seedY??room.y+18);
-    if(componentAt(map,rx,ry)===target)return room;
+  let map=prebuiltMap;
+  if(gridRooms.length){
+    map=map||buildSpaceComponents();
+    gridRooms.forEach(r=>{if(r.seedX==null){r.seedX=r.x+55;r.seedY=r.y+18}r.componentId=componentAt(map,r.seedX,r.seedY)});
+  }
+  return {polyRooms,gridRooms,map};
+}
+
+/* ⚠️ ЕДИНОЕ ПРАВИЛО «В КАКОЙ КОМНАТЕ ТОЧКА». Раньше оно жило в ДВУХ местах (getRoomForPoint для
+   подсветки при перетаскивании и отдельная копия в recalculateRoomAssignments для фактической
+   привязки) — расхождение показало бы одну комнату под курсором, а записало бы другую. Сведено
+   сюда, потребители лишь готовят контекст.
+
+   Свидетельства — от сильнейшего к слабейшему. Ветви:
+     1) настоящее попадание в КОНТУР комнаты (pointInPolygon) — прямое доказательство «точка внутри»;
+     2) GRID-комната по компоненту связности — для комнат без контура (ручная подпись без полигона).
+
+   ⚠️ Допуск привязки у границы контура из правила ВЫРЕЗАН, и вернуть его прежним нельзя. Его
+   дискриминатор — сверка кандидата компонентой связности — не определён для точки НА стене:
+   componentAt берёт первую свободную клетку по порядку обхода кольца, обе соседние клетки
+   заблокированы, и «сторона стены» решалась порядком обхода, а не геометрией (сдвиг плана на 5 px
+   менял ответ ровно в мотивирующем случае «объект стоит на контуре»). Плюс проверка включалась
+   только при наличии grid-комнаты, поэтому добавление одной подписи-комнаты меняло привязку
+   неподвижных постов. Дискриминатор «есть ли стена между точкой и контуром» придёт отдельным
+   блоком; до тех пор поведение здесь — ровно то же, что было до ветки. */
+function resolveRoomForPoint(cx,cy,ctx){
+  const hit=ctx.polyRooms.find(r=>pointInPolygon(cx,cy,r.polygon));
+  if(hit)return hit;
+  if(ctx.map&&ctx.gridRooms.length){
+    const component=componentAt(ctx.map,cx,cy);
+    /* ⚠️ guard component>=0 НЕ случайный. В main правило жило двумя копиями: подсветка
+       (getRoomForPoint) отсекала component<0, а фактическая привязка в recalculateRoomAssignments —
+       нет. На замурованной точке componentAt даёт -1 и ей, и seed'у grid-комнаты в том же блоке, и
+       незащищённая копия делала find(-1===-1), приписывая объект комнате с заблокированным seed'ом.
+       Объединение выбрало защищённый вариант. Это МЕНЯЕТ привязку (а значит смету) на входах, где
+       componentAt возвращает -1: снимешь guard — вернёшь баг main. Регресс — roomResolveRule.test.js. */
+    if(component>=0){const g=ctx.gridRooms.find(r=>r.componentId===component);if(g)return g}
   }
   return null;
+}
+
+function getRoomForPoint(x,y,map=null){
+  if(!state.rooms.length)return null;
+  return resolveRoomForPoint(x,y,roomResolveContext(map));
+}
+
+/* Точечная синхронизация метки «вне помещений» с DOM — по образцу applySelectionClasses.
+   Метку пишем ТАМ ЖЕ, где меняется roomId (updateObjectRoom / recalculateRoomAssignments),
+   а не в рендере: roomId правится и по путям, которые renderAll не зовут (перенос объекта,
+   правка вершин контура), — при простановке только в compactIcon метка расходилась с фактом
+   (пост уехал из комнаты, а «!» не появился; вернулся — «!» остался). Критерий «объект вне
+   помещений» один на оба потребителя — EPRoomAssign.isOutsideRooms (§7.1), тот же вызов и в
+   compactIcon. Узел ищем по глобально уникальному
+   data-id (uid с префиксом) — сам класс переключаем без пересоздания сцены. */
+function syncNoRoomClass(entity){
+  const el=canvas.querySelector('.plan-icon[data-id="'+entity.id+'"]');
+  if(el)el.classList.toggle("no-room",EPRoomAssign.isOutsideRooms(entity.roomId,state.rooms.length));
 }
 
 function updateObjectRoom(entity){
   const room=getRoomForPoint(entity.x+12,entity.y+12);
   entity.roomId=room?.id||null;
+  syncNoRoomClass(entity);   /* метка «вне помещений» — там же, где пишется roomId, а не в рендере */
   return room;
 }
 
 function recalculateRoomAssignments(){
-  const polyRooms=state.rooms.filter(r=>r.polygon&&r.polygon.length>2);
-  const gridRooms=state.rooms.filter(r=>!(r.polygon&&r.polygon.length>2));
-  let map=null;
-  if(gridRooms.length){
-    map=buildSpaceComponents();
-    gridRooms.forEach(r=>{if(r.seedX==null){r.seedX=r.x+55;r.seedY=r.y+18}r.componentId=componentAt(map,r.seedX,r.seedY)});
-  }
+  const ctx=roomResolveContext();   /* карта пространства строится один раз на весь пересчёт */
   [...state.devices,...state.posts].forEach(obj=>{
-    const cx=obj.x+12,cy=obj.y+12;
-    let room=polyRooms.find(r=>pointInPolygon(cx,cy,r.polygon));
-    if(!room&&map){const component=componentAt(map,cx,cy);room=gridRooms.find(r=>r.componentId===component)}
-    obj.roomId=room?.id||null;
+    obj.roomId=resolveRoomForPoint(obj.x+12,obj.y+12,ctx)?.id||null;
+    syncNoRoomClass(obj);   /* метка синхронна с только что записанным roomId; при renderAll иконки затем пересоздаст compactIcon из того же roomId — результат тот же */
   });
+}
+
+/* ⚠️ ЕДИНАЯ ТОЧКА «ПРИВЯЗКА ОБЪЕКТОВ К КОМНАТАМ ИЗМЕНИЛАСЬ». Любая правка геометрии
+   (стена, линия разметки, перенос комнаты, авто-трассировка) сдвигает объекты между
+   помещениями — обновиться обязаны ВСЕ, кто это показывает: план, панель свойств
+   выбранного поста (там комната и цена) и сводка. Пока каждый потребитель перечислял
+   вызовы сам, контракт из пяти-шести вызовов невозможно было помнить, и его копировали
+   неполно — в пяти местах выпал renderProperties: кольцо на плане горит, а карточка
+   поста показывает прежнюю комнату. Правило живёт здесь одно, у правки нет краёв.
+
+   paint — чем места различаются в рисовании: renderAll (сам рисует комнаты и планирует
+   сохранение) либо колбэк вида ()=>{drawWalls();renderRooms()} / ()=>{drawRoomLines();
+   renderRooms()} / renderRooms. save — способ сохранения: scheduleSave, persistProject
+   или ничего; scheduleSave и persistProject НЕ взаимозаменяемы, передаётся именно тот,
+   что был в месте. Автопересчёт помещений (scheduleRoomsFromLines) сюда не входит —
+   это отдельная механика, остаётся на месте вызова. */
+function refreshAfterRoomAssignments(paint, save){
+  recalculateRoomAssignments();
+  paint();
+  renderProperties();
+  renderSummary();
+  if(save)save();
 }
 
 function getObjectsInRoom(roomId){
@@ -1085,7 +1156,7 @@ function makeDraggable(el,obj,kind){
   function finishDrag(){
     if(kind==="room"){
       obj.seedX=obj.x+55;obj.seedY=obj.y+18;
-      recalculateRoomAssignments();renderRooms();renderSummary();
+      refreshAfterRoomAssignments(renderRooms);
     }else{
       /* финальную привязку считаем свежей картой (updateObjectRoom): объект мог уехать за
          габарит превью-карты; она годится только для подсветки на лету, не для итога */
@@ -1134,7 +1205,7 @@ function moveSelectedBy(dx,dy){
   if(sel.kind==="room"){
     const obj=state.rooms.find(x=>x.id===sel.id);if(!obj||(obj.polygon&&obj.polygon.length>2))return false;
     obj.x+=dx;obj.y+=dy;obj.seedX=obj.x+55;obj.seedY=obj.y+18;
-    recalculateRoomAssignments();renderRooms();renderProperties();renderSummary();scheduleSave();
+    refreshAfterRoomAssignments(renderRooms, scheduleSave);
     return true;
   }
   return false;
@@ -1536,6 +1607,34 @@ function buildEstimate(light){
     settings:EP_DATA.settings
   });
 }
+/* Явное предупреждение «часть объектов вне помещений» под блоком групп света НА ЭКРANE.
+   ЗАЧЕМ отдельной строкой, а не только суффиксом «· Без помещения» у групп: тот суффикс
+   виден, лишь когда осиротевший пост участвует в группе света; розетка или пост без групп
+   его не покажут — а пост без комнаты теперь считается по схеме проекта, а не по своей, и
+   это деньги. Строку добавляем ТОЛЬКО в #lightingSummary (renderSummary), не внутрь
+   lightingHtml — иначе она уехала бы и в КП/лист монтажника (документы вне этой правки).
+   Показываем, лишь когда комнаты в проекте есть и кто-то реально выпал. */
+function orphanObjectsWarningHtml(){
+  /* Счёт идёт через ЕДИНЫЙ критерий EPRoomAssign.isOutsideRooms (§7.1) — тот же, что метит
+     иконки на плане (compactIcon/syncNoRoomClass). Собственного условия у счётчика быть не должно:
+     со своей проверкой без учёта числа комнат на плане без единой комнаты метки нет, а счётчик
+     насчитал бы всё подряд и написал «отмечены на плане» — экран противоречил бы тексту.
+     isOutsideRooms сам гасит случай «комнат нет» (roomCount>0), отдельный guard тут не нужен. */
+  const rc=state.rooms.length;
+  const posts=state.posts.filter(p=>EPRoomAssign.isOutsideRooms(p.roomId,rc)).length;
+  const devices=state.devices.filter(d=>EPRoomAssign.isOutsideRooms(d.roomId,rc)).length;
+  const total=posts+devices;
+  if(!total)return "";
+  /* «Отмечены на плане» относится ко ВСЕМ выпавшим объектам: метку no-room получают и посты, и
+     устройства, поэтому общий счётчик обязан совпасть с числом колец на плане. А денежную оговорку
+     «считается по схеме проекта» пишем ТОЛЬКО про посты и только когда выпал хоть один: roomId
+     устройства не участвует ни в одном денежном пути (проверено по estimate/offerPdf/installSheet —
+     привязка к комнате есть лишь у поста), поэтому розетки вне комнат смету не меняют и ложной
+     денежной тревоги поднимать не должны. */
+  const money=posts?` Из них постов: ${posts} — их схема электрики считается по проекту.`:"";
+  return `<div class="lighting-orphan-note">⚠ Вне помещений: ${total} — отмечены на плане.${money} `
+    +`Перетащите объект в комнату или подвиньте контур.</div>`;
+}
 function renderSummary(){
   const light=projectLighting();
   const est=buildEstimate(light);
@@ -1552,7 +1651,7 @@ function renderSummary(){
     :'<div class="library-empty">Проект пока пуст</div>';
   /* Тот же блок, что печатается в КП и листе монтажника: подставленные механизмы, потребность
      в импульсных реле и пробелы с их причинами. */
-  $("lightingSummary").innerHTML=lightingHtml(light,"Группы света");
+  $("lightingSummary").innerHTML=lightingHtml(light,"Группы света")+orphanObjectsWarningHtml();
   updateStatus();
 }
 
@@ -2319,7 +2418,14 @@ function addWallPoint(e){
   const p={x,y};state.wallPoints.push(p);
   if(state.wallPoints.length>1){
     state.walls.push(makeWall(state.wallPoints.at(-2),p,false));
-    recalculateRoomAssignments();drawWalls();renderRooms()
+    /* renderSummary обязателен: новая стена-перегородка могла вывести объект из комнаты. Метку на
+       плане ставит recalculateRoomAssignments, а строку «Вне помещений» — только renderSummary
+       (#lightingSummary пишется ТОЛЬКО в нём). Без него кольцо на плане загорается, а счётчик молчит
+       — экран противоречит сам себе. scheduleSave обязателен тоже: без него нарисованная стена
+       живёт только в памяти и пропадает от F5, пока пользователь не запустит сохранение чем-то
+       ещё. Тот же контракт, что у addRoomLinePoint (стены и линии разметки одинаково двигают
+       привязку к комнате и одинаково сохраняются). */
+    refreshAfterRoomAssignments(()=>{drawWalls();renderRooms()}, scheduleSave)
   }
 }
 function drawWalls(){
@@ -2401,7 +2507,7 @@ function addRoomLinePoint(e){
     const first=state.roomLinePoints[0],last=state.roomLinePoints.at(-1);
     if(last&&(last.x!==first.x||last.y!==first.y))state.roomLines.push(makeRoomLine(last,first));
     finishRoomLineChain();
-    recalculateRoomAssignments();drawRoomLines();renderRooms();renderProperties();renderSummary();scheduleSave();
+    refreshAfterRoomAssignments(()=>{drawRoomLines();renderRooms()}, scheduleSave);
     scheduleRoomsFromLines();   /* контур замкнулся — авто-пересчёт помещений с задержкой */
     updateStatus("Контур замкнут — линии разметки готовы для определения помещений");
     return;
@@ -2412,7 +2518,7 @@ function addRoomLinePoint(e){
   if(state.roomLinePoints.length>1){
     const line=makeRoomLine(state.roomLinePoints.at(-2),p);
     state.roomLines.push(line);state.roomLineIds.push(line.id);
-    recalculateRoomAssignments();renderRooms();renderSummary();scheduleSave();
+    refreshAfterRoomAssignments(renderRooms, scheduleSave);
     scheduleRoomsFromLines();   /* линия добавлена — авто-пересчёт (сработает, когда контур замкнётся) */
   }
   state.roomLineHover=null;
@@ -2424,18 +2530,18 @@ function removeLastRoomLinePoint(){
   state.roomLinePoints.pop();
   const id=state.roomLineIds.pop();
   if(id)state.roomLines=state.roomLines.filter(l=>l.id!==id);
-  recalculateRoomAssignments();drawRoomLines();renderRooms();renderSummary();scheduleSave();
+  refreshAfterRoomAssignments(()=>{drawRoomLines();renderRooms()}, scheduleSave);
   scheduleRoomsFromLines();   /* линия снята — авто-пересчёт помещений */
   updateStatus(state.roomLinePoints.length?`Точка снята · в цепочке ${state.roomLinePoints.length}`:"Цепочка очищена — поставьте первую точку");
 }
 function removeRoomLine(id){
   state.roomLines=state.roomLines.filter(l=>l.id!==id);
-  recalculateRoomAssignments();drawRoomLines();renderRooms();renderSummary();scheduleSave();
+  refreshAfterRoomAssignments(()=>{drawRoomLines();renderRooms()}, scheduleSave);
   scheduleRoomsFromLines();   /* отдельная линия удалена — авто-пересчёт помещений */
 }
 function clearRoomLines(){
   state.roomLines=[];finishRoomLineChain();
-  recalculateRoomAssignments();drawRoomLines();renderRooms();renderProperties();renderSummary();scheduleSave();
+  refreshAfterRoomAssignments(()=>{drawRoomLines();renderRooms()}, scheduleSave);
   toast("Разметка помещений очищена");
 }
 function drawRoomLines(){
@@ -2529,7 +2635,7 @@ function buildRoomsFromLines(opts){
     state.rooms.push(room);built.push(room);
   });
   carryUserRoomFields(oldAuto,built);   /* вернуть имя/площадь, введённые вручную, на совпавшие комнаты */
-  recalculateRoomAssignments();renderAll();renderProperties();renderSummary();persistProject();
+  refreshAfterRoomAssignments(renderAll, persistProject);
   if(!silent){
     const byGrid=res.rooms.filter(r=>r.source==="grid").length;
     const note=res.method==="grid"?" (по сетке — контур приблизительный)":byGrid?` (из них по сетке: ${byGrid})`:"";
@@ -3379,7 +3485,7 @@ function autoTracePlan(){
         ...mergedH.slice(0,260).map(s=>makeWall({x:CX(s.x1),y:CY(s.y)},{x:CX(s.x2),y:CY(s.y)},true)),
         ...mergedV.slice(0,260).map(s=>makeWall({x:CX(s.x),y:CY(s.y1)},{x:CX(s.x),y:CY(s.y2)},true))
       ];
-      recalculateRoomAssignments();drawWalls();renderRooms();renderProperties();renderSummary();showTraceProgress(false);
+      refreshAfterRoomAssignments(()=>{drawWalls();renderRooms()}, scheduleSave);showTraceProgress(false);
       toast(state.autoWalls.length?`Найдено стен: ${state.autoWalls.length}`:"Стены не найдены — измените чувствительность");
       updateStatus(`Автообрисовка: ${state.autoWalls.length} линий`);
     }catch(error){
@@ -3656,7 +3762,7 @@ $("confirmScale").onclick=()=>{
 $("cancelScale").onclick=$("closeScaleModal").onclick=()=>finishScaleInput(null);
 $("scaleModal").onclick=e=>{if(e.target===$("scaleModal"))finishScaleInput(null)};
 $("scaleLengthInput").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();$("confirmScale").click()}};
-$("clearAutoTraceBtn").onclick=()=>{state.autoWalls=[];recalculateRoomAssignments();drawWalls();renderRooms();renderProperties();renderSummary();toast("Автоматические линии удалены")};
+$("clearAutoTraceBtn").onclick=()=>{state.autoWalls=[];refreshAfterRoomAssignments(()=>{drawWalls();renderRooms()}, scheduleSave);toast("Автоматические линии удалены")};
 $("traceSensitivity").oninput=e=>$("traceSensitivityValue").textContent=e.target.value+"%";
 $("saveProjectBtn").onclick=saveProject;$("pdfBtn").onclick=generateCommercialOffer;
 $("installSheetBtn").onclick=installSheetForProject;

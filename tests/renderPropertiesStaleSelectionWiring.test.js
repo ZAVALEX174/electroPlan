@@ -9,11 +9,14 @@
    форматированию, а не сравнение строк целиком.
 
    Мутационная проверка (в отчёте): удаление строки `if(!entity){...}` из renderProperties
-   обязано ронять первый assert этого файла. */
+   обязано ронять первый assert этого файла. Исходник берём через общий хелпер stripComments
+   (комментарии вырезаны), поэтому и мутация «закомментировать проверку/вызов, не удаляя строку»
+   краснеет. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { stripComments } = require("./helpers/stripComments.js");
 
 const SRC = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
 
@@ -21,7 +24,7 @@ test("проверка существования выделенной сущн�
   const rpIdx = SRC.indexOf("function renderProperties");
   assert.ok(rpIdx >= 0, "функция renderProperties должна существовать в app.js");
 
-  const body = SRC.slice(rpIdx);
+  const body = stripComments(SRC.slice(rpIdx));
 
   /* Сущность ищется один раз, результат кладётся в entity. */
   const resolveCall = body.search(/const\s+entity\s*=\s*findSelectedEntity\s*\(/);

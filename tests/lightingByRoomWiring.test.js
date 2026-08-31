@@ -13,11 +13,13 @@
 
    Мутационная проверка (в отчёте): удаление вызова EPLightingByRoom.planByRooms из lightingFor
    роняет первый структурный assert; удаление EPLightingByRoom.cacheSignature из projectLighting —
-   второй. */
+   второй. Тела берём через общий хелпер stripComments (комментарии вырезаны), поэтому и мутация
+   «закомментировать вызов, не удаляя строку» краснеет — а не только физическое удаление. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const { stripComments } = require("./helpers/stripComments.js");
 
 const SRC = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
 
@@ -32,7 +34,7 @@ function bodyOf(name) {
 }
 
 test("lightingFor() считает через EPLightingByRoom.planByRooms — не старым «одной схемой на проект»", () => {
-  const body = bodyOf("lightingFor");
+  const body = stripComments(bodyOf("lightingFor"));
   assert.ok(
     /EPLightingByRoom\s*\.\s*planByRooms\s*\(/.test(body),
     "lightingFor обязан вызывать EPLightingByRoom.planByRooms (раскрой по комнатам)"
@@ -44,7 +46,7 @@ test("lightingFor() считает через EPLightingByRoom.planByRooms — �
 });
 
 test("projectLighting() подписывает кэш через EPLightingByRoom.cacheSignature — с комнатами", () => {
-  const body = bodyOf("projectLighting");
+  const body = stripComments(bodyOf("projectLighting"));
   assert.ok(
     /EPLightingByRoom\s*\.\s*cacheSignature\s*\(/.test(body),
     "projectLighting обязан собирать подпись кэша через EPLightingByRoom.cacheSignature"
