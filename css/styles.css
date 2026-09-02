@@ -218,6 +218,10 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .library-thumb,.hover-thumb{display:flex;justify-content:center;margin:8px 0}
 .builder-error{display:flex;flex-direction:column;gap:4px;padding:10px 12px;margin-bottom:10px;border:1px solid #f0c2c2;border-radius:10px;background:#fdf0f0;color:#8f2f2f}
 .builder-error strong{font-size:11px}.builder-error span{font-size:10px;line-height:1.35}
+/* Пометка «снята с производства» — не ошибка (сохранять разрешено), поэтому янтарная, а не
+   красная как .builder-error: сообщает, а не блокирует. */
+.builder-notice{display:flex;flex-direction:column;gap:4px;padding:10px 12px;margin-bottom:10px;border:1px solid #e6cfa0;border-radius:10px;background:#fdf6e8;color:#7a5a12}
+.builder-notice strong{font-size:11px}.builder-notice span{font-size:10px;line-height:1.35}
 .builder-note{display:flex;flex-direction:column;padding:12px;border-radius:12px;background:var(--blue-soft)}.builder-note strong{font-size:11px}.builder-note span{margin-top:3px;color:var(--muted);font-size:10px}
 .builder-form{min-width:0}.builder-form label{display:block;min-width:0;color:var(--muted);font-size:10px;font-weight:800}.builder-form label input,.builder-form label select{margin-top:5px}.builder-form select{width:100%;min-width:0;max-width:100%;text-overflow:ellipsis}.form-row{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;margin-top:10px}.form-row>*{min-width:0}
 .builder-capacity{margin-top:12px;padding:10px;border:1px solid #d5e4f0;border-radius:10px;background:#f7fbfe}.builder-capacity-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px}.builder-capacity-head span{color:var(--muted);text-align:right}.module-meter{display:grid;grid-template-columns:repeat(var(--module-count),minmax(0,1fr));gap:4px;margin-top:7px}.module-meter span{height:6px;border-radius:999px;background:#dbe7f0}.module-meter span.occupied{background:var(--blue)}

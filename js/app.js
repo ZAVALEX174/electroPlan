@@ -85,8 +85,11 @@ function frameOptions(items,selectedId){
     if(!groups.has(label))groups.set(label,[]);
     groups.get(label).push(item);
   });
+  /* Неактивную (снятую с производства) накладку помечаем прямо в подписи опции: в списке она
+     оказывается только как УЖЕ стоящая в посте (byKind её отфильтровал), и человек должен видеть,
+     что предлагать её новым постам нельзя. Текст статичный — экранирования не требует. */
   return [...groups].map(([label,products])=>`<optgroup label="${esc(label)}">${products.map(item=>
-    `<option value="${item.id}" ${Number(item.id)===Number(selectedId)?"selected":""}>${esc(productOptionLabel(item))}</option>`
+    `<option value="${item.id}" ${Number(item.id)===Number(selectedId)?"selected":""}>${esc(productOptionLabel(item))}${item.active?"":" — снята с производства"}</option>`
   ).join("")}</optgroup>`).join("");
 }
 /* Логика сборки поста (стоимость, упаковка механизмов в рамку) вынесена в
@@ -1870,26 +1873,32 @@ function renderBuilder(){
   const explicitFrameId=hasExplicitFrame?frameSelect.dataset.preferredFrameId:"";
   const preferredFrameId=Number(hasExplicitFrame?explicitFrameId:frameSelect.value);
   /* Накладка поста может не пройти фильтр по числу модулей (frameSlotCount не знает
-     многорядные 14/21-модульные накладки и отдаёт null) или выпасть из каталога как
-     неактивная. Раньше её в таком случае молча подменяла frames[0] — и «Сохранить» переписывал
-     post.frameId на первую попавшуюся накладку каталога, если она случайно оказалась
-     совместимой. Поэтому явно заданную накладку ДОБАВЛЯЕМ в список: пусть человек видит в поле
-     ту накладку, которая у поста на самом деле, и меняет её сам, если захочет. */
-  const explicitFrame=explicitFrameId?frameProduct(explicitFrameId):null;
-  /* ⚠️ ЯВНО ЗАДАННУЮ НАКЛАДКУ, НЕ РАЗРЕШИВШУЮСЯ В ТОВАР, МОЛЧА НЕ ПОДМЕНЯЕМ НИКОГДА.
+     многорядные 14/21-модульные накладки и отдаёт null) или НЕ попасть в список byKind("frame")
+     как неактивная (снята с производства). Раньше её в таком случае молча подменяла frames[0] — и
+     «Сохранить» переписывал post.frameId на первую попавшуюся накладку каталога, если она
+     случайно оказалась совместимой. Поэтому накладку, СЕЙЧАС стоящую в посте, ДОБАВЛЯЕМ в список:
+     пусть человек видит в поле ту накладку, которая у поста на самом деле, и меняет её сам, если
+     захочет. */
+  const requestedFrameId=hasExplicitFrame?explicitFrameId:frameSelect.value;
+  /* Накладка, СЕЙЧАС стоящая в посте, разрешённая из ТОГО ЖЕ приоритетного источника, что и
+     requestedFrameId (dataset важнее остатка value). Раньше эту роль играла explicitFrame,
+     разрешавшаяся ТОЛЬКО из dataset — то есть только на ПЕРВОМ render. Со второго render (dataset
+     снят) накладки, которой нет в byKind("frame") (неактивная или многорядная), в frameList уже
+     не было, selectedFrameId падал на frames[0], и цена молча менялась (27,48 → 9,35 EUR на
+     09666.21→09666.01). Берём requestedFrameId — он держит верный приоритет на ЛЮБОМ render. */
+  const requestedFrame=requestedFrameId?frameProduct(requestedFrameId):null;
+  /* ⚠️ НАКЛАДКУ, НЕ РАЗРЕШИВШУЮСЯ В ТОВАР, МОЛЧА НЕ ПОДМЕНЯЕМ НИКОГДА.
      Артикул рамки поста мог уйти из перезалитого прайса (рабочий сценарий проекта) —
      frameProduct(frameId) вернул undefined. Раньше в этом случае бралась frames[0] — первая
      накладка каталога, — и «Сохранить» оставалось активным: пост записывался на чужую накладку
      с составом, урезанным под её ёмкость (проверено: 09666.01/6М с пятью механизмами →
-     09661.01/1М, четыре механизма исчезали). Защита рядом (explicitFrame ниже) на это не
-     срабатывала: она опирается на frameProduct(explicitFrameId), а для удалённого артикула это
-     undefined. Теперь держим накладку «недоступной»: в поле — плейсхолдер, ниже — причина
-     человеческим текстом (конвенция «объясняем ПРИЧИНУ, а не молчим», см. resolveMissingMechanism),
-     сохранение заблокировано, механизмы поста сохранены (ёмкость берём от открытия, не от чужой
-     накладки). Смотрим И dataset (первый render), И остаток value: dataset живёт один render, а
-     состояние «недоступна» обязано пережить любую перерисовку до явного выбора замены человеком. */
-  const requestedFrameId=hasExplicitFrame?explicitFrameId:frameSelect.value;
-  const frameMissing=!!requestedFrameId&&!frameProduct(requestedFrameId);
+     09661.01/1М, четыре механизма исчезали). Теперь держим накладку «недоступной»: в поле —
+     плейсхолдер, ниже — причина человеческим текстом (конвенция «объясняем ПРИЧИНУ, а не молчим»,
+     см. resolveMissingMechanism), сохранение заблокировано, механизмы поста сохранены (ёмкость
+     берём от открытия, не от чужой накладки). Смотрим И dataset (первый render), И остаток value:
+     dataset живёт один render, а состояние «недоступна» обязано пережить любую перерисовку до
+     явного выбора замены человеком. */
+  const frameMissing=!!requestedFrameId&&!requestedFrame;
   /* ⚠️ ТРЕТЬЕ СОСТОЯНИЕ — НАКЛАДКА НЕ ВЫБРАНА ВОВСЕ (пост без накладки). Смета уже различает три
      случая (js/estimate.js): накладка разрешилась в товар (норма), артикул ЗАДАН, но пропал из
      каталога (frameMissing — перезалит прайс) и накладки НЕТ (frameId пуст — «называть нечего»).
@@ -1902,8 +1911,20 @@ function renderBuilder(){
      НОВЫЙ пост сюда не попадает: openPostBuilder даёт ему накладку по умолчанию (defaultFrame),
      так что requestedFrameId у него непустой — блокировка «создания с нуля» исключена. */
   const frameUnset=!requestedFrameId;
-  const frameList=explicitFrame&&!frames.some(frame=>Number(frame.id)===Number(explicitFrame.id))
-    ?[explicitFrame,...frames]:frames;
+  /* ⚠️ ЧЕТВЁРТОЕ СОСТОЯНИЕ — НАКЛАДКА СНЯТА С ПРОИЗВОДСТВА (active:false), но остаётся выбранной.
+     Решение владельца 02.09: проект мог быть сделан до снятия позиции, изделие физически
+     существует и может лежать на складе — смета обязана считаться ПО НЕЙ, без сюрпризов. Поэтому,
+     в отличие от frameMissing/frameUnset, сохранение РАЗРЕШАЕМ и идём нормальным путём (ёмкость,
+     механизмы, деньги — всё от настоящей накладки). Отличие от нормы одно: помечаем «снята с
+     производства» (в опции поля через frameOptions и приглушённым баннером в составе), чтобы
+     человек видел, почему эта накладка не предлагается новым постам — её нет в byKind("frame").
+     requestedFrame здесь заведомо разрешён в товар, поэтому с frameMissing/frameUnset это
+     состояние не пересекается. Новым постам она не грозит: openPostBuilder берёт defaultFrame из
+     byKind("frame") (active), а в списке выбора неактивных нет — они попадают в frameList только
+     как УЖЕ стоящая в посте накладка. */
+  const frameDiscontinued=!!requestedFrame&&!requestedFrame.active;
+  const frameList=requestedFrame&&!frames.some(frame=>Number(frame.id)===Number(requestedFrame.id))
+    ?[requestedFrame,...frames]:frames;
   const selectedFrameId=frameList.some(frame=>Number(frame.id)===preferredFrameId)?preferredFrameId:frameList[0]?.id;
   if(frameMissing){
     /* Плейсхолдер несёт недоступный id значением, чтобы следующий render снова увидел
@@ -2035,7 +2056,15 @@ function renderBuilder(){
      могло перерисовать состав, не потеряв причину несовместимости: набор механизмов оно не
      меняет, значит и ошибка раскладки та же самая. Состояние «накладки нет» сюда не доходит —
      оно обработано выше отдельной веткой (frameMissing), где считать от накладки нечего. */
-  builderCtx={mechs,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:builderErrorHtml(dist)};
+  /* Накладка снята с производства — приглушённый баннер (не ошибка: сохранять разрешено).
+     Кладём в тот же errorHtml-слот composition-хоста, что и несовместимость раскладки, поэтому
+     refreshBuilderLighting сохранит его при точечной перерисовке групп света; если вдобавок есть
+     ошибка раскладки, обе строки показываются вместе. Класс .builder-notice отличает пометку от
+     красной .builder-error. */
+  const frameNoticeHtml=frameDiscontinued
+    ?`<div class="builder-notice" role="status"><strong>Накладка снята с производства</strong><span>Артикул ${esc(selectedFrame.code||"")} больше не выпускается и новым постам не предлагается. В этом посте накладка оставлена: изделие могло быть заложено в проект до снятия и физически существует — смета считается по ней. При желании выберите замену в поле «Накладка».</span></div>`
+    :"";
+  builderCtx={mechs,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:frameNoticeHtml+builderErrorHtml(dist)};
   renderBuilderCatalog();
   renderBuilderComposition(selectedFrame,builderCtx.errorHtml,light,draft);
   /* Сохранять можно, только когда сборка физически собирается (никакой механизм не шире поста
