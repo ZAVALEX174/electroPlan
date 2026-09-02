@@ -25,38 +25,23 @@
    групп света и предупреждения о сиротах. Запуск: node --test tests/ */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
+const stand = require("./helpers/appStand.js");
 
 const EPRoomAssign = require("../js/roomAssign.js");
 
-const SRC = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-
-/* Исходник функции: от объявления до следующего `\nfunction ` верхнего уровня — как в соседних
-   *Behavior/*Wiring-тестах. renderSummary и orphanObjectsWarningHtml — верхнеуровневые соседи. */
-function functionSource(name) {
-  const start = SRC.indexOf("function " + name);
-  assert.ok(start >= 0, "функция " + name + " должна существовать в app.js");
-  const rest = SRC.slice(start);
-  const nextIdx = rest.indexOf("\nfunction ", 1);
-  return nextIdx >= 0 ? rest.slice(0, nextIdx) : rest;
-}
-
-/* DOM-шим: $ отдаёт по id элемент-заглушку, у которого renderSummary трогает textContent/hidden/
-   innerHTML. Все обращения складываем в один реестр, чтобы после прогона прочитать #lightingSummary
+/* DOM-шим общего стенда: $ отдаёт (и запоминает) узел по id, у которого renderSummary трогает
+   textContent/hidden/innerHTML. Реестр нужен, чтобы после прогона прочитать #lightingSummary
    именно тем id, каким его записал renderSummary — сменят id в app.js, и здесь узел окажется пуст. */
 function makeDom() {
-  const els = {};
-  const $ = id => (els[id] || (els[id] = { textContent: "", innerHTML: "", hidden: false }));
-  return { els: els, $: $ };
+  return stand.makeDom();
 }
 
 /* Заглушки-соседи renderSummary. money/lightingHtml дают узнаваемые маркеры, чтобы отличить
    «легли только группы света» от «легли группы + предупреждение». buildEstimate отдаёт нули с
-   пустыми группами — форма важнее чисел, числа стережёт estimate.test.js. */
+   пустыми группами — форма важнее чисел, числа стережёт estimate.test.js. orphanObjectsWarningHtml
+   берётся НАСТОЯЩАЯ (с настоящим EPRoomAssign) — счётчик в проверяемой строке реальный. */
 function buildRenderSummary(dom, state) {
-  const ctx = {
+  return stand.run(["orphanObjectsWarningHtml", "renderSummary"], {
     state: state,
     EPRoomAssign: EPRoomAssign,
     $: dom.$,
@@ -69,12 +54,7 @@ function buildRenderSummary(dom, state) {
     }),
     lightingHtml: () => "[LIGHTING_HTML]",
     updateStatus: () => {}
-  };
-  vm.createContext(ctx);
-  const code = functionSource("orphanObjectsWarningHtml")
-    + "\n" + functionSource("renderSummary")
-    + "\n;renderSummary;";
-  return vm.runInContext(code, ctx);
+  });
 }
 
 const stateOf = (rooms, devices, posts) => ({ rooms: rooms, devices: devices, posts: posts });

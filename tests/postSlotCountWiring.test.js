@@ -28,33 +28,19 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
-const vm = require("node:vm");
-const { stripComments } = require("./helpers/stripComments.js");
+const stand = require("./helpers/appStand.js");
 
 const EPCatalog = require("../js/catalog.js");
 const EPPosts = require("../js/posts.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
 
-/* Комментарии срезаем сразу со всего файла: помимо защиты от «закомментированного» кода это
-   не даёт `\nfunction ` из комментария оборвать вырезаемое тело раньше времени. */
-const SRC = stripComments(fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8"));
+/* index.html читаем напрямую — единственный тест ниже сверяет ПУСТОТУ разметки #postSlotCount.
+   Исходник app.js (со снятыми комментариями, чтобы `\nfunction ` из комментария не оборвал тело),
+   вырезание функций и vm — на общем стенде appStand. */
 const HTML = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 
-/* Настоящий каталог VIMAR: catalog-vimar.js кладёт данные в window — исполняем его в песочнице
-   с window-шимом и забираем товары. */
-const catWin = {};
-vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "js", "catalog-vimar.js"), "utf8"), { window: catWin });
-const PRODUCTS = catWin.EP_VIMAR_CATALOG.products;
-
-/* Исходник функции: от объявления до следующего верхнеуровневого `\nfunction ` — как в соседних
-   *Wiring-тестах. */
-function fnSrc(name) {
-  const start = SRC.indexOf("function " + name);
-  assert.ok(start >= 0, "функция " + name + " должна существовать в app.js");
-  const rest = SRC.slice(start);
-  const nextIdx = rest.indexOf("\nfunction ", 1);
-  return nextIdx >= 0 ? rest.slice(0, nextIdx) : rest;
-}
+/* Настоящий каталог VIMAR через window-шим стенда. */
+const PRODUCTS = stand.loadVimarCatalog().products;
 
 /* Конкретные накладки каталога (проверены разведкой):
    09668.01 (id 200178) — 8 модулей, серия Neve Up; 09666.01 (id 200166) — 6 модулей. */
@@ -67,25 +53,11 @@ assert.ok(FRAME8 && FRAME6 && MECH1, "разведка каталога: 09668.0
 
 const product = id => PRODUCTS.find(p => Number(p.id) === Number(id));
 
-/* Шим <select>: присвоение .value отсутствующей опции СНИМАЕТ выбор (спека). Именно это делает
-   тест честным — молчаливая подмена накладки отличается от валидного выбора. */
-function makeSelectEl() {
-  const el = { innerHTML: "", _value: "", dataset: {} };
-  Object.defineProperty(el, "value", {
-    get() { return el._value; },
-    set(v) {
-      const opts = [...el.innerHTML.matchAll(/<option value="([^"]*)"/g)].map(m => m[1]);
-      el._value = opts.includes(String(v)) ? String(v) : "";
-    }
-  });
-  return el;
-}
+/* DOM-шим стенда: #postFrameSelect — <select> по спеке (присвоение .value отсутствующей опции
+   СНИМАЕТ выбор → ""), остальные узлы — generic. Именно спека select делает тест честным:
+   молчаливая подмена накладки отличается от валидного выбора. */
 function makeDom() {
-  const els = {};
-  const $ = id => (els[id] || (els[id] = id === "postFrameSelect"
-    ? makeSelectEl()
-    : { innerHTML: "", value: "", disabled: false, dataset: {} }));
-  return { els, $ };
+  return stand.makeDom({ selects: ["postFrameSelect"] });
 }
 
 /* Общий vm-контекст для исполнения renderBuilder/builderCapacity/pickBuilderProduct: доменная
@@ -142,7 +114,8 @@ function makeCtx(state, dom) {
     builderCtx: {},
     EPBuilderSlots, EPPosts
   };
-  vm.createContext(ctx);
+  /* Контекст создаёт стенд при stand.run(...); свойства, дописанные в ctx до вызова
+     (builderCtx и т.п.), песочница видит. */
   return ctx;
 }
 
@@ -163,7 +136,7 @@ test("index.html: #postSlotCount отдаёт ПУСТОЙ select — вариа
 test("renderPostSlotCountSelect строит варианты из каталога И добавляет ёмкость открытого поста (extra)", () => {
   const dom = makeDom();
   const ctx = makeCtx({ products: PRODUCTS }, dom);
-  const render = vm.runInContext(fnSrc("renderPostSlotCountSelect") + "\n;renderPostSlotCountSelect;", ctx);
+  const render = stand.run("renderPostSlotCountSelect", ctx);
 
   // ёмкость открытого поста = 5, которой в каталоге нет (модульности каталога: 1,2,3,4,6,7,8)
   render(5);
@@ -188,7 +161,7 @@ test("builderCapacity берёт ёмкость от НАСТОЯЩЕЙ накл
   dom.$("postFrameSelect").value = String(FRAME8.id);   // накладка 8 модулей
   dom.$("postSlotCount").value = "5";                    // селектор врёт «5»
   const ctx = makeCtx({ products: PRODUCTS }, dom);
-  const cap = vm.runInContext(fnSrc("builderCapacity") + "\n;builderCapacity();", ctx);
+  const cap = stand.run("builderCapacity", ctx)();
   assert.equal(cap, 8, "ёмкость обязана считаться от накладки (8), а не от селектора (5)");
 });
 
@@ -198,7 +171,7 @@ test("builderCapacity: fallback на ёмкость открытия (count), а
   dom.els.postFrameSelect = { value: "999999", dataset: {} };   // плоский, без спеки — важно только .value
   dom.$("postSlotCount").value = "6";
   const ctx = makeCtx({ products: PRODUCTS }, dom);
-  const cap = vm.runInContext(fnSrc("builderCapacity") + "\n;builderCapacity();", ctx);
+  const cap = stand.run("builderCapacity", ctx)();
   // мутация 3 (`||1`) вернула бы 1 и потеряла бы ёмкость поста
   assert.equal(cap, 6, "fallback ёмкости обязан быть count (6), а не 1");
 });
@@ -212,7 +185,7 @@ test("renderBuilder: 8 механизмов в накладке 8М при се�
   // накладку задаём явно (как openPostBuilder), селектор врёт «5»
   dom.$("postFrameSelect").dataset.preferredFrameId = String(FRAME8.id);
   dom.$("postSlotCount").value = "5";
-  const render = vm.runInContext(fnSrc("builderCapacity") + "\n" + fnSrc("renderBuilder") + "\n;renderBuilder;", ctx);
+  const render = stand.run(["builderCapacity", "renderBuilder"], ctx);
   render();
 
   // мутация 2 (фит от count=5) урезала бы состав до 5 механизмов
@@ -230,7 +203,7 @@ test("renderBuilder: артикул накладки ушёл из прайса 
   const ctx = makeCtx(state, dom);
   dom.$("postFrameSelect").dataset.preferredFrameId = "999999";
   dom.$("postSlotCount").value = "5";   // ёмкость открытия из числа механизмов
-  const render = vm.runInContext(fnSrc("builderCapacity") + "\n" + fnSrc("renderBuilder") + "\n;renderBuilder;", ctx);
+  const render = stand.run(["builderCapacity", "renderBuilder"], ctx);
   render();
 
   assert.ok(dom.els.savePost.disabled, "с недоступной накладкой сохранять нельзя — иначе пост уйдёт на чужую накладку");
@@ -248,7 +221,7 @@ test("pickBuilderProduct: замена карточки в накладке 8М 
   dom.els.postFrameSelect = { value: String(FRAME8.id), dataset: {} };   // накладка уже выбрана прошлым render
   dom.$("postSlotCount").value = "5";                                     // селектор врёт «5»
   ctx.builderCtx = { mechs: EPCatalog.compatibleMechanisms(FRAME8, PRODUCTS.filter(x => x.kind === "mechanism" && x.active)) };
-  const pick = vm.runInContext(fnSrc("builderCapacity") + "\n" + fnSrc("pickBuilderProduct") + "\n;pickBuilderProduct;", ctx);
+  const pick = stand.run(["builderCapacity", "pickBuilderProduct"], ctx);
   pick(Number(MECH1.id));
 
   // мутация «count вместо builderCapacity» урезала бы состав до 5
@@ -279,7 +252,7 @@ test("renderBuilder: недоступная накладка держится Ч
   const ctx = makeCtx(state, dom);
   dom.$("postFrameSelect").dataset.preferredFrameId = "999999";   // накладки нет в каталоге
   dom.$("postSlotCount").value = "5";
-  const render = vm.runInContext(fnSrc("builderCapacity") + "\n" + fnSrc("renderBuilder") + "\n;renderBuilder;", ctx);
+  const render = stand.run(["builderCapacity", "renderBuilder"], ctx);
 
   render();   // первый render: накладка задана явно через dataset
   assert.ok(!("preferredFrameId" in dom.els.postFrameSelect.dataset), "предпосылка: dataset снят после первого render");
@@ -334,7 +307,7 @@ test("renderBuilder: накладка не выбрана вовсе (frameId п
   dom.$("builderCapacity").innerHTML = "Занято 5 из 6 · свободно 1 модуль";
   dom.$("builderCatalog").innerHTML = "<stale-post-cards>";
   dom.$("postPreview").innerHTML = "<stale-preview>";
-  const render = vm.runInContext(fnSrc("builderCapacity") + "\n" + fnSrc("renderBuilder") + "\n;renderBuilder;", ctx);
+  const render = stand.run(["builderCapacity", "renderBuilder"], ctx);
 
   render();
   render();   // держится через повторный render (dataset снят, состояние читается из value="")
@@ -364,7 +337,7 @@ test("renderBuilder: новый пост с накладкой по умолча
   const ctx = makeCtx(state, dom);
   dom.$("postFrameSelect").dataset.preferredFrameId = String(defFrame.id);   // как openPostBuilder новому посту
   dom.$("postSlotCount").value = String(cap);
-  const render = vm.runInContext(fnSrc("builderCapacity") + "\n" + fnSrc("renderBuilder") + "\n;renderBuilder;", ctx);
+  const render = stand.run(["builderCapacity", "renderBuilder"], ctx);
   render();
 
   assert.equal(dom.els.postFrameSelect.value, String(defFrame.id), "новый пост держит накладку по умолчанию, а не пустое поле");
@@ -381,7 +354,7 @@ test("renderBuilderCatalog: накладки нет — не обещает св
   const dom = makeDom();
   const ctx = makeCtx({ products: PRODUCTS, builder: { slots: [], target: { mode: "add" }, query: "" } }, dom);
   ctx.builderCtx = { frameMissing: true, mechs: [], remaining: 0, addMax: 0, maxPostCap: 0 };
-  const renderCat = vm.runInContext(fnSrc("renderBuilderCatalog") + "\n;renderBuilderCatalog;", ctx);
+  const renderCat = stand.run("renderBuilderCatalog", ctx);
   renderCat();
 
   const target = dom.els.builderTarget.innerHTML;

@@ -24,60 +24,24 @@
    безобидные шимы: к метке они не касаются, нужны лишь чтобы функция дошла до конца. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
+const stand = require("./helpers/appStand.js");
 
 const EPRoomAssign = require("../js/roomAssign.js");
 
-const SRC = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-
-/* Вырезаем исходник функции: от объявления до следующего `\nfunction ` верхнего уровня. */
-function functionSource(name) {
-  const start = SRC.indexOf("function " + name);
-  assert.ok(start >= 0, "функция " + name + " должна существовать в app.js");
-  const rest = SRC.slice(start);
-  const nextIdx = rest.indexOf("\nfunction ", 1);
-  return nextIdx >= 0 ? rest.slice(0, nextIdx) : rest;
-}
-
-/* Настоящий classList поверх Set — browser-семантика add/contains. */
-function makeClassList() {
-  const set = new Set();
-  return {
-    add: c => set.add(c),
-    remove: c => set.delete(c),
-    contains: c => set.has(c)
-  };
-}
-
-/* Узел плана — как отдаёт браузерный createElement: строковый className, dataset/style как объекты,
-   слоты под обработчики и настоящий classList. */
-function makeNode() {
-  return {
-    className: "",
-    dataset: {},
-    style: {},
-    textContent: "",
-    onclick: null, onmouseenter: null, onmousemove: null, onmouseleave: null, ondblclick: null,
-    classList: makeClassList()
-  };
-}
-
-/* Живой compactIcon в песочнице с окружением из app.js: document (шим), state и настоящий
-   EPRoomAssign (критерий — из реального модуля). product/makeDraggable/hover — безвредные шимы:
-   метки не касаются, нужны лишь чтобы функция доработала до return. */
+/* Живой compactIcon на общем стенде: document-шим (createElement отдаёт узел с настоящим classList
+   поверх Set), state и настоящий EPRoomAssign (критерий — из реального модуля). Класс no-room
+   кладётся ТОЛЬКО через classList.add, поэтому contains("no-room") честно отражает срабатывание
+   критерия. product/makeDraggable/hover — безвредные шимы: метки не касаются, нужны лишь чтобы
+   функция доработала до return. */
 function buildCompactIcon(state) {
-  const ctx = {
-    document: { createElement: () => makeNode() },
+  return stand.run("compactIcon", {
+    document: stand.makeDocument(),
     state: state,
     EPRoomAssign: EPRoomAssign,
     product: () => null,          // kind==="device": product(...)?.icon || "?" → "?"
     makeDraggable: () => {},
     showHover: () => {}, positionHover: () => {}, hideHover: () => {}
-  };
-  vm.createContext(ctx);
-  return vm.runInContext(functionSource("compactIcon") + "\n;compactIcon;", ctx);
+  });
 }
 
 const hasLabel = el => el.classList.contains("no-room");

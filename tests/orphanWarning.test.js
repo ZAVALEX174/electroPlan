@@ -16,9 +16,7 @@
        получают оба). Запуск: node --test tests/ */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
+const stand = require("./helpers/appStand.js");
 
 const EPRoomAssign = require("../js/roomAssign.js");
 const { isOutsideRooms } = EPRoomAssign;
@@ -37,24 +35,11 @@ test("isOutsideRooms: комнаты есть, объект в комнате �
 });
 
 /* ---- 2. Поведенческий прогон orphanObjectsWarningHtml из app.js ---------------------------- */
-const SRC = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
 
-/* Вырезаем исходник функции: от объявления до следующего `\nfunction ` верхнего уровня
-   (сосед orphanObjectsWarningHtml — renderSummary), между ними валидный JS. */
-function functionSource(name) {
-  const start = SRC.indexOf("function " + name);
-  assert.ok(start >= 0, "функция " + name + " должна существовать в app.js");
-  const rest = SRC.slice(start);
-  const nextIdx = rest.indexOf("\nfunction ", 1);
-  return nextIdx >= 0 ? rest.slice(0, nextIdx) : rest;
-}
-
-/* Живая orphanObjectsWarningHtml в песочнице с окружением из app.js: state и настоящий
-   EPRoomAssign (критерий берётся из реального модуля — мутации в нём покраснеют здесь). */
+/* Живая orphanObjectsWarningHtml на общем стенде: state и настоящий EPRoomAssign (критерий берётся
+   из реального модуля — мутации в нём покраснеют здесь). Вырезание исходника и vm — в appStand. */
 function buildWarning(state) {
-  const ctx = { state: state, EPRoomAssign: EPRoomAssign };
-  vm.createContext(ctx);
-  return vm.runInContext(functionSource("orphanObjectsWarningHtml") + "\n;orphanObjectsWarningHtml;", ctx);
+  return stand.run("orphanObjectsWarningHtml", { state: state, EPRoomAssign: EPRoomAssign });
 }
 const stateOf = (rooms, devices, posts) => ({ rooms: rooms, devices: devices, posts: posts });
 const dev = roomId => ({ id: "d" + Math.random(), roomId: roomId });

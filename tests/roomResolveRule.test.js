@@ -21,43 +21,22 @@
    не заводим (это и стережёт roomAssignSingleRuleWiring.test.js). Запуск: node --test tests/ */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
+const stand = require("./helpers/appStand.js");
 
 const EPGeom = require("../js/geometry.js");
 const EPRoomAssign = require("../js/roomAssign.js");
 const EPConfig = require("../js/config.js");
 
-const SRC = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-
-/* Имена, которые app.js достаёт из EPGeom деструктуризацией верхнего уровня. Собираем контекст
-   ТОЛЬКО из них — иначе тест «прощал» бы забытый алиас и не воспроизводил браузерный ReferenceError. */
-function aliasedGeomNames() {
-  const m = SRC.match(/const\s*\{([^}]*)\}\s*=\s*EPGeom\s*;/);
-  assert.ok(m, "в app.js не нашлась строка алиасов `const {...}=EPGeom;`");
-  return m[1].split(",").map(s => s.trim()).filter(Boolean);
-}
-
-/* Вырезаем исходник функции: от её объявления до следующего `\nfunction ` верхнего уровня
-   (соседей у неё — getRoomForPoint), между ними только `}` и пустая строка — валидный JS. */
-function functionSource(name) {
-  const start = SRC.indexOf("function " + name);
-  assert.ok(start >= 0, "функция " + name + " должна существовать в app.js");
-  const rest = SRC.slice(start);
-  const nextIdx = rest.indexOf("\nfunction ", 1);
-  return nextIdx >= 0 ? rest.slice(0, nextIdx) : rest;
-}
-
-/* Живая resolveRoomForPoint в песочнице с окружением, повторяющим лексику app.js:
-   - геометрические имена — только те, что реально проброшены (aliasedGeomNames);
+/* Живая resolveRoomForPoint на общем стенде, в окружении, повторяющем лексику app.js:
+   - геометрические имена — ТОЛЬКО те, что реально проброшены `const {…}=EPGeom;`
+     (stand.destructuredNames): забудут алиас — контекст его не получит и функция упадёт
+     ReferenceError ровно как в браузере;
    - namespace EPGeom целиком (если правило зовёт EPGeom.* вместо алиаса);
    - EPRoomAssign / EPConfig — глобалы, как в браузере. */
 function buildResolver() {
   const ctx = { EPGeom, EPRoomAssign, EPConfig };
-  for (const name of aliasedGeomNames()) ctx[name] = EPGeom[name];
-  vm.createContext(ctx);
-  return vm.runInContext(functionSource("resolveRoomForPoint") + "\n;resolveRoomForPoint;", ctx);
+  for (const name of stand.destructuredNames("EPGeom")) ctx[name] = EPGeom[name];
+  return stand.run("resolveRoomForPoint", ctx);
 }
 
 /* Прямоугольный контур комнаты в форме state.rooms.{polygon:[{x,y}]}. */
