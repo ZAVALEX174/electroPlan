@@ -108,6 +108,7 @@ test("renderBuilder: снятая с производства накладка �
   assert.equal(product(dom.els.postFrameSelect.value).price, FRAME_OFF.price, "смета считается по 27,48 EUR — цене накладки поста");
   assert.equal(state.builder.slots.length, CAP, "механизмы поста целы — от чужой накладки ничего не режется");
   assert.ok(!dom.els.savePost.disabled, "сохранение РАЗРЕШЕНО (решение владельца) — в отличие от «недоступна»/«не выбрана»");
+  assert.ok(!dom.els.builderInstallSheet.disabled, "снятая накладка существует — лист монтажника разрешён и помечен");
 });
 
 test("renderBuilder: снятая с производства накладка помечена «снята с производства» в опции поля и баннером в составе", () => {

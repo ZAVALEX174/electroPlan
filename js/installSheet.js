@@ -82,8 +82,17 @@ function buildFittings(comp, box, lighting) {
   }
   if (box && comp.boxCount) fittings.push({ role: "Монтажная коробка", name: box.name, code: box.code, count: comp.boxCount });
   /* Накладка на сборку ровно одна при любом числе постов: импосты делят её изнутри,
-     но заказывается она целиком — в отличие от коробок и планок. */
-  if (comp.frame) fittings.push({ role: "Накладка", name: comp.frame.name, code: comp.frame.code, count: 1 });
+     но заказывается она целиком — в отличие от коробок и планок.
+     frameAvailability — единое состояние из EPPosts: исчезнувший артикул и снятая
+     позиция обязаны быть названы здесь теми же словами, что в смете, подсказке и КП.
+     Старый comp без нового поля сохраняет прежнее поведение. */
+  const frameInfo = comp.frameAvailability;
+  if (frameInfo && !frameInfo.unset) {
+    fittings.push({ role: "Накладка", name: frameInfo.displayName,
+      code: frameInfo.code || null, count: 1, frameState: frameInfo.state });
+  } else if (!frameInfo && comp.frame) {
+    fittings.push({ role: "Накладка", name: comp.frame.name, code: comp.frame.code, count: 1 });
+  }
   return fittings;
 }
 

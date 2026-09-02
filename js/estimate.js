@@ -188,13 +188,26 @@ function build(input) {
       missing.push(id);
       return { kind: "mechanism", code: null, name: `Механизм не найден (арт. ${id})`, count: 1 };
     });
-    const frame = frameProduct(po.frameId);
-    if (!frame && po.frameId) missing.push(po.frameId);
+    /* Состояние и подпись накладки приезжают из ОДНОГО правила
+       EPPosts.frameAvailability через postComposition. Поэтому снятая позиция во всех
+       документах помечена одинаково, а исчезнувший артикул нигде не растворяется.
+       Ветка без frameAvailability — только совместимость со старыми внешними вызовами
+       чистого модуля; приложение всегда передаёт современный comp. */
+    const legacyFrame = frameProduct(po.frameId);
+    const frameInfo = comp && comp.frameAvailability;
+    const frame = frameInfo ? frameInfo.frame : legacyFrame;
+    const frameMissing = frameInfo ? frameInfo.missing : (!frame && !!po.frameId);
+    const frameUnset = frameInfo ? frameInfo.unset : !po.frameId;
+    const frameName = frameInfo && frameInfo.displayName
+      ? frameInfo.displayName
+      : (frame ? frame.name : `Накладка не найдена (арт. ${po.frameId})`);
+    if (frameMissing) missing.push(po.frameId);
     /* Накладки в посте может не быть вовсе (frameId пуст) — тогда называть нечего, и строка
-       состава остаётся без неё, как и раньше. Пробел подбора — это ЗАДАННЫЙ артикул,
-       которого нет в каталоге. */
-    const frameItem = frame ? { kind: "frame", code: frame.code || null, name: frame.name, count: 1 }
-      : (po.frameId ? { kind: "frame", code: null, name: `Накладка не найдена (арт. ${po.frameId})`, count: 1 } : null);
+       состава остаётся без неё, как и раньше. Пробел каталога и снятая позиция получают
+       готовую подпись единого состояния. */
+    const frameItem = frameUnset ? null : {
+      kind: "frame", code: frame ? (frame.code || null) : null, name: frameName, count: 1
+    };
     /* Суппорт: «не требуется» — пояснительная позиция с нулём (её печатают словами, но в
        заказ она не идёт), «подобран» — количество по supports. Пробел ПОДБОРА (планка
        нужна, но артикула нет) позиции не даёт вовсе — намеренное расхождение со сводом

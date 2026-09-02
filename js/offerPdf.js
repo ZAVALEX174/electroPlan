@@ -90,16 +90,28 @@ function buildHtml(est, deps) {
      колонкой и иллюстрация собранного поста. Артикулы остаются ниже, в спецификации.
      Постов в проекте нет — раздел не печатаем. */
   const layout = deps.postLayout || [];
+  /* У исправной накладки подпись под иллюстрацией не дублируем. Но исчезнувший артикул
+     или снятая позиция — существенное состояние: его готовый текст даёт оркестратор из
+     EPPosts.frameAvailability. Без этой строки «Раскладка постов» молчала о детали,
+     которую смета в том же КП называла отсутствующей. */
+  const layoutIllustration = p => {
+    const picture = p.assembledImageHtml
+      || (p.imageUrl ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.frameName || ("Пост № " + p.number))}">` : "—");
+    const status = p.frameStatusText
+      ? `<div class="pl-frame-status">${esc(p.frameStatusText)}</div>`
+      : "";
+    return picture + status;
+  };
   const layoutSection = layout.length ? `<h2 class="section-title">Раскладка постов</h2>
   <table class="layout"><thead><tr><th>№&nbsp;поста</th><th>Наполнение</th><th>Модульность</th><th>Иллюстрация</th></tr></thead><tbody>
   ${layout.map(p => `<tr><td class="pl-num">${esc(p.number)}</td>
     <td>${(p.fill || []).map(f => `${esc(f.word)} — ${Number(f.count) || 0}`).join("<br>") || "—"}</td>
     <td>${Number(p.modules) || 0}</td>
-    <td class="pl-illus">${p.assembledImageHtml || (p.imageUrl ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.frameName || ("Пост № " + p.number))}">` : "—")}</td></tr>`).join("")}
+    <td class="pl-illus">${layoutIllustration(p)}</td></tr>`).join("")}
   </tbody></table>` : "";
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>Коммерческое предложение</title><style>
-  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}@media print{button{display:none}}</style></head><body>
+  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}@media print{button{display:none}}</style></head><body>
   <h1>Коммерческое предложение</h1><div class="sub">Проект электрики и комплектация электроустановочных изделий</div>
   <div class="meta"><div class="box">${headerRows}</div><button onclick="window.print()">Сохранить в PDF</button></div>
   ${deps.planBlockHtml || ""}

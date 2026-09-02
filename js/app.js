@@ -87,10 +87,12 @@ function frameOptions(items,selectedId){
   });
   /* Неактивную (снятую с производства) накладку помечаем прямо в подписи опции: в списке она
      оказывается только как УЖЕ стоящая в посте (byKind её отфильтровал), и человек должен видеть,
-     что предлагать её новым постам нельзя. Текст статичный — экранирования не требует. */
-  return [...groups].map(([label,products])=>`<optgroup label="${esc(label)}">${products.map(item=>
-    `<option value="${item.id}" ${Number(item.id)===Number(selectedId)?"selected":""}>${esc(productOptionLabel(item))}${item.active?"":" — снята с производства"}</option>`
-  ).join("")}</optgroup>`).join("");
+     что предлагать её новым постам нельзя. Состояние и формулировка — из того же
+     EPPosts.frameAvailability, что кормит документы. */
+  return [...groups].map(([label,products])=>`<optgroup label="${esc(label)}">${products.map(item=>{
+    const availability=EPPosts.frameAvailability(item.id,item);
+    return `<option value="${item.id}" ${Number(item.id)===Number(selectedId)?"selected":""}>${esc(productOptionLabel(item))}${availability.discontinued?` — ${esc(availability.statusText)}`:""}</option>`;
+  }).join("")}</optgroup>`).join("");
 }
 /* Логика сборки поста (стоимость, упаковка механизмов в рамку) вынесена в
    js/posts.js (EPPosts) — PLAN 2.1; здесь тонкие обёртки с доступом к каталогу,
@@ -1032,14 +1034,14 @@ function showHover(kind,obj,e){
     const p=product(obj.productId);
     hover.innerHTML=`<h4>${esc(p.name)}</h4><dl><dt>Артикул</dt><dd>${esc(p.code)}</dd><dt>Цена</dt><dd>${productMoney(p)}</dd><dt>Высота</dt><dd>${esc(obj.height||"не указана")}</dd></dl>`;
   }else{
-    const frame=frameProduct(obj.frameId),comp=postComposition(obj),boxUnit=comp.box||comp.boxFallback;
+    const comp=postComposition(obj),frameInfo=comp.frameAvailability,boxUnit=comp.box||comp.boxFallback;
     /* Коробки в подсказке: цена подобранной/фолбэк-коробки × число; если совместимой со
        стандартом коробки нет — честно «не подобрана», без цены (как в составе поста). */
     const boxCell=boxUnit?`${comp.boxCount} × ${money(boxUnit.price)}`:(comp.boxCount?`${comp.boxCount} шт. — не подобрана`:"—");
     /* Миниатюра собранного поста (та же EPPostImage, что в конструкторе) вместо простыни
        названий — сразу видно рамку, посты и импосты. */
     hover.innerHTML=`<h4>${esc(postNumberLabel(obj))}</h4><div class="hover-thumb">${assembledPostHtml(obj,{size:"sm"})}</div>
-    <dl><dt>Накладка</dt><dd>${esc(frame?.name)}</dd><dt>Коробки</dt><dd>${boxCell}</dd><dt>Стоимость поста</dt><dd>${money(postTotalCost(obj))}</dd></dl>`;
+    <dl><dt>Накладка</dt><dd>${esc(frameInfo.displayName)}</dd><dt>Коробки</dt><dd>${boxCell}</dd><dt>Стоимость поста</dt><dd>${money(postTotalCost(obj))}</dd></dl>`;
   }
   hover.classList.add("show");positionHover(e);
 }
@@ -1900,6 +1902,7 @@ function renderBuilder(){
      не было, selectedFrameId падал на frames[0], и цена молча менялась (27,48 → 9,35 EUR на
      09666.21→09666.01). Берём requestedFrameId — он держит верный приоритет на ЛЮБОМ render. */
   const requestedFrame=requestedFrameId?frameProduct(requestedFrameId):null;
+  const requestedFrameInfo=EPPosts.frameAvailability(requestedFrameId,requestedFrame);
   /* ⚠️ НАКЛАДКУ, НЕ РАЗРЕШИВШУЮСЯ В ТОВАР, МОЛЧА НЕ ПОДМЕНЯЕМ НИКОГДА.
      Артикул рамки поста мог уйти из перезалитого прайса (рабочий сценарий проекта) —
      frameProduct(frameId) вернул undefined. Раньше в этом случае бралась frames[0] — первая
@@ -1911,7 +1914,7 @@ function renderBuilder(){
      берём от открытия, не от чужой накладки). Смотрим И dataset (первый render), И остаток value:
      dataset живёт один render, а состояние «недоступна» обязано пережить любую перерисовку до
      явного выбора замены человеком. */
-  const frameMissing=!!requestedFrameId&&!requestedFrame;
+  const frameMissing=requestedFrameInfo.missing;
   /* ⚠️ ТРЕТЬЕ СОСТОЯНИЕ — НАКЛАДКА НЕ ВЫБРАНА ВОВСЕ (пост без накладки). Смета уже различает три
      случая (js/estimate.js): накладка разрешилась в товар (норма), артикул ЗАДАН, но пропал из
      каталога (frameMissing — перезалит прайс) и накладки НЕТ (frameId пуст — «называть нечего»).
@@ -1923,7 +1926,7 @@ function renderBuilder(){
      (value="", dataset уже снят) — состояние обязано пережить перерисовку до выбора человеком.
      НОВЫЙ пост сюда не попадает: openPostBuilder даёт ему накладку по умолчанию (defaultFrame),
      так что requestedFrameId у него непустой — блокировка «создания с нуля» исключена. */
-  const frameUnset=!requestedFrameId;
+  const frameUnset=requestedFrameInfo.unset;
   /* ⚠️ ЧЕТВЁРТОЕ СОСТОЯНИЕ — НАКЛАДКА СНЯТА С ПРОИЗВОДСТВА (active:false), но остаётся выбранной.
      Решение владельца 02.09: проект мог быть сделан до снятия позиции, изделие физически
      существует и может лежать на складе — смета обязана считаться ПО НЕЙ, без сюрпризов. Поэтому,
@@ -1935,7 +1938,7 @@ function renderBuilder(){
      состояние не пересекается. Новым постам она не грозит: openPostBuilder берёт defaultFrame из
      byKind("frame") (active), а в списке выбора неактивных нет — они попадают в frameList только
      как УЖЕ стоящая в посте накладка. */
-  const frameDiscontinued=!!requestedFrame&&!requestedFrame.active;
+  const frameDiscontinued=requestedFrameInfo.discontinued;
   const frameList=requestedFrame&&!frames.some(frame=>Number(frame.id)===Number(requestedFrame.id))
     ?[requestedFrame,...frames]:frames;
   const selectedFrameId=frameList.some(frame=>Number(frame.id)===preferredFrameId)?preferredFrameId:frameList[0]?.id;
@@ -2007,8 +2010,14 @@ function renderBuilder(){
        раскладки в нормальной ветке: refreshBuilderLighting перерисует состав, не потеряв её. */
     renderBuilderComposition(null,builderCtx.errorHtml,light,draft);
     $("savePost").disabled=true;
+    $("builderInstallSheet").disabled=true;
     return;
   }
+  /* Монтажный документ доступен только когда накладка реально разрешилась в товар.
+     Неполный набор механизмов по-прежнему можно распечатать как черновик, но документ
+     без самой накладки был бы заведомо ложным. Ранний выход выше ставит disabled=true;
+     здесь обязательно снимаем его после осознанного выбора замены. */
+  $("builderInstallSheet").disabled=false;
   const selectedFrame=frameProduct(frameSelect.value);
   /* Ёмкость — единой функцией builderCapacity (тот же источник, что у pickBuilderProduct): от
      НАСТОЯЩЕЙ выбранной накладки, а не от значения селектора. Раньше заполнение считалось от count
@@ -3075,7 +3084,10 @@ function buildPostLayout(){
       /* Иллюстрация — собранный пост (EPPostImage), а не фото одной накладки: инлайн-стили,
          поэтому одинаково рисуется в окне печати КП. */
       assembledImageHtml:assembledPostHtml(p,{size:"md"}),
-      frameName:comp.frame?comp.frame.name:""
+      frameName:comp.frameAvailability.displayName,
+      /* Исправную накладку под картинкой не дублируем. Важное состояние — исчезнувший
+         артикул, снятая позиция или отсутствие выбора — печатается прямо в раскладке. */
+      frameStatusText:comp.frameAvailability.available?"":comp.frameAvailability.displayName
     };
   });
 }
@@ -3172,6 +3184,7 @@ function supplierSpecData(light){
   return {
     posts:state.posts.map(p=>{
       const comp=postComposition(p);
+      const frameInfo=comp.frameAvailability;
       /* Механизмы групп света — такие же позиции заказа, как клавиши: за каждой клавишей
          физически стоит механизм, и поставщик обязан его видеть. Пробел ПОДБОРА (группа
          указана, а изделия в серии нет / у него нет артикула) отдаём строкой без артикула —
@@ -3190,7 +3203,9 @@ function supplierSpecData(light){
           :{code:r.code,name:r.name,unit:r.product&&r.product.unit,kind:"mechanism"});
       return {
         mechanisms:(p.mechanismIds||[]).map(id=>item(product(id))||{code:"",name:`Механизм не найден (арт. ${id})`}).concat(lightItems),
-        frame:item(comp.frame)||(p.frameId?{code:"",name:`Накладка не найдена (арт. ${p.frameId})`}:null),
+        frame:frameInfo.unset?null:(frameInfo.frame
+          ?Object.assign(item(frameInfo.frame),{name:frameInfo.displayName})
+          :{code:"",name:frameInfo.displayName,kind:"frame"}),
         /* Суппорт отдаём вместе с признаком «подобран нами, заказчиком не подтверждён»:
            пометка «(предположительно)» обязана быть во ВСЕХ документах одинаковой, свод не
            исключение. supportNotRequired (крышки IP55 без планки) — не пробел подбора, и
@@ -3242,15 +3257,16 @@ function buildExplodedSpec(comp,box,layout,frameSpec,lightRows,moduleLabelOf){
   const labelOf=moduleLabelOf||((index,slot)=>slot&&slot.label);
   const parts=[];
   const frame=comp.frame;
+  const frameInfo=comp.frameAvailability||null;
   const photoOf=item=>productImage(item,{detail:true});   // "" если фото нет/плейсхолдер (сам фильтрует)
-  if(frame){
+  if(frameInfo?!frameInfo.unset:!!frame){
     /* У накладки основной источник — productImage (без окон, ловит большинство накладок); photoReady
        по frameSpec оставлен ЗАПАСНЫМ — на случай, когда своего productImage нет, а измеренное фото
        из собранного spec всё же есть. wide → широкий бокс во взрыв-схеме (накладка шире, чем высокая). */
     const framePhoto=photoOf(frame)||(EPPostImage.photoReady(frameSpec)?frameSpec.imageUrl:"");
     parts.push({
-      role:"Накладка",name:frame.name,code:frame.code,
-      icon:{categoryId:frame.categoryId,icon:frame.icon,name:frame.name},
+      role:"Накладка",name:frameInfo?frameInfo.displayName:frame.name,code:frameInfo?frameInfo.code:frame.code,
+      icon:{categoryId:frame?.categoryId,icon:frame?.icon,name:frameInfo?frameInfo.displayName:frame.name},
       photo:framePhoto?{imageUrl:framePhoto,wide:true}:null
     });
   }
@@ -3320,6 +3336,7 @@ function buildExplodedSpec(comp,box,layout,frameSpec,lightRows,moduleLabelOf){
 function buildPostSheet(post,light){
   const comp=postComposition(post);
   const frame=comp.frame;
+  const frameInfo=comp.frameAvailability;
   /* Две раскладки одного и того же набора: плоская (слева направо по всей накладке) и ПО
      ПОСТАМ-коробкам — монтажнику важно, что коробки разные. Обе считает EPPosts, чтобы позиции
      совпадали с конструктором и превью; адрес модуля для карточки собирается ниже из второй.
@@ -3407,8 +3424,8 @@ function buildPostSheet(post,light){
     number:post.number,
     room:room?room.name:"",
     standardLabel:STANDARD_LABEL[comp.standard]||comp.standard,
-    frameName:frame?frame.name:"",
-    frameCode:frame?frame.code:"",
+    frameName:frameInfo.displayName,
+    frameCode:frameInfo.code,
     color:(frame&&(frame.properties?.color||frame.color))||"",
     height:post.height||"",
     purpose:post.purpose||"",
@@ -3437,10 +3454,16 @@ function openInstallSheet(data){
 /* Лист монтажника для поста в конструкторе: если правим размещённый пост — берём его
    номер/помещение, иначе пост ещё без номера («—»). */
 function installSheetForBuilder(){
+  const selectedFrameId=$("postFrameSelect").value;
+  const selectedFrameInfo=EPPosts.frameAvailability(selectedFrameId,frameProduct(selectedFrameId));
+  if(selectedFrameInfo.blocksDocuments){
+    toast(`Лист монтажника недоступен: накладка ${selectedFrameInfo.statusText}. Выберите накладку.`);
+    return;
+  }
   const placed=state.builder.editingPlacedId?state.posts.find(x=>x.id===state.builder.editingPlacedId):null;
   const fields=EPBuilderSlots.toPost(state.builder.slots);
   const post={id:placed?placed.id:"builder-draft",number:placed?placed.number:"—",
-    frameId:Number($("postFrameSelect").value),
+    frameId:Number(selectedFrameId),
     mechanismIds:[...fields.mechanismIds],keyGroups:[...fields.keyGroups],
     roomId:placed?placed.roomId:null,height:placed?.height,purpose:placed?.purpose,
     /* Тип стены — из черновика окна: лист монтажника обязан назвать ту коробку, что видна
@@ -3450,7 +3473,7 @@ function installSheetForBuilder(){
   /* Группы света считаем по ПРОЕКТУ вместе с этим постом: роль механизма зависит от числа
      мест группы во всём проекте, и лист монтажника обязан показать ту же роль, что видно в
      конструкторе и в смете. */
-  const light=lightingFor(projectPostsWithBuilder(frameProduct($("postFrameSelect").value)));
+  const light=lightingFor(projectPostsWithBuilder(selectedFrameInfo.frame));
   openInstallSheet({posts:[buildPostSheet(post,light)],subtitle:"Помодульная раскладка поста",
     lightingHtml:lightingHtml(light,"Группы света в проекте")});
 }

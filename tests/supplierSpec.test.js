@@ -435,7 +435,9 @@ const specFromProject = (posts, devices, deps0, light) => {
           : { code: r.code, name: r.name, unit: r.product && r.product.unit, kind: "mechanism" });
       return {
         mechanisms: (p.mechanismIds || []).map(id => specItem(d.product(id)) || { code: "", name: `Механизм не найден (арт. ${id})` }).concat(lightItems),
-        frame: specItem(comp.frame) || (p.frameId ? { code: "", name: `Накладка не найдена (арт. ${p.frameId})` } : null),
+        frame: comp.frameAvailability.unset ? null : (comp.frameAvailability.frame
+          ? Object.assign(specItem(comp.frameAvailability.frame), { name: comp.frameAvailability.displayName })
+          : { code: "", name: comp.frameAvailability.displayName, kind: "frame" }),
         support: specItem(comp.support), supportCount: comp.supportCount,
         supportAssumed: comp.supportAssumed, supportNotRequired: comp.supportNotRequired,
         box: specItem(comp.box || comp.boxFallback), boxCount: comp.boxCount

@@ -192,6 +192,7 @@ test("renderBuilder: 8 механизмов в накладке 8М при се�
   assert.equal(state.builder.slots.length, 8, "все 8 механизмов обязаны выжить — ёмкость от накладки (8), а не от селектора (5)");
   assert.match(dom.els.builderCapacity.innerHTML, /из 8/, "полоса заполнения обязана считать от накладки (из 8)");
   assert.ok(!dom.els.savePost.disabled, "полный набор в разрешённой накладке — «Сохранить» активно");
+  assert.ok(!dom.els.builderInstallSheet.disabled, "при настоящей накладке лист монтажника доступен");
 });
 
 /* --- Блокер 1: недоступная накладка не подменяется молча -------------------------------- */
@@ -207,6 +208,7 @@ test("renderBuilder: артикул накладки ушёл из прайса 
   render();
 
   assert.ok(dom.els.savePost.disabled, "с недоступной накладкой сохранять нельзя — иначе пост уйдёт на чужую накладку");
+  assert.ok(dom.els.builderInstallSheet.disabled, "и заведомо ложный лист монтажника нельзя сформировать");
   assert.equal(state.builder.slots.length, 5, "механизмы поста терять нельзя: ёмкость от открытия (5), а не от подставленной 1М-накладки");
   assert.equal(dom.els.postFrameSelect.value, "999999", "поле держит недоступную накладку плейсхолдером, а не подменяет её frames[0]");
   assert.match(ctx.builderCtx.errorHtml, /Накладка поста недоступна/, "окно обязано объяснить причину человеческим текстом, а не молчать");
@@ -272,6 +274,7 @@ test("renderBuilder: недоступная накладка держится Ч
   // мутация A: со второго render frameMissing гаснет и накладка подменяется frames[0]
   assert.equal(dom.els.postFrameSelect.value, "999999", "недоступная накладка держится значением и на повторном render, а не подменяется frames[0]");
   assert.ok(dom.els.savePost.disabled, "«Сохранить» остаётся заблокированным и после повторного render");
+  assert.ok(dom.els.builderInstallSheet.disabled, "кнопка документа держит блокировку через повторный render");
   assert.equal(state.builder.slots.length, 5, "механизмы поста целы через оба render — ни фита, ни упаковки от фантомной накладки");
 
   // обещание «баннер»: доходит до composition-хоста, а не остаётся в объекте контекста
@@ -290,6 +293,16 @@ test("renderBuilder: недоступная накладка держится Ч
   assert.equal(ctx.builderCtx.remaining, 0, "свободного места нет — обещать его нельзя");
   assert.equal(ctx.builderCtx.addMax, 0, "предельная ширина добавления — 0: в отсутствующую накладку добавлять некуда");
   assert.equal(ctx.builderCtx.frameMissing, true, "контекст помечен «накладка непригодна»");
+
+  /* Человек выбрал рабочую замену в том же окне: блокировка документа обязана сняться,
+     а не остаться disabled от предыдущего состояния. Берём настоящий id из уже
+     отрисованных вариантов, не подставляя тесту знание о порядке каталога. */
+  const replacementId = [...dom.els.postFrameSelect.innerHTML.matchAll(/<option value="([^"]+)"/g)]
+    .map(m => m[1]).find(id => id !== "999999");
+  assert.ok(replacementId, "в списке есть рабочая замена");
+  dom.els.postFrameSelect.value = replacementId;
+  render();
+  assert.ok(!dom.els.builderInstallSheet.disabled, "выбор рабочей замены снимает прежнюю блокировку документа");
 });
 
 /* --- Третье состояние (задача 1): накладка НЕ ВЫБРАНА вовсе (пост без накладки) ----------
@@ -318,6 +331,7 @@ test("renderBuilder: накладка не выбрана вовсе (frameId п
 
   assert.equal(dom.els.postFrameSelect.value, "", "накладка не выбрана: поле пусто, frames[0] молча НЕ подставлена");
   assert.ok(dom.els.savePost.disabled, "без накладки сохранять нечего — «Сохранить» заблокировано");
+  assert.ok(dom.els.builderInstallSheet.disabled, "без накладки лист монтажника тоже заблокирован");
   assert.equal(state.builder.slots.length, 3, "механизмы поста целы — от несуществующей накладки ничего не режется");
   assert.match(dom.els.builderComposition.innerHTML, /Накладка поста не выбрана/, "причина — «не выбрана», ОТЛИЧНАЯ от «недоступна» (артикул пропал)");
   assert.doesNotMatch(dom.els.builderComposition.innerHTML, /недоступна/, "«не выбрана» и «недоступна» — разные причины, смешивать их нельзя");
@@ -347,6 +361,7 @@ test("renderBuilder: новый пост с накладкой по умолча
   assert.equal(dom.els.postFrameSelect.value, String(defFrame.id), "новый пост держит накладку по умолчанию, а не пустое поле");
   assert.notEqual(ctx.builderCtx.frameMissing, true, "нормальный путь — состояние «накладка непригодна» не взводится");
   assert.ok(!dom.els.savePost.disabled, "заполненный новый пост на разрешённой накладке — «Сохранить» доступно, создание с нуля не заблокировано");
+  assert.ok(!dom.els.builderInstallSheet.disabled, "рабочая накладка снимает блокировку документа");
 });
 
 /* --- renderBuilderCatalog в состоянии «накладки нет»: без обещаний и без ложной причины ---

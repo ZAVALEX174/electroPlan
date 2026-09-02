@@ -14,6 +14,46 @@
 
 const price = item => Number(item && item.price) || 0;
 
+/* ЕДИНОЕ СОСТОЯНИЕ НАКЛАДКИ для всех экранов и документов. Артикул поста и товар
+   каталога — не одно и то же: после перезаливки прайса id может остаться в проекте,
+   но перестать разрешаться в товар; товар может разрешаться, но быть снят с
+   производства; у старого/повреждённого поста id может отсутствовать вовсе.
+
+   Возвращаем готовую displayName, чтобы смета, свод поставщику, подсказка на плане,
+   КП и лист монтажника не изобретали собственные формулировки. Снятая накладка
+   остаётся настоящим товаром и считается по своей цене. missing/unset блокируют
+   документ из конструктора: без физической накладки монтажная раскладка недостоверна. */
+function frameAvailability(frameId, resolvedFrame) {
+  const hasId = frameId !== null && frameId !== undefined && String(frameId).trim() !== "";
+  const frame = resolvedFrame || null;
+  const state = !hasId ? "unset" : !frame ? "missing" : frame.active === false ? "discontinued" : "available";
+  const baseName = frame && frame.name ? frame.name : "Накладка";
+  const displayName = state === "missing"
+    ? `Накладка не найдена (арт. ${frameId})`
+    : state === "unset"
+      ? "Накладка не выбрана"
+      : state === "discontinued"
+        ? `${baseName} (снята с производства)`
+        : baseName;
+  const statusText = state === "missing" ? "недоступна"
+    : state === "unset" ? "не выбрана"
+    : state === "discontinued" ? "снята с производства"
+    : "";
+  return {
+    state,
+    frame,
+    frameId: hasId ? frameId : null,
+    displayName,
+    statusText,
+    code: frame && frame.code ? frame.code : "",
+    available: state === "available",
+    discontinued: state === "discontinued",
+    missing: state === "missing",
+    unset: state === "unset",
+    blocksDocuments: state === "missing" || state === "unset"
+  };
+}
+
 /* Модель числа монтажных коробок по стандарту накладки. Базовое правило заказчика
    (ответ 01.08): «На каждую накладку почти всегда 1 коробка, но на каждую коробку
    много накладок» — то есть ОДНА НАКЛАДКА = ОДНА КОРОБКА по её ёмкости. «Почти всегда» —
@@ -141,6 +181,7 @@ function wallTypeTargets(posts, post, scope) {
    поле остаётся null, а вызывающий показывает «не подобран», не подставляя случайный. */
 function postComposition(post, deps) {
   const frame = deps.frameProduct ? deps.frameProduct(post.frameId) : null;
+  const frameInfo = frameAvailability(post.frameId, frame);
   const mechIds = post.mechanismIds || [];
   const modules = modulesTotal(mechIds, deps);
   const standard = frameStandard(frame, deps);
@@ -180,7 +221,7 @@ function postComposition(post, deps) {
     : { support: null, assumed: false };
   const support = found.support || null;
   return {
-    frame, standard, model,
+    frame, frameAvailability: frameInfo, standard, model,
     approximate: !model,      /* модель коробок для стандарта неизвестна */
     modulesTotal: modules,
     boxCount: count,
@@ -533,7 +574,7 @@ function postModuleGroups(mechanismIds, frame, deps) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { postCost, postComposition, boxCount, fitMechanismIds, fitMechanismIdsPreserving,
+const api = { frameAvailability, postCost, postComposition, boxCount, fitMechanismIds, fitMechanismIdsPreserving,
   moduleLayout, fillWord, fillSummary, nextPostNumber, ensurePostNumbers, placementFields,
   frameLayout, distributePosts, maxFreeSpan, postModuleGroups,
   postWallType, postTypeKey, wallTypeTargets };
