@@ -70,7 +70,7 @@ const frameProduct=id=>product(id);
 /* Чистая доменная логика каталога (модули/серии/совместимость/рамки/картинки)
    вынесена в js/catalog.js (EPCatalog) — PLAN 2.1; берём её алиасами. Accessor'ы
    product/byKind над state и генерация HTML/DOM остаются в этом файле. */
-const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,defaultPostName,productImage,frameOpening,frameOpenings,moduleFace}=EPCatalog;
+const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,frameSlotOptions,defaultPostName,productImage,frameOpening,frameOpenings,moduleFace}=EPCatalog;
 const productMoney=item=>money(item?.price);
 const productOptionLabel=item=>`[${item?.code||"без артикула"}] ${item?.name||"Без названия"} — ${productMoney(item)}`;
 const mechanismModulesTotal=ids=>ids.reduce((sum,id)=>sum+mechanismSpan(product(id)),0);
@@ -299,6 +299,7 @@ async function init(){
   renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();
   renderLightingSchemeSelect();   /* селектор схемы в панели проекта: заполняем и на чистом старте */
   renderProjectWallTypeSelect();  /* тип стены проекта — там же, рядом со схемой */
+  renderPostSlotCountSelect();    /* модульности рамки строим из каталога (разметка отдаёт пустой select) */
   applyGridStyle();syncMarkupControls();updateZoomUi();applyView();   /* сетка/переключатели/зум/вид — из state (в т.ч. восстановленного) */
   _autosaveOn=true;   /* включаем ПОСЛЕ восстановления, иначе пустой старт затрёт сохранённое */
   if(restored){
@@ -1694,6 +1695,18 @@ function renderProjectWallTypeSelect(){
   const sel=$("projectWallTypeSelect");
   if(sel)sel.value=EP_DATA.settings.wallType==="hollow"?"hollow":"solid";
 }
+/* Селектор «Количество модулей рамки» — НЕ константа в разметке, а производная каталога
+   (EPCatalog.frameSlotOptions): реально существующие модульности накладок. Пятёрки в
+   номенклатуре нет — вариант «5» просто не появляется; появится 5-модульная накладка —
+   возникнет сам. extra — фактическая ёмкость открываемого поста: её добавляем отдельным
+   вариантом, чтобы сохранённый пост с исчезнувшей модульностью не показал чужое значение
+   (см. openPostBuilder и frameSlotOptions). */
+function renderPostSlotCountSelect(extra){
+  const sel=$("postSlotCount");
+  if(!sel)return;
+  sel.innerHTML=frameSlotOptions(byKind("frame"),extra)
+    .map(n=>`<option value="${n}">${n}</option>`).join("");
+}
 
 function openPostBuilder({templateId=null,placedId=null}={}){
   /* ВЗВЕДЁННОЕ «Разместить» СНИМАЕМ. Человек нажал «Разместить» у шаблона, передумал и пошёл
@@ -1717,6 +1730,10 @@ function openPostBuilder({templateId=null,placedId=null}={}){
   }
   const sourceMechanismIds=Array.isArray(src.mechanismIds)?src.mechanismIds:[];
   const capacity=frameSlotCount(frameProduct(src.frameId))||Math.max(1,Math.min(8,mechanismModulesTotal(sourceMechanismIds)||3));
+  /* Наполняем селектор ДО присвоения value: варианты — модульности каталога плюс фактическая
+     ёмкость этого поста. Иначе пост с исчезнувшей модульностью (5, или пост на многорядной
+     накладке) не нашёл бы своей опции и показал бы чужое значение (см. frameSlotOptions). */
+  renderPostSlotCountSelect(capacity);
   $("postName").value=src.name;$("postSlotCount").value=String(capacity);
   /* Слоты несут группу света ВМЕСТЕ с механизмом (js/builderSlots.js). Пост, сохранённый до
      появления групп, просто отдаёт пустые — это и есть верное поведение: пробел «группа не
@@ -1813,6 +1830,19 @@ function projectPostsWithBuilder(frame){
   return state.posts.filter(p=>p.id!==draft.id).concat([draft]);
 }
 
+/* ⚠️ ЕДИНСТВЕННЫЙ ИСТОЧНИК ЁМКОСТИ ПОСТА — НАСТОЯЩАЯ выбранная накладка (frameSlotCount), а НЕ
+   значение селектора. От накладки же считаются деньги, состав и раскладка по постам — значит она
+   и есть истина. Селектор «Количество модулей» только фильтрует, какие накладки предлагать.
+   Фолбэк на селектор (count) — для накладок без однорядной ёмкости (многорядные 14/21 →
+   frameSlotCount=null) и случая, когда накладка не выбрана либо недоступна: там ёмкость несёт
+   count, заданный при открытии поста (openPostBuilder). Функция ОДНА на всё окно: renderBuilder
+   и pickBuilderProduct обязаны считать ёмкость ею, второго источника быть не должно — раньше
+   pickBuilderProduct фитил состав от count, и выбор карточки при накладке 09668.01 (8М) с
+   селектором «5» уничтожал три механизма (§7.1 «правило в одном месте»). */
+function builderCapacity(){
+  return frameSlotCount(frameProduct($("postFrameSelect").value))||Number($("postSlotCount").value);
+}
+
 function renderBuilder(){
   const count=Number($("postSlotCount").value),allMechanisms=byKind("mechanism");
   const frameSelect=$("postFrameSelect"),allFrames=byKind("frame");
@@ -1846,13 +1876,54 @@ function renderBuilder(){
      совместимой. Поэтому явно заданную накладку ДОБАВЛЯЕМ в список: пусть человек видит в поле
      ту накладку, которая у поста на самом деле, и меняет её сам, если захочет. */
   const explicitFrame=explicitFrameId?frameProduct(explicitFrameId):null;
+  /* ⚠️ ЯВНО ЗАДАННУЮ НАКЛАДКУ, НЕ РАЗРЕШИВШУЮСЯ В ТОВАР, МОЛЧА НЕ ПОДМЕНЯЕМ НИКОГДА.
+     Артикул рамки поста мог уйти из перезалитого прайса (рабочий сценарий проекта) —
+     frameProduct(frameId) вернул undefined. Раньше в этом случае бралась frames[0] — первая
+     накладка каталога, — и «Сохранить» оставалось активным: пост записывался на чужую накладку
+     с составом, урезанным под её ёмкость (проверено: 09666.01/6М с пятью механизмами →
+     09661.01/1М, четыре механизма исчезали). Защита рядом (explicitFrame ниже) на это не
+     срабатывала: она опирается на frameProduct(explicitFrameId), а для удалённого артикула это
+     undefined. Теперь держим накладку «недоступной»: в поле — плейсхолдер, ниже — причина
+     человеческим текстом (конвенция «объясняем ПРИЧИНУ, а не молчим», см. resolveMissingMechanism),
+     сохранение заблокировано, механизмы поста сохранены (ёмкость берём от открытия, не от чужой
+     накладки). Смотрим И dataset (первый render), И остаток value: dataset живёт один render, а
+     состояние «недоступна» обязано пережить любую перерисовку до явного выбора замены человеком. */
+  const requestedFrameId=hasExplicitFrame?explicitFrameId:frameSelect.value;
+  const frameMissing=!!requestedFrameId&&!frameProduct(requestedFrameId);
+  /* ⚠️ ТРЕТЬЕ СОСТОЯНИЕ — НАКЛАДКА НЕ ВЫБРАНА ВОВСЕ (пост без накладки). Смета уже различает три
+     случая (js/estimate.js): накладка разрешилась в товар (норма), артикул ЗАДАН, но пропал из
+     каталога (frameMissing — перезалит прайс) и накладки НЕТ (frameId пуст — «называть нечего»).
+     Конструктор различал только два: `!!requestedFrameId` в frameMissing отсекал пустую строку,
+     и пустой requestedFrameId проваливался в общий else ниже, где selectedFrameId молча брал
+     frames[0] — та же выдуманная подмена, от которой защищались сверху, только со стороны нижней
+     границы (шаблон с frameId:null → в поле появлялась первая накладка каталога, «Сохранить»
+     писало её id). Пустой requestedFrameId ловим И на первом render (dataset=""), И на повторном
+     (value="", dataset уже снят) — состояние обязано пережить перерисовку до выбора человеком.
+     НОВЫЙ пост сюда не попадает: openPostBuilder даёт ему накладку по умолчанию (defaultFrame),
+     так что requestedFrameId у него непустой — блокировка «создания с нуля» исключена. */
+  const frameUnset=!requestedFrameId;
   const frameList=explicitFrame&&!frames.some(frame=>Number(frame.id)===Number(explicitFrame.id))
     ?[explicitFrame,...frames]:frames;
   const selectedFrameId=frameList.some(frame=>Number(frame.id)===preferredFrameId)?preferredFrameId:frameList[0]?.id;
-  frameSelect.innerHTML=frameList.length
-    ?frameOptions(frameList,selectedFrameId)
-    :'<option value="">Рамки не загружены</option>';
-  frameSelect.value=selectedFrameId==null?"":String(selectedFrameId);
+  if(frameMissing){
+    /* Плейсхолдер несёт недоступный id значением, чтобы следующий render снова увидел
+       «недоступна» через value (dataset к тому моменту уже снят); список рабочих накладок ниже
+       остаётся — человек выбирает замену прямо здесь, и тогда frameMissing гаснет сам. */
+    frameSelect.innerHTML=`<option value="${esc(String(requestedFrameId))}">Накладка недоступна — выберите замену</option>`
+      +frameOptions(frameList,null);
+    frameSelect.value=String(requestedFrameId);
+  }else if(frameUnset&&frameList.length){
+    /* Накладка не выбрана: плейсхолдер с ПУСТЫМ value (следующий render снова увидит «не выбрана»
+       через value) и список рабочих накладок — человек выбирает сам, frames[0] молча НЕ ставим. */
+    frameSelect.innerHTML=`<option value="">Накладка не выбрана — выберите накладку</option>`
+      +frameOptions(frameList,null);
+    frameSelect.value="";
+  }else{
+    frameSelect.innerHTML=frameList.length
+      ?frameOptions(frameList,selectedFrameId)
+      :'<option value="">Рамки не загружены</option>';
+    frameSelect.value=selectedFrameId==null?"":String(selectedFrameId);
+  }
   delete frameSelect.dataset.preferredFrameId;
   /* Накладка остаётся выпадающим списком EPPicker: их 1631, и разделами по функциональной
      группе они не режутся (группировка накладок — по СЕРИИ), а без поиска по артикулу с таким
@@ -1862,7 +1933,54 @@ function renderBuilder(){
     emptyContext:matchingFrames.length?`накладок на ${moduleWord(count)}`:"загруженных накладок",
     resolveMissing:q=>resolveMissingFrame(q,count,frameSelect)
   });
+  /* ⚠️ НАКЛАДКИ НЕТ — СЧИТАТЬ НЕЧЕГО. Это состояние (`selectedFrame` не разрешился в товар)
+     появилось, когда перестали молча подменять недоступную накладку. Ёмкость, раскладка по
+     постам, список совместимых механизмов и превью — ВСЁ считается ОТ накладки; без неё их
+     не «ноль ограничений», а «нет исходных данных». Раньше отсутствие накладки утекало в
+     builderCapacity (фолбэк на селектор → фантомная ёмкость), compatibleMechanisms(undefined)
+     (весь каталог без фильтра серии), distributePosts(undefined) (фантомный пост на 1 модуль)
+     и в превью — окно печатало ВТОРУЮ, вымышленную ошибку «Несовместимое сочетание… по 1
+     модуль», обещало «Свободно N» при нуле карточек и рисовало 1 модуль из пяти.
+     Поэтому в этом состоянии НЕ считаем ничего от накладки и НЕ трогаем механизмы поста (ни
+     фита, ни упаковки — их сохранность главнее): окно называет РОВНО одну причину (баннер),
+     сохранение заблокировано, слева живой список слотов с настоящими механизмами. */
+  if(frameMissing||frameUnset){
+    const mechanismIds=EPBuilderSlots.toPost(state.builder.slots).mechanismIds;
+    /* Группы света от накладки не зависят (считаются по местам управления проекта) — строки
+       подстановки в слотах остаются осмысленными и без рамки. */
+    const light=lightingFor(projectPostsWithBuilder(undefined));
+    const draft=builderPostDraft(undefined);
+    const layout=EPPosts.moduleLayout(mechanismIds,{product,mechanismSpan});
+    /* Превью без накладки НЕ рисуем: фантомная рамка на 1 модуль противоречила бы списку
+       слотов рядом (их пять). Пусто честнее числа, которого нет. */
+    $("postPreview").innerHTML="";
+    $("builderCapacity").innerHTML="";
+    /* remaining=0 → строки «+ свободно N» в слотах не будет: добавлять некуда, пока накладки нет. */
+    renderBuilderSlots(layout,0,lightingRowsFor(draft,light));
+    /* ДВЕ РАЗНЫЕ причины — как их различает смета, так и человеку они говорят разное:
+       frameMissing — артикул рамки ЗАДАН, но пропал из каталога (перезалит прайс), это сбой
+       данных; frameUnset — накладки нет вовсе (пост восстановлен из хранилища без рамки), человек
+       ещё не сделал выбор. Обе печатаются РОВНО одной строкой (одна причина на экране), тем же
+       путём через composition-хост, но текстом отличаются. */
+    const frameErrorHtml=frameMissing
+      ?`<div class="builder-error" role="alert"><strong>Накладка поста недоступна</strong><span>Артикул рамки этого поста пропал из каталога — вероятно, перезалит прайс. Чтобы не подставить чужую накладку и не потерять механизмы, сохранение заблокировано: выберите накладку в поле «Накладка» вручную.</span></div>`
+      :`<div class="builder-error" role="alert"><strong>Накладка поста не выбрана</strong><span>У этого поста нет накладки. Чтобы собрать и сохранить пост, выберите накладку в поле «Накладка» — без неё не определить ни ёмкость рамки, ни совместимые механизмы. Механизмы поста сохранены.</span></div>`;
+    /* frameMissing:true — внутренний флаг «накладка непригодна» (артикула нет ИЛИ не выбрана):
+       по нему renderBuilderCatalog не фильтрует каталог и не обещает свободное место. */
+    builderCtx={mechs:[],addMax:0,maxPostCap:0,remaining:0,frame:null,errorHtml:frameErrorHtml,frameMissing:true};
+    renderBuilderCatalog();
+    /* Причину печатает composition-хост из builderCtx.errorHtml — тем же путём, что и ошибки
+       раскладки в нормальной ветке: refreshBuilderLighting перерисует состав, не потеряв её. */
+    renderBuilderComposition(null,builderCtx.errorHtml,light,draft);
+    $("savePost").disabled=true;
+    return;
+  }
   const selectedFrame=frameProduct(frameSelect.value);
+  /* Ёмкость — единой функцией builderCapacity (тот же источник, что у pickBuilderProduct): от
+     НАСТОЯЩЕЙ выбранной накладки, а не от значения селектора. Раньше заполнение считалось от count
+     (селектор), а фильтр каталога — от накладки: выбор «5 модулей» при 3-модульной накладке давал
+     «свободно 2» рядом с «свободно 0 модулей». */
+  const capacity=builderCapacity();
   const mechs=compatibleMechanisms(selectedFrame,allMechanisms);
   /* ⚠️ ФИЛЬТРАЦИЯ И УПАКОВКА ИДУТ НАД ТОКЕНАМИ-ПОЗИЦИЯМИ СЛОТОВ, а не над id механизмов.
      Правила остаются те же самые (EPPosts.fitMechanismIds / distributePosts — второй копии
@@ -1870,11 +1988,11 @@ function renderBuilder(){
      этого не годится, в посте бывают два одинаковых механизма (см. js/builderSlots.js). */
   const fitDeps=EPBuilderSlots.tokenDeps(state.builder.slots,{product,mechanismSpan});
   const fitOrder=EPPosts.fitMechanismIds(EPBuilderSlots.tokens(state.builder.slots),
-    EPBuilderSlots.allowedTokens(state.builder.slots,mechs),count,fitDeps);
+    EPBuilderSlots.allowedTokens(state.builder.slots,mechs),capacity,fitDeps);
   state.builder.slots=EPBuilderSlots.pick(state.builder.slots,fitOrder);
   retargetBuilderSlot(fitOrder);
   const occupied=mechanismModulesTotal(EPBuilderSlots.toPost(state.builder.slots).mechanismIds);
-  const remaining=Math.max(0,count-occupied);
+  const remaining=Math.max(0,capacity-occupied);
   /* Распределение механизмов по постам накладки (EPPosts.distributePosts): даёт превью с
      импостами/рядами, ограничивает ширину подбираемого механизма ёмкостью ПОСТА (не всей
      накладки) и ловит несовместимые сочетания — механизм шире поста или «размазанный»
@@ -1898,13 +2016,13 @@ function renderBuilder(){
     }
   }
   const mechanismIds=EPBuilderSlots.toPost(state.builder.slots).mechanismIds;
-  const maxPostCap=dist.maxCapacity||count;
+  const maxPostCap=dist.maxCapacity||capacity;
   const addMax=EPPosts.maxFreeSpan(dist);
   /* Единое изображение собранного поста (крупно) — та же EPPostImage, что в библиотеке,
      подсказке, КП и листе монтажника. */
   $("postPreview").innerHTML=assembledPostHtml({frameId:selectedFrame&&selectedFrame.id,mechanismIds},{size:"lg"});
-  $("builderCapacity").innerHTML=`<div class="builder-capacity-head"><strong>Заполнение рамки</strong><span>Занято ${occupied} из ${count} · ${remaining?`свободно ${moduleWord(remaining)}`:"рамка заполнена"}</span></div>
-    <div class="module-meter" style="--module-count:${count}" aria-label="Занято ${occupied} из ${count} модулей">${Array.from({length:count},(_,index)=>`<span class="${index<occupied?"occupied":""}"></span>`).join("")}</div>`;
+  $("builderCapacity").innerHTML=`<div class="builder-capacity-head"><strong>Заполнение рамки</strong><span>Занято ${occupied} из ${capacity} · ${remaining?`свободно ${moduleWord(remaining)}`:"рамка заполнена"}</span></div>
+    <div class="module-meter" style="--module-count:${capacity}" aria-label="Занято ${occupied} из ${capacity} модулей">${Array.from({length:capacity},(_,index)=>`<span class="${index<occupied?"occupied":""}"></span>`).join("")}</div>`;
   /* Расчёт групп света — по всему проекту ВМЕСТЕ с черновиком поста (см. projectPostsWithBuilder). */
   const light=lightingFor(projectPostsWithBuilder(selectedFrame));
   const draft=builderPostDraft(selectedFrame);
@@ -1915,12 +2033,14 @@ function renderBuilder(){
   renderBuilderSlots(layout,remaining,lightingRowsFor(draft,light));
   /* errorHtml лежит в контексте, чтобы точечное обновление групп света (refreshBuilderLighting)
      могло перерисовать состав, не потеряв причину несовместимости: набор механизмов оно не
-     меняет, значит и ошибка раскладки та же самая. */
+     меняет, значит и ошибка раскладки та же самая. Состояние «накладки нет» сюда не доходит —
+     оно обработано выше отдельной веткой (frameMissing), где считать от накладки нечего. */
   builderCtx={mechs,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:builderErrorHtml(dist)};
   renderBuilderCatalog();
   renderBuilderComposition(selectedFrame,builderCtx.errorHtml,light,draft);
-  /* Сохранять можно, только когда сборка физически собирается (никакой механизм не шире
-     поста и не «размазан» через импост) и все посты заполнены целиком. */
+  /* Сохранять можно, только когда сборка физически собирается (никакой механизм не шире поста
+     и не «размазан» через импост) и все посты заполнены целиком. Недоступную накладку сюда не
+     пускает ранний выход выше. */
   $("savePost").disabled=!(dist.valid&&dist.full);
 }
 
@@ -2031,6 +2151,16 @@ function lightSlotHtml(row){
    пересчитывать раскладку по постам (и не должны ронять фокус из поля поиска — оно снаружи). */
 function renderBuilderCatalog(){
   const host=$("builderCatalog");if(!host)return;
+  /* Накладки нет — фильтровать каталог не по чему. Раньше сюда доходил фантомный контекст:
+     шапка обещала «Свободно N модулей», а список падал в «Каталог механизмов не загружен»
+     (mechs пусты) — обещание при нуле карточек и ложная причина одновременно. Причина одна и
+     та же — недоступная накладка — и она уже названа баннером в composition-хосте; здесь лишь
+     тихо разъясняем, почему добавлять нечего, без вымышленных чисел. */
+  if(builderCtx.frameMissing){
+    $("builderTarget").innerHTML=`Накладка не выбрана<small>Выберите накладку в поле «Накладка» — без неё каталог механизмов не отфильтровать.</small>`;
+    host.innerHTML='<div class="catalog-empty">Пока накладка поста не выбрана, добавлять механизмы некуда — выберите накладку.</div>';
+    return;
+  }
   const target=state.builder.target;
   const replacing=target.mode==="replace"?state.builder.slots[target.index]:null;
   /* ⚠️ ДВА ПРЕДЕЛА ШИРИНЫ — РОВНО ТЕ ЖЕ, что раньше стояли на <select> слота и строке
@@ -2113,7 +2243,11 @@ function emptyCatalogHtml(){
    фальшблоком, там группе стоять не на чем (см. EPBuilderSlots.replaceAt). Признак клавиши
    даёт каталог, поэтому предикат подставляет оркестратор. */
 function pickBuilderProduct(id){
-  const target=state.builder.target,count=Number($("postSlotCount").value);
+  /* Ёмкость — ТОЙ ЖЕ функцией builderCapacity, что и в renderBuilder: от настоящей накладки, а
+     не от значения селектора. Раньше здесь был второй источник (count = селектор), и при накладке
+     шире селектора (09668.01/8М, селектор «5») выбор карточки фитил состав до 5 — три механизма
+     уничтожались одним кликом. Второго источника ёмкости в окне быть не должно (§7.1). */
+  const target=state.builder.target,capacity=builderCapacity();
   if(target.mode==="replace"&&state.builder.slots[target.index]){
     const index=Number(target.index);
     state.builder.slots=EPBuilderSlots.replaceAt(state.builder.slots,index,id,keySlotKind);
@@ -2122,7 +2256,7 @@ function pickBuilderProduct(id){
     const deps=EPBuilderSlots.tokenDeps(state.builder.slots,{product,mechanismSpan});
     state.builder.slots=EPBuilderSlots.pick(state.builder.slots,
       EPPosts.fitMechanismIdsPreserving(EPBuilderSlots.tokens(state.builder.slots),
-        EPBuilderSlots.allowedTokens(state.builder.slots,builderCtx.mechs),count,index,deps));
+        EPBuilderSlots.allowedTokens(state.builder.slots,builderCtx.mechs),capacity,index,deps));
   }else{
     state.builder.slots=EPBuilderSlots.add(state.builder.slots,id);
   }

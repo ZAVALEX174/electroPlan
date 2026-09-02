@@ -98,6 +98,33 @@ function frameSlotCount(item) {
   return match ? Number(match[1]) : null;
 }
 
+/* Существующие модульности накладок каталога — ВОСХОДЯЩИЙ список различных frameSlotCount.
+   Селектор «Количество модулей рамки» строится ИЗ этого списка, а не из константы в разметке:
+   размера, которого в номенклатуре нет (сейчас — 5 модулей), не предлагаем; появится
+   5-модульная накладка — вариант возникнет сам, без правки кода. Многорядные 14/21
+   (frameSlotCount → null) сюда не попадают намеренно — их двумерную раскладку конструктор пока
+   не поддерживает (см. frameSlotCount). */
+function frameSlotCounts(frames) {
+  const counts = new Set();
+  (frames || []).forEach(frame => {
+    const n = frameSlotCount(frame);
+    if (n != null) counts.add(n);
+  });
+  return [...counts].sort((a, b) => a - b);
+}
+
+/* Варианты селектора «Количество модулей»: модульности каталога (frameSlotCounts) плюс, при
+   необходимости, фактическая ёмкость ОТКРЫТОГО поста (extra). Без extra сохранённый пост с
+   модульностью, которой в каталоге больше нет (пост на 5 модулей, собранный до этой правки, или
+   пост на многорядной накладке, где ёмкость взята из числа механизмов), получил бы селектор с
+   ЧУЖИМ значением: присвоение <select>.value отсутствующей опции молча не срабатывает и поле
+   показало бы первую опцию, а не ёмкость поста. Список восходящий, без дублей. */
+function frameSlotOptions(frames, extra) {
+  const counts = new Set(frameSlotCounts(frames));
+  if (Number.isInteger(extra) && extra >= 1) counts.add(extra);
+  return [...counts].sort((a, b) => a - b);
+}
+
 /* Имя поста по умолчанию под N мест. */
 const defaultPostName = count => `Пост на ${moduleWord(count)}`;
 
@@ -213,7 +240,7 @@ const productImage = (item, { detail = false } = {}) => {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { pluralRu, moduleWord, placeWord, mechanismSpan, productSeries, compatibleMechanisms, frameSlotCount, defaultPostName, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage };
+const api = { pluralRu, moduleWord, placeWord, mechanismSpan, productSeries, compatibleMechanisms, frameSlotCount, frameSlotCounts, frameSlotOptions, defaultPostName, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage };
 if (typeof window !== "undefined") window.EPCatalog = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -5,7 +5,7 @@
    конструктор пока не поддерживает (отложено владельцем). */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { mechanismSpan, frameSlotCount, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage, moduleWord, placeWord } = require("../js/catalog.js");
+const { mechanismSpan, frameSlotCount, frameSlotCounts, frameSlotOptions, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage, moduleWord, placeWord } = require("../js/catalog.js");
 
 /* --- склонение счётных подписей (moduleWord/placeWord) --- */
 test("placeWord склоняет «место» по-русски — карточка библиотеки писала «1 места»", () => {
@@ -103,6 +103,32 @@ test("frameSlotCount: явная ёмкость >8 не угадывается �
 test("frameSlotCount: без явного slotCount берём число из названия (1..8)", () => {
   assert.equal(frameSlotCount({ name: "Накладка на 7 модулей, белая" }), 7);
   assert.equal(frameSlotCount({ name: "Накладка на 8 модулей (2+2+2+2)" }), 8);
+});
+
+test("frameSlotCounts: список модульностей — ПРОИЗВОДНАЯ данных, а не константа", () => {
+  // Модель бага владельца: в каталоге есть 1,2,3,4,6,7,8, но НЕТ 5-модульных накладок.
+  // Список обязан отражать ровно это — восходящий, без дублей, без выдуманной пятёрки.
+  const catalog = [
+    { slotCount: 3 }, { slotCount: 1 }, { slotCount: 3 }, { slotCount: 8 },
+    { slotCount: 4 }, { slotCount: 6 }, { slotCount: 7 }, { slotCount: 2 },
+    { slotCount: 14, name: "Накладка для 14 модулей (7+7)" } // многорядная → в список не идёт
+  ];
+  assert.deepEqual(frameSlotCounts(catalog), [1, 2, 3, 4, 6, 7, 8]);
+  // Если список зашьют константой [1..8] — тут появится 5 и тест покраснеет:
+  assert.ok(!frameSlotCounts(catalog).includes(5), "пятёрки в данных нет — её не должно быть и в списке");
+  // Если из данных пропадёт существующая модульность — она обязана исчезнуть и из списка:
+  const без6 = catalog.filter(f => frameSlotCount(f) !== 6);
+  assert.deepEqual(frameSlotCounts(без6), [1, 2, 3, 4, 7, 8]);
+});
+
+test("frameSlotOptions: фактическая ёмкость поста попадает в список, даже если её модульности в каталоге нет", () => {
+  // Каталог без 5-модульных накладок; открыт сохранённый пост ёмкостью 5.
+  const catalog = [{ slotCount: 1 }, { slotCount: 2 }, { slotCount: 3 }, { slotCount: 4 }];
+  assert.deepEqual(frameSlotOptions(catalog, 5), [1, 2, 3, 4, 5]);
+  // Существующую ёмкость не дублируем:
+  assert.deepEqual(frameSlotOptions(catalog, 3), [1, 2, 3, 4]);
+  // Без extra — ровно модульности каталога:
+  assert.deepEqual(frameSlotOptions(catalog), [1, 2, 3, 4]);
 });
 
 /* --- превью: у 6/7/8 есть свои пропорции окна (не падение на дефолт 3 мод.) --- */
