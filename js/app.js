@@ -2614,7 +2614,13 @@ function addPending(x,y){
   }
   updateObjectRoom(created);
   const room=state.rooms.find(r=>r.id===created.roomId);
-  setTool("select");renderAll();renderSummary();toast(room?`Объект добавлен в комнату «${room.name}»`:"Объект размещён вне комнаты");
+  /* Toast обязан судить тем же правилом, что метка на плане и счётчик: без единой
+     комнаты null-room — нормальное исходное состояние, а не предупреждение на каждый
+     добавленный объект. Комната есть и объект остался снаружи — предупреждение нужно. */
+  const outside=EPRoomAssign.isOutsideRooms(created.roomId,state.rooms.length);
+  setTool("select");renderAll();renderSummary();
+  if(room)toast(`Объект добавлен в комнату «${room.name}»`);
+  else if(outside)toast("Объект размещён вне комнаты");
 }
 /* Шаг сетки теперь настройка проекта (state.gridStep), а не константа: владелец
    просил уметь менять его. Фолбэк на дефолт — для устойчивости, если поле пустое. */
