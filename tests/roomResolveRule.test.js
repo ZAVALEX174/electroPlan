@@ -51,12 +51,13 @@ const wholePlaneMap = comp => ({ cols: 1, rows: 1, cell: 1e6, originX: 0, origin
 const resolve = buildResolver();
 
 /* --- Класс «связка не исполняется» (дефект 1) -----------------------------------------------
-   Обе ветви resolveRoomForPoint обязаны исполниться без исключения: ветвь попадания использует
-   алиас pointInPolygon, grid-ветвь — componentAt. Если любой из них снова выпадет из строки
+   Все три ветви resolveRoomForPoint обязаны исполниться без исключения: ветвь попадания использует
+   алиас pointInPolygon, зонд — roomContourProbe, grid-ветвь — componentAt. Если любой снова выпадет из строки
    алиасов app.js — здесь выстрелит ReferenceError, ровно как в браузере, и тест покраснеет. */
-test("resolveRoomForPoint исполняется целиком: обе ветви не роняют ReferenceError", () => {
-  const hitCtx = { polyRooms: [{ id: "A", polygon: rect(0, 0, 100, 100) }], gridRooms: [], map: null };
+test("resolveRoomForPoint исполняется целиком: все три ветви не роняют ReferenceError", () => {
+  const hitCtx = { polyRooms: [{ id: "A", polygon: rect(0, 0, 100, 100) }], gridRooms: [], map: null, walls: [] };
   assert.doesNotThrow(() => resolve(50, 50, hitCtx), "ветвь попадания (pointInPolygon) должна отработать");
+  assert.doesNotThrow(() => resolve(50, -6, hitCtx), "ветвь зонда (roomContourProbe) должна отработать");
   const gridCtx = { polyRooms: [], gridRooms: [{ id: "G", componentId: 7 }], map: wholePlaneMap(7) };
   assert.doesNotThrow(() => resolve(500, 500, gridCtx), "grid-ветвь (componentAt) должна отработать");
 });
@@ -92,6 +93,82 @@ test("точка вне контуров без grid-комнат — null", () 
   const ctx = { polyRooms: [{ id: "A", polygon: rect(0, 0, 100, 100) }], gridRooms: [], map: null };
   assert.equal(resolve(200, 200, ctx), null,
     "точка снаружи контура без grid-подписей не должна привязываться ни к какой комнате");
+});
+
+/* --- Шаг A: граница, дверной проём и глухая стена -------------------------------------------- */
+const wall = (ax, ay, bx, by) => ({ a: { x: ax, y: ay }, b: { x: bx, y: by } });
+
+test("регресс x=187/188: обе соседние позиции остаются в комнате A", () => {
+  const polygon = rect(100, 100, 200, 300);
+  /* Правая граница полигона закрыта не целиком: y=212 — дверной проём. Поэтому центр поста на
+     границе может пройти внутрь, а не считается находящимся за глухой стеной. */
+  const walls = [wall(200, 100, 200, 190), wall(200, 230, 200, 300)];
+  const ctx = { polyRooms: [{ id: "A", polygon }], gridRooms: [], map: null, walls };
+
+  const at187 = resolve(187 + 12, 200 + 12, ctx); // cx=199: обычное попадание внутрь
+  const at188 = resolve(188 + 12, 200 + 12, ctx); // cx=200: ровно граница, pointInPolygon=false
+  assert.equal(at187?.id, "A");
+  assert.equal(EPGeom.pointInPolygon(200, 212, polygon), false, "фиксируем исходную причину дефекта");
+  assert.equal(at188?.id, "A", "один пиксель не должен выбрасывать пост из комнаты");
+});
+
+test("8 px у проёма принимаются, те же 8 px за глухой стеной отвергаются", () => {
+  const polygon = rect(100, 100, 200, 300);
+  const room = { id: "A", polygon };
+  const openCtx = {
+    polyRooms: [room], gridRooms: [], map: null,
+    walls: [wall(200, 100, 200, 190), wall(200, 230, 200, 300)]
+  };
+  const closedCtx = { polyRooms: [room], gridRooms: [], map: null, walls: [wall(200, 100, 200, 300)] };
+  assert.equal(resolve(208, 212, openCtx)?.id, "A", "в проёме путь к контуру свободен");
+  assert.equal(resolve(208, 212, closedCtx), null, "сквозь глухую стену близость не даёт комнату");
+});
+
+test("граница допуска: 12 px у проёма принимаются, 13 px — уже нет", () => {
+  const polygon = rect(100, 100, 200, 300);
+  const ctx = { polyRooms: [{ id: "A", polygon }], gridRooms: [], map: null, walls: [] };
+  assert.equal(resolve(212, 212, ctx)?.id, "A", "roomEdgeTolerance включителен");
+  assert.equal(resolve(213, 212, ctx), null, "дальний объект не притягивается к комнате");
+});
+
+test("заблокированный контур не мешает прежней grid-ветке вернуть Коридор", () => {
+  const polygon = rect(100, 100, 200, 300);
+  const ctx = {
+    polyRooms: [{ id: "Спальня", polygon }],
+    gridRooms: [{ id: "Коридор", componentId: 7 }],
+    map: wholePlaneMap(7), walls: [wall(200, 100, 200, 300)]
+  };
+  assert.equal(resolve(208, 212, ctx)?.id, "Коридор",
+    "зонд отвергает Спальню за стеной, после чего работает существующий grid-фолбэк");
+});
+
+test("равноудалённые доступные контуры не выбираются по порядку или нестабильному id", () => {
+  const a = { id: "room_z", polygon: rect(0, 0, 100, 100) };
+  const b = { id: "room_a", polygon: rect(120, 0, 220, 100) };
+  const makeCtx = polyRooms => ({ polyRooms, gridRooms: [], map: null, walls: [] });
+  assert.equal(resolve(110, 50, makeCtx([a, b])), null);
+  assert.equal(resolve(110, 50, makeCtx([b, a])), null,
+    "при смене порядка/id геометрически неоднозначный объект остаётся видимой сиротой");
+});
+
+test("из двух доступных контуров выбирается действительно ближайший", () => {
+  const far = { id: "far", polygon: rect(0, 0, 100, 100) };      // 10 px
+  const near = { id: "near", polygon: rect(113, 0, 213, 100) };  // 3 px
+  const ctx = { polyRooms: [far, near], gridRooms: [], map: null, walls: [] };
+  assert.equal(resolve(110, 50, ctx)?.id, "near");
+});
+
+test("roomResolveContext передаёт зондированию полный набор стен", () => {
+  const walls = [wall(200, 100, 200, 300)];
+  const state = { rooms: [{ id: "A", polygon: rect(100, 100, 200, 300) }] };
+  const contextFor = stand.run("roomResolveContext", {
+    state,
+    allWalls: () => walls,
+    buildSpaceComponents: () => { throw new Error("без grid-комнат карта не нужна"); },
+    componentAt: EPGeom.componentAt
+  });
+  const ctx = contextFor();
+  assert.equal(ctx.walls, walls, "контекст обязан не потерять стены между state и resolveRoomForPoint");
 });
 
 /* --- Guard component>=0: замурованная точка не липнет к grid-комнате с seed -1 -----------------

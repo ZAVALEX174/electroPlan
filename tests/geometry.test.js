@@ -6,7 +6,7 @@ const assert = require("node:assert/strict");
 const {
   segmentsIntersection, allIntersections, nearestEndpoint, nearestIntersection,
   distancePointToSegment, closestPointOnSegment, nearestSegmentPoint,
-  polygonAreaPx, pointInPolygon, snapPlanPoint
+  polygonAreaPx, pointInPolygon, snapPlanPoint, roomContourProbe
 } = require("../js/geometry.js");
 
 /* отрезок из двух точек в форме {a,b} — как хранятся стены и линии разметки */
@@ -146,6 +146,64 @@ test("pointInPolygon: внутри и снаружи квадрата", () => {
   const sq = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
   assert.equal(pointInPolygon(5, 5, sq), true, "центр внутри");
   assert.equal(pointInPolygon(15, 5, sq), false, "точка снаружи");
+});
+
+/* Дискриминатор шага A: от точки у границы идём до ближайшего места контура и чуть внутрь.
+   Важно отличить дверной проём (пути ничего не мешает) от такого же расстояния за глухой стеной. */
+const rectWalls = (x1, y1, x2, y2) => [
+  seg(x1, y1, x2, y1), seg(x2, y1, x2, y2),
+  seg(x2, y2, x1, y2), seg(x1, y2, x1, y1)
+];
+
+test("roomContourProbe: точка ровно на любой стороне контура доступна одинаково", () => {
+  const poly = [{ x: 100, y: 100 }, { x: 200, y: 100 }, { x: 200, y: 200 }, { x: 100, y: 200 }];
+  const walls = rectWalls(100, 100, 200, 200);
+  for (const [x, y, side] of [[150, 100, "верх"], [200, 150, "право"], [150, 200, "низ"], [100, 150, "лево"]]) {
+    const probe = roomContourProbe(x, y, poly, walls, 2);
+    assert.equal(probe.blocked, false, `${side}: стена через саму точку не считается преградой`);
+    near(probe.dist, 0, `${side}: расстояние до контура`);
+  }
+});
+
+test("roomContourProbe: 8 px за глухой стеной — заблокировано", () => {
+  const poly = [{ x: 100, y: 100 }, { x: 200, y: 100 }, { x: 200, y: 200 }, { x: 100, y: 200 }];
+  const probe = roomContourProbe(208, 150, poly, rectWalls(100, 100, 200, 200), 2);
+  assert.equal(probe.blocked, true, "зонд пересекает правую стену x=200");
+  near(probe.dist, 8, "расстояние до правого ребра");
+});
+
+test("roomContourProbe: те же 8 px напротив дверного проёма — доступны", () => {
+  const poly = [{ x: 100, y: 100 }, { x: 200, y: 100 }, { x: 200, y: 200 }, { x: 100, y: 200 }];
+  const walls = [
+    seg(100, 100, 200, 100), seg(200, 100, 200, 140),
+    seg(200, 160, 200, 200), seg(200, 200, 100, 200), seg(100, 200, 100, 100)
+  ];
+  const probe = roomContourProbe(208, 150, poly, walls, 2);
+  assert.equal(probe.blocked, false, "в разрыве стены зонд проходит внутрь");
+  near(probe.dist, 8, "расстояние такое же, как в закрытом случае");
+});
+
+test("roomContourProbe: Г-образная комната не принимает точку за внутренней глухой стеной", () => {
+  const poly = [
+    { x: 100, y: 100 }, { x: 500, y: 100 }, { x: 500, y: 200 },
+    { x: 200, y: 200 }, { x: 200, y: 500 }, { x: 100, y: 500 }
+  ];
+  /* Точка лежит в вырезе Г справа от внутреннего ребра x=200. Центроид этого полигона находится
+     в вырезе, поэтому прежняя проверка через seed давала ложное совпадение; зонд seed не использует. */
+  const wall = [seg(200, 200, 200, 500)];
+  const forward = roomContourProbe(208, 266, poly, wall, 2);
+  const backward = roomContourProbe(208, 266, [...poly].reverse(), wall, 2);
+  assert.equal(forward.blocked, true);
+  assert.equal(backward.blocked, true, "обратный порядок вершин не меняет сторону комнаты");
+  near(forward.dist, 8, "расстояние до внутреннего ребра");
+});
+
+test("roomContourProbe: битый вход безопасно отвергается", () => {
+  const poly = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
+  for (const inset of [0, -1, NaN, Infinity, undefined]) {
+    assert.equal(roomContourProbe(5, -1, poly, [], inset).blocked, true, `inset=${String(inset)}`);
+  }
+  assert.equal(roomContourProbe(5, -1, [{ x: 0, y: 0 }, { x: NaN, y: 1 }, { x: 0, y: 2 }], [], 2).blocked, true);
 });
 
 /* Выбор точки постановки под режимами «привязка к сетке» и «ортогонально».

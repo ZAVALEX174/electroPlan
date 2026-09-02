@@ -513,7 +513,7 @@ function removeWall(id){
    Чистая геометрия (полигоны, площади, флуд-фолл свободного пространства) вынесена
    в js/geometry.js (EPGeom) — см. PLAN 2.1; здесь берём её через алиасы, а привязка
    к state/DOM остаётся в этом файле. */
-const {polygonCentroid,polygonAreaPx,pointInPolygon,componentAt}=EPGeom;
+const {polygonCentroid,polygonAreaPx,pointInPolygon,componentAt,roomContourProbe}=EPGeom;
 /* площадь комнаты в м² — только если задан масштаб плана */
 function roomAreaM2(room){
   if(!state.pxPerMeter||!room?.polygon||room.polygon.length<3)return null;
@@ -850,12 +850,13 @@ function buildSpaceComponents(){
 function roomResolveContext(prebuiltMap=null){
   const polyRooms=state.rooms.filter(r=>r.polygon&&r.polygon.length>2);
   const gridRooms=state.rooms.filter(r=>!(r.polygon&&r.polygon.length>2));
+  const walls=allWalls();
   let map=prebuiltMap;
   if(gridRooms.length){
     map=map||buildSpaceComponents();
     gridRooms.forEach(r=>{if(r.seedX==null){r.seedX=r.x+55;r.seedY=r.y+18}r.componentId=componentAt(map,r.seedX,r.seedY)});
   }
-  return {polyRooms,gridRooms,map};
+  return {polyRooms,gridRooms,map,walls};
 }
 
 /* ⚠️ ЕДИНОЕ ПРАВИЛО «В КАКОЙ КОМНАТЕ ТОЧКА». Раньше оно жило в ДВУХ местах (getRoomForPoint для
@@ -865,19 +866,31 @@ function roomResolveContext(prebuiltMap=null){
 
    Свидетельства — от сильнейшего к слабейшему. Ветви:
      1) настоящее попадание в КОНТУР комнаты (pointInPolygon) — прямое доказательство «точка внутри»;
-     2) GRID-комната по компоненту связности — для комнат без контура (ручная подпись без полигона).
+     2) доступный КОНТУР в пределах roomEdgeTolerance — зонд до нутра комнаты не должен пересечь
+        стену. Это чинит объект ровно на границе/в дверном проёме, но не протягивает его через
+        глухую стену. Компонента связности здесь намеренно не используется: для точки на стене
+        componentAt выбирает сторону порядком обхода клеток и меняет ответ от сдвига сетки;
+     3) GRID-комната по компоненту связности — для комнат без контура (ручная подпись без полигона).
 
-   ⚠️ Допуск привязки у границы контура из правила ВЫРЕЗАН, и вернуть его прежним нельзя. Его
-   дискриминатор — сверка кандидата компонентой связности — не определён для точки НА стене:
-   componentAt берёт первую свободную клетку по порядку обхода кольца, обе соседние клетки
-   заблокированы, и «сторона стены» решалась порядком обхода, а не геометрией (сдвиг плана на 5 px
-   менял ответ ровно в мотивирующем случае «объект стоит на контуре»). Плюс проверка включалась
-   только при наличии grid-комнаты, поэтому добавление одной подписи-комнаты меняло привязку
-   неподвижных постов. Дискриминатор «есть ли стена между точкой и контуром» придёт отдельным
-   блоком; до тех пор поведение здесь — ровно то же, что было до ветки. */
+   При равном расстоянии до нескольких доступных контуров не выбираем по roomId: автоопределение
+   создаёт эти id заново, и без изменения геометрии объект переехал бы в другую комнату. Неоднозначный
+   кандидат передаём grid-ветке; если она не разрешает ситуацию — честно оставляем объект без комнаты
+   и с видимой меткой, а не меняем схему и деньги молча. */
 function resolveRoomForPoint(cx,cy,ctx){
   const hit=ctx.polyRooms.find(r=>pointInPolygon(cx,cy,r.polygon));
   if(hit)return hit;
+  const tolerance=EPConfig.roomEdgeTolerance;
+  if(Number.isFinite(tolerance)&&tolerance>=0){
+    const EPS=1e-9;
+    let near=null,bestDist=Infinity,ambiguous=false;
+    for(const room of ctx.polyRooms){
+      const probe=roomContourProbe(cx,cy,room.polygon,ctx.walls||[],EPConfig.roomProbeInset);
+      if(probe.blocked||probe.dist>tolerance)continue;
+      if(probe.dist<bestDist-EPS){near=room;bestDist=probe.dist;ambiguous=false}
+      else if(Math.abs(probe.dist-bestDist)<=EPS){ambiguous=true}
+    }
+    if(near&&!ambiguous)return near;
+  }
   if(ctx.map&&ctx.gridRooms.length){
     const component=componentAt(ctx.map,cx,cy);
     /* ⚠️ guard component>=0 НЕ случайный. В main правило жило двумя копиями: подсветка
