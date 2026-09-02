@@ -1988,7 +1988,7 @@ function renderBuilder(){
       :`<div class="builder-error" role="alert"><strong>Накладка поста не выбрана</strong><span>У этого поста нет накладки. Чтобы собрать и сохранить пост, выберите накладку в поле «Накладка» — без неё не определить ни ёмкость рамки, ни совместимые механизмы. Механизмы поста сохранены.</span></div>`;
     /* frameMissing:true — внутренний флаг «накладка непригодна» (артикула нет ИЛИ не выбрана):
        по нему renderBuilderCatalog не фильтрует каталог и не обещает свободное место. */
-    builderCtx={mechs:[],addMax:0,maxPostCap:0,remaining:0,frame:null,errorHtml:frameErrorHtml,frameMissing:true};
+    builderCtx={mechs:[],keepMechs:[],addMax:0,maxPostCap:0,remaining:0,frame:null,errorHtml:frameErrorHtml,frameMissing:true};
     renderBuilderCatalog();
     /* Причину печатает composition-хост из builderCtx.errorHtml — тем же путём, что и ошибки
        раскладки в нормальной ветке: refreshBuilderLighting перерисует состав, не потеряв её. */
@@ -2003,13 +2003,32 @@ function renderBuilder(){
      «свободно 2» рядом с «свободно 0 модулей». */
   const capacity=builderCapacity();
   const mechs=compatibleMechanisms(selectedFrame,allMechanisms);
+  /* ⚠️ МЕХАНИЗМ, УЖЕ СТОЯЩИЙ В ПОСТЕ И СНЯТЫЙ С ПРОИЗВОДСТВА (active:false), УДЕРЖИВАЕМ — то же
+     правило владельца, что для накладки (4456bd0): изделие могло быть заложено в проект до снятия
+     позиции и физически существует, смета обязана считаться по нему. byKind фильтрует active,
+     поэтому снятый механизм не попадает в allMechanisms → compatibleMechanisms его не видит →
+     allowedTokens не пускает его токен → fitMechanismIds выбрасывал его молча вместе со
+     стоимостью (тот же класс дефекта, что подмена накладки на frames[0]).
+     Слоты разрешаем через product() (active НЕ фильтрует, в отличие от byKind), берём снятые
+     механизмы поста и пропускаем их через ТОТ ЖЕ фильтр серии compatibleMechanisms, что и
+     активные. Так две причины отсева НЕ смешиваются: снятый механизм СВОЕЙ серии удерживается, а
+     механизм ЧУЖОЙ серии (человек сменил накладку на другую серию) законно выпадает — это правило
+     compatibleMechanisms, его не трогаем. keepMechs идёт ТОЛЬКО в fit/упаковку; каталог (mechs →
+     builderCtx.mechs ниже) остаётся из активных, поэтому снятый механизм не предлагается новым. */
+  /* Дедуп по id: в посте бывают два одинаковых механизма, а для keepMechs важен НАБОР товаров. */
+  const placedDiscontinued=[...new Map(state.builder.slots
+    .map(s=>product(s.id)).filter(item=>item&&item.active===false&&item.kind==="mechanism")
+    .map(item=>[Number(item.id),item])).values()];
+  const keepMechs=placedDiscontinued.length
+    ?compatibleMechanisms(selectedFrame,allMechanisms.concat(placedDiscontinued))
+    :mechs;
   /* ⚠️ ФИЛЬТРАЦИЯ И УПАКОВКА ИДУТ НАД ТОКЕНАМИ-ПОЗИЦИЯМИ СЛОТОВ, а не над id механизмов.
      Правила остаются те же самые (EPPosts.fitMechanismIds / distributePosts — второй копии
      раскладки не появляется), но вместе с механизмом переезжает и его группа света: id для
      этого не годится, в посте бывают два одинаковых механизма (см. js/builderSlots.js). */
   const fitDeps=EPBuilderSlots.tokenDeps(state.builder.slots,{product,mechanismSpan});
   const fitOrder=EPPosts.fitMechanismIds(EPBuilderSlots.tokens(state.builder.slots),
-    EPBuilderSlots.allowedTokens(state.builder.slots,mechs),capacity,fitDeps);
+    EPBuilderSlots.allowedTokens(state.builder.slots,keepMechs),capacity,fitDeps);
   state.builder.slots=EPBuilderSlots.pick(state.builder.slots,fitOrder);
   retargetBuilderSlot(fitOrder);
   const occupied=mechanismModulesTotal(EPBuilderSlots.toPost(state.builder.slots).mechanismIds);
@@ -2064,7 +2083,15 @@ function renderBuilder(){
   const frameNoticeHtml=frameDiscontinued
     ?`<div class="builder-notice" role="status"><strong>Накладка снята с производства</strong><span>Артикул ${esc(selectedFrame.code||"")} больше не выпускается и новым постам не предлагается. В этом посте накладка оставлена: изделие могло быть заложено в проект до снятия и физически существует — смета считается по ней. При желании выберите замену в поле «Накладка».</span></div>`
     :"";
-  builderCtx={mechs,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:frameNoticeHtml+builderErrorHtml(dist)};
+  /* ⚠️ МЕХАНИЗМ СНЯТ С ПРОИЗВОДСТВА — та же приглушённая пометка, что у накладки (решение владельца
+     02.09), но своим текстом: причина другая, чем «артикул пропал из каталога» (там product не
+     разрешается вовсе и считать нечего). Здесь механизм разрешён в товар, удержан в посте и
+     посчитан по своей цене — сообщаем, а не блокируем; сохранение остаётся по dist.valid/full.
+     Перечисляем сами артикулы: снятых механизмов в посте может быть несколько. */
+  const mechNoticeHtml=placedDiscontinued.length
+    ?`<div class="builder-notice" role="status"><strong>Механизм снят с производства</strong><span>${esc(placedDiscontinued.map(m=>m.code||"без артикула").join(", "))} — больше не выпускается и новым постам не предлагается. В этом посте механизм оставлен: изделие могло быть заложено в проект до снятия и физически существует — смета считается по нему. При желании замените его карточкой в каталоге.</span></div>`
+    :"";
+  builderCtx={mechs,keepMechs,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:frameNoticeHtml+mechNoticeHtml+builderErrorHtml(dist)};
   renderBuilderCatalog();
   renderBuilderComposition(selectedFrame,builderCtx.errorHtml,light,draft);
   /* Сохранять можно, только когда сборка физически собирается (никакой механизм не шире поста
@@ -2107,7 +2134,7 @@ function renderBuilderSlots(layout,remaining,lightRows){
       <div class="slot-number" title="${esc(moduleWord(slot.span))}">${esc(slot.label)}</div>
       <div class="slot-body">${productPicture(item,{label:item?item.name:"Элемент"})}
         <span class="slot-text"><span class="slot-code">${esc(item?.code||"без артикула")}</span>
-          <span class="slot-name" title="${esc(item?.name||"")}">${esc(item?.name||"Механизм не найден")}</span>
+          <span class="slot-name" title="${esc(item?.name||"")}">${esc(item?.name||"Механизм не найден")}</span>${item&&item.active===false?'<span class="slot-off">снят с производства</span>':""}
           <span class="slot-meta">${esc(moduleWord(slot.span))} · ${productMoney(item)}</span></span>
         <span class="slot-actions">
           <button type="button" data-slot-replace="${index}">${isTarget?"Отменить":"Заменить"}</button>
@@ -2285,7 +2312,7 @@ function pickBuilderProduct(id){
     const deps=EPBuilderSlots.tokenDeps(state.builder.slots,{product,mechanismSpan});
     state.builder.slots=EPBuilderSlots.pick(state.builder.slots,
       EPPosts.fitMechanismIdsPreserving(EPBuilderSlots.tokens(state.builder.slots),
-        EPBuilderSlots.allowedTokens(state.builder.slots,builderCtx.mechs),capacity,index,deps));
+        EPBuilderSlots.allowedTokens(state.builder.slots,builderCtx.keepMechs),capacity,index,deps));
   }else{
     state.builder.slots=EPBuilderSlots.add(state.builder.slots,id);
   }

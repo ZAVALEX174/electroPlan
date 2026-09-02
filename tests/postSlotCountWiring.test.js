@@ -220,7 +220,11 @@ test("pickBuilderProduct: замена карточки в накладке 8М 
   const ctx = makeCtx(state, dom);
   dom.els.postFrameSelect = { value: String(FRAME8.id), dataset: {} };   // накладка уже выбрана прошлым render
   dom.$("postSlotCount").value = "5";                                     // селектор врёт «5»
-  ctx.builderCtx = { mechs: EPCatalog.compatibleMechanisms(FRAME8, PRODUCTS.filter(x => x.kind === "mechanism" && x.active)) };
+  /* renderBuilder кладёт в builderCtx ДВА списка: mechs (каталог карточек, только active) и
+     keepMechs (что fit удерживает — active + снятые с производства механизмы поста). Здесь снятых
+     нет, поэтому keepMechs совпадает с mechs; pickBuilderProduct фитит именно по keepMechs. */
+  const compatible = EPCatalog.compatibleMechanisms(FRAME8, PRODUCTS.filter(x => x.kind === "mechanism" && x.active));
+  ctx.builderCtx = { mechs: compatible, keepMechs: compatible };
   const pick = stand.run(["builderCapacity", "pickBuilderProduct"], ctx);
   pick(Number(MECH1.id));
 

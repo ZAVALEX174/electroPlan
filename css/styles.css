@@ -248,6 +248,9 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .slot-light{grid-column:2;margin-top:5px;padding:5px 7px;border-radius:7px;background:#f2f8ff;color:var(--blue-dark);font-size:10px}
 .slot-light.is-missing{background:#fdf0f0;color:#9a4a2f}
 .slot-bare{grid-column:2;margin-top:5px;color:#9a4a2f;font-size:10px}
+/* Пометка «снят с производства» у механизма слота — та же янтарная палитра, что и .builder-notice
+   у накладки: сообщает, а не блокирует (сохранять разрешено). */
+.slot-off{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:#fdf6e8;border:1px solid #e6cfa0;color:#7a5a12;font-size:9px;font-weight:800;vertical-align:middle}
 /* Постоянное место под строку расчёта групп света. Ввод группы обновляет ТОЛЬКО содержимое
    этого контейнера, не перерисовывая слот целиком, — иначе карточка каталога, по которой
    человек кликает, исчезает между нажатием и отпусканием кнопки и первый клик пропадает.
