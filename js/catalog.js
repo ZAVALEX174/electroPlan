@@ -84,17 +84,18 @@ function compatibleMechanisms(frame, mechanisms) {
   return compatible.length ? compatible : mechanisms;
 }
 
-/* Ёмкость рамки в модулях: явное поле, иначе «на N модулей» из текста, иначе null.
-   Поддерживаем 1..8 (основные размеры заказчика — 6-7-8, ответы 31.07 §2.6). Явная ёмкость
-   авторитетна: если она есть, но вне 1..8 — возвращаем null, НЕ угадывая по названию. Так
-   многорядные накладки (14=7+7, 21=7+7+7) не подставляются под однорядные размеры: у них
-   двумерная нумерация модулей, конструктор её пока не поддерживает (отложено владельцем). */
+/* Ёмкость накладки в модулях: явное поле, иначе «на N модулей» из текста, иначе null.
+   Поддерживаем 1..21: верхняя граница — самая большая реальная накладка каталога,
+   многорядная 7+7+7. Двумерную геометрию не угадываем здесь: она уже лежит в
+   frame.layoutRows и читается EPPosts.frameLayout всеми раскладками. Явная ёмкость
+   авторитетна: если она есть, но вне диапазона — возвращаем null, НЕ выкусывая из
+   названия «4 модуля» внутри ошибочного «24 модуля». */
 function frameSlotCount(item) {
   if (!item) return null;
   const explicit = Number(item.slotCount ?? item.slots ?? item.placeCount);
-  if (Number.isInteger(explicit) && explicit >= 1) return explicit <= 8 ? explicit : null;
+  if (Number.isInteger(explicit) && explicit >= 1) return explicit <= 21 ? explicit : null;
   const text = [item.name, item.compatibility, item.properties?.compatibility].filter(Boolean).join(" ");
-  const match = text.match(/(?:на|для)?\s*([1-8])\s*(?:модул|мест|пост|module|slot|[mf]\b)/i);
+  const match = text.match(/(?:на|для)?\s*\b(21|20|1\d|[1-9])\s*(?:модул|мест|пост|module|slot|[mf]\b)/i);
   return match ? Number(match[1]) : null;
 }
 
@@ -102,8 +103,8 @@ function frameSlotCount(item) {
    Селектор «Количество модулей рамки» строится ИЗ этого списка, а не из константы в разметке:
    размера, которого в номенклатуре нет (сейчас — 5 модулей), не предлагаем; появится
    5-модульная накладка — вариант возникнет сам, без правки кода. Многорядные 14/21
-   (frameSlotCount → null) сюда не попадают намеренно — их двумерную раскладку конструктор пока
-   не поддерживает (см. frameSlotCount). */
+   входят тем же путём: frameSlotCount отдаёт общую ёмкость, а ряды 7+7/7+7+7
+   остаются отдельным свойством frame.layoutRows. */
 function frameSlotCounts(frames) {
   const counts = new Set();
   (frames || []).forEach(frame => {

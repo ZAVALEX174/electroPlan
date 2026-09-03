@@ -2,7 +2,7 @@
 
    ДВА УРОВНЯ. Первый — ЧИСТЫЙ критерий EPRoomAssign.isOutsideRooms (грузится в node напрямую):
    единственный экземпляр правила «объект без комнаты» (§7.1), которым метятся иконки на плане и
-   считается счётчик. Второй — ПОВЕДЕНЧЕСКИЙ прогон orphanObjectsWarningHtml из app.js: app.js —
+   считается счётчик. Второй — ПОВЕДЕНЧЕСКИЙ прогон orphanObjectsWarningText из app.js: app.js —
    монолит-оркестратор (DOM, state), в node не грузится, поэтому вырезаем ИСХОДНЫЙ ТЕКСТ функции и
    исполняем в vm-контексте с state-шимом и НАСТОЯЩИМ EPRoomAssign. Критерий берётся из реального
    модуля — инверсия/игнор числа комнат в roomAssign.js покраснеют здесь же.
@@ -34,12 +34,12 @@ test("isOutsideRooms: комнаты есть, объект в комнате �
   assert.equal(isOutsideRooms("R1", 2), false);
 });
 
-/* ---- 2. Поведенческий прогон orphanObjectsWarningHtml из app.js ---------------------------- */
+/* ---- 2. Поведенческий прогон orphanObjectsWarningText из app.js ---------------------------- */
 
-/* Живая orphanObjectsWarningHtml на общем стенде: state и настоящий EPRoomAssign (критерий берётся
+/* Живая orphanObjectsWarningText на общем стенде: state и настоящий EPRoomAssign (критерий берётся
    из реального модуля — мутации в нём покраснеют здесь). Вырезание исходника и vm — в appStand. */
 function buildWarning(state) {
-  return stand.run("orphanObjectsWarningHtml", { state: state, EPRoomAssign: EPRoomAssign });
+  return stand.run("orphanObjectsWarningText", { state: state, EPRoomAssign: EPRoomAssign });
 }
 const stateOf = (rooms, devices, posts) => ({ rooms: rooms, devices: devices, posts: posts });
 const dev = roomId => ({ id: "d" + Math.random(), roomId: roomId });

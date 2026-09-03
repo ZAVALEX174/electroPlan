@@ -1,7 +1,7 @@
 /* Структурный регресс: пять CSS-правил метки «вне помещений» существуют и объявляют непустой блок.
 
    ЗАЧЕМ. Метка на плане и строка-предупреждение держатся на классах, которые ПИШЕТ JS
-   (`no-room` — classList.add/toggle в app.js; `lighting-orphan-note` — в orphanObjectsWarningHtml),
+   (`no-room` — classList.add/toggle в app.js; `canvas-orphan-status` — в index.html),
    и на CSS-правилах, которые эти классы РИСУЮТ. DOM-шимы соседних тестов проверяют лишь, что класс
    лёг в classList, а не что под него есть стиль. Состязательный проход показал: удаление всех пяти
    правил из styles.css оставляет прогон зелёным — переименование класса, опечатка в селекторе или
@@ -13,7 +13,7 @@
 
    ЧТО ЛОВИТ:
      - удаление/переименование любого из пяти селекторов в CSS → селектор не найден → красный;
-     - переименование класса `no-room`/`lighting-orphan-note` в app.js без правки CSS → красный;
+     - переименование класса `no-room` в app.js или `canvas-orphan-status` в HTML без CSS → красный;
      - селектор на месте, но блок опустошён до `{}` → нет ни одного объявления → красный.
 
    ЧЕГО НЕ ЛОВИТ (честно). Тест НЕ проверяет, что стиль ВИЗУАЛЬНО работает: не смотрит на значения
@@ -28,6 +28,7 @@ const path = require("node:path");
 const dir = path.join(__dirname, "..");
 const APP = fs.readFileSync(path.join(dir, "js", "app.js"), "utf8");
 const CSS = fs.readFileSync(path.join(dir, "css", "styles.css"), "utf8");
+const HTML = fs.readFileSync(path.join(dir, "index.html"), "utf8");
 
 /* --- Имена классов ИЗ JS ------------------------------------------------------------------- */
 /* Класс метки — тот, что app.js переключает ПО критерию isOutsideRooms (syncNoRoomClass) и
@@ -41,10 +42,12 @@ assert.equal(addMatch[1], toggleMatch[1],
   "класс метки в compactIcon и syncNoRoomClass обязан быть один — иначе метка на экране расходится сама с собой");
 const NO_ROOM = toggleMatch[1];
 
-/* Класс строки-предупреждения — тот, что orphanObjectsWarningHtml печатает в разметку. */
-const noteMatch = APP.match(/<div class="([\w-]+)">\s*⚠\s*Вне помещений/);
-assert.ok(noteMatch, "orphanObjectsWarningHtml должна печатать <div class=\"...\">⚠ Вне помещений — иначе тест сторожит не тот класс");
-const NOTE = noteMatch[1];
+/* Класс строки-предупреждения берём из ЕДИНСТВЕННОГО статического узла #outsideRoomsStatus. */
+const noteTag = HTML.match(/<[^>]+\bid="outsideRoomsStatus"[^>]*>/);
+assert.ok(noteTag, "index.html должен содержать узел #outsideRoomsStatus");
+const noteClass = noteTag[0].match(/\bclass="([\w-]+)"/);
+assert.ok(noteClass, "#outsideRoomsStatus должен иметь класс, связанный с CSS");
+const NOTE = noteClass[1];
 
 /* --- Разбор CSS в правила ------------------------------------------------------------------ */
 /* Снимаем комментарии, затем набираем плоские правила `селекторы { блок }`. Все пять целевых

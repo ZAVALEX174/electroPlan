@@ -1,10 +1,12 @@
 /* Автотесты доменного каталога (EPCatalog, js/catalog.js). Модуль чистый — товары
    приходят объектами, браузер не нужен. Здесь проверяем ёмкость рамок: конструктор
-   расширен до 8 модулей (основные размеры заказчика 6-7-8, ответы 31.07 §2.6), а
-   многорядные накладки (14=7+7, 21=7+7+7) в подбор НЕ попадают — их двумерную нумерацию
-   конструктор пока не поддерживает (отложено владельцем). */
+   поддерживает обычные размеры 1..8 и реальные многорядные накладки 14=7+7,
+   21=7+7+7; геометрия рядов приходит отдельно через layoutRows. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
 const { mechanismSpan, frameSlotCount, frameSlotCounts, frameSlotOptions, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage, moduleWord, placeWord } = require("../js/catalog.js");
 
 /* --- склонение счётных подписей (moduleWord/placeWord) --- */
@@ -82,7 +84,7 @@ test("mechanismSpan: нет распознаваемой ёмкости → 1, �
   assert.equal(mechanismSpan(null), 0);
 });
 
-/* --- ёмкость рамки: явная slotCount 1..8 авторитетна --- */
+/* --- ёмкость рамки: явная slotCount 1..21 авторитетна --- */
 test("frameSlotCount: рамки 6/7/8 модулей теперь распознаются", () => {
   assert.equal(frameSlotCount({ slotCount: 6 }), 6);
   assert.equal(frameSlotCount({ slotCount: 7 }), 7);
@@ -91,18 +93,20 @@ test("frameSlotCount: рамки 6/7/8 модулей теперь распоз�
 test("frameSlotCount: прежние размеры 1..5 не сломаны", () => {
   for (const n of [1, 2, 3, 4, 5]) assert.equal(frameSlotCount({ slotCount: n }), n);
 });
-test("frameSlotCount: многорядные 14 (7+7) и 21 (7+7+7) → null (не предлагаются)", () => {
-  assert.equal(frameSlotCount({ slotCount: 14, name: "Накладка для 14 модулей (7+7)" }), null);
-  assert.equal(frameSlotCount({ slotCount: 21, name: "Накладка для 21 модуля (7+7+7)" }), null);
+test("frameSlotCount: многорядные 14 (7+7) и 21 (7+7+7) доступны по общей ёмкости", () => {
+  assert.equal(frameSlotCount({ slotCount: 14, name: "Накладка для 14 модулей (7+7)" }), 14);
+  assert.equal(frameSlotCount({ slotCount: 21, name: "Накладка для 21 модуля (7+7+7)" }), 21);
 });
-test("frameSlotCount: явная ёмкость >8 не угадывается по названию (14 модулей ≠ 4)", () => {
-  // Раньше при slotCount вне диапазона логика падала на regex и «14 модулей» давало 4 —
-  // многорядная накладка утекала под размер 4. Явная ёмкость должна возвращать null.
-  assert.equal(frameSlotCount({ slotCount: 14, name: "Рамка на 14 модулей" }), null);
+test("frameSlotCount: явная ёмкость >21 не угадывается повторно по названию", () => {
+  assert.equal(frameSlotCount({ slotCount: 24, name: "Рамка на 4 модуля" }), null);
 });
-test("frameSlotCount: без явного slotCount берём число из названия (1..8)", () => {
+test("frameSlotCount: без явного slotCount берём число из названия (1..21)", () => {
   assert.equal(frameSlotCount({ name: "Накладка на 7 модулей, белая" }), 7);
   assert.equal(frameSlotCount({ name: "Накладка на 8 модулей (2+2+2+2)" }), 8);
+  assert.equal(frameSlotCount({ name: "Накладка для 14 модулей (7+7)" }), 14);
+  assert.equal(frameSlotCount({ name: "Накладка для 21 модуля (7+7+7)" }), 21);
+  assert.equal(frameSlotCount({ name: "Макет на 24 модуля" }), null, "24 не должна превратиться в 4");
+  assert.equal(frameSlotCount({ name: "Панель на 121 module" }), null, "121 не должна превратиться в 21");
 });
 
 test("frameSlotCounts: список модульностей — ПРОИЗВОДНАЯ данных, а не константа", () => {
@@ -111,14 +115,35 @@ test("frameSlotCounts: список модульностей — ПРОИЗВО�
   const catalog = [
     { slotCount: 3 }, { slotCount: 1 }, { slotCount: 3 }, { slotCount: 8 },
     { slotCount: 4 }, { slotCount: 6 }, { slotCount: 7 }, { slotCount: 2 },
-    { slotCount: 14, name: "Накладка для 14 модулей (7+7)" } // многорядная → в список не идёт
+    { slotCount: 14, name: "Накладка для 14 модулей (7+7)" },
+    { slotCount: 21, name: "Накладка для 21 модуля (7+7+7)" }
   ];
-  assert.deepEqual(frameSlotCounts(catalog), [1, 2, 3, 4, 6, 7, 8]);
+  assert.deepEqual(frameSlotCounts(catalog), [1, 2, 3, 4, 6, 7, 8, 14, 21]);
   // Если список зашьют константой [1..8] — тут появится 5 и тест покраснеет:
   assert.ok(!frameSlotCounts(catalog).includes(5), "пятёрки в данных нет — её не должно быть и в списке");
   // Если из данных пропадёт существующая модульность — она обязана исчезнуть и из списка:
   const без6 = catalog.filter(f => frameSlotCount(f) !== 6);
-  assert.deepEqual(frameSlotCounts(без6), [1, 2, 3, 4, 7, 8]);
+  assert.deepEqual(frameSlotCounts(без6), [1, 2, 3, 4, 7, 8, 14, 21]);
+});
+
+test("реальный каталог: все 18 многорядных накладок доступны и несут ряды по 7", () => {
+  const win = {};
+  const jsDir = path.join(__dirname, "..", "js");
+  vm.runInNewContext(fs.readFileSync(path.join(jsDir, "catalog-vimar.js"), "utf8"), { window: win });
+  vm.runInNewContext(fs.readFileSync(path.join(jsDir, "catalog-vimar-attrs.js"), "utf8"), { window: win });
+  const multi = win.EP_VIMAR_CATALOG.products
+    .filter(p => p.kind === "frame" && p.active && (p.slotCount === 14 || p.slotCount === 21));
+
+  assert.equal(multi.length, 18, "предпосылка задачи: 18 активных многорядных накладок");
+  assert.deepEqual(frameSlotCounts(multi), [14, 21]);
+  assert.equal(multi.filter(p => p.slotCount === 14).length, 9);
+  assert.equal(multi.filter(p => p.slotCount === 21).length, 9);
+  multi.forEach(frame => {
+    assert.equal(frameSlotCount(frame), frame.slotCount, `${frame.code} должна попасть в фильтр`);
+    const rows = Array.from(win.EP_VIMAR_ATTRS.standards[frame.code].layoutRows, row => Array.from(row));
+    assert.deepEqual(rows, Array.from({ length: frame.slotCount / 7 }, () => [7]),
+      `${frame.code}: геометрия должна быть рядами по 7, а не плоской догадкой`);
+  });
 });
 
 test("frameSlotOptions: фактическая ёмкость поста попадает в список, даже если её модульности в каталоге нет", () => {

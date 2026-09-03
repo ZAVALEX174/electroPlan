@@ -20,10 +20,10 @@
      const stand = require("./helpers/appStand.js");
      const EPRoomAssign = require("../js/roomAssign.js");
      const dom = stand.makeDom();                                   // DOM-шим ($/els)
-     const render = stand.run(["orphanObjectsWarningHtml", "renderSummary"], {
+     const render = stand.run(["orphanObjectsWarningText", "renderSummary"], {
        state, EPRoomAssign, $: dom.$, money: v => "m"+v, esc: String, ... });   // vm-контекст
      render();                                                       // исполнили настоящий app.js
-     assert.match(dom.els.lightingSummary.innerHTML, /Вне помещений/);
+     assert.match(dom.els.outsideRoomsStatus.textContent, /Вне помещений/);
 
    ИНТЕРФЕЙС.
      stand.run(names, ctx)      — вырезать функции names (строка или массив в порядке зависимостей),

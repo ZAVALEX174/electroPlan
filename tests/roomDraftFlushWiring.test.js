@@ -47,3 +47,23 @@ test("mountedRoomId присваивается в ветке комнаты (mou
     "mountedRoomId должен присваиваться из r.id в ветке комнаты renderProperties"
   );
 });
+
+test("комната сообщает об автосохранении и больше не показывает дублирующую кнопку", () => {
+  const rpIdx = SRC.indexOf("function renderProperties");
+  const body = stripComments(SRC.slice(rpIdx));
+  assert.doesNotMatch(body, /saveRoomProps|Сохранить изменения/,
+    "при подтверждённом автосохранении отдельной кнопки и её обработчика быть не должно");
+  assert.match(body, /id="roomSaveState"[^>]*>\s*Сохраняется автоматически при выходе из поля/,
+    "панель должна прямо объяснять, когда сохраняются имя и площадь");
+});
+
+test("blur, Enter и перерисовка используют один flushRoomDraft", () => {
+  const rpIdx = SRC.indexOf("function renderProperties");
+  const body = stripComments(SRC.slice(rpIdx));
+  assert.match(body, /const\s+commitRoomFields\s*=\s*\(\)\s*=>\s*\{\s*flushRoomDraft\s*\(\s*\)/,
+    "обработчики полей должны делегировать общему коммиту, а не дублировать нормализацию");
+  assert.match(body, /e\.key\s*===\s*"Enter"[\s\S]{0,120}commitRoomFields\s*\(\s*\)/,
+    "Enter должен немедленно коммитить поле");
+  assert.match(body, /\.onblur\s*=\s*commitRoomFields/,
+    "выход из поля должен коммитить значение");
+});

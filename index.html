@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260902.4">
+  <link rel="stylesheet" href="css/styles.css?v=20260903.1">
 </head>
 <body>
 <div class="app">
@@ -151,8 +151,13 @@
       </div>
 
       <div class="canvas-footer">
-        <span>Объекты отображаются компактными пиктограммами</span>
-        <span>Наведите курсор, чтобы увидеть полный состав</span>
+        <div class="canvas-footer-hints">
+          <span>Объекты отображаются компактными пиктограммами</span>
+          <span>Наведите курсор, чтобы увидеть полный состав</span>
+        </div>
+        <!-- Отдельный канал статуса: updateStatus продолжает писать подсказки инструментов в
+             #status, а предупреждение о привязке не может затереть их и само не исчезает с ними. -->
+        <div class="canvas-orphan-status" id="outsideRoomsStatus" role="status" aria-live="polite" hidden></div>
       </div>
     </section>
 
@@ -399,7 +404,7 @@
      верхняя граница). Общий модуль: им пользуются и перенумерация постов, и закрытие
      конструктора с несохранёнными правками. -->
 <script src="js/confirmRepeat.js?v=20260828.4"></script>
-<script src="js/catalog.js?v=20260831.1"></script>
+<script src="js/catalog.js?v=20260903.1"></script>
 <!-- Чистый модуль (ни DOM, ни state): подбор механизма по группе света и схеме электрики.
      Считается по ВСЕМУ проекту, результат отдаётся в состав поста, поэтому грузится до postfit/posts. -->
 <script src="js/lightingGroups.js?v=20260828.6"></script>
@@ -412,7 +417,7 @@
      до app.js, который через него считает projectLighting. -->
 <script src="js/lightingByRoom.js?v=20260830.2"></script>
 <script src="js/postfit.js?v=20260826.2"></script>
-<script src="js/posts.js?v=20260902.1"></script>
+<script src="js/posts.js?v=20260903.1"></script>
 <script src="js/picker.js?v=20260801.1"></script>
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
 <script src="js/catalogSections.js?v=20260828.1"></script>
@@ -437,6 +442,6 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-<script src="js/app.js?v=20260902.7"></script>
+<script src="js/app.js?v=20260903.3"></script>
 </body>
 </html>

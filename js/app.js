@@ -1240,7 +1240,7 @@ function removeEntity(kind,id){
 let mountedRoomId=null;
 /* Коммит незавершённого черновика комнаты ДО замены props.innerHTML (см. EPRoomDraft — там
    зачем и почему). Решение о коммите — в чистой функции; здесь только чтение полей из DOM и
-   применение результата (renderRooms/persistProject, как в saveRoom, БЕЗ renderProperties —
+   применение результата (updateRoomLabelText/persistProject, как при blur/Enter, БЕЗ renderProperties —
    рекурсии между ними нет). */
 /* Точечно обновить ТЕКСТ подписи комнаты на плане — без пересоздания слоя .room-label.
    ЗАЧЕМ НЕ renderRooms(): flushRoomDraft зовётся в начале renderProperties, а та — из beginPress
@@ -1306,7 +1306,7 @@ function renderProperties(){
     <label>Цена<input value="${productMoney(p)}" disabled></label>
     <div class="property-actions"><button class="btn ghost" id="removeSelected">Удалить</button></div>`;
     /* ⚠️ ПРАВКА В ПАНЕЛИ СВОЙСТВ ОБЯЗАНА СОХРАНЯТЬСЯ — то же правило, что у ветки комнаты ниже
-       (saveRoom → persistProject). Здесь высота писалась только в объект в памяти: она попадала
+       (commitRoomFields → flushRoomDraft → persistProject). Здесь высота писалась только в объект в памяти: она попадала
        в подсказку и в лист монтажника, но исчезала при перезагрузке страницы, если после неё
        ничего больше не двигали. Кнопки «Сохранить» у одиночного элемента нет — поле одно, —
        поэтому сохраняем отложенно, прямо по вводу (scheduleSave склеивает поток нажатий). */
@@ -1406,25 +1406,23 @@ function renderProperties(){
     <div class="room-equipment-box"><div class="room-equipment-head"><span>Оборудование комнаты</span><b>${roomObjects.length}</b></div>
       ${roomObjects.length?roomObjects.map(o=>`<div class="room-equipment-row"><span>${esc(o.name)}</span><small>${o.kind==="post"?"Пост":"Элемент"}</small></div>`).join(""):'<div class="room-equipment-empty">В этой комнате пока нет оборудования</div>'}
     </div>
-    <button class="btn primary full" id="saveRoomProps" style="margin-top:10px">Сохранить изменения</button>
-    <div class="property-save-state" id="roomSaveState"></div>
+    <div class="property-save-state" id="roomSaveState">Сохраняется автоматически при выходе из поля</div>
     <label class="room-scheme-field">Схема электрики<select id="roomSchemeSelect">${schemeOptions}</select></label>
     <small class="prop-hint prop-scheme-source${ownScheme?" own":""}">${ownScheme?"Своя схема комнаты":`Унаследована от проекта: ${esc(projSchemeItem?projSchemeItem.label:projScheme)}`}</small>
     ${curSchemeItem&&!curSchemeItem.supported?`<small class="prop-hint prop-scheme-note">${esc(curSchemeItem.note)}</small>`:""}`;
     mountedRoomId=r.id;   /* этим полям принадлежит комната r — flushRoomDraft коммитит именно в неё */
-    const saveRoom=()=>{
-      r.name=$("roomName").value.trim()||"Комната";
-      r.area=$("roomArea").value.trim();
-      renderRooms();
+    /* Владелец подтвердил автосохранение 03.09: кнопки «Сохранить изменения» больше нет.
+       Blur, Enter и любая перерисовка панели сходятся в ОДИН flushRoomDraft — второго правила
+       нормализации имени/площади и безусловного persistProject здесь не держим. */
+    const commitRoomFields=()=>{
+      flushRoomDraft();
       $("roomSaveState").textContent="Изменения сохранены";
-      persistProject();
     };
-    $("saveRoomProps").onclick=saveRoom;
     const editPolygonBtn=$("editRoomPolygon");
     if(editPolygonBtn)editPolygonBtn.onclick=()=>setTool("vertex");
     ["roomName","roomArea"].forEach(field=>{
-      $(field).onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();saveRoom()}};
-      $(field).onblur=saveRoom;
+      $(field).onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();commitRoomFields()}};
+      $(field).onblur=commitRoomFields;
     });
     /* Схема электрики применяется СРАЗУ по change (как тип стены поста и высота элемента), а не
        через черновик имени/площади: у неё свой орган и своё немедленное действие. «Как в проекте»
@@ -1436,7 +1434,8 @@ function renderProperties(){
       const val=e.target.value;
       if(val)r.lightingScheme=val; else delete r.lightingScheme;
       /* ⚠️ СХЕМА КОМНАТЫ — ДЕНЕЖНАЯ НАСТРОЙКА (часть 3: расчёт групп света идёт по комнатам).
-         renderSummary обязателен: #grandTotal/#specList/#lightingSummary пишутся ТОЛЬКО в нём,
+         renderSummary обязателен: #grandTotal/#specList/#lightingSummary/#outsideRoomsStatus
+         пишутся ТОЛЬКО в нём,
          и без него панель показывала бы старую сумму, а кэш уже сброшен — следующий экспорт КП
          напечатал бы новую. Экран и документ об одном проекте противоречить не могут.
          Список потребителей тот же, что у схемы ПРОЕКТА (applyProjectSettings). */
@@ -1626,14 +1625,15 @@ function buildEstimate(light){
     settings:EP_DATA.settings
   });
 }
-/* Явное предупреждение «часть объектов вне помещений» под блоком групп света НА ЭКРANE.
+/* Явное предупреждение «часть объектов вне помещений» в строке статуса ПОД ПЛАНОМ.
    ЗАЧЕМ отдельной строкой, а не только суффиксом «· Без помещения» у групп: тот суффикс
    виден, лишь когда осиротевший пост участвует в группе света; розетка или пост без групп
    его не покажут — а пост без комнаты теперь считается по схеме проекта, а не по своей, и
-   это деньги. Строку добавляем ТОЛЬКО в #lightingSummary (renderSummary), не внутрь
-   lightingHtml — иначе она уехала бы и в КП/лист монтажника (документы вне этой правки).
+   это деньги. Строку пишем ТОЛЬКО в #outsideRoomsStatus (renderSummary), не внутрь
+   lightingHtml — иначе она уехала бы и в КП/лист монтажника. #status не используем: туда
+   updateStatus пишет подсказки инструментов, и два независимых сообщения затирали бы друг друга.
    Показываем, лишь когда комнаты в проекте есть и кто-то реально выпал. */
-function orphanObjectsWarningHtml(){
+function orphanObjectsWarningText(){
   /* Счёт идёт через ЕДИНЫЙ критерий EPRoomAssign.isOutsideRooms (§7.1) — тот же, что метит
      иконки на плане (compactIcon/syncNoRoomClass). Собственного условия у счётчика быть не должно:
      со своей проверкой без учёта числа комнат на плане без единой комнаты метки нет, а счётчик
@@ -1651,8 +1651,8 @@ function orphanObjectsWarningHtml(){
      привязка к комнате есть лишь у поста), поэтому розетки вне комнат смету не меняют и ложной
      денежной тревоги поднимать не должны. */
   const money=posts?` Из них постов: ${posts} — их схема электрики считается по проекту.`:"";
-  return `<div class="lighting-orphan-note">⚠ Вне помещений: ${total} — отмечены на плане.${money} `
-    +`Перетащите объект в комнату или подвиньте контур.</div>`;
+  return `⚠ Вне помещений: ${total} — отмечены на плане.${money} `
+    +`Перетащите объект в комнату или подвиньте контур.`;
 }
 function renderSummary(){
   const light=projectLighting();
@@ -1670,7 +1670,10 @@ function renderSummary(){
     :'<div class="library-empty">Проект пока пуст</div>';
   /* Тот же блок, что печатается в КП и листе монтажника: подставленные механизмы, потребность
      в импульсных реле и пробелы с их причинами. */
-  $("lightingSummary").innerHTML=lightingHtml(light,"Группы света")+orphanObjectsWarningHtml();
+  $("lightingSummary").innerHTML=lightingHtml(light,"Группы света");
+  const outsideRoomsStatus=orphanObjectsWarningText();
+  $("outsideRoomsStatus").textContent=outsideRoomsStatus;
+  $("outsideRoomsStatus").hidden=!outsideRoomsStatus;
   updateStatus();
 }
 
@@ -1747,10 +1750,11 @@ function openPostBuilder({templateId=null,placedId=null}={}){
     $("postModalTitle").textContent="Новый электрический пост";
   }
   const sourceMechanismIds=Array.isArray(src.mechanismIds)?src.mechanismIds:[];
-  const capacity=frameSlotCount(frameProduct(src.frameId))||Math.max(1,Math.min(8,mechanismModulesTotal(sourceMechanismIds)||3));
+  const capacity=frameSlotCount(frameProduct(src.frameId))||Math.max(1,Math.min(21,mechanismModulesTotal(sourceMechanismIds)||3));
   /* Наполняем селектор ДО присвоения value: варианты — модульности каталога плюс фактическая
-     ёмкость этого поста. Иначе пост с исчезнувшей модульностью (5, или пост на многорядной
-     накладке) не нашёл бы своей опции и показал бы чужое значение (см. frameSlotOptions). */
+     ёмкость этого поста. Иначе пост с исчезнувшей модульностью не нашёл бы своей опции и
+     показал бы чужое значение (см. frameSlotOptions). Многорядные 14/21 теперь входят в
+     обычный каталог модульностей через frameSlotCount. */
   renderPostSlotCountSelect(capacity);
   $("postName").value=src.name;$("postSlotCount").value=String(capacity);
   /* Слоты несут группу света ВМЕСТЕ с механизмом (js/builderSlots.js). Пост, сохранённый до
@@ -1851,10 +1855,10 @@ function projectPostsWithBuilder(frame){
 /* ⚠️ ЕДИНСТВЕННЫЙ ИСТОЧНИК ЁМКОСТИ ПОСТА — НАСТОЯЩАЯ выбранная накладка (frameSlotCount), а НЕ
    значение селектора. От накладки же считаются деньги, состав и раскладка по постам — значит она
    и есть истина. Селектор «Количество модулей» только фильтрует, какие накладки предлагать.
-   Фолбэк на селектор (count) — для накладок без однорядной ёмкости (многорядные 14/21 →
-   frameSlotCount=null) и случая, когда накладка не выбрана либо недоступна: там ёмкость несёт
-   count, заданный при открытии поста (openPostBuilder). Функция ОДНА на всё окно: renderBuilder
-   и pickBuilderProduct обязаны считать ёмкость ею, второго источника быть не должно — раньше
+   Фолбэк на селектор (count) — для старого поста, чья накладка не выбрана либо недоступна:
+   там ёмкость несёт count, восстановленный при открытии поста (openPostBuilder). Функция ОДНА
+   на всё окно: renderBuilder и pickBuilderProduct обязаны считать ёмкость ею, второго источника
+   быть не должно — раньше
    pickBuilderProduct фитил состав от count, и выбор карточки при накладке 09668.01 (8М) с
    селектором «5» уничтожал три механизма (§7.1 «правило в одном месте»). */
 function builderCapacity(){
@@ -1887,9 +1891,9 @@ function renderBuilder(){
   const hasExplicitFrame="preferredFrameId" in frameSelect.dataset;
   const explicitFrameId=hasExplicitFrame?frameSelect.dataset.preferredFrameId:"";
   const preferredFrameId=Number(hasExplicitFrame?explicitFrameId:frameSelect.value);
-  /* Накладка поста может не пройти фильтр по числу модулей (frameSlotCount не знает
-     многорядные 14/21-модульные накладки и отдаёт null) или НЕ попасть в список byKind("frame")
-     как неактивная (снята с производства). Раньше её в таком случае молча подменяла frames[0] — и
+  /* Накладка поста может не пройти фильтр по числу модулей (старые/повреждённые данные) или НЕ
+     попасть в список byKind("frame") как неактивная (снята с производства). Раньше её в таком
+     случае молча подменяла frames[0] — и
      «Сохранить» переписывал post.frameId на первую попавшуюся накладку каталога, если она
      случайно оказалась совместимой. Поэтому накладку, СЕЙЧАС стоящую в посте, ДОБАВЛЯЕМ в список:
      пусть человек видит в поле ту накладку, которая у поста на самом деле, и меняет её сам, если
@@ -2638,7 +2642,8 @@ function addWallPoint(e){
     state.walls.push(makeWall(state.wallPoints.at(-2),p,false));
     /* renderSummary обязателен: новая стена-перегородка могла вывести объект из комнаты. Метку на
        плане ставит recalculateRoomAssignments, а строку «Вне помещений» — только renderSummary
-       (#lightingSummary пишется ТОЛЬКО в нём). Без него кольцо на плане загорается, а счётчик молчит
+       (#outsideRoomsStatus пишется ТОЛЬКО в нём). Без него кольцо на плане загорается, а счётчик
+       молчит
        — экран противоречит сам себе. scheduleSave обязателен тоже: без него нарисованная стена
        живёт только в памяти и пропадает от F5, пока пользователь не запустит сохранение чем-то
        ещё. Тот же контракт, что у addRoomLinePoint (стены и линии разметки одинаково двигают

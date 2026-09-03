@@ -28,11 +28,13 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
 
 const EPCatalog = require("../js/catalog.js");
 const EPPosts = require("../js/posts.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
+const EPPostImage = require("../js/postImage.js");
 
 /* index.html читаем напрямую — единственный тест ниже сверяет ПУСТОТУ разметки #postSlotCount.
    Исходник app.js (со снятыми комментариями, чтобы `\nfunction ` из комментария не оборвал тело),
@@ -46,10 +48,24 @@ const PRODUCTS = stand.loadVimarCatalog().products;
    09668.01 (id 200178) — 8 модулей, серия Neve Up; 09666.01 (id 200166) — 6 модулей. */
 const FRAME8 = PRODUCTS.find(p => p.code === "09668.01");
 const FRAME6 = PRODUCTS.find(p => p.code === "09666.01");
+const FRAME14 = PRODUCTS.find(p => p.code === "14690.01");
+const FRAME21 = PRODUCTS.find(p => p.code === "14691.01");
+/* Подмешиваем к реальным товарам те же атрибуты, что js/data.js подмешивает в браузере:
+   именно layoutRows отличает 14 от плоской строки и 21 от выдуманной однорядной рамки. */
+const attrsWindow = {};
+vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "js", "catalog-vimar-attrs.js"), "utf8"),
+  { window: attrsWindow });
+[FRAME14, FRAME21].forEach(frame => {
+  const attrs = attrsWindow.EP_VIMAR_ATTRS.standards[frame.code];
+  Object.assign(frame, attrs, { layoutRows: Array.from(attrs.layoutRows, row => Array.from(row)) });
+});
 /* Одномодульный механизм, совместимый с Neve Up — им заполняем посты и им же «заменяем». */
 const MECH1 = EPCatalog.compatibleMechanisms(FRAME8, PRODUCTS.filter(x => x.kind === "mechanism" && x.active))
   .find(m => EPCatalog.mechanismSpan(m) === 1);
-assert.ok(FRAME8 && FRAME6 && MECH1, "разведка каталога: 09668.01, 09666.01 и 1М-механизм Neve Up должны быть в каталоге");
+const MECH_PLANA_1 = EPCatalog.compatibleMechanisms(FRAME14, PRODUCTS.filter(x => x.kind === "mechanism" && x.active))
+  .find(m => EPCatalog.mechanismSpan(m) === 1);
+assert.ok(FRAME8 && FRAME6 && FRAME14 && FRAME21 && MECH1 && MECH_PLANA_1,
+  "разведка каталога: обычные и многорядные накладки с совместимыми 1М-механизмами должны быть в каталоге");
 
 const product = id => PRODUCTS.find(p => Number(p.id) === Number(id));
 
@@ -193,6 +209,52 @@ test("renderBuilder: 8 механизмов в накладке 8М при се�
   assert.match(dom.els.builderCapacity.innerHTML, /из 8/, "полоса заполнения обязана считать от накладки (из 8)");
   assert.ok(!dom.els.savePost.disabled, "полный набор в разрешённой накладке — «Сохранить» активно");
   assert.ok(!dom.els.builderInstallSheet.disabled, "при настоящей накладке лист монтажника доступен");
+});
+
+test("renderBuilder: реальные 14/21 доступны, держат ряды по 7 и полностью сохраняются", () => {
+  for (const [frame, capacity, rows] of [[FRAME14, 14, 2], [FRAME21, 21, 3]]) {
+    const dom = makeDom();
+    const state = { products: PRODUCTS,
+      builder: { slots: slotsOf(MECH_PLANA_1.id, capacity), target: { mode: "add" }, editingPlacedId: null } };
+    const ctx = makeCtx(state, dom);
+    dom.$("postFrameSelect").dataset.preferredFrameId = String(frame.id);
+    dom.$("postSlotCount").value = String(capacity);
+    const render = stand.run(["builderCapacity", "renderBuilder"], ctx);
+    render();
+
+    assert.equal(dom.els.postFrameSelect.value, String(frame.id), `${capacity}: выбрана реальная накладка`);
+    assert.equal(state.builder.slots.length, capacity, `${capacity}: ни один механизм не отфильтрован`);
+    assert.match(dom.els.builderCapacity.innerHTML, new RegExp(`Занято ${capacity} из ${capacity}`));
+    assert.equal(ctx.builderCtx.maxPostCap, 7, `${capacity}: механизм ограничен шириной физического ряда 7М`);
+    assert.equal(frame.layoutRows.length, rows, `${capacity}: число физических рядов из номенклатуры`);
+    assert.ok(!dom.els.savePost.disabled, `${capacity}: полный валидный набор можно сохранить`);
+    assert.ok(!dom.els.builderInstallSheet.disabled, `${capacity}: документ доступен`);
+  }
+});
+
+test("assembledPostSpec: реальные 14/21 доходят до превью двумя и тремя рядами", () => {
+  const buildSpec = stand.run("assembledPostSpec", {
+    frameProduct: id => product(id), product,
+    EPPosts,
+    mechanismSpan: EPCatalog.mechanismSpan,
+    frameSlotCount: EPCatalog.frameSlotCount,
+    productImage: EPCatalog.productImage,
+    moduleFace: EPCatalog.moduleFace,
+    frameOpening: EPCatalog.frameOpening,
+    frameOpenings: EPCatalog.frameOpenings
+  });
+  for (const [frame, capacity, rowCount] of [[FRAME14, 14, 2], [FRAME21, 21, 3]]) {
+    const spec = buildSpec({ frameId: frame.id,
+      mechanismIds: Array.from({ length: capacity }, () => MECH_PLANA_1.id) }, { size: "lg" });
+    assert.equal(spec.rows.length, rowCount, `${capacity}: число рядов превью`);
+    assert.deepEqual(Array.from(spec.rows, row => Array.from(row.posts, post => post.capacity)),
+      Array.from({ length: rowCount }, () => [7]));
+    assert.equal(spec.rows.flatMap(row => row.posts).flatMap(post => post.cells).length, capacity,
+      `${capacity}: все ячейки дошли до превью`);
+    const html = EPPostImage.buildHtml(spec, { esc: String });
+    assert.equal((html.match(/data-ep="impost"/g) || []).length, rowCount - 1,
+      `${capacity}: схема показывает горизонтальные импосты между рядами`);
+  }
 });
 
 /* --- Блокер 1: недоступная накладка не подменяется молча -------------------------------- */

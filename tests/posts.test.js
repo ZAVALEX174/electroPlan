@@ -325,6 +325,29 @@ test("frameLayout: двухрядная итальянская «4+4» из layo
   assert.deepEqual(lay.posts.map(p => [p.row, p.capacity]), [[0, 4], [1, 4]]);
 });
 
+test("frameLayout: явные layoutRows 7+7 и 7+7+7 сохраняют строки и полную ёмкость", () => {
+  const two = frameLayout({ standard: "IT", slotCount: 14, layoutRows: [[7], [7]] });
+  assert.equal(two.capacity, 14);
+  assert.equal(two.postCount, 2);
+  assert.equal(two.multiRow, true);
+  assert.deepEqual(two.posts.map(p => [p.row, p.capacity]), [[0, 7], [1, 7]]);
+
+  const three = frameLayout({ standard: "IT", slotCount: 21, layoutRows: [[7], [7], [7]] });
+  assert.equal(three.capacity, 21);
+  assert.equal(three.postCount, 3);
+  assert.deepEqual(three.posts.map(p => [p.row, p.capacity]), [[0, 7], [1, 7], [2, 7]]);
+});
+
+test("distributePosts: 21 одномодульный механизм полностью заполняет три ряда по 7", () => {
+  const frame = { standard: "IT", slotCount: 21, layoutRows: [[7], [7], [7]] };
+  const dist = distributePosts(Array.from({ length: 21 }, () => 1), frame, distDeps);
+  assert.equal(dist.valid, true);
+  assert.equal(dist.full, true);
+  assert.equal(dist.totalCapacity, 21);
+  assert.deepEqual(dist.posts.map(p => [p.row, p.capacity, p.occupied]),
+    [[0, 7, 7], [1, 7, 7], [2, 7, 7]]);
+});
+
 test("frameLayout: итальянская однорядная — один пост на всю ширину", () => {
   const lay = frameLayout({ standard: "IT", slotCount: 3 });
   assert.deepEqual(lay.rows, [[3]]);
