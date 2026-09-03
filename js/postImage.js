@@ -344,6 +344,14 @@ function moduleKey(c, framePal, s, sizeKey, radius, esc) {
       : "";
     return `<div data-ep="cell" style="flex:${grow} 1 0;min-width:0;display:flex;align-items:center;justify-content:center;${face}">${num}</div>`;
   }
+  /* Пробел «артикул пропал из каталога» — место занято, но чем, неизвестно: рисуем заглушку с
+     ПУНКТИРНОЙ гранью и знаком «?», чтобы читалась как потерянная позиция, а не как свободный
+     модуль (у того сплошная клавиша) и не как настоящий механизм. Пунктир + «?» переживают
+     печать (инлайн-стили, без JS). */
+  if (c.missing) {
+    const mark = `<span style="font-family:Arial,sans-serif;font-weight:700;font-size:${Math.max(9, s.numFont || 11)}px;line-height:1;color:${keyPal.ink};opacity:.55">?</span>`;
+    return `<div data-ep="cell" title="${esc(c.name || "Механизм не найден")}" style="flex:${grow} 1 0;min-width:0;display:flex;align-items:center;justify-content:center;border:1px dashed ${key.edge};border-radius:${radius}px;background:${key.fill}">${mark}</div>`;
+  }
   const icon = s.showIcons
     ? `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.55">${iconSvg(pickIcon(c), s.iconPx, keyPal.ink)}</span>`
     : "";

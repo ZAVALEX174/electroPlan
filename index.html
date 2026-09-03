@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260903.1">
+  <link rel="stylesheet" href="css/styles.css?v=20260903.2">
 </head>
 <body>
 <div class="app">
@@ -200,6 +200,9 @@
         <div class="grand-total">
           <span>Итого</span><strong id="grandTotal">0 ₽</strong>
         </div>
+        <!-- Итог обязан ОГОВОРИТЬ позиции без цены (артикул пропал из прайса), а не молча
+             просуммировать остальное: иначе КП уходит заказчику заниженным и без предупреждения. -->
+        <div class="price-note" id="pricelessStatus" role="status" aria-live="polite" hidden></div>
         <div class="terms-row">
           <label>Работы, %<input id="workInput" type="number" min="0" max="200" step="1" value="18"></label>
           <label>Материалы, %<input id="materialsInput" type="number" min="0" max="200" step="1" value="7"></label>
@@ -417,16 +420,16 @@
      до app.js, который через него считает projectLighting. -->
 <script src="js/lightingByRoom.js?v=20260830.2"></script>
 <script src="js/postfit.js?v=20260826.2"></script>
-<script src="js/posts.js?v=20260903.1"></script>
+<script src="js/posts.js?v=20260903.4"></script>
 <script src="js/picker.js?v=20260801.1"></script>
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
 <script src="js/catalogSections.js?v=20260828.1"></script>
-<script src="js/builderSlots.js?v=20260828.5"></script>
+<script src="js/builderSlots.js?v=20260903.4"></script>
 <script src="js/estimate.js?v=20260902.1"></script>
 <script src="js/offerPdf.js?v=20260902.1"></script>
 <script src="js/installSheet.js?v=20260902.1"></script>
 <script src="js/supplierSpec.js?v=20260827.3"></script>
-<script src="js/postImage.js?v=20260805.1"></script>
+<script src="js/postImage.js?v=20260903.4"></script>
 <script src="js/explodedView.js?v=20260805.5"></script>
 <script src="js/planLabels.js?v=20260827.2"></script>
 <script src="js/rates.js?v=20260730.1"></script>
@@ -442,6 +445,6 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-<script src="js/app.js?v=20260903.3"></script>
+<script src="js/app.js?v=20260903.4"></script>
 </body>
 </html>

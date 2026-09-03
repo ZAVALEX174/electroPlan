@@ -54,6 +54,39 @@ function frameAvailability(frameId, resolvedFrame) {
   };
 }
 
+/* ЕДИНОЕ СОСТОЯНИЕ МЕХАНИЗМА для всех экранов и документов — тот же приём, что frameAvailability
+   выше, но для механизма поста. Артикул поста и товар каталога — не одно и то же: прайс
+   перезаливают до 7 раз в год, и id из post.mechanismIds может либо перестать разрешаться в товар
+   ВОВСЕ (артикул ПРОПАЛ — товара нет, посчитать нечего), либо разрешаться, но быть снят с
+   производства (товар есть, цена известна). Эти два состояния РАЗЛИЧАЮТСЯ и формулировкой, и
+   ценой, поэтому подпись у них разная. displayName отдаём готовой, чтобы конструктор, смета,
+   свод, КП, лист монтажника и подсказка на плане не сочиняли собственных формулировок и не
+   расходились между собой (та же причина, что у накладки).
+   priceless=true у пропавшего артикула — цену взять неоткуда: итог обязан оговорить, что в проекте
+   есть позиции без цены, а не молча просуммировать остальное. */
+function mechanismAvailability(mechId, resolvedProduct) {
+  const item = resolvedProduct || null;
+  const state = !item ? "missing" : item.active === false ? "discontinued" : "available";
+  const baseName = item && item.name ? item.name : "";
+  const displayName = state === "missing"
+    ? `Механизм не найден (арт. ${mechId})`
+    : state === "discontinued"
+      ? `${baseName} (снят с производства)`
+      : baseName;
+  const statusText = state === "missing" ? "нет в каталоге"
+    : state === "discontinued" ? "снят с производства"
+    : "";
+  return {
+    state, item, mechId,
+    displayName, statusText,
+    code: item && item.code ? item.code : "",
+    available: state === "available",
+    discontinued: state === "discontinued",
+    missing: state === "missing",
+    priceless: state === "missing"
+  };
+}
+
 /* Модель числа монтажных коробок по стандарту накладки. Базовое правило заказчика
    (ответ 01.08): «На каждую накладку почти всегда 1 коробка, но на каждую коробку
    много накладок» — то есть ОДНА НАКЛАДКА = ОДНА КОРОБКА по её ёмкости. «Почти всегда» —
@@ -575,7 +608,7 @@ function postModuleGroups(mechanismIds, frame, deps) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { frameAvailability, postCost, postComposition, boxCount, fitMechanismIds, fitMechanismIdsPreserving,
+const api = { frameAvailability, mechanismAvailability, postCost, postComposition, boxCount, fitMechanismIds, fitMechanismIdsPreserving,
   moduleLayout, fillWord, fillSummary, nextPostNumber, ensurePostNumbers, placementFields,
   frameLayout, distributePosts, maxFreeSpan, postModuleGroups,
   postWallType, postTypeKey, wallTypeTargets };

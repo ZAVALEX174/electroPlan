@@ -240,7 +240,17 @@ function assembledPostSpec(post,{size="md"}={}){
     if(!rowsMap.has(p.row))rowsMap.set(p.row,[]);
     let occ=0;const cells=[];
     p.mechanismIds.forEach(id=>{
-      const item=product(id),span=mechanismSpan(item);
+      const item=product(id);
+      /* Артикул механизма пропал из каталога — рисуем ЯВНЫЙ пробел в 1 модуль (та же оценка
+         ширины, что у distributePosts/moduleLayout), помеченный missing, чтобы не слиться со
+         свободным модулем: место занято, но чем — неизвестно. Ноль-модульная ячейка (span у
+         product(null) равен 0) схлопнулась бы в ничто и сдвинула бы номера соседних модулей. */
+      if(!item){
+        cells.push({span:1,missing:true,name:`Механизм не найден (арт. ${id})`,num:String(occ+1)});
+        occ+=1;
+        return;
+      }
+      const span=mechanismSpan(item);
       const start=occ+1,end=occ+span;
       /* Модуль показываем НАСТОЯЩИМ фото механизма, обрезанным по лицу: imageUrl — детальное фото,
          face — лицевой прямоугольник в % фото (moduleFace, снят детектором). Нет фото/лица →
@@ -1671,6 +1681,16 @@ function renderSummary(){
   /* Тот же блок, что печатается в КП и листе монтажника: подставленные механизмы, потребность
      в импульсных реле и пробелы с их причинами. */
   $("lightingSummary").innerHTML=lightingHtml(light,"Группы света");
+  /* Позиции без цены (артикул пропал из прайса) — итог обязан их НАЗВАТЬ, а не тихо просуммировать
+     остальное: est.missing собирает такие позиции по всему проекту (EPEstimate.build), их цена в
+     сумму вошла нулём. Пишем постоянную строку под «Итого» (тост при экспорте гаснет и человек его
+     пропустит), формулировка — про неполноту итога. */
+  const pricelessNode=$("pricelessStatus");
+  if(pricelessNode){
+    const n=(est.missing||[]).length;   /* защитно: у самодельного est из тестов поля может не быть */
+    pricelessNode.textContent=n?`⚠ Позиций без цены: ${n} — их артикулов нет в прайсе, в «Итого» они вошли нулём. Сумма неполна: уточните цены у поставщика или замените позиции.`:"";
+    pricelessNode.hidden=!n;
+  }
   const outsideRoomsStatus=orphanObjectsWarningText();
   $("outsideRoomsStatus").textContent=outsideRoomsStatus;
   $("outsideRoomsStatus").hidden=!outsideRoomsStatus;
@@ -2048,16 +2068,29 @@ function renderBuilder(){
   const keepMechs=placedDiscontinued.length
     ?compatibleMechanisms(selectedFrame,allMechanisms.concat(placedDiscontinued))
     :mechs;
+  /* ⚠️ ВТОРОЕ, ОТДЕЛЬНОЕ ОТ keepMechs СОСТОЯНИЕ: АРТИКУЛ МЕХАНИЗМА ПРОПАЛ ИЗ КАТАЛОГА (product не
+     разрешается вовсе). Снятый механизм (keepMechs выше) товар имеет и держится своей ценой; у
+     пропавшего товара нет — считать нечего, но слот обязан остаться ЯВНЫМ ПРОБЕЛОМ. Иначе он молча
+     выпал бы из состава (allowedTokens его токен не пускает, а mechanismSpan(null)=0 — fit роняет
+     по `!span`), пост «похудел» бы на механизм, цена упала, а адреса соседних модулей сдвинулись —
+     лист монтажника получил бы неверную нумерацию (место «3» встало бы на физически 4-е). Два
+     состояния НЕ смешиваем (как у накладки): keepMechs — снятые, missingMechIds — пропавшие. */
+  const missingMechIds=[...new Set(state.builder.slots.map(s=>Number(s.id)).filter(id=>!product(id)))];
   /* ⚠️ ФИЛЬТРАЦИЯ И УПАКОВКА ИДУТ НАД ТОКЕНАМИ-ПОЗИЦИЯМИ СЛОТОВ, а не над id механизмов.
      Правила остаются те же самые (EPPosts.fitMechanismIds / distributePosts — второй копии
      раскладки не появляется), но вместе с механизмом переезжает и его группа света: id для
      этого не годится, в посте бывают два одинаковых механизма (см. js/builderSlots.js). */
   const fitDeps=EPBuilderSlots.tokenDeps(state.builder.slots,{product,mechanismSpan});
   const fitOrder=EPPosts.fitMechanismIds(EPBuilderSlots.tokens(state.builder.slots),
-    EPBuilderSlots.allowedTokens(state.builder.slots,keepMechs),capacity,fitDeps);
+    EPBuilderSlots.allowedTokens(state.builder.slots,keepMechs,missingMechIds),capacity,fitDeps);
   state.builder.slots=EPBuilderSlots.pick(state.builder.slots,fitOrder);
   retargetBuilderSlot(fitOrder);
-  const occupied=mechanismModulesTotal(EPBuilderSlots.toPost(state.builder.slots).mechanismIds);
+  /* Занятость считаем по EPPosts.moduleLayout, а не mechanismModulesTotal: у пропавшего артикула
+     span тут оценивается в 1 модуль (пробел физически занимает место), а не 0 — иначе метка
+     «Занято N» и строка «+ свободно» предложили бы поставить механизм в модуль, занятый пробелом,
+     и переполнили бы пост. Реордер ниже только переставляет слоты, сумма модулей от него не
+     зависит, поэтому считать здесь безопасно. */
+  const occupied=EPPosts.moduleLayout(EPBuilderSlots.toPost(state.builder.slots).mechanismIds,{product,mechanismSpan}).reduce((sum,m)=>sum+m.span,0);
   const remaining=Math.max(0,capacity-occupied);
   /* Распределение механизмов по постам накладки (EPPosts.distributePosts): даёт превью с
      импостами/рядами, ограничивает ширину подбираемого механизма ёмкостью ПОСТА (не всей
@@ -2117,7 +2150,16 @@ function renderBuilder(){
   const mechNoticeHtml=placedDiscontinued.length
     ?`<div class="builder-notice" role="status"><strong>Механизм снят с производства</strong><span>${esc(placedDiscontinued.map(m=>m.code||"без артикула").join(", "))} — больше не выпускается и новым постам не предлагается. В этом посте механизм оставлен: изделие могло быть заложено в проект до снятия и физически существует — смета считается по нему. При желании замените его карточкой в каталоге.</span></div>`
     :"";
-  builderCtx={mechs,keepMechs,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:frameNoticeHtml+mechNoticeHtml+builderErrorHtml(dist)};
+  /* ⚠️ АРТИКУЛ МЕХАНИЗМА ПРОПАЛ ИЗ КАТАЛОГА — своя пометка, ОТЛИЧНАЯ от «снят с производства»
+     (там товар есть и посчитан по цене). Здесь товара нет вовсе: слот удержан явным пробелом,
+     чтобы не сдвинуть адреса модулей, но цену по нему взять неоткуда. Формулировку берём из
+     единого состояния EPPosts.mechanismAvailability — той же, что называет позицию в смете, своде,
+     КП и листе монтажника. Приглушённая .builder-notice, а не красная .builder-error: сохранение
+     разрешено (решение владельца), пробел просто назван. */
+  const missingMechNoticeHtml=missingMechIds.length
+    ?`<div class="builder-notice" role="status"><strong>Артикул механизма пропал из каталога</strong><span>${esc(missingMechIds.map(id=>EPPosts.mechanismAvailability(id,null).displayName).join(", "))} — этих артикулов больше нет в прайсе (вероятно, перезалит). Позиция оставлена в посте явным пробелом и названа во всех документах, чтобы номера модулей не сдвинулись; цена по ней неизвестна. Замените её карточкой в каталоге или уточните артикул у поставщика.</span></div>`
+    :"";
+  builderCtx={mechs,keepMechs,missingMechIds,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:frameNoticeHtml+mechNoticeHtml+missingMechNoticeHtml+builderErrorHtml(dist)};
   renderBuilderCatalog();
   renderBuilderComposition(selectedFrame,builderCtx.errorHtml,light,draft);
   /* Сохранять можно, только когда сборка физически собирается (никакой механизм не шире поста
@@ -2160,8 +2202,8 @@ function renderBuilderSlots(layout,remaining,lightRows){
       <div class="slot-number" title="${esc(moduleWord(slot.span))}">${esc(slot.label)}</div>
       <div class="slot-body">${productPicture(item,{label:item?item.name:"Элемент"})}
         <span class="slot-text"><span class="slot-code">${esc(item?.code||"без артикула")}</span>
-          <span class="slot-name" title="${esc(item?.name||"")}">${esc(item?.name||"Механизм не найден")}</span>${item&&item.active===false?'<span class="slot-off">снят с производства</span>':""}
-          <span class="slot-meta">${esc(moduleWord(slot.span))} · ${productMoney(item)}</span></span>
+          <span class="slot-name" title="${esc(item?.name||"")}">${esc(item?.name||`Механизм не найден (арт. ${slot.id})`)}</span>${item&&item.active===false?'<span class="slot-off">снят с производства</span>':""}${!item?'<span class="slot-gap">нет в каталоге</span>':""}
+          <span class="slot-meta">${esc(moduleWord(slot.span))} · ${item?productMoney(item):"цена неизвестна"}</span></span>
         <span class="slot-actions">
           <button type="button" data-slot-replace="${index}">${isTarget?"Отменить":"Заменить"}</button>
           <button type="button" data-slot-remove="${index}" aria-label="Убрать элемент из модуля ${esc(slot.label)}">×</button>
@@ -2336,9 +2378,14 @@ function pickBuilderProduct(id){
     /* Та же защита от переполнения, что стояла на смене значения слота: лишние выкидываются
        с конца, только что выбранный остаётся (EPPosts.fitMechanismIdsPreserving). */
     const deps=EPBuilderSlots.tokenDeps(state.builder.slots,{product,mechanismSpan});
+    /* keepMechs — снятые механизмы, missingMechIds — пропавшие артикулы: и те и другие держим
+       пробелом, иначе замена ОДНОГО слота молча уронила бы соседний удержанный (тот же дефект,
+       что в renderBuilder). missingMechIds пересчитываем от актуальных слотов, а не берём из
+       builderCtx: replaceAt мог только что заменить пропавший артикул реальным товаром. */
+    const keepMissing=[...new Set(state.builder.slots.map(s=>Number(s.id)).filter(id=>!product(id)))];
     state.builder.slots=EPBuilderSlots.pick(state.builder.slots,
       EPPosts.fitMechanismIdsPreserving(EPBuilderSlots.tokens(state.builder.slots),
-        EPBuilderSlots.allowedTokens(state.builder.slots,builderCtx.keepMechs),capacity,index,deps));
+        EPBuilderSlots.allowedTokens(state.builder.slots,builderCtx.keepMechs,keepMissing),capacity,index,deps));
   }else{
     state.builder.slots=EPBuilderSlots.add(state.builder.slots,id);
   }

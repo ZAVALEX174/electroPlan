@@ -84,28 +84,46 @@ const hasGroups = slots => (Array.isArray(slots) ? slots : []).some(s => groupTe
 const tokens = slots => (Array.isArray(slots) ? slots : []).map((_, i) => i);
 
 /* Подмена чтения каталога: EPPosts спросит товар по «id», а получит товар слота с этим номером.
-   mechanismSpan остаётся настоящим — ширина механизма от подмены не зависит. */
+   mechanismSpan остаётся настоящим — ширина механизма от подмены не зависит.
+   ⚠️ ПРОПАВШИЙ АРТИКУЛ = ПРОБЕЛ В 1 МОДУЛЬ. Когда товар слота исчез из каталога (product вернул
+   null — прайс перезаливают до 7 раз в год), настоящий mechanismSpan(null) равен 0, и
+   fitMechanismIds выбросил бы слот по ветке `!span` — тот же молчаливый обрыв, что и отсев по
+   набору. Держим слот явным пробелом: у пропавшего товара ширину оцениваем в 1 модуль — ровно
+   так же, как EPPosts.moduleLayout и distributePosts (у них та же оговорка `|| 1`), чтобы
+   занятость, раскладка по постам и превью считали пробел одинаково и адреса соседних модулей
+   не сдвинулись. У НАСТОЯЩЕГО механизма span всегда ≥ 1, поэтому `|| 1` срабатывает только на
+   пропавшем артикуле и цену/ширину реальных товаров не трогает. */
 function tokenDeps(slots, deps) {
   const list = Array.isArray(slots) ? slots : [];
   const d = deps || {};
   const product = d.product || (() => null);
+  const span = d.mechanismSpan || (() => 1);
   return {
     product: token => {
       const s = list[Number(token)];
       return s ? product(s.id) : null;
     },
-    mechanismSpan: d.mechanismSpan || (() => 1)
+    mechanismSpan: item => Number(span(item)) || 1
   };
 }
 
 /* Список «разрешённых» для EPPosts.fitMechanismIds — но в токенах: слот проходит, если его товар
    есть в наборе items (совместимые с накладкой механизмы). Форма {id} — ровно та, что читает
-   fitMechanismIds (он берёт у элементов только id). */
-function allowedTokens(slots, items) {
+   fitMechanismIds (он берёт у элементов только id).
+   keepIds — артикулы, которые надо УДЕРЖАТЬ, даже если их нет в items: слоты, чей товар ПРОПАЛ из
+   каталога (артикул исчез — товара нет вовсе). Это отдельное от items состояние: снятый с
+   производства механизм товар имеет и приходит в items, а у пропавшего товара нет — считать
+   нечего, но слот обязан остаться явным пробелом, иначе он молча выпадет из состава, цена упадёт
+   и адреса соседних модулей сдвинутся (лист монтажника получит неверную нумерацию). Пустой keepIds
+   → прежнее поведение (старый контракт: два аргумента). */
+function allowedTokens(slots, items, keepIds) {
   const list = Array.isArray(slots) ? slots : [];
   const ids = new Set((Array.isArray(items) ? items : []).map(item => Number(item && item.id)));
+  const keep = keepIds instanceof Set
+    ? keepIds
+    : new Set((Array.isArray(keepIds) ? keepIds : []).map(Number));
   const out = [];
-  list.forEach((s, i) => { if (ids.has(Number(s.id))) out.push({ id: i }); });
+  list.forEach((s, i) => { if (ids.has(Number(s.id)) || keep.has(Number(s.id))) out.push({ id: i }); });
   return out;
 }
 
