@@ -8,6 +8,17 @@
 (() => {
 "use strict";
 
+/* Оговорку о неполноте итога берём из EPEstimate.pricelessNote(est) — ТОЙ ЖЕ функции, что печатает
+   её на экране (js/app.js #pricelessStatus). Резолвим как roomCarry свою геометрию: в браузере
+   namespace уже загружен (estimate.js подключён раньше offerPdf.js), в Node — через require. Это
+   не state и не DOM, а переиспользование чистой логики — общая формулировка не имеет права на
+   вторую копию (§7.1). Отсутствие модуля не срывает сборку документа: тогда оговорки просто нет. */
+function defaultEstimate() {
+  if (typeof window !== "undefined" && window.EPEstimate) return window.EPEstimate;
+  if (typeof require !== "undefined") return require("./estimate.js");
+  return { pricelessNote: () => "" };
+}
+
 /* Автопечать окна КП: печатаем НЕ по таймеру, а когда догрузятся картинки (иллюстрации постов
    тянутся с vimar.ru и за прежние 500 мс могли не успеть — сборка уезжала в PDF недогруженной).
    Все <img> уже complete → печать сразу; иначе ждём load/error каждой незагруженной и печатаем на
@@ -48,6 +59,12 @@ function buildHtml(est, deps) {
   const displayCurrency = deps.displayCurrency;
   const s = deps.settings || {};
   const { materials, work, total } = est;
+
+  /* Оговорка о позициях без цены — ОДНОЙ строкой с экраном (см. defaultEstimate выше). Считает по
+     тому же est.missing, что и панель «Стоимость проекта»; печатается прямо под «Итого», иначе КП
+     выглядел бы окончательной суммой, хотя часть позиций вошла в неё нулём. deps.EPEstimate — точка
+     подмены для теста; в приложении её не передают. */
+  const pricelessNote = (deps.EPEstimate || defaultEstimate()).pricelessNote(est);
 
   /* Подвал с курсом печатаем честно. Суммы в КП уже пересчитаны money() по
      эффективному курсу; здесь важно не выдать курс с надбавкой за официальный
@@ -111,7 +128,7 @@ function buildHtml(est, deps) {
   </tbody></table>` : "";
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>Коммерческое предложение</title><style>
-  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}@media print{button{display:none}}</style></head><body>
+  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.priceless{width:340px;margin:8px 0 0 auto;color:#9b3f2b;font-size:11px;font-weight:bold;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}@media print{button{display:none}}</style></head><body>
   <h1>Коммерческое предложение</h1><div class="sub">Проект электрики и комплектация электроустановочных изделий</div>
   <div class="meta"><div class="box">${headerRows}</div><button onclick="window.print()">Сохранить в PDF</button></div>
   ${deps.planBlockHtml || ""}
@@ -126,6 +143,7 @@ function buildHtml(est, deps) {
   <div><span>Монтажные материалы</span><b>${money(materials)}</b></div><div><span>Работы</span><b>${money(work)}</b></div>
   ${est.vat ? `<div><span>Итого без НДС</span><b>${money(est.subtotal)}</b></div><div><span>НДС ${est.vatPercent}%</span><b>${money(est.vat)}</b></div>` : ""}
   <div class="grand"><span>Итого${est.vat ? " с НДС" : ""}</span><b>${money(total)}</b></div></div>
+  ${pricelessNote ? `<div class="priceless">${esc(pricelessNote)}</div>` : ""}
   ${displayCurrency() === "RUB" ? rateFooter() : ""}
   <div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>
   ${deps.supplierSpecHtml || ""}

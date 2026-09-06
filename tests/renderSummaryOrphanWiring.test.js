@@ -48,6 +48,9 @@ function buildRenderSummary(dom, state) {
   return stand.run(["orphanObjectsWarningText", "renderSummary"], {
     state: state,
     EPRoomAssign: EPRoomAssign,
+    /* строку «без цены» renderSummary строит через EPEstimate.pricelessNote — здесь пропавших нет
+       (buildEstimate без missing), функция вернёт "", но в контексте она обязана существовать. */
+    EPEstimate: require("../js/estimate.js"),
     $: dom.$,
     money: v => "money(" + v + ")",
     esc: s => String(s),

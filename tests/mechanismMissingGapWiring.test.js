@@ -249,7 +249,10 @@ test("renderSummary: итог ОГОВАРИВАЕТ позиции без це�
     lightingHtml: () => "[LIGHT]",
     orphanObjectsWarningText: () => "",
     updateStatus: () => {},
-    EPRoomAssign: require("../js/roomAssign.js")
+    EPRoomAssign: require("../js/roomAssign.js"),
+    /* renderSummary берёт формулировку строки «без цены» из EPEstimate.pricelessNote (той же, что
+       печатает КП) — без неё в контексте песочница уронит ReferenceError. */
+    EPEstimate: require("../js/estimate.js")
   };
   const render = stand.run("renderSummary", ctx);
   render();

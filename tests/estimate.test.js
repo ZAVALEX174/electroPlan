@@ -4,7 +4,24 @@
    поэтому браузер поднимать не нужно. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { build, postPrice, billableLighting, lightingCounts } = require("../js/estimate.js");
+const { build, postPrice, billableLighting, lightingCounts, pricelessNote } = require("../js/estimate.js");
+
+/* Оговорка о неполноте итога — ЕДИНЫЙ источник для экрана (#pricelessStatus) и печатного КП
+   (offerPdf). Тест держит формулировку и условие: если кто-то сменит текст в одном документе,
+   разойдясь с другим, чинить придётся здесь — второй копии строки нет. */
+test("pricelessNote: называет число позиций без цены и говорит о неполноте итога", () => {
+  const note = pricelessNote({ missing: [111, 222] });
+  assert.match(note, /Позиций без цены: 2/, "в тексте — число позиций из est.missing");
+  assert.match(note, /нет в прайсе/, "названа причина: артикула нет в прайсе");
+  assert.match(note, /нулём/, "сказано, что в «Итого» они вошли нулём");
+  assert.match(note, /Сумма неполна/, "итог честно назван неполным");
+});
+
+test("pricelessNote: нет позиций без цены → пустая строка (потребитель прячет оговорку)", () => {
+  assert.equal(pricelessNote({ missing: [] }), "", "пустой missing — оговорки нет");
+  assert.equal(pricelessNote({}), "", "поля missing нет вовсе — оговорки нет");
+  assert.equal(pricelessNote(null), "", "нет est — не падаем, оговорки нет");
+});
 
 /* Каталог-заглушка: розетка 10 € за штуку и кабель-канал 5 € за метр. */
 const CATALOG = {

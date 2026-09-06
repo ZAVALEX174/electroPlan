@@ -1687,9 +1687,11 @@ function renderSummary(){
      пропустит), формулировка — про неполноту итога. */
   const pricelessNode=$("pricelessStatus");
   if(pricelessNode){
-    const n=(est.missing||[]).length;   /* защитно: у самодельного est из тестов поля может не быть */
-    pricelessNode.textContent=n?`⚠ Позиций без цены: ${n} — их артикулов нет в прайсе, в «Итого» они вошли нулём. Сумма неполна: уточните цены у поставщика или замените позиции.`:"";
-    pricelessNode.hidden=!n;
+    /* Формулировка и условие «когда показывать» — в EPEstimate.pricelessNote, ОТТУДА же их
+       берёт печатный КП (offerPdf): второй копии текста нет, экран и бумага не разойдутся. */
+    const note=EPEstimate.pricelessNote(est);
+    pricelessNode.textContent=note;
+    pricelessNode.hidden=!note;
   }
   const outsideRoomsStatus=orphanObjectsWarningText();
   $("outsideRoomsStatus").textContent=outsideRoomsStatus;

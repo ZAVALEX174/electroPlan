@@ -5,6 +5,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { buildHtml } = require("../js/offerPdf.js");
+const EPEstimate = require("../js/estimate.js");
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -60,4 +61,30 @@ test("без плана КП собирается как раньше — пус
   const undef = buildHtml(est, deps);
   assert.ok(!/data-test="plan-block"/.test(withOut), "секции плана нет");
   assert.equal(withOut, undef, "пустая строка и отсутствие поля дают одинаковый документ");
+});
+
+/* Позиция без цены (её артикула нет в прайсе) входит в сумму нулём. Экран оговаривает это строкой
+   под «Итого» (#pricelessStatus), и печатный КП обязан сказать то же ТЕМИ ЖЕ словами — иначе
+   клиенту уйдёт молча неполная сумма. Формулировка одна на оба документа: EPEstimate.pricelessNote.
+   Эти тесты краснеют, если оговорка пропадёт из КП, если её текст разойдётся с экранным
+   источником, или если она появится там, где позиций без цены нет. */
+const estMissing = Object.assign({}, est, { missing: [111, 222] });
+
+test("КП оговаривает позиции без цены ТЕМИ ЖЕ словами, что экран (EPEstimate.pricelessNote)", () => {
+  const note = EPEstimate.pricelessNote(estMissing);
+  assert.ok(note, "предпосылка: при непустом est.missing формулировка не пуста");
+  const html = buildHtml(estMissing, deps);
+  /* Печать содержит РОВНО строку из единого источника — не свою копию: разойдётся с экраном
+     только если её захардкодят заново, и тогда этот assert покраснеет. */
+  assert.ok(html.includes(esc(note)),
+    "печатный итог содержит ту же оговорку, что #pricelessStatus на экране");
+  assert.match(html, /Позиций без цены: 2/, "число берётся из est.missing (две позиции)");
+  /* Оговорка стоит ПОД «Итого» — рядом с суммой, которую она уточняет, а не в конце документа. */
+  assert.ok(html.indexOf("Позиций без цены") > html.indexOf("Итого"),
+    "оговорка идёт после итога — читается как примечание к сумме");
+});
+
+test("нет позиций без цены → оговорки в КП нет (полную сумму не помечаем неполной)", () => {
+  const html = buildHtml(est, deps);   // базовый est без поля missing
+  assert.ok(!/Позиций без цены/.test(html), "при полной смете оговорки о неполноте нет");
 });
