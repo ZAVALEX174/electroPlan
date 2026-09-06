@@ -346,7 +346,7 @@ function pricelessNote(est) {
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, lightingCounts, pricelessNote };
+const api = { build, postPrice, billableLighting, lightingCounts, pricelessNote, renderItem };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

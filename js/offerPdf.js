@@ -32,8 +32,10 @@ const printScript = `<script>(function(){var done=false;function pr(){if(done)re
   + `if(pending===0)pr();setTimeout(pr,4000);})();<\/script>`;
 
 /* est   — результат EPEstimate.build (groups, equipment, discount, vat, total, …)
-   deps  — { money(n), esc(s), displayCurrency(), effectiveRate(settings), settings,
+   deps  — { money(n), esc(s), displayCurrency(), effectiveRate(settings), settings, options,
              header, postLayout, planBlockHtml, lightingHtml, supplierSpecHtml }
+   options — выбор разделов/столбцов КП (EPOfferOptions-схема): ЧТО показать. На деньги и состав
+   не влияет — только на видимость (нормализуется здесь же, отсутствие = все разделы полностью).
    planBlockHtml — готовая секция «план с бирками» (EPPlanLabels.buildHtml), собирает её
    оркестратор: только он знает про #canvas и state. Приходит СТРОКОЙ ровно как
    assembledImageHtml в раскладке постов — этот документ вёрстку блока не трогает.
@@ -52,19 +54,26 @@ const printScript = `<script>(function(){var done=false;function pr(){if(done)re
    КП на листе, где цен нет по замыслу. Заказчик 24.08 просил разделять, что кому уходит:
    «этот лист отправляется поставщику». Всё, что относится к сделке, обязано остаться на
    страницах КП, а не уезжать с отрывным листом.
-   Возвращает строку полного HTML-документа с авто-печатью. */
-function buildHtml(est, deps) {
+   Возвращает { html, hasContent }: html — полный HTML-документ с авто-печатью, hasContent —
+   будет ли в документе хоть один видимый содержательный блок (см. contentFragments ниже).
+   Оба ответа считаются ОДНИМ проходом, чтобы страж пустого КП (app.js) и печать не разошлись. */
+function compose(est, deps) {
   const money = deps.money;
   const esc = deps.esc;
   const displayCurrency = deps.displayCurrency;
   const s = deps.settings || {};
   const { materials, work, total } = est;
+  const config = typeof window !== "undefined" && window.EPOfferOptions
+    ? window.EPOfferOptions : require("./offerOptions.js");
+  const options = config.normalize(deps.options);
+  const itemText = (value, code) => config.itemText(value, options.articles, code);
+  const estimate = deps.EPEstimate || defaultEstimate();
 
   /* Оговорка о позициях без цены — ОДНОЙ строкой с экраном (см. defaultEstimate выше). Считает по
      тому же est.missing, что и панель «Стоимость проекта»; печатается прямо под «Итого», иначе КП
      выглядел бы окончательной суммой, хотя часть позиций вошла в неё нулём. deps.EPEstimate — точка
      подмены для теста; в приложении её не передают. */
-  const pricelessNote = (deps.EPEstimate || defaultEstimate()).pricelessNote(est);
+  const pricelessNote = estimate.pricelessNote(est);
 
   /* Подвал с курсом печатаем честно. Суммы в КП уже пересчитаны money() по
      эффективному курсу; здесь важно не выдать курс с надбавкой за официальный
@@ -88,7 +97,16 @@ function buildHtml(est, deps) {
 
   /* позиции группируются, поэтому в КП честное «Кол.» вместо жёсткой единицы */
   const rows = est.groups.map(g => ({
-    name: g.name, composition: g.composition, qty: g.count, unit: g.unit,
+    name: itemText(g.name, g.items?.length === 1 ? g.items[0].code : null),
+    /* Не вырезаем коды из склеенной строки: состав строится тем же renderItem,
+       что и смета, но над копиями подписей без артикулов. Старый внешний вызов
+       без items не позволяет надёжно отделить код от имени — явно сообщаем это. */
+    composition: options.articles ? g.composition : (Array.isArray(g.items)
+      ? g.items.map(it => estimate.renderItem({ ...it, name: itemText(it.name, it.code) })).filter(Boolean).join(", ")
+      : "Состав без артикулов недоступен"),
+    article: (g.items || []).filter(it => !it.notRequired && it.count > 0)
+      .map(it => `${it.code || "артикул не определён"}${it.count > 1 ? " × " + it.count : ""}${it.assumed ? " (предположительно)" : ""}`).join(", "),
+    quantity: g.count, unit: g.unit,
     price: g.count ? g.sum / g.count : 0, sum: g.sum
   }));
 
@@ -113,46 +131,95 @@ function buildHtml(est, deps) {
      которую смета в том же КП называла отсутствующей. */
   const layoutIllustration = p => {
     const picture = p.assembledImageHtml
-      || (p.imageUrl ? `<img src="${esc(p.imageUrl)}" alt="${esc(p.frameName || ("Пост № " + p.number))}">` : "—");
+      || (p.imageUrl ? `<img src="${esc(p.imageUrl)}" alt="${esc(itemText(p.frameName || ("Пост № " + p.number), p.frameCode))}">` : "—");
     const status = p.frameStatusText
-      ? `<div class="pl-frame-status">${esc(p.frameStatusText)}</div>`
+      ? `<div class="pl-frame-status">${esc(itemText(p.frameStatusText, p.frameCode))}</div>`
       : "";
     return picture + status;
   };
-  const layoutSection = layout.length ? `<h2 class="section-title">Раскладка постов</h2>
-  <table class="layout"><thead><tr><th>№&nbsp;поста</th><th>Наполнение</th><th>Модульность</th><th>Иллюстрация</th></tr></thead><tbody>
-  ${layout.map(p => `<tr><td class="pl-num">${esc(p.number)}</td>
-    <td>${(p.fill || []).map(f => `${esc(f.word)} — ${Number(f.count) || 0}`).join("<br>") || "—"}</td>
-    <td>${Number(p.modules) || 0}</td>
-    <td class="pl-illus">${layoutIllustration(p)}</td></tr>`).join("")}
+  /* Печать раскладки производна ОТ СХЕМЫ (fields.layout), а не от рукописного switch с фолбэком
+     на номер поста: раньше новое поле схемы давало колонку в шапке, а в теле — номер под чужим
+     заголовком, без признака ошибки. Ячейку рисует рендерер, ЗАВЕДЁННЫЙ ПОД ТОТ ЖЕ ключ; ключ
+     без рендерера в колонки не попадает (layoutColumns), поэтому данные под чужой шапкой
+     невозможны — колонка появляется только вместе со своим рендерером. */
+  const layoutRenderers = {
+    number: p => esc(p.number),
+    fill: p => (p.fill || []).map(f => `${esc(itemText(f.word))} — ${Number(f.count) || 0}`).join("<br>") || "—",
+    modules: p => Number(p.modules) || 0,
+    box: p => `${esc(itemText(p.box?.name || "Монтажная коробка не подобрана", p.box?.code))}`
+      + (options.articles && p.box?.code ? ` [${esc(p.box.code)}]` : "")
+      + (p.box?.count > 0 ? ` × ${Number(p.box.count)}` : ""),
+    article: p => esc(p.frameCode || "—"),
+    illustration: p => layoutIllustration(p)
+  };
+  const layoutColumns = config.fields.layout.filter(([key]) =>
+    options.layout[key] && layoutRenderers[key] && (key !== "article" || options.articles));
+  const layoutCell = (p, key) => layoutRenderers[key](p);
+  const layoutSection = options.sections.layout && layout.length && layoutColumns.length ? `<h2 class="section-title">Раскладка постов</h2>
+  <table class="layout"><thead><tr>${layoutColumns.map(([, label]) => `<th>${esc(label)}</th>`).join("")}</tr></thead><tbody>
+  ${layout.map(p => `<tr>${layoutColumns.map(([key]) => `<td class="${key === "number" ? "pl-num" : key === "illustration" ? "pl-illus" : ""}">${layoutCell(p, key)}</td>`).join("")}</tr>`).join("")}
+  </tbody></table>` : "";
+  /* Выключенная иллюстрация/раскладка не должна заодно прятать снятую накладку.
+     По умолчанию эти же предупреждения остаются под иллюстрациями без дублирования. */
+  const frameWarnings = !layoutSection || !options.layout.illustration
+    ? layout.filter(p => p.frameStatusText).map(p => `<div class="pl-frame-status">Пост ${esc(p.number)}: ${esc(itemText(p.frameStatusText, p.frameCode))}</div>`).join("")
+    : "";
+  const specColumns = [
+    ...(options.specification.number ? [["number", "№"]] : []), ["name", "Наименование"],
+    ...config.fields.specification.filter(([key]) => key !== "number" && options.specification[key]
+      && (key !== "article" || options.articles) && (!["price", "sum"].includes(key) || options.prices))
+      .map(([key, label]) => [key, key === "composition" && options.articles ? "Состав / артикул" : label])
+  ];
+  const specSection = options.sections.specification ? `<h2 class="section-title">Спецификация и комплектация</h2>
+  <table class="specification"><thead><tr>${specColumns.map(([key, label]) => `<th${["price", "sum"].includes(key) ? ' class="right"' : ""}>${esc(label)}</th>`).join("")}</tr></thead><tbody>
+  ${rows.map((r, i) => `<tr>${specColumns.map(([key]) => ["price", "sum"].includes(key)
+    ? `<td class="right">${money(r[key])}</td>`
+    : `<td>${key === "name" ? `<b>${esc(r.name)}</b>` : esc(key === "number" ? i + 1 : r[key])}</td>`).join("")}</tr>`).join("")}
   </tbody></table>` : "";
 
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Коммерческое предложение</title><style>
+  /* Секции-строки, приходящие оркестратором готовыми, — ОТДЕЛЬНЫМИ const: их же читает страж
+     пустого КП (hasContent), поэтому «раздел включён, но печатать нечего» не размазано по шаблону. */
+  const planSection = options.sections.plan ? deps.planBlockHtml || "" : "";
+  const lightingSection = options.sections.lighting ? deps.lightingHtml || "" : "";
+  const supplierSection = options.sections.supplier ? deps.supplierSpecHtml || "" : "";
+  /* Документу есть что показать, если включены цены (итоги печатаются всегда) ИЛИ хоть один
+     содержательный блок непуст. Проверяем НЕ «раздел включён», а «раздел что-то напечатает»:
+     раскладка без столбцов/без постов и план без чертежа дают "" и документ не открывают.
+     Оговорки, курс и подвал — производные от цен, отдельного содержимого не несут. */
+  const contentFragments = [planSection, layoutSection, frameWarnings, specSection, lightingSection, supplierSection];
+  const hasContent = options.prices || contentFragments.some(f => f && String(f).trim() !== "");
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Коммерческое предложение</title><style>
   @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.priceless{width:340px;margin:8px 0 0 auto;color:#9b3f2b;font-size:11px;font-weight:bold;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}@media print{button{display:none}}</style></head><body>
   <h1>Коммерческое предложение</h1><div class="sub">Проект электрики и комплектация электроустановочных изделий</div>
   <div class="meta"><div class="box">${headerRows}</div><button onclick="window.print()">Сохранить в PDF</button></div>
-  ${deps.planBlockHtml || ""}
+  ${planSection}
   ${layoutSection}
-  <h2 class="section-title">Спецификация и комплектация</h2>
-  <table><thead><tr><th>№</th><th>Наименование</th><th>Состав / артикул</th><th>Кол.</th><th>Ед.</th><th class="right">Цена</th><th class="right">Сумма</th></tr></thead><tbody>
-  ${rows.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.name)}</b></td><td>${esc(r.composition)}</td><td>${r.qty}</td><td>${esc(r.unit)}</td><td class="right">${money(r.price)}</td><td class="right">${money(r.sum)}</td></tr>`).join("")}
-  </tbody></table>
-  ${deps.lightingHtml || ""}
-  <div class="totals"><div><span>Оборудование</span><b>${money(est.equipment)}</b></div>
+  ${frameWarnings}
+  ${specSection}
+  ${lightingSection}
+  ${options.prices ? `<div class="totals"><div><span>Оборудование</span><b>${money(est.equipment)}</b></div>
   ${est.discount ? `<div><span>Скидка ${est.discountPercent}%</span><b>−${money(est.discount)}</b></div>` : ""}
   <div><span>Монтажные материалы</span><b>${money(materials)}</b></div><div><span>Работы</span><b>${money(work)}</b></div>
   ${est.vat ? `<div><span>Итого без НДС</span><b>${money(est.subtotal)}</b></div><div><span>НДС ${est.vatPercent}%</span><b>${money(est.vat)}</b></div>` : ""}
-  <div class="grand"><span>Итого${est.vat ? " с НДС" : ""}</span><b>${money(total)}</b></div></div>
-  ${pricelessNote ? `<div class="priceless">${esc(pricelessNote)}</div>` : ""}
-  ${displayCurrency() === "RUB" ? rateFooter() : ""}
-  <div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>
-  ${deps.supplierSpecHtml || ""}
+  <div class="grand"><span>Итого${est.vat ? " с НДС" : ""}</span><b>${money(total)}</b></div></div>` : ""}
+  ${pricelessNote ? `<div class="priceless">${options.prices ? esc(pricelessNote) : `Позиций без товара в каталоге: ${est.missing.length}. Проверьте состав проекта перед передачей документа.`}</div>` : ""}
+  ${options.prices && displayCurrency() === "RUB" ? rateFooter() : ""}
+  ${options.prices ? `<div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>` : ""}
+  ${supplierSection}
   ${printScript}</body></html>`;
+  return { html, hasContent };
 }
+
+/* buildHtml — прежний интерфейс приложению (строка документа). hasContent — тонкая обёртка над
+   тем же compose: страж пустого КП в app.js зовёт её на ТЕХ ЖЕ deps, что уйдут в печать, и не
+   заводит вторую копию правил «что напечатается». */
+function buildHtml(est, deps) { return compose(est, deps).html; }
+function hasContent(est, deps) { return compose(est, deps).hasContent; }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { buildHtml };
+const api = { buildHtml, hasContent };
 if (typeof window !== "undefined") window.EPOfferPdf = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

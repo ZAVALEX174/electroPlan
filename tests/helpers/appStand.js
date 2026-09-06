@@ -55,10 +55,13 @@ const SRC = stripComments(fs.readFileSync(path.join(JS_DIR, "app.js"), "utf8"));
 /* Исходник одной функции: от её объявления до следующего `\nfunction ` верхнего уровня. Между
    соседями только `}` и пустые строки — валидный JS. */
 function functionSource(name) {
-  const start = SRC.indexOf("function " + name);
+  const start = SRC.search(new RegExp("\\b(?:async\\s+)?function\\s+" + name + "\\s*\\("));
   assert.ok(start >= 0, "функция " + name + " должна существовать в app.js");
   const rest = SRC.slice(start);
-  const nextIdx = rest.indexOf("\nfunction ", 1);
+  /* restoreProject асинхронная: нельзя терять async перед function и нельзя
+     прихватывать следующий async-блок вместе с соседней синхронной функцией. */
+  const nextMatch = /\n(?:async\s+)?function\s+/.exec(rest.slice(1));
+  const nextIdx = nextMatch ? nextMatch.index + 1 : -1;
   return nextIdx >= 0 ? rest.slice(0, nextIdx) : rest;
 }
 

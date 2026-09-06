@@ -232,7 +232,7 @@ const postComposition=p=>EPPosts.postComposition(p,postDeps());
    стандарт (DE/FR → деление окна на посты) и окно в % (EPCatalog.frameOpening). Нет фото —
    EPPostImage сам рисует схему-фолбэк. Одна функция кормит превью конструктора, карточку
    библиотеки, подсказку на плане, раскладку КП и лист монтажника (в т.ч. печать — инлайн-стили). */
-function assembledPostSpec(post,{size="md"}={}){
+function assembledPostSpec(post,{size="md",articles=true}={}){
   const frame=frameProduct(post.frameId);
   const dist=EPPosts.distributePosts(post.mechanismIds||[],frame,{product,mechanismSpan});
   const rowsMap=new Map();   /* группируем посты по физическому ряду накладки */
@@ -246,7 +246,7 @@ function assembledPostSpec(post,{size="md"}={}){
          свободным модулем: место занято, но чем — неизвестно. Ноль-модульная ячейка (span у
          product(null) равен 0) схлопнулась бы в ничто и сдвинула бы номера соседних модулей. */
       if(!item){
-        cells.push({span:1,missing:true,name:`Механизм не найден (арт. ${id})`,num:String(occ+1)});
+        cells.push({span:1,missing:true,name:articles?`Механизм не найден (арт. ${id})`:"Механизм не найден",num:String(occ+1)});
         occ+=1;
         return;
       }
@@ -259,6 +259,7 @@ function assembledPostSpec(post,{size="md"}={}){
          цвет из name самого механизма (лицевая панель — отдельный товар: VIMAR даёт белую накладку
          с серебр. клавишами). */
       cells.push({span,imageUrl:productImage(item,{detail:true}),face:moduleFace(item),color:item?.properties?.color||item?.color||"",categoryId:item?.categoryId,icon:item?.icon,name:item?.name||"",num:start===end?String(start):`${start}–${end}`});
+      if(!articles)cells[cells.length-1].name=EPOfferOptions.itemText(item.name,false,item.code);
       occ+=span;
     });
     /* свободные модули поста — пустые ячейки с номером слота (место, а не поломка) */
@@ -273,7 +274,7 @@ function assembledPostSpec(post,{size="md"}={}){
      из name (у рамок VIMAR цвет — в названии). */
   const count=frameSlotCount(frame)||dist.totalCapacity;
   const frameSpec=frame?{
-    name:frame.name,code:frame.code,imageUrl:productImage(frame,{detail:true}),standard:frame.standard,
+    name:articles?frame.name:EPOfferOptions.itemText(frame.name,false,frame.code),code:articles?frame.code:"",imageUrl:productImage(frame,{detail:true}),standard:frame.standard,
     opening:frameOpening(frame,count),windows:frameOpenings(frame,count)
   }:null;
   return {size,frame:frameSpec,rows};
@@ -308,6 +309,7 @@ function markCanvasUsed(){$("canvasEmpty").style.display="none"}
 async function init(){
   state.products=await DataService.getProducts();
   state.templates=await DataService.getSavedPosts();
+  renderOfferOptions();   /* restoreProject синхронизирует уже существующие чекбоксы */
   const restored=await restoreProject();
   loadCachedRate();
   fillDocHeaderInputs();   /* реквизиты КП: заполнить поля (и дату «сегодня» на чистом старте) */
@@ -1600,22 +1602,22 @@ function postTotalCost(post,light){
 /* Неоднозначный подбор: в серии клавиши на нужную роль нашлось НЕСКОЛЬКО голых механизмов, и
    разобрать их данными нечем. Молча выбрать один нельзя — это деньги и монтаж, поэтому
    показываем кандидатов человеку отдельным блоком (в расчёт такое место не попадает). */
-function ambiguityHtml(light){
+function ambiguityHtml(light,options){
   const list=(light&&light.ambiguous)||[];
   if(!list.length)return"";
   return `<div style="margin:10px 0;padding:9px 11px;border:1px solid #f0d8c2;border-radius:10px;background:#fdf6ee;font-family:Arial,sans-serif;font-size:10px;color:#8a5a2f">`
     +`<b>Подбор механизма неоднозначен — выбор за проектировщиком</b>`
     +list.map(a=>`<div style="margin-top:4px">Роль «${esc(a.role)}», серия ${esc(a.series.join(", "))}: `
-      +esc(a.candidates.map(c=>`${c.code||"без артикула"} — ${c.name}`).join("; "))+`</div>`).join("")
+      +esc(a.candidates.map(c=>options?.articles===false?EPOfferOptions.itemText(c.name,false,c.code):`${c.code||"без артикула"} — ${c.name}`).join("; "))+`</div>`).join("")
     +`</div>`;
 }
 /* Один блок «Группы света» на все документы и на панель проекта — по правилу «два документа об
    одном проекте не могут противоречить». Вёрстку собирает чистый EPLightingPlan.buildHtml,
    формулировки причин — из EPLightingGroups.GAP_TEXTS; своего словаря здесь нет намеренно. */
-function lightingHtml(light,title){
+function lightingHtml(light,title,options){
   if(!light)return"";
-  return EPLightingPlan.buildHtml(light.plan,{esc,money,title:title||"Группы света",total:lightingSum(light)})
-    +ambiguityHtml(light);
+  return EPLightingPlan.buildHtml(light.plan,{esc,money,title:title||"Группы света",total:options?.prices===false?0:lightingSum(light)})
+    +ambiguityHtml(light,options);
 }
 
 /* Сам расчёт вынесен в js/estimate.js (EPEstimate) — чистая функция без state и DOM,
@@ -2995,6 +2997,7 @@ function projectSnapshot(){
     planLabel:state.planLabel||"",
     /* реквизиты документа (проект/клиент/адрес/разработчик/дата/номер КП) — часть проекта */
     docHeader:EP_DATA.settings.docHeader||{},
+    offerOptions:EPOfferOptions.normalize(EP_DATA.settings.offerOptions),
     /* условия сделки и валюта — часть проекта, а не глобальная настройка приложения */
     terms:(({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,wallType,lightingScheme,displayCurrency,eurRate,rateDate,rateSource})=>
       ({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,wallType,lightingScheme,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
@@ -3101,6 +3104,8 @@ async function restoreProject(){
      «сегодня» (fillDocHeaderInputs подставит) — обратная совместимость */
   if(p.docHeader)EP_DATA.settings.docHeader=p.docHeader;
   fillDocHeaderInputs();
+  EP_DATA.settings.offerOptions=EPOfferOptions.normalize(p.offerOptions);
+  syncOfferOptions();
   if(p.plan){
     await new Promise(done=>{
       const img=$("planImage");
@@ -3145,18 +3150,54 @@ function fillDocHeaderInputs(){
   $("docDate").value=d.date||new Date().toISOString().slice(0,10);
 }
 
+/* Настройки пока только КП (D10, часть 1), отдельно от реквизитов и условий сделки.
+   Переключение чекбокса не вызывает renderAll/пересчёт: меняется только будущая печать. */
+function renderOfferOptions(){
+  /* Подписи групп — из схемы (EPOfferOptions.groupLabels), не вторая копия здесь: новая группа
+     полей получит подпись там же, где заведена, а не «undefined» в легенде. */
+  $("offerOptionsFields").innerHTML=Object.entries(EPOfferOptions.fields).map(([group,fields])=>
+    `<fieldset><legend>${esc(EPOfferOptions.groupLabels[group]||group)}</legend>${fields.map(([key,label])=>
+      `<label><input type="checkbox" id="offer-${group}-${key}" data-offer-group="${group}" data-offer-key="${key}">${esc(label)}</label>`).join("")}</fieldset>`).join("");
+  syncOfferOptions();
+}
+function syncOfferOptions(){
+  const o=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
+  ["articles","prices"].forEach(key=>{$("offer-"+key).checked=o[key]});
+  Object.entries(EPOfferOptions.fields).forEach(([group,fields])=>fields.forEach(([key])=>{
+    const input=$("offer-"+group+"-"+key);
+    input.checked=o[group][key];
+    input.disabled=(group!=="sections"&&!o.sections[group])||(key==="article"&&!o.articles)
+      ||(["price","sum"].includes(key)&&!o.prices);
+  }));
+}
+function applyOfferOption(input){
+  const o=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
+  const {offerGroup:group,offerKey:key}=input.dataset;
+  if(group&&EPOfferOptions.fields[group]?.some(([k])=>k===key))o[group][key]=input.checked;
+  else if(key==="articles"||key==="prices")o[key]=input.checked;
+  else return;
+  EP_DATA.settings.offerOptions=o;
+  syncOfferOptions();scheduleSave();
+}
+function applyOfferPreset(name){
+  EP_DATA.settings.offerOptions=EPOfferOptions.preset(name);
+  syncOfferOptions();scheduleSave();
+}
+
 /* Раскладка постов для КП (PLAN 1): по строке на пост — номер, наполнение словами с
    количеством, модульность, иллюстрация (картинка накладки). Порядок — по номеру. */
-function buildPostLayout(){
+function buildPostLayout(options){
   return state.posts.slice().sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0)).map(p=>{
     const comp=postComposition(p);
     return {
       number:p.number,
       modules:comp.modulesTotal,
       fill:EPPosts.fillSummary(p.mechanismIds,{product}),
+      box:{name:(comp.box||comp.boxFallback)?.name,code:(comp.box||comp.boxFallback)?.code,count:comp.boxCount},
+      frameCode:comp.frameAvailability.code,
       /* Иллюстрация — собранный пост (EPPostImage), а не фото одной накладки: инлайн-стили,
          поэтому одинаково рисуется в окне печати КП. */
-      assembledImageHtml:assembledPostHtml(p,{size:"md"}),
+      assembledImageHtml:assembledPostHtml(p,{size:"md",articles:options?.articles!==false}),
       frameName:comp.frameAvailability.displayName,
       /* Исправную накладку под картинкой не дублируем. Важное состояние — исчезнувший
          артикул, снятая позиция или отсутствие выбора — печатается прямо в раскладке. */
@@ -3305,8 +3346,10 @@ function supplierSpecData(light){
 }
 /* Готовая секция свода для документа — пустая строка, когда заказывать нечего (пустой
    проект). Документы получают строку, а не данные, ровно как planBlockHtml. */
-function supplierSpecHtml(opts,light){
-  return EPSupplierSpec.buildHtml(Object.assign(supplierSpecData(light),opts||{}),{esc});
+function supplierSpecHtml(opts,light,options){
+  return EPSupplierSpec.buildHtml(Object.assign(supplierSpecData(light),opts||{}),{esc,
+    showArticles:options?.articles!==false,
+    itemText:(name,code)=>options?.articles===false?EPOfferOptions.itemText(name,false,code):name});
 }
 
 /* Детали поста для взрыв-схемы листа монтажника (EPExplodedView). Собираем ИЗ УЖЕ ПОСЧИТАННОГО:
@@ -3705,24 +3748,36 @@ function confirmRenumberPosts(){
    PLAN 2.4), открываем окно печати, а саму вёрстку документа собирает EPOfferPdf.
    Сверху добавляем реквизиты (docHeader) и раскладку постов (buildPostLayout). */
 function generateCommercialOffer(){
+  const options=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
   /* ОДИН расчёт групп света на весь документ: он же уходит в смету (цены механизмов), он же в
      блок «Группы света» и он же в свод поставщика — двум проходам разойтись негде. */
   const light=projectLighting();
   const est=buildEstimate(light);
+  /* Зависимости документа собираем ОДИН раз: тем же набором проверяем «будет ли что печатать»
+     и печатаем. Секции — готовыми строками (planBlockHtml/lightingHtml/supplierSpecHtml),
+     как и раньше; их пустота (раскладка без столбцов, план без чертежа, нечего заказывать)
+     видна только после сборки. */
+  const deps={money,esc,displayCurrency,effectiveRate:EPRates.effectiveRate,
+    settings:EP_DATA.settings,options,header:docHeader(),postLayout:buildPostLayout(options),
+    /* план с бирками — отдельной страницей перед раскладкой постов: клиент сверяет номер в
+       таблице с местом на чертеже. Поля КП 16 мм (см. @page в offerPdf.js). */
+    planBlockHtml:options.sections.plan?planBlockHtml({maxWidthMm:178,maxHeightMm:222}):"",
+    /* Пояснение к составу позиций выше: откуда в посте на три клавиши переключатель и
+       инвертор вместо трёх выключателей, сколько нужно реле и чего не хватает. */
+    lightingHtml:options.sections.lighting?lightingHtml(light,"Группы света",options):"",
+    /* Свод по артикулам — приложением В КОНЦЕ КП, после денежных итогов: клиент читает КП
+       ради цены, а этот лист отрывается и уходит поставщику (в нём цен нет). */
+    supplierSpecHtml:options.sections.supplier?supplierSpecHtml({},light,options):""};
+  /* Страж пустого КП спрашивает у сборщика «будет ли что напечатать» (EPOfferPdf.hasContent),
+     а НЕ «включён ли раздел»: включённая раскладка без столбцов или план без чертежа раньше
+     открывали окно печати с одним титулом и без единой таблицы. */
+  if(!EPOfferPdf.hasContent(est,deps)){
+    toast("В предложении нечего печатать: включите раздел с содержимым или цены и итоги");return;
+  }
   if(est.missing.length)toast(`Внимание: позиций без товара в каталоге — ${est.missing.length}`);
   const win=window.open("","_blank");
   if(!win){toast("Разрешите всплывающие окна для формирования PDF");return}
-  win.document.write(EPOfferPdf.buildHtml(est,{money,esc,displayCurrency,effectiveRate:EPRates.effectiveRate,
-    settings:EP_DATA.settings,header:docHeader(),postLayout:buildPostLayout(),
-    /* план с бирками — отдельной страницей перед раскладкой постов: клиент сверяет номер в
-       таблице с местом на чертеже. Поля КП 16 мм (см. @page в offerPdf.js). */
-    planBlockHtml:planBlockHtml({maxWidthMm:178,maxHeightMm:222}),
-    /* Пояснение к составу позиций выше: откуда в посте на три клавиши переключатель и
-       инвертор вместо трёх выключателей, сколько нужно реле и чего не хватает. */
-    lightingHtml:lightingHtml(light,"Группы света"),
-    /* Свод по артикулам — приложением В КОНЦЕ КП, после денежных итогов: клиент читает КП
-       ради цены, а этот лист отрывается и уходит поставщику (в нём цен нет). */
-    supplierSpecHtml:supplierSpecHtml({},light)}));
+  win.document.write(EPOfferPdf.buildHtml(est,deps));
   win.document.close();
 }
 
@@ -4079,6 +4134,10 @@ $("renumberConfirmBtn").onclick=confirmRenumberPosts;
 $("builderInstallSheet").onclick=installSheetForBuilder;
 /* реквизиты КП: правки полей сохраняются в проект (settings.docHeader) */
 Object.keys(DOC_FIELDS).forEach(id=>{$(id).oninput=applyDocHeader});
+$("offerOptions").onchange=e=>applyOfferOption(e.target);
+document.querySelectorAll("[data-offer-preset]").forEach(btn=>{
+  btn.onclick=()=>applyOfferPreset(btn.dataset.offerPreset);
+});
 /* Условия сделки: работы, материалы, скидка, ставка НДС и его наличие в КП. Всё это —
    настройки проекта, поэтому потребителей не перечисляем (applyProjectSettings). Строка
    с disabled остаётся здесь: это состояние самого органа ввода, а не чужое представление. */

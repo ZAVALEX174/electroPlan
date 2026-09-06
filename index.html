@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260903.2">
+  <link rel="stylesheet" href="css/styles.css?v=20260906.3">
 </head>
 <body>
 <div class="app">
@@ -178,6 +178,18 @@
           <label>Номер КП<input id="docNumber" autocomplete="off" placeholder="№"></label>
         </div>
         <small class="hint-line">Печатаются в шапке КП и листа монтажника. Пустые поля не выводятся.</small>
+        <details class="offer-options" id="offerOptions">
+          <summary>Настройка состава КП</summary>
+          <div class="offer-presets">
+            <button class="btn ghost small" type="button" data-offer-preset="full">Полное КП</button>
+            <button class="btn ghost small" type="button" data-offer-preset="client">Для клиента</button>
+            <button class="btn ghost small" type="button" data-offer-preset="boxes">Монтажные коробки</button>
+          </div>
+          <label><input type="checkbox" id="offer-articles" data-offer-key="articles">Печатать артикулы во всех разделах КП</label>
+          <label><input type="checkbox" id="offer-prices" data-offer-key="prices">Печатать цены и итоги</label>
+          <div id="offerOptionsFields"></div>
+          <small class="hint-line">Сохраняется в проекте. Лист монтажника не меняется. Наименование в спецификации остаётся всегда; раскладка без выбранных столбцов не печатается. Коды на исходном плане, фотографиях и в тексте, введённом вручную, не редактируются.</small>
+        </details>
       </section>
 
       <section>
@@ -425,10 +437,11 @@
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
 <script src="js/catalogSections.js?v=20260828.1"></script>
 <script src="js/builderSlots.js?v=20260903.4"></script>
-<script src="js/estimate.js?v=20260906.2"></script>
-<script src="js/offerPdf.js?v=20260906.2"></script>
+<script src="js/offerOptions.js?v=20260906.4"></script>
+<script src="js/estimate.js?v=20260906.3"></script>
+<script src="js/offerPdf.js?v=20260906.4"></script>
 <script src="js/installSheet.js?v=20260902.1"></script>
-<script src="js/supplierSpec.js?v=20260827.3"></script>
+<script src="js/supplierSpec.js?v=20260906.4"></script>
 <script src="js/postImage.js?v=20260903.4"></script>
 <script src="js/explodedView.js?v=20260805.5"></script>
 <script src="js/planLabels.js?v=20260827.2"></script>
@@ -445,6 +458,6 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-<script src="js/app.js?v=20260906.2"></script>
+<script src="js/app.js?v=20260906.4"></script>
 </body>
 </html>

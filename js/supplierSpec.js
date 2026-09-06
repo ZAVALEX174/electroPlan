@@ -50,7 +50,12 @@
    его ответственность, и оно проверяется тестом. Механизмы и накладку оркестратор передаёт
    готовыми объектами: имя ненайденного товара он формирует так же, как для других документов.
 
-   deps = { esc(s) }.
+   deps = { esc(s), showArticles=true, itemText(name, code)=name }.
+     showArticles — печатать ли колонку «Артикул» и говорить в заголовке/примечании про артикулы;
+       false убирает и колонку, и слово «по артикулам» из шапки (но НЕ строки: состав и
+       количества свода от флага не зависят — меняется только показанное).
+     itemText — как оркестратор чистит подпись товара без артикулов (тот же EPOfferOptions.itemText,
+       что в КП): по умолчанию имя отдаётся как есть.
    collect(spec) → {rows, totalNames, totalUnits, missing}; buildHtml(spec, deps) → строка
    секции либо "" (в проекте нечего заказывать — секции в документе не будет);
    kindFromCatalog(kind товара) → kind свода (перевод вокабуляра прайса — им пользуется
@@ -223,13 +228,16 @@ function collect(spec) {
    свой <style>; секция не должна зависеть от их классов. */
 function buildHtml(spec, deps) {
   const esc = (deps && deps.esc) || (v => String(v == null ? "" : v));
+  const showArticles = deps?.showArticles !== false;
+  const itemText = deps?.itemText || text;
   const data = collect(spec);
   /* Пустой проект — секции в документе нет вовсе (а не пустая таблица с «Всего 0»). */
   if (!data.rows.length) return "";
   const s = spec || {};
-  const title = text(s.title).trim() || "Сводная спецификация по артикулам";
+  const title = text(s.title).trim() || (showArticles ? "Сводная спецификация по артикулам" : "Сводная спецификация");
   const note = s.note !== undefined ? text(s.note)
-    : "Все одинаковые позиции проекта сведены по артикулам. Документ для поставщика — без цен.";
+    : showArticles ? "Все одинаковые позиции проекта сведены по артикулам. Документ для поставщика — без цен."
+      : "Артикулы скрыты. Для заказа поставщику сформируйте версию с артикулами.";
 
   /* Рамки у ячеек, а не только фон: Chrome по умолчанию НЕ печатает фоновую графику
      (та же причина, что у бирок плана), и без границ шапка таблицы в PDF растворилась бы.
@@ -253,7 +261,7 @@ function buildHtml(spec, deps) {
        правило на <td>: Chrome применяет разрывы к ячейке надёжнее, чем к <tr>. */
     const avoid = "break-after:avoid;page-break-after:avoid";
     const head = (showGroups && r.kind !== prevKind)
-      ? `<tr style="${avoid}"><td colspan="5" style="${cell};text-align:left;background:#f0f7ff;color:#185d96;font-weight:bold;font-size:11px;`
+      ? `<tr style="${avoid}"><td colspan="${showArticles ? 5 : 4}" style="${cell};text-align:left;background:#f0f7ff;color:#185d96;font-weight:bold;font-size:11px;`
         + `${avoid};-webkit-print-color-adjust:exact;print-color-adjust:exact">${esc(KIND_LABEL[r.kind] || KIND_LABEL.other)}</td></tr>`
       : "";
     prevKind = r.kind;
@@ -265,8 +273,8 @@ function buildHtml(spec, deps) {
       : `<span style="color:#a3552a">${esc(NO_CODE_TEXT)}</span>`;
     return head
       + `<tr><td style="${cell};text-align:left;width:34px;color:#687f94">${n}</td>`
-      + `<td style="${cell};text-align:left">${esc(r.name)}</td>`
-      + `<td style="${cell};text-align:left">${code}</td>`
+      + `<td style="${cell};text-align:left">${esc(itemText(r.name, r.code))}${!showArticles ? (r.assumed ? esc(ASSUMED_MARK) : !r.code ? ` · ${esc(NO_CODE_TEXT)}` : "") : ""}</td>`
+      + (showArticles ? `<td style="${cell};text-align:left">${code}</td>` : "")
       + `<td style="${cell};text-align:right;font-weight:bold;width:64px">${r.count}</td>`
       + `<td style="${cell};text-align:left;width:52px">${esc(r.unit)}</td></tr>`;
   }).join("");
@@ -291,7 +299,7 @@ function buildHtml(spec, deps) {
     /* th заканчивается на «text-align:» — значение дописывает каждая колонка, чтобы в
        инлайн-стиле не оказалось двух конкурирующих text-align. */
     + `<thead><tr><th style="${th}left;width:34px">№</th><th style="${th}left">Товар</th>`
-    + `<th style="${th}left">Артикул</th><th style="${th}right;width:64px">Кол-во</th>`
+    + (showArticles ? `<th style="${th}left">Артикул</th>` : "") + `<th style="${th}right;width:64px">Кол-во</th>`
     + `<th style="${th}left;width:52px">Ед.</th></tr></thead>`
     + `<tbody>${body}</tbody></table>`
     + totals + gap
