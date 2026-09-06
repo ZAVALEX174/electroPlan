@@ -1,7 +1,10 @@
 /* ПОВЕДЕНЧЕСКИЙ регресс: механизм, чей АРТИКУЛ ПРОПАЛ из перезалитого прайса (product не
    разрешается в товар вовсе), НЕ выпадает молча из состава поста при перерисовке конструктора
    (js/app.js renderBuilder / pickBuilderProduct). Слот остаётся ЯВНЫМ ПРОБЕЛОМ, названным во всех
-   документах, сохранение РАЗРЕШЕНО (решение владельца, часть 1).
+   документах, а сохранение и лист монтажника ЗАБЛОКИРОВАНЫ, пока пробел в посте — владелец выбрал
+   ОБА варианта: позицию НАЗЫВАЕМ И не даём сохранить/распечатать (та же форма, что у недоступной
+   накладки frameMissing). Снятый с производства (товар и цена есть) — НЕ блокирует, см.
+   mechanismDiscontinuedKeptWiring.test.js.
 
    ДЕФЕКТ. keepMechs удерживает только СНЯТЫЕ механизмы (product есть, active:false). У пропавшего
    артикула товара нет: его нет ни в mechs, ни в keepMechs, allowedTokens его токен не пускает, а
@@ -18,9 +21,11 @@
    1) возврат выбрасывания: allowedTokens снова зовут без missingMechIds → пропавший механизм
       выпадает, состав/цена «худеют», адреса соседних модулей сдвигаются;
    2) сдвиг адресов: moduleLayout после render перестаёт давать 1,2,3;
-   3) пропажа формулировки: снятие missingMechNoticeHtml / .builder-notice в составе, или
-      исчезновение позиции «Механизм не найден (арт. N)» из сметы (est.missing / composition);
-   4) молчаливый итог: renderSummary перестаёт называть позиции без цены (#pricelessStatus);
+   3) пропажа формулировки/блокировки: снятие missingMechErrorHtml / .builder-error в составе,
+      снятие блокировки savePost / builderInstallSheet, исчезновение позиции «Механизм не найден
+      (арт. N)» из сметы (est.missing / composition);
+   4) молчаливый итог: renderSummary перестаёт называть позиции без цены (#pricelessStatus) —
+      счётчик читает est.missing (весь проект), НЕ флаг механизма (только посты, недосчёт);
    5) попадание пропавшего артикула в предложение новым: builderCtx.mechs (каталог карточек).
    Запуск: node --test tests/ */
 "use strict";
@@ -125,10 +130,11 @@ test("renderBuilder: пробел назван и посчитан деньга�
   assert.equal(Number((normal - gap).toFixed(4)), Number(MECH.price.toFixed(4)),
     "разница ровно в цену одного механизма: пробел добавляет 0, остальные позиции не переоценены");
 
-  // пробел занимает 1 модуль в раскладке — пост заполнен целиком, сохранение не блокируется пробелом
+  // пробел занимает 1 модуль в раскладке — пост физически СОБИРАЕТСЯ (dist.full), но сохранение
+  // блокирует renderBuilder отдельно по missingMechIds, а не dist: считать по пробелу нечего.
   const dist = EPPosts.distributePosts([MECH.id, GONE_ID, MECH.id], FRAME, deps);
   assert.equal(dist.totalOccupied, 3, "пробел занимает 1 модуль — накладка на 3 модуля заполнена");
-  assert.equal(dist.full, true, "пост полон: сохранение разрешено (пробел не мешает)");
+  assert.equal(dist.full, true, "сборка физически полна: блокировку даёт missingMechIds, а не неполнота раскладки");
 });
 
 test("renderBuilder: пометка «артикул пропал» отличается от «снят с производства» и доходит до состава", () => {
@@ -138,7 +144,7 @@ test("renderBuilder: пометка «артикул пропал» отлича
   assert.equal(ctx.builderCtx.missingMechIds.length, 1, "ровно один пропавший артикул удерживается");
   assert.equal(Number(ctx.builderCtx.missingMechIds[0]), GONE_ID,
     "builderCtx.missingMechIds содержит пропавший артикул — им кормится удержание в fit/replace");
-  assert.match(ctx.builderCtx.errorHtml, /builder-notice/, "пометка пробела — .builder-notice (сообщает, не блокирует)");
+  assert.match(ctx.builderCtx.errorHtml, /builder-error/, "пометка пробела — красная .builder-error (называет И блокирует, как у накладки)");
   assert.match(ctx.builderCtx.errorHtml, /Артикул механизма пропал из каталога/,
     "формулировка «пропал» — ОТЛИЧНАЯ от «снят с производства» (там товар есть)");
   assert.match(ctx.builderCtx.errorHtml, new RegExp(String(GONE_ID)), "пометка называет номер пропавшего артикула");
@@ -146,8 +152,10 @@ test("renderBuilder: пометка «артикул пропал» отлича
     "у пропавшего артикула НЕ печатается формулировка снятого — состояния не путаются");
   assert.match(ctx.$("builderComposition").innerHTML, /Артикул механизма пропал/, "пометка доходит до composition-хоста");
 
-  // сохранение РАЗРЕШЕНО (пост из 3 модулей заполнен: 2 механизма + пробел)
-  assert.equal(ctx.$("savePost").disabled, false, "сохранение разрешено — пробел не блокирует (решение владельца, часть 1)");
+  // сохранение и лист монтажника ЗАБЛОКИРОВАНЫ пробелом (владелец выбрал ОБА варианта, часть 2):
+  // по пробелу цену взять неоткуда, монтажный документ был бы с дырой — та же форма, что frameMissing.
+  assert.equal(ctx.$("savePost").disabled, true, "пропавший артикул блокирует сохранение — считать по пробелу нечего");
+  assert.equal(ctx.$("builderInstallSheet").disabled, true, "и лист монтажника: документ с дырой недостоверен");
 
   // пропавший артикул НЕ предлагается новым: у него нет товара, каталог карточек его не несёт
   assert.ok(!(ctx.builderCtx.mechs || []).some(m => Number(m.id) === GONE_ID),
@@ -170,6 +178,41 @@ test("смета: пропавший артикул НАЗВАН строкой 
   assert.ok(est.missing.includes(GONE_ID), "est.missing содержит пропавший артикул — по нему итог оговаривается");
   assert.match(est.groups[0].composition, new RegExp(`Механизм не найден \\(арт\\. ${GONE_ID}\\)`),
     "состав позиции называет пропавший артикул человеку — он не выпадает из КП/сметы");
+});
+
+/* РАСХОЖДЕНИЕ ДВУХ ИСТОЧНИКОВ «БЕЗ ЦЕНЫ». Счётчик под «Итого» (#pricelessStatus) обязан читать
+   est.missing — единственный полный список пропавших артикулов на ВЕСЬ проект. Бывший флаг
+   mechanismAvailability.priceless покрывал бы ТОЛЬКО механизмы поста и недосчитал бы изделие
+   плана и пропавшую накладку — ровно то расхождение двух источников, которое чистили по §7.1.
+   Этот тест краснеет, если кто-то вернёт механизм-only флаг (тогда «priceless» in av) или сузит
+   счётчик так, что изделие плана/накладка выпадут из подсчёта. */
+test("счётчик «без цены» считает ВЕСЬ проект (est.missing), а не только механизмы поста", () => {
+  const products = RAW.map(p => ({ ...p }));
+  const product = id => products.find(p => Number(p.id) === Number(id));
+  const frameProduct = product;
+  const deps = { product, frameProduct, mechanismSpan: EPCatalog.mechanismSpan };
+  const GONE_DEVICE = GONE_ID + 1, GONE_FRAME = GONE_ID + 2, GONE_MECH = GONE_ID + 3;
+  [GONE_DEVICE, GONE_FRAME, GONE_MECH].forEach(id =>
+    assert.equal(product(id), undefined, "разведка: подставные пропавшие id в каталоге отсутствуют"));
+
+  const est = EPEstimate.build({
+    devices: [{ productId: GONE_DEVICE }],                                  // одиночное изделие плана
+    posts: [{ id: "p1", frameId: GONE_FRAME, mechanismIds: [MECH.id, GONE_MECH] }], // накладка + механизм
+    product, frameProduct,
+    postCost: p => EPPosts.postCost(p, deps),
+    postComposition: p => EPPosts.postComposition(p, deps),
+    lightingOf: () => [], settings: {}
+  });
+  // ТРИ источника пропажи, из них механизм поста лишь ОДИН — механизм-only флаг недосчитал бы два.
+  assert.deepEqual(est.missing.map(Number).sort((a, b) => a - b),
+    [GONE_DEVICE, GONE_FRAME, GONE_MECH].sort((a, b) => a - b),
+    "est.missing собирает пропажу ВЕЗДЕ: изделие плана + накладка + механизм поста");
+
+  // Мутационный сторож части 2: у состояния механизма НЕТ мёртвого флага priceless. Иначе соблазн
+  // подключить механизм-only источник и разойтись с est.missing (тот самый дефект §7.1).
+  const av = EPPosts.mechanismAvailability(GONE_MECH, product(GONE_MECH));
+  assert.equal(av.missing, true, "пропажа механизма читается через .missing — им и кормится удержание/итог");
+  assert.ok(!("priceless" in av), "у availability нет мёртвого флага priceless — источник «без цены» один: est.missing");
 });
 
 test("превью: пропавший артикул рисуется ЯВНЫМ пробелом в 1 модуль, а не схлопывается в ноль", () => {

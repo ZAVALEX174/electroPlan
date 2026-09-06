@@ -2154,18 +2154,31 @@ function renderBuilder(){
      (там товар есть и посчитан по цене). Здесь товара нет вовсе: слот удержан явным пробелом,
      чтобы не сдвинуть адреса модулей, но цену по нему взять неоткуда. Формулировку берём из
      единого состояния EPPosts.mechanismAvailability — той же, что называет позицию в смете, своде,
-     КП и листе монтажника. Приглушённая .builder-notice, а не красная .builder-error: сохранение
-     разрешено (решение владельца), пробел просто назван. */
-  const missingMechNoticeHtml=missingMechIds.length
-    ?`<div class="builder-notice" role="status"><strong>Артикул механизма пропал из каталога</strong><span>${esc(missingMechIds.map(id=>EPPosts.mechanismAvailability(id,null).displayName).join(", "))} — этих артикулов больше нет в прайсе (вероятно, перезалит). Позиция оставлена в посте явным пробелом и названа во всех документах, чтобы номера модулей не сдвинулись; цена по ней неизвестна. Замените её карточкой в каталоге или уточните артикул у поставщика.</span></div>`
+     КП и листе монтажника. Красная .builder-error, а не приглушённая .builder-notice: владелец
+     выбрал ОБА варианта — позицию НАЗЫВАЕМ И блокируем сохранение/лист монтажника, пока пробел не
+     заменён (та же форма, что у недоступной накладки frameMissing выше: по пробелу считать нечего,
+     монтажный документ был бы с дырой). Снятый механизм (mechNoticeHtml) под блокировку НЕ
+     подпадает — там товар и цена есть, это осознанное решение владельца от 02.09. */
+  const missingMechErrorHtml=missingMechIds.length
+    ?`<div class="builder-error" role="alert"><strong>Артикул механизма пропал из каталога</strong><span>${esc(missingMechIds.map(id=>EPPosts.mechanismAvailability(id,null).displayName).join(", "))} — этих артикулов больше нет в прайсе (вероятно, перезалит). Позиция оставлена явным пробелом и названа во всех документах, чтобы номера модулей не сдвинулись; цена по ней неизвестна. Пока пробел в посте, сохранение и лист монтажника заблокированы: замените позицию карточкой в каталоге или уточните артикул у поставщика.</span></div>`
     :"";
-  builderCtx={mechs,keepMechs,missingMechIds,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:frameNoticeHtml+mechNoticeHtml+missingMechNoticeHtml+builderErrorHtml(dist)};
+  builderCtx={mechs,keepMechs,missingMechIds,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:frameNoticeHtml+mechNoticeHtml+missingMechErrorHtml+builderErrorHtml(dist)};
   renderBuilderCatalog();
   renderBuilderComposition(selectedFrame,builderCtx.errorHtml,light,draft);
   /* Сохранять можно, только когда сборка физически собирается (никакой механизм не шире поста
      и не «размазан» через импост) и все посты заполнены целиком. Недоступную накладку сюда не
-     пускает ранний выход выше. */
-  $("savePost").disabled=!(dist.valid&&dist.full);
+     пускает ранний выход выше.
+     ⚠️ ПРОПАВШИЙ АРТИКУЛ МЕХАНИЗМА блокирует так же, как недоступная накладка (frameMissing):
+     по пробелу цену взять неоткуда, а монтажный документ был бы с дырой. Владелец выбрал ОБА
+     варианта — позицию называем (баннер выше) И не даём сохранить/распечатать, пока пробел не
+     заменён. Снятый с производства сюда НЕ входит: missingMechIds — только пропавшие артикулы
+     (product не разрешается), keepMechs — снятые (товар и цена есть). */
+  const mechMissing=missingMechIds.length>0;
+  $("savePost").disabled=mechMissing||!(dist.valid&&dist.full);
+  /* Лист монтажника выше уже включён (disabled=false) для разрешившейся накладки — при пропавшем
+     механизме гасим обратно тем же образом, что и ветка frameMissing глушит его при недоступной
+     накладке. */
+  if(mechMissing)$("builderInstallSheet").disabled=true;
 }
 
 /* Выбранные модули поста. Товар выбирается КАРТОЧКОЙ в каталоге справа, поэтому строка слота

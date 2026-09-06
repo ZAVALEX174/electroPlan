@@ -62,8 +62,11 @@ function frameAvailability(frameId, resolvedFrame) {
    ценой, поэтому подпись у них разная. displayName отдаём готовой, чтобы конструктор, смета,
    свод, КП, лист монтажника и подсказка на плане не сочиняли собственных формулировок и не
    расходились между собой (та же причина, что у накладки).
-   priceless=true у пропавшего артикула — цену взять неоткуда: итог обязан оговорить, что в проекте
-   есть позиции без цены, а не молча просуммировать остальное. */
+   Отдельного флага «без цены» здесь намеренно НЕТ: единственный счётчик позиций без цены на весь
+   проект — est.missing (EPEstimate.build), и он собирает пропавшие артикулы ВЕЗДЕ (одиночные
+   изделия плана, механизмы И накладки постов). Флаг только у механизма покрыл бы лишь механизмы
+   поста, недосчитал бы изделия плана и пропавшие накладки — это ровно то расхождение двух
+   источников, которое вычищали по §7.1. Кому нужно «пропал ли артикул» — читает .missing. */
 function mechanismAvailability(mechId, resolvedProduct) {
   const item = resolvedProduct || null;
   const state = !item ? "missing" : item.active === false ? "discontinued" : "available";
@@ -82,8 +85,7 @@ function mechanismAvailability(mechId, resolvedProduct) {
     code: item && item.code ? item.code : "",
     available: state === "available",
     discontinued: state === "discontinued",
-    missing: state === "missing",
-    priceless: state === "missing"
+    missing: state === "missing"
   };
 }
 
