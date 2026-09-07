@@ -13,7 +13,9 @@
 
    МУТАЦИОННАЯ ТАБЛИЦА (в отчёте):
      room = state.rooms[0] вместо поиска по roomId поста → краснеет §1 (вернёт «Arke» вместо «Eikon Tactil»);
-     roomCollection(room,null) → без валидации по каталогу — на живых коллекциях остаётся зелёным (обе валидны).
+     roomCollection(room,frameCollectionList()) → roomCollection(room) (убрать второй аргумент) →
+       на ЖИВЫХ коллекциях зелёный (обе валидны), но краснит §3: мёртвая коллекция «Идея» без
+       списка каталога проходит как валидная (любая непустая строка) → collection="Идея" вместо null.
    Запуск: node --test tests/ */
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -68,4 +70,28 @@ test("E13: тот же критерий для поста ПЕРВОЙ комн�
   // контроль: результат меняется вместе с редактируемым постом — критерий действительно ходит по roomId
   assert.equal(filterFor("r1").collection, "Arke",
     "для поста первой комнаты критерий — «Arke»; вместе с §1 доказывает, что берётся комната поста, а не фиксированный индекс");
+});
+
+/* §3: валидация коллекции по каталогу ЖИВЁТ В ТОЧКЕ ВЫЗОВА, а не только в модуле room.js.
+   Старый проект: у комнаты collection="Идея" — серия, которой в текущем прайсе НЕТ (переименовали/
+   перезалили). Продакшн зовёт roomCollection(room, frameCollectionList()) → «Идея» не в каталоге →
+   null → фильтра нет, весь каталог. Мутант roomCollection(room) (без второго аргумента) пропускает
+   любую непустую строку как валидную → collection="Идея": renderBuilder/resolveMissingFrame/
+   emptyContext начнут писать «помещение закреплено за коллекцией «Идея»» про фильтр, которого нет.
+   На §1–§2 (живые коллекции) мутант зелёный — держим именно мёртвым именем. */
+function filterForDeadCollection() {
+  const state = {
+    products: PRODUCTS,
+    rooms: [{ id: "r1", name: "Кабинет", collection: "Идея" }],
+    posts: [{ id: "p1", roomId: "r1" }],
+    builder: { editingPlacedId: "p1" }
+  };
+  return stand.run(CUT, makeCtx(state))();
+}
+
+test("E13: мёртвая коллекция комнаты (нет в каталоге) валидируется в точке вызова → collection === null", () => {
+  assert.ok(!COLLECTIONS.includes("Идея"),
+    "предпосылка: «Идея» отсутствует в каталоге — это и есть мёртвая коллекция старого проекта");
+  assert.equal(filterForDeadCollection().collection, null,
+    "frameCollectionList() обязан прийти вторым аргументом roomCollection: мёртвое имя → null (весь каталог), а не мнимый фильтр «Идея»");
 });

@@ -85,3 +85,31 @@ test("без списка коллекций валидной считается
   assert.equal(R.roomCollection({ collection: "whatever" }), "whatever");
   assert.equal(R.roomCollection({ collection: "" }), null);
 });
+
+/* Краевые режимы E13 — держат ветвление roomCollection точечно (§7.1 состязательного прохода):
+   без этих входов мутации `typeof own!=="string"||!own`→`!own`, `!collections`→`!collections||!collections.length`
+   и добавление `.trim()` проходят зелёными, потому что валидный список + строковые входы их маскируют. */
+
+test("нестроковое значение БЕЗ списка коллекций → null, а не сырое значение", () => {
+  /* Ключ именно «без списка»: с COLLECTIONS indexOf(число/объект) и так даёт -1 → null и маскирует
+     мутацию `!own` (число truthy — она бы пропустила его до `return own`). Проверяем канал, где
+     число/объект дошли бы до return: список не передан. */
+  assert.equal(R.roomCollection({ collection: 5 }), null);
+  assert.equal(R.roomCollection({ collection: {} }), null);
+  assert.equal(R.roomCollection({ collection: true }), null);
+});
+
+test("пустой список коллекций (каталог ещё не загружен) → null, а не сырое значение", () => {
+  /* frameCollectionList() до загрузки каталога отдаёт []. [] истинно, поэтому проверка названия
+     идёт по пустому списку → indexOf === -1 → null. Мутация `!collections.length` вернула бы сырое
+     значение, показав фильтр по коллекции, которой в пустом каталоге заведомо нет. */
+  assert.equal(R.roomCollection({ collection: "Arke" }, []), null);
+  assert.equal(R.roomCollection({ collection: "whatever" }, []), null);
+});
+
+test("значение с окружающими пробелами (правленый вручную проект) → null, без тихого trim", () => {
+  /* «Не задана», а не «Arke»: roomCollection НЕ нормализует пробелы — " Arke" не равно "Arke" в
+     каталоге. Мутант с .trim() совпал бы с валидной серией и молча включил фильтр. */
+  assert.equal(R.roomCollection({ collection: " Arke" }, COLLECTIONS), null);
+  assert.equal(R.roomCollection({ collection: "Arke " }, COLLECTIONS), null);
+});
