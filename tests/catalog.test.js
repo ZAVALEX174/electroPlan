@@ -231,3 +231,46 @@ test("productImage: заглушку no_photo не отдаём, берём на
   // нет картинок вовсе → пусто
   assert.equal(productImage({}), "");
 });
+
+/* --- КОЛЛЕКЦИИ КОМНАТЫ (E13): productCollections + productsForRoom ---------------------
+   Коллекция = серия товара. Товар живёт в НЕСКОЛЬКИХ коллекциях сразу (арт. 02970 — в пяти),
+   поэтому отбор по коллекции — ЧЛЕНСТВО В МНОЖЕСТВЕ серий, а не равенство строк. Здесь это и
+   фиксируем: мутация «=== вместо includes» обязана уронить мультиколлекционный товар. */
+const { productCollections, productsForRoom } = require("../js/catalog.js");
+
+const MULTI = { id: 1, series: ["Arke", "Arke Fit", "Eikon Evo", "Eikon Exe", "Plana"], name: "02970 мультиколлекционный" };
+const ARKE = { id: 2, series: ["Arke"], name: "рамка Arke" };
+const PLANA = { id: 3, series: ["Plana"], name: "рамка Plana" };
+const NOSER = { id: 4, series: [], name: "без серии" };
+const CATALOG = [MULTI, ARKE, PLANA, NOSER];
+
+test("productCollections: восходящий список различных серий каталога", () => {
+  assert.deepEqual(productCollections(CATALOG), ["Arke", "Arke Fit", "Eikon Evo", "Eikon Exe", "Plana"]);
+  assert.deepEqual(productCollections([]), []);
+});
+
+test("productsForRoom: пустой критерий (нет коллекции) → весь список копией, не мутируя исходный", () => {
+  const out = productsForRoom(CATALOG, { collection: null });
+  assert.deepEqual(out, CATALOG);
+  assert.notEqual(out, CATALOG, "возвращается копия");
+  assert.deepEqual(productsForRoom(CATALOG, {}), CATALOG);
+  assert.deepEqual(productsForRoom(CATALOG, null), CATALOG);
+});
+
+test("productsForRoom: отбор по коллекции — членство в множестве серий, мультиколлекционный товар проходит", () => {
+  const arke = productsForRoom(CATALOG, { collection: "Arke" });
+  assert.ok(arke.includes(MULTI), "мультиколлекционный 02970 обязан попасть в свою коллекцию Arke");
+  assert.ok(arke.includes(ARKE));
+  assert.ok(!arke.includes(PLANA), "рамка чужой коллекции (Plana) отсеяна");
+  assert.ok(!arke.includes(NOSER), "товар без серии в конкретную коллекцию не входит");
+  // та же проверка для Plana — мультиколлекционный тоже в ней
+  const plana = productsForRoom(CATALOG, { collection: "Plana" });
+  assert.ok(plana.includes(MULTI) && plana.includes(PLANA) && !plana.includes(ARKE));
+});
+
+test("productsForRoom: РАВЕНСТВО строк было бы неверно — 02970 (массив из 5) не равен 'Arke'", () => {
+  /* явный якорь против регресса «productSeries(item) === collection»: строковое сравнение
+     массива серий с названием никогда не истинно, мультиколлекционный товар выпал бы. */
+  assert.notStrictEqual(MULTI.series, "Arke");
+  assert.ok(productsForRoom([MULTI], { collection: "Arke" }).length === 1);
+});

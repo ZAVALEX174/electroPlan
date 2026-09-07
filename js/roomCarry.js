@@ -8,9 +8,10 @@
    пользовательские поля на какую новую комнату перенести. Само чтение state.rooms и запись
    полей остаются в app.js — здесь только чистое сопоставление, без state и без DOM.
 
-   ЧТО ПЕРЕНОСИМ. Только введённое человеком: имя (если оно НЕ авто-формата), непустую площадь и
-   схему электрики комнаты (room.lightingScheme — своя схема, отличная от проектной). Список полей
-   расширяется в normUserFields — правило сбора «ручного» держим в одной точке.
+   ЧТО ПЕРЕНОСИМ. Только введённое человеком: имя (если оно НЕ авто-формата), непустую площадь,
+   схему электрики комнаты (room.lightingScheme — своя схема, отличная от проектной) и коллекцию
+   накладок (room.collection, E13). Список полей расширяется в normUserFields — правило сбора
+   «ручного» держим в одной точке.
    НЕ переносим геометрию (polygon, seedX/seedY, x/y, roomSource) и id — они на то и
    пересчитываются, а привязка объектов к комнатам всё равно пересчитывается заново.
 
@@ -79,12 +80,21 @@ function normUserFields(o) {
      что стоит в поле. */
   const rawScheme = o.lightingScheme;
   const lightingScheme = typeof rawScheme === "string" && rawScheme ? rawScheme : null;
-  return { name, area, lightingScheme };
+  /* Коллекция накладок комнаты (room.collection, E13) — такое же введённое человеком поле, как
+     схема: пересчёт контуров стирает авто-комнаты, и без переноса коллекция исчезала бы при
+     каждой правке линий разметки — молчаливая потеря настройки. Переносим ТОЛЬКО непустую строку;
+     отсутствие поля = «коллекция не задана», материализовать его нельзя. Валидность названия по
+     каталогу здесь не проверяем — это забота представления, перенос сохраняет ровно то, что стоит
+     (мёртвое значение отфильтрует уже EPRoom.roomCollection при чтении). */
+  const rawCollection = o.collection;
+  const collection = typeof rawCollection === "string" && rawCollection ? rawCollection : null;
+  return { name, area, lightingScheme, collection };
 }
 
-/* carry(oldRooms, newRooms[, geom]) → массив переносов [{ toId, fromId, name, area }].
-   Каждый перенос — на ОДНУ новую комнату (toId); name/area = значение для записи либо null,
-   если это поле не переносится. В массив попадают только пары, где переносить есть что. */
+/* carry(oldRooms, newRooms[, geom]) → массив переносов
+   [{ toId, fromId, name, area, lightingScheme, collection }]. Каждый перенос — на ОДНУ новую
+   комнату (toId); каждое поле = значение для записи либо null, если оно не переносится. В массив
+   попадают только пары, где переносить есть хоть что-то. */
 function carry(oldRooms, newRooms, geom) {
   geom = geom || defaultGeom();
   if (!geom) return [];
@@ -121,9 +131,9 @@ function carry(oldRooms, newRooms, geom) {
     if (usedSrc.has(c.s.room) || usedDst.has(c.d.room)) return;   /* один-к-одному */
     const f = normUserFields(c.s.room);
     /* пара занята в любом случае (один-к-одному), но перенос добавляем, только если есть что нести */
-    if (f.name == null && f.area == null && f.lightingScheme == null) { usedSrc.add(c.s.room); usedDst.add(c.d.room); return; }
+    if (f.name == null && f.area == null && f.lightingScheme == null && f.collection == null) { usedSrc.add(c.s.room); usedDst.add(c.d.room); return; }
     usedSrc.add(c.s.room); usedDst.add(c.d.room);
-    out.push({ toId: c.d.room.id, fromId: c.s.room.id, name: f.name, area: f.area, lightingScheme: f.lightingScheme });
+    out.push({ toId: c.d.room.id, fromId: c.s.room.id, name: f.name, area: f.area, lightingScheme: f.lightingScheme, collection: f.collection });
   });
   return out;
 }

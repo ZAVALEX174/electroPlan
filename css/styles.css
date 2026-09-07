@@ -118,6 +118,10 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .room-scheme-field{margin-top:12px}
 /* «Своя схема» — тем же акцентом, что «свой тип стены»: два состояния нельзя спутать. */
 .prop-scheme-source.own{color:var(--blue-dark);font-weight:700}
+/* Коллекция накладок комнаты (E13) — отдельное поле ниже схемы, тем же приёмом: отбивка сверху,
+   а «коллекция задана» подсвечено акцентом (как «своя схема»), чтобы фильтр каталога было видно. */
+.room-collection-field{margin-top:12px}
+.prop-collection-source.own{color:var(--blue-dark);font-weight:700}
 .prop-hint-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;color:var(--muted);font-size:9px}
 .prop-hint-row b{color:var(--text)}
 .terms-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}

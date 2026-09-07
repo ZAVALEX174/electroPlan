@@ -83,7 +83,7 @@ function makeCtx(products, dom) {
     builderErrorHtml: () => "",
     renderBuilderCatalog: () => {},
     renderBuilderComposition: (frame, errorHtml) => { dom.$("builderComposition").innerHTML = frame ? ("<composition>" + (errorHtml || "")) : (errorHtml || ""); },
-    renderBuilder: () => {}, builderCtx: {}, EPBuilderSlots, EPPosts
+    renderBuilder: () => {}, builderCtx: {}, collectionFramePool: frames => frames, EPBuilderSlots, EPPosts
   };
   return ctx;
 }

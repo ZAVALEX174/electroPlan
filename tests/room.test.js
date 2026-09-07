@@ -48,3 +48,40 @@ test("без списка схем валидной считается люба�
   assert.equal(R.roomLightingScheme({ lightingScheme: "whatever" }, "classic"), "whatever");
   assert.equal(R.roomLightingScheme({ lightingScheme: "" }, "classic"), "classic");
 });
+
+/* --- КОЛЛЕКЦИЯ (СЕРИЯ) ОТДЕЛКИ КОМНАТЫ (E13, EPRoom.roomCollection) ---------------------
+   Правило ОТЛИЧАЕТСЯ от схемы: у коллекции нет значения-умолчания проекта. Отсутствие/мусор/
+   мёртвое название → null («не задана, фильтра нет»), а НЕ проект. Это и есть поведение для
+   поста вне комнат, комнаты без коллекции и старого проекта без поля. */
+const COLLECTIONS = ["Arke", "Plana", "Eikon Evo"];
+
+test("своя валидная коллекция возвращается как есть", () => {
+  assert.equal(R.roomCollection({ collection: "Arke" }, COLLECTIONS), "Arke");
+  assert.equal(R.roomCollection({ collection: "Eikon Evo" }, COLLECTIONS), "Eikon Evo");
+});
+
+test("отсутствие поля коллекции → null (весь каталог, не значение проекта)", () => {
+  assert.equal(R.roomCollection({}, COLLECTIONS), null);
+  assert.equal(R.roomCollection({ name: "Кухня" }, COLLECTIONS), null);
+});
+
+test("null/undefined-комната не роняет функцию и даёт null", () => {
+  assert.equal(R.roomCollection(null, COLLECTIONS), null);
+  assert.equal(R.roomCollection(undefined, COLLECTIONS), null);
+});
+
+test("мусор в поле (пустая строка, не-строка) → null", () => {
+  assert.equal(R.roomCollection({ collection: "" }, COLLECTIONS), null);
+  assert.equal(R.roomCollection({ collection: 42 }, COLLECTIONS), null);
+  assert.equal(R.roomCollection({ collection: null }, COLLECTIONS), null);
+  assert.equal(R.roomCollection({ collection: {} }, COLLECTIONS), null);
+});
+
+test("мёртвое название (нет в каталоге) → null, каталог не сужается по несуществующей серии", () => {
+  assert.equal(R.roomCollection({ collection: "Idea (снята)" }, COLLECTIONS), null);
+});
+
+test("без списка коллекций валидной считается любая непустая строка", () => {
+  assert.equal(R.roomCollection({ collection: "whatever" }), "whatever");
+  assert.equal(R.roomCollection({ collection: "" }), null);
+});

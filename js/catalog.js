@@ -72,6 +72,35 @@ const productSeries = item => {
   return String(raw || "").split(/[,;|]/).map(x => x.trim()).filter(Boolean);
 };
 
+/* Коллекции (серии) товаров каталога — ВОСХОДЯЩИЙ список различных названий.
+   Из него строится селектор «Коллекция комнаты» (E13) и валидируется room.collection: предлагаем
+   ровно те коллекции, что реально есть у накладок, а не константу в разметке — появится новая
+   серия в прайсе, и вариант возникнет сам (тем же приёмом, что frameSlotCounts для модульностей).
+   Сортировка по локали ru — селектор должен идти по алфавиту, а не по порядку в прайсе. */
+function productCollections(items) {
+  const set = new Set();
+  (items || []).forEach(item => productSeries(item).forEach(s => set.add(s)));
+  return [...set].sort((a, b) => a.localeCompare(b, "ru-RU"));
+}
+
+/* Товары, подходящие помещению по его ОТДЕЛКЕ. criteria — объект-критерий; сегодня единственный
+   ключ collection (E13). ⚠️ МЕСТО ПОД ЦВЕТ (E14) ЗАЛОЖЕНО ИМЕННО ЗДЕСЬ: добавление ключа color не
+   тронет ни сигнатуру функции, ни точку вызова в конструкторе — только добавит второй предикат
+   рядом с membership по серии (и поле room.color рядом с room.collection). Пустой критерий (нет
+   коллекции у комнаты, пост вне комнат, шаблон) → фильтра нет: возвращаем КОПИЮ списка, чтобы
+   вызывающий не мутировал исходный.
+
+   ⚠️ СОВПАДЕНИЕ ПО КОЛЛЕКЦИИ — ЧЛЕНСТВО В МНОЖЕСТВЕ, А НЕ РАВЕНСТВО СТРОК. Товар живёт в
+   НЕСКОЛЬКИХ коллекциях сразу (арт. 02970 — в пяти: Arke, Arke Fit, Eikon Evo, Eikon Exe, Plana),
+   и productSeries возвращает МАССИВ. Сравнение productSeries(item) === collection выкинуло бы
+   мультиколлекционный товар из его же коллекции, поэтому проверяем includes по массиву серий —
+   ту же семантику пересечения, что compatibleMechanisms применяет к рамке и механизму. */
+function productsForRoom(items, criteria) {
+  const collection = criteria && criteria.collection;
+  if (!collection) return (items || []).slice();
+  return (items || []).filter(item => productSeries(item).includes(collection));
+}
+
 /* Механизмы, совместимые с рамкой по серии. Если у рамки серия не указана или
    совпадений нет — возвращаем исходный список (лучше показать всё, чем ничего). */
 function compatibleMechanisms(frame, mechanisms) {
@@ -241,7 +270,7 @@ const productImage = (item, { detail = false } = {}) => {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { pluralRu, moduleWord, placeWord, mechanismSpan, productSeries, compatibleMechanisms, frameSlotCount, frameSlotCounts, frameSlotOptions, defaultPostName, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage };
+const api = { pluralRu, moduleWord, placeWord, mechanismSpan, productSeries, productCollections, productsForRoom, compatibleMechanisms, frameSlotCount, frameSlotCounts, frameSlotOptions, defaultPostName, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage };
 if (typeof window !== "undefined") window.EPCatalog = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

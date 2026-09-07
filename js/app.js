@@ -149,13 +149,27 @@ function findByExactCode(items,query){
   if(!q)return null;
   return items.find(it=>String(it.code||"").trim().toLocaleLowerCase("ru-RU")===q)||null;
 }
-/* Пустой поиск накладки: артикул есть в каталоге, но отсеян фильтром по числу модулей.
-   Возвращаем описание и действие «переключить» — меняем число модулей конструктора и
-   выбираем эту накладку. null — если артикула нет или он и так подходит под текущее
-   число модулей (тогда обычный фильтр его и так показал бы). */
-function resolveMissingFrame(query,currentCount,frameSelect){
+/* Пустой поиск накладки: артикул есть в каталоге, но отсеян фильтром. Возвращаем описание, а
+   когда причина — число модулей, ещё и действие «переключить». null — если артикула нет или он и
+   так подходит под текущий фильтр (тогда обычный список его и так показал бы).
+   ⚠️ ДВЕ ПРИЧИНЫ ОТСЕВА, РАЗНОЕ ПОВЕДЕНИЕ. Коллекция комнаты (E13) сужает список ПЕРВЫМ шагом,
+   поэтому её проверяем раньше числа модулей: накладка чужой коллекции скрыта именно ею. Здесь мы
+   ОБЪЯСНЯЕМ (как resolveMissingMechanism про «другую серию»), но действия не даём — сменить
+   коллекцию помещения из конструктора поста было бы решением за человека; это отдельный
+   осознанный выбор в свойствах комнаты. Отсев по числу модулей остаётся с действием
+   «переключить»: размер — свойство самого поста, его человек и меняет здесь. */
+function resolveMissingFrame(query,currentCount,frameSelect,collection){
   const item=findByExactCode(byKind("frame"),query);
   if(!item)return null;
+  if(collection&&!productSeries(item).includes(collection)){
+    return{
+      lead:"Артикул есть в каталоге, но другой коллекции.",
+      code:item.code||"без артикула",
+      name:item.name||"Без названия",
+      note:`коллекция ${productSeries(item).join(", ")||"—"}`,
+      reason:`помещение закреплено за коллекцией «${collection}», а эта накладка — коллекции «${productSeries(item).join(", ")||"—"}». Сменить коллекцию можно в свойствах комнаты.`
+    };
+  }
   const target=frameSlotCount(item);
   if(target===currentCount)return null;   /* уже подходит под текущий размер — подсказка не нужна */
   return{
@@ -440,6 +454,10 @@ function carryUserRoomFields(oldAutoRooms,newRooms){
        линий разметки. Отсутствие в переносе (t.lightingScheme==null) поля не создаёт — комната
        остаётся «как в проекте». */
     if(t.lightingScheme!=null)room.lightingScheme=t.lightingScheme;
+    /* Коллекция накладок комнаты (E13) переносится тем же путём, что схема: без этого правка линий
+       разметки (scheduleRoomsFromLines) стирала бы её при каждом пересчёте контуров. Отсутствие в
+       переносе (t.collection==null) поля не создаёт — комната остаётся без заданной коллекции. */
+    if(t.collection!=null)room.collection=t.collection;
   });
 }
 function refreshRoomAfterEdit(room){
@@ -1410,6 +1428,15 @@ function renderProperties(){
     const schemeLabel=item=>`${item.label}${item.supported?"":" — расчёт недоступен"}`;
     const schemeOptions=`<option value=""${ownScheme?"":" selected"}>Как в проекте${projSchemeItem?` (${esc(projSchemeItem.label)})`:""}</option>`
       +EPLightingGroups.SCHEMES.map(item=>`<option value="${esc(item.id)}"${item.id===ownScheme?" selected":""}>${esc(schemeLabel(item))}</option>`).join("");
+    /* Коллекция накладок комнаты (E13). ⚠️ В ОТЛИЧИЕ ОТ СХЕМЫ у коллекции НЕТ значения-умолчания
+       проекта: «не задана» — это не «как в проекте», а «фильтра нет, предлагать все накладки».
+       roomColl — действующая коллекция (EPRoom.roomCollection валидирует по списку каталога:
+       мёртвое/отсутствующее значение → null → селектор в «Не задана», r.collection не трогаем до
+       выбора человека). Список коллекций — из каталога (frameCollectionList), не константа. */
+    const collectionList=frameCollectionList();
+    const roomColl=EPRoom.roomCollection(r,collectionList);
+    const collectionOptions=`<option value=""${roomColl?"":" selected"}>Не задана — предлагать все накладки</option>`
+      +collectionList.map(name=>`<option value="${esc(name)}"${name===roomColl?" selected":""}>${esc(name)}</option>`).join("");
     props.innerHTML=`<label>Название комнаты<input id="roomName" value="${esc(r.name)}" autocomplete="off"></label>
     <label>Площадь<input id="roomArea" value="${esc(r.area||"")}" placeholder="${esc(autoArea||"Например, 18,6 м²")}" autocomplete="off"></label>
     <small class="prop-hint">${esc(areaHint)}${r.area?.trim()?" · сейчас показано ручное значение":""}</small>
@@ -1421,7 +1448,9 @@ function renderProperties(){
     <div class="property-save-state" id="roomSaveState">Сохраняется автоматически при выходе из поля</div>
     <label class="room-scheme-field">Схема электрики<select id="roomSchemeSelect">${schemeOptions}</select></label>
     <small class="prop-hint prop-scheme-source${ownScheme?" own":""}">${ownScheme?"Своя схема комнаты":`Унаследована от проекта: ${esc(projSchemeItem?projSchemeItem.label:projScheme)}`}</small>
-    ${curSchemeItem&&!curSchemeItem.supported?`<small class="prop-hint prop-scheme-note">${esc(curSchemeItem.note)}</small>`:""}`;
+    ${curSchemeItem&&!curSchemeItem.supported?`<small class="prop-hint prop-scheme-note">${esc(curSchemeItem.note)}</small>`:""}
+    <label class="room-collection-field">Коллекция накладок<select id="roomCollectionSelect">${collectionOptions}</select></label>
+    <small class="prop-hint prop-collection-source${roomColl?" own":""}">${roomColl?"Конструктор поста в этой комнате предлагает накладки только этой коллекции":"Коллекция не задана — предлагаются все накладки каталога"}</small>`;
     mountedRoomId=r.id;   /* этим полям принадлежит комната r — flushRoomDraft коммитит именно в неё */
     /* Владелец подтвердил автосохранение 03.09: кнопки «Сохранить изменения» больше нет.
        Blur, Enter и любая перерисовка панели сходятся в ОДИН flushRoomDraft — второго правила
@@ -1442,6 +1471,19 @@ function renderProperties(){
        схему проекта как свою (иначе смена настройки проекта её бы уже не двигала). Перерисовку
        зовём из обработчика по действию человека (инвариант beginPress не нарушается — он про тело
        renderProperties). Расчёт групп света здесь НЕ трогаем (часть 3) — только хранение и вид. */
+    /* Коллекция накладок применяется СРАЗУ по change (свой орган, как схема и тип стены).
+       «Не задана» (value="") СНИМАЕТ поле — комната возвращается к «предлагать все накладки».
+       ⚠️ КОЛЛЕКЦИЯ — НЕ ДЕНЕЖНАЯ НАСТРОЙКА: это фильтр КАТАЛОГА в конструкторе, состав и цена
+       существующих постов от неё не зависят (смета считает по товарам постов, коллекция в
+       estimate.js не входит). Поэтому renderSummary/renderAll здесь НЕ нужны — сумма и
+       спецификация не меняются; перерисовываем только карточку комнаты (обновить подпись
+       «задана/не задана») и сохраняем. Так E13 не повторяет шесть закрытых входов «сумма
+       поменялась молча»: она вообще ничего в деньгах и составе не двигает. */
+    $("roomCollectionSelect").onchange=e=>{
+      const val=e.target.value;
+      if(val)r.collection=val; else delete r.collection;
+      renderProperties();persistProject();
+    };
     $("roomSchemeSelect").onchange=e=>{
       const val=e.target.value;
       if(val)r.lightingScheme=val; else delete r.lightingScheme;
@@ -1889,11 +1931,41 @@ function builderCapacity(){
   return frameSlotCount(frameProduct($("postFrameSelect").value))||Number($("postSlotCount").value);
 }
 
+/* Названия коллекций (серий) накладок каталога — из товаров, не константой в разметке.
+   Один источник и для селектора «Коллекция комнаты», и для валидации room.collection. */
+function frameCollectionList(){return EPCatalog.productCollections(byKind("frame"));}
+/* Критерий отбора накладок под помещение РЕДАКТИРУЕМОГО поста (E13). Один объект — одна точка,
+   куда заложено МЕСТО ПОД ЦВЕТ (E14): сегодня ключ один — {collection}; добавление color не
+   тронет ни эту сигнатуру, ни вызов в renderBuilder, только предикат EPCatalog.productsForRoom.
+   Комнату берём у поста на плане (editingPlacedId → roomId → комната); шаблон и НОВЫЙ пост комнаты
+   не имеют → коллекция null → критерий пуст → фильтра нет (пост «вне комнат», см. вопрос 3). */
+function builderRoomFilter(){
+  const placed=state.builder.editingPlacedId?state.posts.find(p=>p.id===state.builder.editingPlacedId):null;
+  const room=placed?state.rooms.find(r=>r.id===placed.roomId):null;
+  return {collection:EPRoom.roomCollection(room,frameCollectionList())};
+}
+/* Накладки, ПОДХОДЯЩИЕ помещению поста по его коллекции — ЕДИНСТВЕННАЯ точка сужения каталога под
+   комнату (второго правила для механизмов НЕ заводим: они наследуют серию ВЫБРАННОЙ накладки через
+   compatibleMechanisms, а накладка уже из нужной коллекции). Реальная коллекция всегда имеет
+   накладки; пустой результат означал бы «битую» коллекцию — тогда лучше показать весь каталог, чем
+   оставить поле без единой накладки (та же страховка «пусто→всё», что в compatibleMechanisms). */
+function collectionFramePool(allFrames){
+  const pool=EPCatalog.productsForRoom(allFrames,builderRoomFilter());
+  return pool.length?pool:allFrames;
+}
+
 function renderBuilder(){
   const count=Number($("postSlotCount").value),allMechanisms=byKind("mechanism");
   const frameSelect=$("postFrameSelect"),allFrames=byKind("frame");
-  const matchingFrames=allFrames.filter(frame=>frameSlotCount(frame)===count);
-  const frames=matchingFrames.length?matchingFrames:allFrames;
+  /* ⚠️ КОЛЛЕКЦИЯ КОМНАТЫ СУЖАЕТ СПИСОК НАКЛАДОК ПЕРВЫМ ШАГОМ (E13). Помещение закреплено за
+     коллекцией — предлагаем накладки только её (встреча 24.08: «отсеять неподходящие рамки»).
+     Фильтр по числу модулей идёт УЖЕ по этому пулу, а не по всему каталогу. Пост вне комнат /
+     комната без коллекции / шаблон / новый пост → пул = весь каталог (collectionFramePool).
+     Накладка, СЕЙЧАС стоящая в посте, ниже добавляется в frameList отдельно (requestedFrame) —
+     даже будь она чужой коллекции, из поста она не пропадёт и состав/цена не изменятся молча. */
+  const poolFrames=collectionFramePool(allFrames);
+  const matchingFrames=poolFrames.filter(frame=>frameSlotCount(frame)===count);
+  const frames=matchingFrames.length?matchingFrames:poolFrames;
   /* ⚠️ dataset.preferredFrameId ГЛАВНЕЕ ТЕКУЩЕГО ЗНАЧЕНИЯ СЕЛЕКТА, а не наоборот.
      Тут был баг «двойной клик по посту на плане сбрасывает редактирование» (заказчик, 24.08:
      «вообще редактирование на плане у меня всё сбросилось… хотя причём при наведении показывает
@@ -1996,7 +2068,7 @@ function renderBuilder(){
      размер, если артикул отсеян фильтром модулей. */
   enhancePicker(frameSelect,{
     emptyContext:matchingFrames.length?`накладок на ${moduleWord(count)}`:"загруженных накладок",
-    resolveMissing:q=>resolveMissingFrame(q,count,frameSelect)
+    resolveMissing:q=>resolveMissingFrame(q,count,frameSelect,builderRoomFilter().collection)
   });
   /* ⚠️ НАКЛАДКИ НЕТ — СЧИТАТЬ НЕЧЕГО. Это состояние (`selectedFrame` не разрешился в товар)
      появилось, когда перестали молча подменять недоступную накладку. Ёмкость, раскладка по
