@@ -1782,16 +1782,22 @@ function renderProjectWallTypeSelect(){
   const sel=$("projectWallTypeSelect");
   if(sel)sel.value=EP_DATA.settings.wallType==="hollow"?"hollow":"solid";
 }
-/* Селектор «Количество модулей рамки» — НЕ константа в разметке, а производная каталога
-   (EPCatalog.frameSlotOptions): реально существующие модульности накладок. Пятёрки в
-   номенклатуре нет — вариант «5» просто не появляется; появится 5-модульная накладка —
-   возникнет сам. extra — фактическая ёмкость открываемого поста: её добавляем отдельным
-   вариантом, чтобы сохранённый пост с исчезнувшей модульностью не показал чужое значение
-   (см. openPostBuilder и frameSlotOptions). */
+/* Селектор «Количество модулей рамки» — НЕ константа в разметке, а производная модульностей
+   накладок (EPCatalog.frameSlotOptions). ⚠️ СЧИТАЕМ ОТ ТОГО ЖЕ ПУЛА, ЧТО renderBuilder ФИЛЬТРУЕТ
+   (collectionFramePool), а не от всего каталога: коллекция комнаты (E13) сужает список накладок
+   первым шагом, и селектор обязан предлагать только те модульности, что в этом пуле реально есть.
+   Иначе (баг E13) селектор строился от полного каталога и предлагал модульность, которой у
+   коллекции нет; выбор такой модульности давал пустой matchingFrames, renderBuilder проваливался
+   в фолбэк `matchingFrames.length?…:poolFrames` и показывал ВЕСЬ пул коллекции под видом фильтра
+   (Eikon Tactil, «8 модулей» → 33 накладки на 2/3/4). Пул зависит от editingPlacedId → комнаты
+   поста; на init и для нового поста/шаблона комнаты нет → пул = весь каталог (совместимо со старым
+   проектом без коллекции). extra — фактическая ёмкость открываемого поста: её добавляем отдельным
+   вариантом, чтобы сохранённый пост с исчезнувшей у коллекции модульностью не показал чужое
+   значение (см. openPostBuilder и frameSlotOptions). */
 function renderPostSlotCountSelect(extra){
   const sel=$("postSlotCount");
   if(!sel)return;
-  sel.innerHTML=frameSlotOptions(byKind("frame"),extra)
+  sel.innerHTML=frameSlotOptions(collectionFramePool(byKind("frame")),extra)
     .map(n=>`<option value="${n}">${n}</option>`).join("");
 }
 
@@ -2065,9 +2071,22 @@ function renderBuilder(){
   /* Накладка остаётся выпадающим списком EPPicker: их 1631, и разделами по функциональной
      группе они не режутся (группировка накладок — по СЕРИИ), а без поиска по артикулу с таким
      объёмом не жить. Пустой поиск объясняет, среди чего искали, и предлагает переключить
-     размер, если артикул отсеян фильтром модулей. */
+     размер, если артикул отсеян фильтром модулей.
+     ⚠️ emptyContext ОБЯЗАН НАЗЫВАТЬ РЕАЛЬНО ИСКОМОЕ МНОЖЕСТВО. Коллекция комнаты (E13) сужает
+     список ПЕРВЫМ шагом (collectionFramePool), поэтому её имя тоже идёт в контекст — иначе в
+     комнате Eikon Tactil с «8 модулей» пустой поиск врал «среди загруженных накладок», хотя
+     искали по 33 из 1631, и о коллекции не говорил ни слова (правку E13 применили к соседнему
+     resolveMissing и забыли здесь). emptyContext даём ФУНКЦИЕЙ (picker её поддерживает): коллекцию
+     вычисляем лениво, в момент показа пустого сообщения, ровно как это делает соседний
+     resolveMissing — так renderBuilder не зовёт builderRoomFilter на каждый render зря. */
   enhancePicker(frameSelect,{
-    emptyContext:matchingFrames.length?`накладок на ${moduleWord(count)}`:"загруженных накладок",
+    emptyContext:()=>{
+      const collection=builderRoomFilter().collection;
+      const suffix=collection?` коллекции «${collection}»`:"";
+      return matchingFrames.length
+        ?`накладок на ${moduleWord(count)}${suffix}`
+        :(collection?`накладок${suffix}`:"загруженных накладок");
+    },
     resolveMissing:q=>resolveMissingFrame(q,count,frameSelect,builderRoomFilter().collection)
   });
   /* ⚠️ НАКЛАДКИ НЕТ — СЧИТАТЬ НЕЧЕГО. Это состояние (`selectedFrame` не разрешился в товар)
