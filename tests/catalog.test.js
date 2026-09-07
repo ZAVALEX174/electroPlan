@@ -233,12 +233,16 @@ test("productImage: заглушку no_photo не отдаём, берём на
 });
 
 /* --- КОЛЛЕКЦИИ КОМНАТЫ (E13): productCollections + productsForRoom ---------------------
-   Коллекция = серия товара. Товар живёт в НЕСКОЛЬКИХ коллекциях сразу (арт. 02970 — в пяти),
-   поэтому отбор по коллекции — ЧЛЕНСТВО В МНОЖЕСТВЕ серий, а не равенство строк. Здесь это и
-   фиксируем: мутация «=== вместо includes» обязана уронить мультиколлекционный товар. */
+   Коллекция = серия товара. Накладка живёт в НЕСКОЛЬКИХ коллекциях сразу (в каталоге таких
+   мультиколлекционных накладок 12; напр. арт. 14931 — в пяти: Arke, Arke Fit, Eikon Evo,
+   Eikon Exe, Plana), поэтому отбор по коллекции — ЧЛЕНСТВО В МНОЖЕСТВЕ серий, а не равенство строк.
+   Здесь это и фиксируем: мутация «=== вместо includes» обязана уронить мультиколлекционную накладку.
+   (Пример НАКЛАДКИ, а не механизма: productsForRoom фильтрует только накладки. Прежний пример
+   арт. 02970 «Термостат поворотный 2M» — механизм, через productsForRoom он не проходит никогда;
+   то же неверное обоснование уже убрано из js/catalog.js коммитом 3b80997.) */
 const { productCollections, productsForRoom } = require("../js/catalog.js");
 
-const MULTI = { id: 1, series: ["Arke", "Arke Fit", "Eikon Evo", "Eikon Exe", "Plana"], name: "02970 мультиколлекционный" };
+const MULTI = { id: 1, series: ["Arke", "Arke Fit", "Eikon Evo", "Eikon Exe", "Plana"], name: "14931 мультиколлекционная накладка" };
 const ARKE = { id: 2, series: ["Arke"], name: "рамка Arke" };
 const PLANA = { id: 3, series: ["Plana"], name: "рамка Plana" };
 const NOSER = { id: 4, series: [], name: "без серии" };
@@ -268,9 +272,42 @@ test("productsForRoom: отбор по коллекции — членство �
   assert.ok(plana.includes(MULTI) && plana.includes(PLANA) && !plana.includes(ARKE));
 });
 
-test("productsForRoom: РАВЕНСТВО строк было бы неверно — 02970 (массив из 5) не равен 'Arke'", () => {
+test("productsForRoom: РАВЕНСТВО строк было бы неверно — 14931 (массив из 5) не равен 'Arke'", () => {
   /* явный якорь против регресса «productSeries(item) === collection»: строковое сравнение
-     массива серий с названием никогда не истинно, мультиколлекционный товар выпал бы. */
+     массива серий с названием никогда не истинно, мультиколлекционная накладка выпала бы. */
   assert.notStrictEqual(MULTI.series, "Arke");
   assert.ok(productsForRoom([MULTI], { collection: "Arke" }).length === 1);
+});
+
+/* productCollections сортирует по локали ru — селектор «Коллекция накладок» должен идти по
+   алфавиту, а не в порядке появления серий в прайсе. На синтетической фикстуре выше серии уже
+   перечислены по алфавиту, поэтому мутация «убрать .sort» на ней НЕЗАМЕТНА (список тот же).
+   Ловим её на НАСТОЯЩЕМ каталоге VIMAR, где порядок прайса ≠ алфавит:
+     порядок появления в js/catalog-vimar.js:
+       ["Neve Up","Plana","Arke","Arke Fit","Eikon Evo","Eikon Exe","Eikon Tactil","Eikon Vintage","Eikon Flat"]
+     после сортировки:
+       ["Arke","Arke Fit","Eikon Evo","Eikon Exe","Eikon Flat","Eikon Tactil","Eikon Vintage","Neve Up","Plana"]
+   Эти два списка различимы посимвольно — мутация «убрать sort» обязана краснеть. */
+test("productCollections: реальный каталог — коллекции по алфавиту, а не в порядке прайса", () => {
+  const win = {};
+  const jsDir = path.join(__dirname, "..", "js");
+  vm.runInNewContext(fs.readFileSync(path.join(jsDir, "catalog-vimar.js"), "utf8"), { window: win });
+  const frames = win.EP_VIMAR_CATALOG.products.filter(p => p.kind === "frame" && p.active);
+
+  const got = productCollections(frames);
+  const alpha = ["Arke", "Arke Fit", "Eikon Evo", "Eikon Exe", "Eikon Flat", "Eikon Tactil", "Eikon Vintage", "Neve Up", "Plana"];
+  assert.deepEqual(got, alpha, "селектор коллекций идёт по алфавиту (ru-RU)");
+  // якорь: порядок прайса заведомо ДРУГОЙ — иначе тест не различал бы наличие sort
+  const priceOrder = ["Neve Up", "Plana", "Arke", "Arke Fit", "Eikon Evo", "Eikon Exe", "Eikon Tactil", "Eikon Vintage", "Eikon Flat"];
+  assert.notDeepEqual(got, priceOrder, "порядок прайса ≠ алфавит — на этой паре и держится проверка sort");
+});
+
+test("productsForRoom: сравнение коллекции РЕГИСТРОЗАВИСИМО — 'arke' не подменяет 'Arke'", () => {
+  /* ЗАДУМАННОЕ поведение (js/catalog.js): collection всегда приходит из productCollections, регистр
+     заведомо совпадает с series товара, поэтому нормализация регистра НЕ делается (в отличие от
+     compatibleMechanisms). Если в room.collection попал мусор иного регистра (старый/правленый
+     проект), пустой результат — штатная деградация «битой» коллекции в весь каталог через фолбэк
+     collectionFramePool, а НЕ тихая подмена состава. Фиксируем контраст 'arke' vs 'Arke'. */
+  assert.equal(productsForRoom(CATALOG, { collection: "arke" }).length, 0, "иной регистр не находит ничего");
+  assert.ok(productsForRoom(CATALOG, { collection: "Arke" }).length > 0, "точный регистр находит коллекцию");
 });
