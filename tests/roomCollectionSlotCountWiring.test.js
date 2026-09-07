@@ -22,13 +22,21 @@
    D) emptyContext в renderBuilder называет реально искомое множество: (1) коллекция+модульность →
       «накладок на 2 модуля коллекции «Eikon Tactil»»; (2) коллекция, matchingFrames пуст →
       «накладок коллекции «Eikon Tactil»»; (3) без коллекции → «загруженных накладок».
+   E) СОСТАВ списка накладок в фолбэке renderBuilder (`frames=matchingFrames.length?…:poolFrames`).
+      Когда у коллекции комнаты нет накладок под выбранную модульность (matchingFrames пуст), список
+      обязан остаться ПУЛОМ КОЛЛЕКЦИИ, а не всем каталогом: в комнате «Eikon Tactil» с «8 модулей»
+      предлагаются ровно 33 накладки коллекции, ни одной чужой. D2 проверял в этой же ветке только
+      ТЕКСТ emptyContext, но не то, какие накладки реально попали в <select> — фолбэк на весь каталог
+      (1631 накладка, 1598 чужих) прошёл бы мимо. Пост открыт БЕЗ накладки (frameUnset), поэтому
+      requestedFrame в список не подмешивается — проверяем чистый результат фолбэка.
 
    МУТАЦИОННАЯ ТАБЛИЦА (проверено, см. отчёт):
      collectionFramePool(byKind) → byKind в renderPostSlotCountSelect  → красит A;
      убрать extra из frameSlotOptions                                  → красит B;
      builderRoomFilter → {collection:null}                             → красит A и D (C остаётся зелёным — так и надо);
      убрать суффикс « коллекции «…»» из emptyContext                   → красит D;
-     вернуть emptyContext строкой (`…:"загруженных накладок"`)         → красит D.
+     вернуть emptyContext строкой (`…:"загруженных накладок"`)         → красит D;
+     фолбэк `…?matchingFrames:poolFrames` → `…:allFrames`              → красит E (в список утекают 1598 чужих накладок).
    Запуск: node --test tests/ */
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -191,4 +199,38 @@ test("E13-D3: emptyContext без коллекции не поминает ко�
   assert.equal(text, "загруженных накладок",
     "вне коллекции пустой поиск говорит про весь каталог, слова «коллекци» быть не должно");
   assert.ok(!/коллекци/.test(text), "без коллекции комнаты её имя в контексте появиться не может");
+});
+
+/* --- E: СОСТАВ списка накладок в фолбэке renderBuilder ------------------------------------- */
+/* Тот же стенд renderBuilder, что у D, но перехваченный enhancePicker не нужен — читаем НАСТОЯЩИЙ
+   #postFrameSelect.innerHTML, куда renderBuilder положил frameOptions(frameList,…). Пост без
+   накладки (frameUnset) → requestedFrame нет → frameList === frames, то есть чистый результат
+   фолбэка `matchingFrames.length?…:poolFrames` без подмешанной накладки поста. */
+function frameOptionProductsFor({ room, count }) {
+  const post = { id: "p1", roomId: room ? "r1" : null, mechanismIds: [] };
+  const state = {
+    products: PRODUCTS,
+    posts: [post],
+    rooms: room ? [Object.assign({ id: "r1", name: "Комната" }, room)] : [],
+    builder: { slots: [], target: { mode: "add" }, editingPlacedId: room ? "p1" : null }
+  };
+  const dom = stand.makeDom({ selects: ["postFrameSelect"] });
+  dom.$("postFrameSelect").dataset.preferredFrameId = ""; // пустая накладка → frameUnset → frameList=frames
+  dom.$("postSlotCount").value = String(count);
+  const ctx = builderCtx(state, dom, {});
+  const render = stand.run(BUILDER_CUT, ctx);
+  render();
+  return optionValues(dom.$("postFrameSelect").innerHTML).map(v => product(v)).filter(Boolean);
+}
+
+test("E13-E: фолбэк списка накладок при пустом matchingFrames остаётся пулом коллекции — ни одной чужой", () => {
+  // count=8: у Eikon Tactil накладок на 8 модулей нет → matchingFrames пуст → срабатывает фолбэк.
+  // Продакшн отдаёт пул коллекции (33 накладки на 2/3/4); фолбэк на весь каталог показал бы 1631.
+  assert.ok(!ET_OPTS.includes(8), "предпосылка: у Eikon Tactil нет накладок на 8 модулей — фолбэк точно сработает");
+  const shown = frameOptionProductsFor({ room: { collection: "Eikon Tactil" }, count: 8 });
+  const foreign = shown.filter(p => !seriesOf(p).includes("Eikon Tactil"));
+  assert.deepEqual(foreign, [],
+    "в списке накладок не должно быть ни одной ЧУЖОЙ коллекции: фолбэк обязан остаться пулом Eikon Tactil, а не всем каталогом");
+  assert.equal(shown.length, ET_POOL.length,
+    "в фолбэк попадает ровно пул коллекции (все её накладки), а не каталог целиком");
 });

@@ -28,13 +28,18 @@
       настройка; состав и цена существующих постов от неё не зависят. Этот assert удерживает
       осознанное решение в коде: кто-нибудь «на всякий случай» добавит пересчёт сметы — тест
       покраснеет.
+   6) выбор коллекции ПЕРЕРИСОВЫВАЕТ панель свойств (renderProperties вызван) — именно перерисовка
+      показывает человеку результат: подпись «задана/не задана» под селектором и selected.
+      renderProperties при исполнении в vm ложится свойством контекста, а onchange зовёт её как
+      свободное имя — переопределив свойство, перехватываем вызов, не ломая саму перерисовку.
 
-   МУТАЦИОННАЯ ТАБЛИЦА (проверено на 4420d20; §3–5 — асёрты одного теста «§3–5 onchange…»):
+   МУТАЦИОННАЯ ТАБЛИЦА (проверено, см. отчёт; §3–6 — асёрты одного теста «§3–6 onchange…»):
      frameCollectionList()→[] в app.js                         → красит §1 (опций 0, не 9; попутно
                                                                   падает и «§2 selected на действующей» —
                                                                   без опций «Plana» не выбрать);
      const roomColl=r.collection (без EPRoom.roomCollection)    → красит §2 (мёртвая коллекция снимает «Не задана»);
      onchange: r.collection=val всегда (убрать else delete)     → красит §3 (пустое пишет "", поле не удалено);
+     убрать renderProperties() из onchange                     → красит §6 (rerender.calls===0);
      убрать persistProject() из onchange                       → красит §4 (persistProject.calls===0);
      добавить renderSummary()/renderAll() в onchange           → красит §5 (renderSummary/all вызваны).
    Запуск: node --test tests/ */
@@ -91,7 +96,10 @@ function renderRoom(room) {
   };
   const render = stand.run(["frameCollectionList", "renderProperties"], ctx);
   render();
-  return { props, dom, spies };
+  /* ctx возвращаем, чтобы §3–5 мог обернуть renderProperties шпионом: объявление функции при
+     исполнении в vm стало свойством контекста (ctx.renderProperties), а обработчик onchange зовёт
+     её как свободное имя — переопределив свойство, ловим её вызов, не ломая перерисовку. */
+  return { props, dom, spies, ctx };
 }
 
 /* Опции селектора коллекций из отрисованного innerHTML: value + флаг selected. */
@@ -128,15 +136,25 @@ test("§2 МЁРТВАЯ коллекция: selected на «Не задана»
     "⚠️ рендер НЕ трогает r.collection: валидация EPRoom.roomCollection лишь показывает «Не задана», данные проекта не портит");
 });
 
-test("§3–5 onchange: пишет коллекцию, пустое УДАЛЯЕТ поле, зовёт persistProject, но не summary/all", () => {
+test("§3–6 onchange: пишет коллекцию, пустое УДАЛЯЕТ поле, ПЕРЕРИСОВЫВАЕТ панель, зовёт persistProject, но не summary/all", () => {
   const room = { id: "r1", name: "Кухня", area: "", polygon: null, collection: "Arke" };
-  const { dom, spies } = renderRoom(room);
+  const { dom, spies, ctx } = renderRoom(room);
   const select = dom.els.roomCollectionSelect;
   assert.equal(typeof select.onchange, "function", "на #roomCollectionSelect навешен обработчик change");
+
+  /* §6: шпион на renderProperties. Объявление функции при исполнении в vm легло свойством ctx;
+     обработчик onchange зовёт её как свободное имя, поэтому переопределение ctx.renderProperties
+     перехватывает вызов (перерисовка внутри всё равно идёт — обёртка зовёт настоящую). */
+  assert.equal(typeof ctx.renderProperties, "function", "renderProperties доступна как свойство vm-контекста");
+  const realRenderProperties = ctx.renderProperties;
+  const rerender = spy();
+  ctx.renderProperties = function () { rerender(); return realRenderProperties.apply(this, arguments); };
 
   // §3: выбор коллекции пишет её в комнату
   select.onchange({ target: { value: "Plana" } });
   assert.equal(room.collection, "Plana", "выбранная коллекция записана в комнату");
+  // §6: выбор перерисовывает панель — без этого подпись «задана/не задана» и selected остаются протухшими
+  assert.equal(rerender.calls, 1, "renderProperties вызван — иначе выбор коллекции не отразится в панели свойств");
   // §4: выбор сохраняет проект
   assert.equal(spies.persistProject.calls, 1, "persistProject вызван — иначе выбор пропадёт при перезагрузке");
   // §5: коллекция не денежная — смета/холст не пересчитываются
@@ -146,6 +164,8 @@ test("§3–5 onchange: пишет коллекцию, пустое УДАЛЯЕ
   // §3: пустое значение УДАЛЯЕТ поле (delete), а не пишет пустую строку
   select.onchange({ target: { value: "" } });
   assert.ok(!("collection" in room), "«Не задана» удаляет поле collection, а не оставляет пустую строку");
+  // §6: снятие коллекции тоже перерисовывает панель
+  assert.equal(rerender.calls, 2, "снятие коллекции тоже перерисовывает панель свойств");
   assert.equal(spies.persistProject.calls, 2, "снятие коллекции тоже сохраняется");
   assert.equal(spies.renderSummary.calls, 0, "снятие коллекции тоже не трогает смету");
   assert.equal(spies.renderAll.calls, 0, "снятие коллекции тоже не трогает холст");
