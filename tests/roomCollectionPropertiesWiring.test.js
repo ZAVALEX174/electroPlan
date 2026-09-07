@@ -4,9 +4,13 @@
 
    ЗАЧЕМ ПОВЕДЕНЧЕСКИ, А НЕ ПО ТЕКСТУ. app.js — монолит-оркестратор (state + DOM), в node не
    грузится; связки дают почти все дефекты (§7.1 HANDOFF). Вырезаем НАСТОЯЩИЙ текст
-   renderProperties общим стендом (tests/helpers/appStand.js) и исполняем его в vm на НАСТОЯЩЕМ
-   каталоге VIMAR: список коллекций, разметку опций и обработчик onchange строит продакшн-код, а
-   не копия. Всё лишнее (getObjectsInRoom, roomAutoAreaText, polygonAreaPx, lightingScheme,
+   renderProperties ВМЕСТЕ с настоящим frameCollectionList общим стендом (tests/helpers/appStand.js)
+   и исполняем в vm на НАСТОЯЩЕМ каталоге VIMAR: список коллекций, разметку опций и обработчик
+   onchange строит продакшн-код, а не копия. frameCollectionList не подсовываем готовым списком —
+   иначе §1 проверял бы то, что тест сам же передал (тавтология §7.1); вместо этого в ctx кладём его
+   лексику: byKind (фильтр kind+active по state.products, как в app.js) и настоящий EPCatalog, из
+   которых продакшн-функция сама выводит productCollections(byKind("frame")). Всё лишнее
+   (getObjectsInRoom, roomAutoAreaText, polygonAreaPx, lightingScheme,
    flushRoomDraft, setTool, findSelectedEntity, persistProject, renderSummary, renderAll) —
    шпионы/заглушки: коллекция от них не зависит, а persist/summary/all нужны, чтобы проверить,
    ЧТО обработчик зовёт, а что нет.
@@ -25,12 +29,14 @@
       осознанное решение в коде: кто-нибудь «на всякий случай» добавит пересчёт сметы — тест
       покраснеет.
 
-   МУТАЦИОННАЯ ТАБЛИЦА (проверено, см. отчёт):
-     frameCollectionList()→[] в app.js                         → красит §1 (опций 0, не 9);
+   МУТАЦИОННАЯ ТАБЛИЦА (проверено на 4420d20; §3–5 — асёрты одного теста «§3–5 onchange…»):
+     frameCollectionList()→[] в app.js                         → красит §1 (опций 0, не 9; попутно
+                                                                  падает и «§2 selected на действующей» —
+                                                                  без опций «Plana» не выбрать);
      const roomColl=r.collection (без EPRoom.roomCollection)    → красит §2 (мёртвая коллекция снимает «Не задана»);
-     onchange: r.collection=val всегда (убрать else delete)     → красит §3 (пустое пишет "");
-     убрать persistProject() из onchange                       → красит §4;
-     добавить renderSummary()/renderAll() в onchange           → красит §5.
+     onchange: r.collection=val всегда (убрать else delete)     → красит §3 (пустое пишет "", поле не удалено);
+     убрать persistProject() из onchange                       → красит §4 (persistProject.calls===0);
+     добавить renderSummary()/renderAll() в onchange           → красит §5 (renderSummary/all вызваны).
    Запуск: node --test tests/ */
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -55,8 +61,12 @@ assert.deepEqual(
 const spy = () => { const f = () => { f.calls++; }; f.calls = 0; return f; };
 
 /* Исполнить НАСТОЯЩИЙ renderProperties на комнате room и вернуть {props, dom, spies} для проверок.
-   frameCollectionList проброшен ровно так, как считает app.js: productCollections по активным
-   накладкам каталога. */
+   Вырезаем ВМЕСТЕ настоящий frameCollectionList — он строит список коллекций сам:
+   productCollections(byKind("frame")). Поэтому в ctx кладём не готовый список, а лексику, из
+   которой frameCollectionList его выводит: byKind (фильтр kind+active по state.products, как в
+   app.js) и настоящий EPCatalog. Так §1 проверяет продакшн-построение опций, а не то, что тест сам
+   же подсунул готовым. Порядок в CUT — по зависимостям (frameCollectionList → renderProperties),
+   как в tests/builderRoomFilterCollectionWiring.test.js. */
 function renderRoom(room) {
   const state = { selected: { kind: "room", id: room.id }, rooms: [room], posts: [], products: PRODUCTS, pxPerMeter: 0 };
   const dom = stand.makeDom({ selects: ["roomCollectionSelect", "roomSchemeSelect"] });
@@ -64,6 +74,7 @@ function renderRoom(room) {
   const spies = { persistProject: spy(), renderSummary: spy(), renderAll: spy() };
   const ctx = {
     state, props, $: dom.$, esc: String,
+    byKind: kind => state.products.filter(x => x.kind === kind && x.active),
     flushRoomDraft: spy(),
     findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
     applySelectionClasses: spy(),
@@ -71,15 +82,14 @@ function renderRoom(room) {
     roomAutoAreaText: () => "",
     polygonAreaPx: () => 0,
     lightingScheme: () => "classic",
-    EPLightingGroups, EPRoom,
-    frameCollectionList: () => EPCatalog.productCollections(activeFrames),
+    EPLightingGroups, EPRoom, EPCatalog,
     setTool: spy(),
     persistProject: spies.persistProject,
     renderSummary: spies.renderSummary,
     renderAll: spies.renderAll,
     mountedRoomId: null
   };
-  const render = stand.run("renderProperties", ctx);
+  const render = stand.run(["frameCollectionList", "renderProperties"], ctx);
   render();
   return { props, dom, spies };
 }
