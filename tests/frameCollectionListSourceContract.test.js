@@ -18,7 +18,10 @@
      productCollections(state.products)      → byKind не зван вовсе → §1 краснеет (calls.length===0);
      productCollections(byKind("mechanism")) → зван с "mechanism"   → §1 краснеет (arg!=="frame");
      productCollections(state.products.filter(x=>x.kind==="frame")) (без active, минуя byKind)
-                                             → byKind не зван вовсе → §1 краснеет (calls.length===0). */
+                                             → byKind не зван вовсе → §1 краснеет (calls.length===0);
+     productCollections(byKind("frame").slice(1)) (выброс одной накладки перед подсчётом серий)
+                                             → §2 краснеет (в productCollections ушёл НЕ тот массив,
+                                               что вернул byKind — .slice создаёт КОПИЮ). */
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
@@ -45,4 +48,28 @@ test("§1 frameCollectionList берёт список ровно из byKind(\"f
   /* Контрольная привязка к продакшн-выводу: на переданных накладках список = productCollections(FRAMES). */
   assert.deepEqual(result, EPCatalog.productCollections(FRAMES),
     "результат — productCollections поверх запрошенных накладок (контроль, что функция действительно строит список из byKind(\"frame\"))");
+});
+
+test("§2 в productCollections уходит РОВНО массив от byKind(\"frame\"), без .slice/.filter между ними", () => {
+  /* deepEqual результата §1 не ловит выброс ОДНОЙ накладки: мультиколлекционные серии переживают
+     потерю одного товара, список коллекций не меняется. Держим ссылочным контрактом: шпион на
+     productCollections фиксирует, что ему передан ТОТ ЖЕ массив-объект, что вернул byKind. Любая
+     промежуточная .slice(1)/.filter(...) создаёт новый массив → ссылка расходится → тест краснеет,
+     даже когда состав коллекций совпал. */
+  const returnedByKind = FRAMES;
+  let passedToProductCollections;
+  const ctx = {
+    byKind() { return returnedByKind; },
+    EPCatalog: {
+      productCollections(items) {
+        passedToProductCollections = items;
+        return EPCatalog.productCollections(items);
+      }
+    }
+  };
+  const frameCollectionList = stand.run("frameCollectionList", ctx);
+  frameCollectionList();
+
+  assert.equal(passedToProductCollections, returnedByKind,
+    "productCollections получил ровно результат byKind(\"frame\") по ссылке — между byKind и productCollections накладки не режутся и не фильтруются");
 });

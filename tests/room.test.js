@@ -113,3 +113,15 @@ test("значение с окружающими пробелами (правл�
   assert.equal(R.roomCollection({ collection: " Arke" }, COLLECTIONS), null);
   assert.equal(R.roomCollection({ collection: "Arke " }, COLLECTIONS), null);
 });
+
+test("иной регистр (правленый вручную проект) → null, без регистронезависимого совпадения", () => {
+  /* «arke» ≠ «Arke»: roomCollection валидирует по списку каталога через indexOf, а он
+     РЕГИСТРОЗАВИСИМ. Это единственный страж утверждения «мусор любого вида отсекается раньше»
+     (js/catalog.js, js/app.js): без него мутант c toLowerCase-совпадением признал бы «arke»
+     валидной коллекцией и включил бы фильтр, которого на самом деле нет — productsForRoom
+     регистрозависим и вернул бы 0, а подписи интерфейса врали бы «предлагает накладки только
+     коллекции «arke»». Точный регистр «Arke» — эталон контраста: он ОБЯЗАН проходить. */
+  assert.equal(R.roomCollection({ collection: "arke" }, COLLECTIONS), null);
+  assert.equal(R.roomCollection({ collection: "ARKE" }, COLLECTIONS), null);
+  assert.equal(R.roomCollection({ collection: "Arke" }, COLLECTIONS), "Arke");
+});
