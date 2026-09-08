@@ -84,6 +84,28 @@ const mechanismModulesTotal = vm.runInNewContext(
   stand.constSource("mechanismModulesTotal") + "\n;mechanismModulesTotal;",
   { mechanismSpan: EPCatalog.mechanismSpan, product }
 );
+/* НАСТОЯЩИЙ keySlotKind из app.js — трёхзначный предикат «клавиша ли артикул» (true/false/null),
+   на котором держится МИГРАЦИЯ осиротевших групп света при чтении поста (EPBuilderSlots.fromPost →
+   keepsGroup). Раньше его глушили `() => null`, и заглушка возвращала «не знаю» на ЛЮБОЙ артикул:
+   fromPost сохранял группу всегда, поэтому мутация «снять второй аргумент fromPost» оставалась
+   зелёной — тест проверял форму, а не связь. Исполняем исходный текст, а не копию (копия молча
+   разошлась бы с продакшеном). keySlotKind замыкается на product и isKeyProduct — оба подаём
+   настоящими.
+   ⚠️ partRole в СЫРОМ каталоге нет: его дописывает DataService из номенклатуры уже в рантайме
+   (js/data.js), а стенд грузит сырой catalog-vimar.js. Поэтому одну позицию (MECH_SPAN_2) размечаем
+   клавишей сами — так же, как это делает сборка, — чтобы был доступен и ответ true (клавиша, группа
+   остаётся), и false (товар в каталоге, не клавиша — группа снимается), и null (товара нет —
+   группа остаётся). */
+const isKeyProduct = vm.runInNewContext(stand.constSource("isKeyProduct") + "\n;isKeyProduct;", {});
+const KEY_ID = 200040; // = MECH_SPAN_2, размечаем клавишей для ветки true
+const productWithRoles = id => {
+  const p = product(id);
+  return p && Number(id) === KEY_ID ? Object.assign({}, p, { partRole: "key" }) : p;
+};
+const keySlotKind = vm.runInNewContext(
+  stand.constSource("keySlotKind") + "\n;keySlotKind;",
+  { product: productWithRoles, isKeyProduct }
+);
 /* Механизмы разной модульности для сборки поста с ЗАДАННОЙ суммой модулей (разведка каталога:
    span 1/2/3). Пост несёт РЕАЛЬНЫЕ mechanismIds — второе плечо capacity обязано считать ёмкость
    именно из НИХ, а не из формы формулы. */
@@ -122,8 +144,14 @@ assert.notEqual(FRAME_3.id, FRAME_FIRST.id, "предпосылка: 3-моду�
    renderPostSlotCountSelect → openPostBuilder (последняя и возвращается). Всё в цепочке сужения —
    настоящее; стабим только постороннее для селектора. */
 const CUT = ["frameCollectionList", "builderRoomFilter", "collectionFramePool", "renderPostSlotCountSelect", "openPostBuilder"];
+/* builderSignature (function) режем ВМЕСТЕ с openPostBuilder, а не стабим: снимок «как было при
+   открытии» обязан быть НАСТОЯЩИМ, иначе мутация «снять снимок ДО renderBuilder» осталась бы зелёной
+   (стаб `() => ""` игнорирует момент снятия). builderWallType отдельно НЕ режем: он const-стрелкой
+   лежит между openPostBuilder и builderSignature, и functionSource(openPostBuilder) уже прихватывает
+   его в свой текст — обе функции делят этот один лексический контекст (state/$/EPBuilderSlots). */
+const NAMED_CUT = ["builderSignature", ...CUT];
 
-function openPost({ collection, frameId, pending = null, open, templates, mechanismIds, omitMechanismIds = false, postExtra, builderPre }) {
+function openPost({ collection, frameId, pending = null, open, templates, mechanismIds, omitMechanismIds = false, postExtra, builderPre, renderBuilder }) {
   /* open — аргумент, с которым зовём openPostBuilder: по умолчанию путь «пост на плане»
      ({placedId:"p1"}), но дефекты 1/2 требуют и остальные два входа (templateId, «новый пост»).
      mechanismIds — РЕАЛЬНЫЕ механизмы открываемого поста: второе плечо capacity считает ёмкость
@@ -164,16 +192,20 @@ function openPost({ collection, frameId, pending = null, open, templates, mechan
     updateStatus: () => { statusCalls += 1; },
     // НАСТОЯЩИЙ mechanismModulesTotal — второе плечо capacity обязано зависеть от механизмов ЭТОГО поста
     mechanismModulesTotal,
-    keySlotKind: () => null,
+    // НАСТОЯЩИЙ keySlotKind — миграция осиротевших групп при чтении поста зависит от него (open-17/18)
+    keySlotKind,
     EP_DATA: { settings: { wallType: "solid" } },
     renderLightingSchemeSelect: () => {},
-    renderBuilder: () => {},
-    builderSignature: () => "",
+    /* renderBuilder по умолчанию инертен; open-19 подаёт стаб, который МЕНЯЕТ состав (как настоящий:
+       дорисовывает расчётные механизмы), чтобы проверить, что снимок берётся ПОСЛЕ него. Стаб создаётся
+       ДО state, поэтому state и EPBuilderSlots передаём ему аргументами. */
+    renderBuilder: renderBuilder ? () => renderBuilder(state, EPBuilderSlots) : (() => {}),
+    // builderSignature НЕ стабим: он вырезан настоящим в NAMED_CUT (см. выше)
     // НАСТОЯЩИЙ defaultPostName — имя нового поста обязано зависеть от аргумента (3), а не быть константой
     defaultPostName: EPCatalog.defaultPostName,
     setTimeout: () => {}
   };
-  const openBuilder = stand.run(CUT, ctx);
+  const openBuilder = stand.runNamed(NAMED_CUT, ctx);
   openBuilder(open);
   return { state, dom, canvas, statusCalls };
 }
@@ -407,4 +439,59 @@ test("E13-open-16: заголовок окна соответствует пут
   const fresh = openPost({ collection: "Eikon Tactil", frameId: ET_FRAME_2.id, open: {} });
   assert.equal(fresh.dom.$("postModalTitle").textContent, "Новый электрический пост",
     "путь «новый пост» — заголовок про новый пост");
+});
+
+/* ↓↓↓ Две связки, которые прошлый заход оставил на заглушках (E13-РАУНД-4): миграция групп
+   (keySlotKind) и момент снятия снимка (builderSignature после renderBuilder). Обе мутации были
+   зелёными ровно потому, что зависимость глушилась константой — чиним заглушку, а не симптом. */
+
+test("E13-open-17: чтение поста МИГРИРУЕТ осиротевшую группу — снимает её с НЕ-клавиши из каталога", () => {
+  /* Пост на плане (clearGroups не применяется) с группой «Кухня» на механизме, который в каталоге
+     ЕСТЬ, но клавишей НЕ является (MECH_SPAN_1 — 2 кнопки Bluetooth, partRole ≠ key). Место
+     управления — только клавиша (EPLightingPlan.collect), группе тут стоять не на чем: миграция при
+     чтении обязана её снять, иначе она пережила бы цикл «открыть → Сохранить» и после перезаливки
+     прайса ожила бы фантомным местом управления, уведя ЧУЖИЕ посты на другие механизмы.
+     Мутация `fromPost(src, keySlotKind)` → `fromPost(src)` (второй аргумент снят) отключает миграцию:
+     keepsGroup без предиката сохраняет группу всегда → slots[0].group === «Кухня» вместо «» — красит. */
+  const { state } = openPost({
+    collection: "Eikon Tactil", frameId: ET_FRAME_2.id,
+    mechanismIds: [MECH_SPAN_1], postExtra: { keyGroups: ["Кухня"] }
+  });
+  assert.equal(state.builder.slots[0].group, "",
+    "группа на не-клавише из каталога снимается при чтении — миграция осиротевших групп (keySlotKind→false)");
+});
+
+test("E13-open-18: миграция НЕ трогает группу на товаре, которого нет в каталоге (данные заказчика могли уехать)", () => {
+  /* Контроль к open-17: тот же путь и та же группа, но механизм ВЫПАЛ из прайса (id 999999).
+     keySlotKind возвращает null — «не знаю, клавиша или нет»; снять группу тут значило бы стереть
+     настоящее место управления, которое расчёт обязан показать пробелом «потерянная клавиша».
+     Поэтому группа ОСТАЁТСЯ. Пара 17/18 доказывает, что миграция СЕЛЕКТИВНА (false снимает, null —
+     нет), а не глушит группы всем подряд. */
+  const { state } = openPost({
+    collection: "Eikon Tactil", frameId: ET_FRAME_2.id,
+    mechanismIds: [999999], postExtra: { keyGroups: ["Кухня"] }
+  });
+  assert.equal(state.builder.slots[0].group, "Кухня",
+    "у механизма, пропавшего из каталога (keySlotKind→null), группа сохраняется — снимать нельзя, это стёрло бы потерянную клавишу");
+});
+
+test("E13-open-19: снимок builderSignature берётся ПОСЛЕ renderBuilder — учитывает дорисованный им состав", () => {
+  /* Снимок «как было при открытии» решает вопрос «закрыть без сохранения?» (builderDirty). Настоящий
+     renderBuilder дорисовывает состав (подставляет расчётные механизмы, чинит раскладку), поэтому
+     состояние ДО и ПОСЛЕ него разное. Снимок обязан сниматься ПОСЛЕ: снятый раньше объявил бы
+     нетронутый пост изменённым и спрашивал бы подтверждение на пустом месте.
+     Делаем эффект renderBuilder наблюдаемым: стаб дописывает в slots распознаваемый механизм (999777).
+     Снимок — JSON, включающий EPBuilderSlots.signature(state.builder.slots), поэтому «999777» попадёт
+     в снимок ТОЛЬКО если он снят после renderBuilder. Мутация «снять снимок ДО renderBuilder» снимет
+     его по составу без 999777 — assert.match краснеет. */
+  const MARK = 999777;
+  const { state } = openPost({
+    collection: "Eikon Tactil", frameId: ET_FRAME_2.id,
+    renderBuilder: (st, EP) => { st.builder.slots = EP.add(st.builder.slots, MARK); }
+  });
+  /* Предпосылка: renderBuilder реально дорисовал слот — иначе доказывать нечего. */
+  assert.ok(state.builder.slots.some(s => Number(s.id) === MARK),
+    "стаб renderBuilder дорисовал механизм 999777 — эффект, который снимок обязан учесть");
+  assert.match(state.builder.snapshot, new RegExp(String(MARK)),
+    "снимок обязан быть снят ПОСЛЕ renderBuilder — его дорисованный механизм (999777) входит в подпись; снятый раньше объявил бы нетронутый пост изменённым и спрашивал бы подтверждение на пустом месте");
 });

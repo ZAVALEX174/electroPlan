@@ -102,6 +102,26 @@ function run(names, ctx) {
   return vm.runInContext(code, ctx);
 }
 
+/* Как run, но список смешанный: и function-декларации, и top-level const-стрелки app.js. Нужно,
+   когда проверяемая функция зовёт ДРУГУЮ настоящую функцию app.js, а та замыкается на const-стрелку
+   (openPostBuilder → builderSignature → builderWallType): все они обязаны делить ОДИН лексический
+   контекст (state, $, вынесенные namespace'ы), поэтому режем их вместе и исполняем одной программой,
+   а не копируем руками — копия молча разошлась бы с продакшеном. Для каждого имени автоматически
+   выбираем functionSource (есть `function имя(`) либо constSource (иначе). Возвращаем ПОСЛЕДНЕЕ. */
+function runNamed(names, ctx) {
+  const list = Array.isArray(names) ? names : [names];
+  assert.ok(list.length > 0, "runNamed: нужно хотя бы одно имя");
+  const returned = list[list.length - 1];
+  const code = list.map(name => {
+    const safe = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp("\\b(?:async\\s+)?function\\s+" + safe + "\\s*\\(").test(SRC)
+      ? functionSource(name)
+      : constSource(name);
+  }).join("\n") + "\n;" + returned + ";";
+  vm.createContext(ctx);
+  return vm.runInContext(code, ctx);
+}
+
 /* Настоящий classList поверх Set — browser-семантика. toggle(cls, force): force не задан —
    переключить; истина — add; ложь — remove. На force держится СНЯТИЕ метки (syncNoRoomClass:
    объект вернулся в комнату). Набор add/remove/contains покрывает и потребителей без toggle. */
@@ -200,6 +220,7 @@ module.exports = {
   constSource,
   destructuredNames,
   run,
+  runNamed,
   makeClassList,
   makeSelect,
   makeElement,
