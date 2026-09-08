@@ -275,6 +275,12 @@ const COL = {
   // держим чистым, а расхождение по пробелам гасит нормализация в поиске колонки (см. ниже).
   principle: "Принцип обработки", subgroup: "Подгруппы", boxModularity: "Модульность для коробки",
   note: "Описание особенностей элемента",
+  // Три колонки блока «подсветка клавиш» (часть A — только данные). Заголовки взяты из
+  // файла дословно, с пояснениями внутри; пробелы/расхождения гасит та же нормализация
+  // поиска колонки, что и «Подгруппы » выше — руками пробелы не хардкодим.
+  askBacklight: "Спрашивать подсветку 1 - да, пусто - нет",
+  backlightColor: "Цвет подсветки",
+  backlightPosition: "Позиция подсветки 1 - верх, 2 - центр, 3 - низ",
 };
 
 /*
@@ -347,6 +353,9 @@ export function readNomenclature(xlsPath, { excludeSeries = ["idea"] } = {}) {
     const accessCell = at(row, COL.access);
     const controlType = norm(at(row, COL.control)) || null;
     const controlRole = controlRoleOf(controlType);
+    // Ячейки подсветки: флаг «спрашивать» в файле только числом 1, позиция — числом 2/3.
+    const backlightCell = at(row, COL.askBacklight);
+    const backlightPosCell = at(row, COL.backlightPosition);
 
     const rec = {
       sourceRow: r + 1,
@@ -376,6 +385,15 @@ export function readNomenclature(xlsPath, { excludeSeries = ["idea"] } = {}) {
       principle: norm(at(row, COL.principle)) || null,
       subgroup: norm(at(row, COL.subgroup)) || null,
       note: norm(at(row, COL.note)) || null,
+      // Подсветка клавиш (часть A — данные без логики UI). askBacklight — булев признак
+      // «нужно спрашивать подсветку» (стоит у 106 позиций: клавиш-механизмов и самих
+      // аксессуаров-подсветок). backlightColor — цвет свечения (5 значений: Янтарная/
+      // Голубая/Зелёная/Красная/Белая), заполнен у всех аксессуаров-подсветок и части
+      // механизмов. backlightPosition — место индикатора на клавише (в файле 2=центр/
+      // 3=низ). Типы фиксируем осознанно: булев/строка|null/число|null — рантайм прочтёт позже.
+      askBacklight: Number(backlightCell) === 1,
+      backlightColor: norm(at(row, COL.backlightColor)) || null,
+      backlightPosition: typeof backlightPosCell === "number" ? backlightPosCell : null,
       nomPrice,
     };
     if (moduleSize == null && kind === "frame") stats.missingModule++;

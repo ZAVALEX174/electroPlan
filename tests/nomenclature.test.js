@@ -292,16 +292,21 @@ const FIXTURE_HEADER = [
   "Тип управления", "Функциональная группа", "Тип стены", "Монтажный стандарт",
   "Количество уровней в рамке", "Цвет элемента", "Группа доступа",
   "Описание особенностей элемента", "Принцип обработки", "Подгруппы ", "Модульность для коробки",
+  // Три колонки блока «подсветка клавиш» — заголовки дословно из файла заказчика.
+  "Спрашивать подсветку 1 - да, пусто - нет", "Цвет подсветки", "Позиция подсветки 1 - верх, 2 - центр, 3 - низ",
 ];
-/* Строки — копии настоящих (артикулы, названия и значения колонок как в файле заказчика). */
+/* Строки — копии настоящих (артикулы, названия и значения колонок как в файле заказчика).
+   Последние три значения — колонки подсветки: флаг «спрашивать» (в файле число 1 или пусто),
+   цвет свечения и позиция индикатора (2=центр/3=низ). Механизм 20005.0 несёт флаг+цвет+позицию
+   (как 4 механизма с цветом в файле), клавиша 20021 — флаг и позицию без цвета, остальные пусты. */
 const FIXTURE_ROWS = [
-  ["VIMAR", "EIKON EVO, EIKON EXE", "20001.0", "Механизм-выключатель 1P 16AX серый", null, 12.5, "В", "Механизмы", "", "", null, "серый", null, "", "", "Выключатели", null],
-  ["VIMAR", "EIKON EVO, EIKON EXE", "20005.0", "Механизм-переключатель 1P 16AX серый", null, 13.5, "П", "Механизмы", "", "", null, "серый", null, "", "", "Выключатели", null],
-  ["VIMAR", "EIKON EVO, EIKON EXE", "20008.0", "Механизм-кнопка 1P NO 10A серый", null, 14.5, "Кн", "Механизмы", "", "", null, "серый", null, "", "", "Выключатели", null],
-  ["VIMAR", "EIKON EVO, EIKON EXE", "20013.0", "Механизм переключателя с 4-мя контактами ( инвертор ) 1P 16AХ серый", null, 25.5, "И", "Механизмы", "", "", null, "серый", null, "", "", "Выключатели", null],
-  ["VIMAR", "EIKON EVO, EIKON EXE", "20021", "Клавиша на 1 модуль серая", 1, 4.5, "", "управление светом", "", "Итальянский", null, "серый", null, "", "BUTTON", "", null],
-  ["VIMAR", "ARKE, EIKON EVO, PLANA", "03925", "2 кнопки управления Bluetooth Low Energy", null, 90, "Bluetooth", "Механизмы", "", "", null, "белый", null, "", "Bluetooth", "Bluetooth", null],
-  ["VIMAR", "EIKON EVO", "20653.01", "Накладка 3 модуля, белая", 3, 8.9, "", "Декоративные накладки", "", "Итальянский", 1, "", null, "", "", "", null],
+  ["VIMAR", "EIKON EVO, EIKON EXE", "20001.0", "Механизм-выключатель 1P 16AX серый", null, 12.5, "В", "Механизмы", "", "", null, "серый", null, "", "", "Выключатели", null, null, "", null],
+  ["VIMAR", "EIKON EVO, EIKON EXE", "20005.0", "Механизм-переключатель 1P 16AX серый", null, 13.5, "П", "Механизмы", "", "", null, "серый", null, "", "", "Выключатели", null, 1, "Белая", 3],
+  ["VIMAR", "EIKON EVO, EIKON EXE", "20008.0", "Механизм-кнопка 1P NO 10A серый", null, 14.5, "Кн", "Механизмы", "", "", null, "серый", null, "", "", "Выключатели", null, null, "", null],
+  ["VIMAR", "EIKON EVO, EIKON EXE", "20013.0", "Механизм переключателя с 4-мя контактами ( инвертор ) 1P 16AХ серый", null, 25.5, "И", "Механизмы", "", "", null, "серый", null, "", "", "Выключатели", null, null, "", null],
+  ["VIMAR", "EIKON EVO, EIKON EXE", "20021", "Клавиша на 1 модуль серая", 1, 4.5, "", "управление светом", "", "Итальянский", null, "серый", null, "", "BUTTON", "", null, 1, "", 2],
+  ["VIMAR", "ARKE, EIKON EVO, PLANA", "03925", "2 кнопки управления Bluetooth Low Energy", null, 90, "Bluetooth", "Механизмы", "", "", null, "белый", null, "", "Bluetooth", "Bluetooth", null, null, "", null],
+  ["VIMAR", "EIKON EVO", "20653.01", "Накладка 3 модуля, белая", 3, 8.9, "", "Декоративные накладки", "", "Итальянский", 1, "", null, "", "", "", null, null, "", null],
 ];
 
 function writeFixture() {
@@ -356,6 +361,32 @@ test("readNomenclature: признак роли доезжает до запис
     assert.deepEqual(a.roles["20013.0"], { part: "bare_mechanism", control: "inverter" });
     assert.deepEqual(a.roles["20021"], { part: "key" });
     assert.equal("20653.01" in a.roles, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("readNomenclature: три колонки подсветки читаются с верными типами", () => {
+  /* Часть A блока «подсветка клавиш» — только данные. Флаг в файле задан числом 1 (или пусто),
+     цвет — строкой, позиция — числом 2/3. Проверяем типизацию: булев/строка|null/число|null. */
+  const { dir, file } = writeFixture();
+  try {
+    const { records } = N.readNomenclature(file);
+    const by = Object.fromEntries(records.map((r) => [r.code, r]));
+    // Механизм с полным набором: флаг+цвет+позиция (как 4 механизма с цветом в файле)
+    assert.equal(by["20005.0"].askBacklight, true);
+    assert.equal(by["20005.0"].backlightColor, "Белая");
+    assert.equal(by["20005.0"].backlightPosition, 3);
+    // Клавиша: флаг и позиция есть, цвет пуст → null (пустая строка не выдаётся)
+    assert.equal(by["20021"].askBacklight, true);
+    assert.equal(by["20021"].backlightColor, null);
+    assert.equal(by["20021"].backlightPosition, 2);
+    // Позиция — именно число, не строка
+    assert.equal(typeof by["20021"].backlightPosition, "number");
+    // Без подсветки: флаг false, поля null (а не выдуманный 0/"")
+    assert.equal(by["20001.0"].askBacklight, false);
+    assert.equal(by["20001.0"].backlightColor, null);
+    assert.equal(by["20001.0"].backlightPosition, null);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

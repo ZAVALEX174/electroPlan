@@ -200,6 +200,15 @@ async function main() {
     // у механизмов (у рамок/суппортов/коробок пусто), но выносим на верхний уровень для всех
     // — сохраняем атрибут и оставляем рабочим frame.color (падение с прежнего frame.properties.color).
     if (rec.color) product.color = rec.color;
+    // Подсветка клавиш (часть A блока «подсветка» — только данные, без логики UI). Флаг
+    // askBacklight стоит у 106 позиций: у клавиш-механизмов (группы «управление светом»/
+    // «отели») и у самих аксессуаров-подсветок. backlightColor заполнен у всех
+    // аксессуаров-подсветок и части механизмов (у рамок/суппортов/коробок пусто),
+    // backlightPosition (2=центр/3=низ) — у тех же 106 позиций. Пустые поля не выносим,
+    // как и color, чтобы не раздувать записи без подсветки.
+    if (rec.askBacklight) product.askBacklight = true;
+    if (rec.backlightColor) product.backlightColor = rec.backlightColor;
+    if (rec.backlightPosition != null) product.backlightPosition = rec.backlightPosition;
 
     products.push(product);
   }
