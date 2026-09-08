@@ -65,6 +65,23 @@ function functionSource(name) {
   return nextIdx >= 0 ? rest.slice(0, nextIdx) : rest;
 }
 
+/* Исходный текст top-level `const <name>=…;`-объявления app.js. Симметричен functionSource, но
+   часть логики app.js живёт не в function-декларациях, а в одно-строчных const-стрелках верхнего
+   уровня (uid, byKind, $, esc). Их functionSource не берёт (ищет `\nfunction`), а поведенческому
+   тесту нужен НАСТОЯЩИЙ текст такой функции, а не рукописная копия: копия расходится с продакшеном
+   молча — ослабление esc в app.js тогда не краснит ни один тест.
+   Граница — КОНЕЦ СТРОКИ объявления: эти стрелки занимают ровно одну строку и кончаются на `;`.
+   name может быть спецсимволом регэкспа ($) — экранируем его перед подстановкой. Вернувшийся текст
+   исполняется как есть (`stand.constSource("esc")` + `\n;esc;` в vm вернёт саму функцию). */
+function constSource(name) {
+  const safe = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const m = new RegExp("(?:^|\\n)const\\s+" + safe + "\\s*=").exec(SRC);
+  assert.ok(m, "top-level const " + name + " должен существовать в app.js");
+  const start = m.index + (SRC[m.index] === "\n" ? 1 : 0);
+  const end = SRC.indexOf("\n", start);
+  return end >= 0 ? SRC.slice(start, end) : SRC.slice(start);
+}
+
 /* Имена, которые app.js достаёт деструктуризацией `const {…}=<ns>;`. Нужно, чтобы собрать контекст
    РОВНО из проброшенных имён и воспроизвести браузерный ReferenceError при забытом алиасе. */
 function destructuredNames(ns) {
@@ -180,6 +197,7 @@ function loadVimarCatalog() {
 module.exports = {
   SRC,
   functionSource,
+  constSource,
   destructuredNames,
   run,
   makeClassList,

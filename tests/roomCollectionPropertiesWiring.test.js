@@ -52,6 +52,7 @@
    Запуск: node --test tests/ */
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
 
 const EPRoom = require("../js/room.js");
@@ -72,10 +73,13 @@ assert.deepEqual(
 
 const spy = () => { const f = () => { f.calls++; }; f.calls = 0; return f; };
 
-/* НАСТОЯЩИЙ esc app.js (js/app.js:40) — нужен там, где тест доказывает ЭКРАНИРОВАНИЕ имени
-   коллекции. В остальных тестах esc=String достаточно: их тексты («Не задана…», названия каталога)
-   спецсимволов не несут, и String не маскирует находку. */
-const escHtml = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+/* НАСТОЯЩИЙ esc из js/app.js — вырезаем его ИСХОДНЫЙ ТЕКСТ общим стендом (constSource) и исполняем,
+   а НЕ держим рукописную копию. Копия расходилась с продакшеном молча: любое ослабление настоящего
+   esc в app.js не краснило ни один тест, потому что §7-esc сверялся с копией, а не с кодом. esc
+   самодостаточен (внешних имён не берёт), поэтому исполняем его в пустом vm-контексте. Нужен там,
+   где тест доказывает ЭКРАНИРОВАНИЕ имени коллекции; в остальных тестах esc=String достаточно —
+   их тексты спецсимволов не несут, и String находку не маскирует. */
+const escHtml = vm.runInNewContext(stand.constSource("esc") + "\n;esc;", {});
 
 /* Исполнить НАСТОЯЩИЙ renderProperties на комнате room и вернуть {props, dom, spies} для проверок.
    Вырезаем ВМЕСТЕ настоящий frameCollectionList — он строит список коллекций сам:
