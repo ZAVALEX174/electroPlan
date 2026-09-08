@@ -36,7 +36,9 @@
      builderRoomFilter → {collection:null}                             → красит A и D (C остаётся зелёным — так и надо);
      убрать суффикс « коллекции «…»» из emptyContext                   → красит D;
      вернуть emptyContext строкой (`…:"загруженных накладок"`)         → красит D;
-     фолбэк `…?matchingFrames:poolFrames` → `…:allFrames`              → красит E (в список утекают 1598 чужих накладок).
+     фолбэк `…?matchingFrames:poolFrames` → `…:allFrames`              → красит E (в список утекают 1598 чужих накладок);
+     тернарник схлопнут в фолбэк `frames=poolFrames` (фильтр по         → красит E2 (в комнате: 33 вместо 11) и E3 (вне комнат:
+       числу модулей снят ЦЕЛИКОМ)                                        1631 вместо 224); E (matchingFrames пуст) её НЕ ловит.
    Запуск: node --test tests/ */
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -233,4 +235,35 @@ test("E13-E: фолбэк списка накладок при пустом matc
     "в списке накладок не должно быть ни одной ЧУЖОЙ коллекции: фолбэк обязан остаться пулом Eikon Tactil, а не всем каталогом");
   assert.equal(shown.length, ET_POOL.length,
     "в фолбэк попадает ровно пул коллекции (все её накладки), а не каталог целиком");
+});
+
+/* E13-E выше держит ФОЛБЭК-ветку (matchingFrames пуст). Тесты ниже держат ОСНОВНУЮ ветку тернарника
+   `frames=matchingFrames.length?matchingFrames:poolFrames` — по СОСТАВУ: когда у пула ЕСТЬ накладки
+   под выбранную модульность, список обязан быть сужен до неё, а не остаться всем пулом. Без этого
+   мутация «схлопнуть тернарник в фолбэк-ветку» (frames=poolFrames) снимает фильтр по модульности
+   ЦЕЛИКОМ и проходит зелёной: E13 (count=8) её не видит, т.к. там matchingFrames пуст и обе ветки
+   совпадают. Пост открыт БЕЗ накладки (frameUnset) → requestedFrame не подмешан → чистый результат. */
+test("E13-E2: при СУЩЕСТВУЮЩЕЙ у коллекции модульности список сужен до неё, а не весь пул коллекции", () => {
+  // count=2: у Eikon Tactil накладки на 2 модуля ЕСТЬ → matchingFrames непуст → работает ОСНОВНАЯ ветка.
+  // Продакшн сужает пул до 2М (11 из 33); мутант frames=poolFrames показал бы весь пул 33 (2/3/4М).
+  assert.ok(ET_OPTS.includes(2), "предпосылка: у Eikon Tactil есть накладки на 2 модуля — matchingFrames непуст");
+  const shown = frameOptionProductsFor({ room: { collection: "Eikon Tactil" }, count: 2 });
+  const wrongCount = shown.filter(p => EPCatalog.frameSlotCount(p) !== 2);
+  assert.deepEqual(wrongCount, [],
+    "все предложенные накладки обязаны быть ровно на 2 модуля — фильтр по числу модулей снимать нельзя");
+  assert.ok(shown.length > 0 && shown.length < ET_POOL.length,
+    "показано подмножество пула (11 из 33), а не весь пул коллекции целиком");
+});
+
+test("E13-E3: вне коллекции при существующей модульности список сужен до неё, а не весь каталог", () => {
+  // пост вне комнат, count=3: коллекции нет → пул = весь каталог. matchingFrames = все 3М (224 из 1631).
+  // Продакшн отдаёт только 3М; мутант frames=poolFrames показал бы весь каталог всех модульностей.
+  // Разрыв нагляднее, чем в комнате: 224 против 1631.
+  assert.ok(ALL_OPTS.includes(3), "предпосылка: в каталоге есть накладки на 3 модуля");
+  const shown = frameOptionProductsFor({ room: null, count: 3 });
+  const wrongCount = shown.filter(p => EPCatalog.frameSlotCount(p) !== 3);
+  assert.deepEqual(wrongCount, [],
+    "вне коллекции фильтр по числу модулей обязан оставить только 3М — иначе в список утекает весь каталог");
+  assert.ok(shown.length > 0 && shown.length < activeFrames.length,
+    "показано подмножество каталога (224 из 1631), а не весь каталог целиком");
 });
