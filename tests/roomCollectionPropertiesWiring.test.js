@@ -172,6 +172,21 @@ test("§2 selected на действующей коллекции комнаты
   assert.equal(sel[0].value, "Plana", "selected стоит на действующей коллекции комнаты");
 });
 
+test("§2 selected — ЧЛЕНСТВО, а не префикс: у комнаты «Arke» selected только на «Arke», не на «Arke Fit»", () => {
+  /* Пункт 2 (раунд 4): selected опции стоит по `name===roomColl`. Прежний §2 брал «Plana» — у неё в
+     каталоге нет коллекции, чьё имя начинается с «Plana», поэтому мутация `name===roomColl` →
+     `roomColl&&name.indexOf(roomColl)===0` оставалась зелёной. «Arke Fit» — единственная коллекция,
+     чьё имя начинается с имени другой («Arke»). На комнате «Arke» точное сравнение выбирает РОВНО
+     одну опцию; префиксный мутант пометил бы selected И «Arke», И «Arke Fit» → sel.length===2. */
+  assert.ok(CATALOG_COLLECTIONS.includes("Arke") && CATALOG_COLLECTIONS.includes("Arke Fit"),
+    "предпосылка: в каталоге есть обе — «Arke» и её префиксный сосед «Arke Fit»");
+  const { props } = renderRoom({ id: "r1", name: "Кухня", area: "", polygon: null, collection: "Arke" });
+  const opts = collectionOptions(props);
+  const sel = opts.filter(o => o.selected);
+  assert.equal(sel.length, 1, "выбрана РОВНО одна опция (мутант-префикс пометил бы и «Arke», и «Arke Fit»)");
+  assert.equal(sel[0].value, "Arke", "selected стоит именно на «Arke», а не съезжает на префиксного соседа «Arke Fit»");
+});
+
 test("§1-подпись КОЛЛЕКЦИЯ ЗАДАНА: текст «предлагает накладки только этой коллекции» + класс own", () => {
   /* Подпись под селектором — единственное, что объясняет заказчику, работает ли фильтр. До этого
      теста её не держало ничто (grep prop-collection-source tests/ → 0): текст можно было замкнуть на
