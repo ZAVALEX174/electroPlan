@@ -18,11 +18,23 @@
       «Eikon Tactil» → селектор ровно [2,3,4], а не полный [1,2,3,4,6,7,8,14,21]. Этот же assert
       держит и КОНТРАКТ ПОРЯДКА: присвоение editingPlacedId стоит ДО renderPostSlotCountSelect —
       сдвинь его после, и селектор строился бы по пустому editingPlacedId (весь каталог).
+   3) фактическая ЁМКОСТЬ открываемого поста вычисляется (frameSlotCount), а не берётся константой:
+      пост с накладкой на 8 модулей в комнате Eikon Tactil → селектор [2,3,4,8], где 8 добавлена
+      отдельным вариантом (extra renderPostSlotCountSelect), а value = "8";
+   4) вход в конструктор СНИМАЕТ взведённый режим «Разместить»: state.pending обнуляется, класс
+      placing уходит с канваса, updateStatus вызывается.
 
    МУТАЦИОННАЯ ТАБЛИЦА (проверено, см. отчёт):
      editingPlacedId=placedId → editingPlacedId=null в openPostBuilder → красит §2 (комната поста
        теряется: builderRoomFilter не находит пост → коллекции нет → селектор становится полным
        [1,2,3,4,6,7,8,14,21]); попутно падает и §1 (editingPlacedId не «p1», а null).
+     присвоение editingPlacedId ПОСЛЕ renderPostSlotCountSelect(capacity) → красит §2 (селектор
+       строится по ещё пустому editingPlacedId → весь каталог).
+     удаление вызова renderPostSlotCountSelect(capacity) → красит §2 (селектор не наполняется).
+     const capacity=3 (константа вместо frameSlotCount) → красит §3 (8 не попадает в селектор:
+       остаётся [2,3,4], а value обнуляется — «3» есть в опциях, но это НЕ ёмкость поста).
+     строка снятия pending → «;» → красит §4 (pending не обнулён, placing остался, updateStatus
+       не вызван).
    Запуск: node --test tests/ */
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -45,16 +57,22 @@ const ALL_OPTS = EPCatalog.frameSlotOptions(activeFrames);
 const ET_POOL = activeFrames.filter(f => seriesOf(f).includes("Eikon Tactil"));
 const ET_OPTS = EPCatalog.frameSlotOptions(ET_POOL);
 const ET_FRAME_2 = ET_POOL.find(f => EPCatalog.frameSlotCount(f) === 2);
+/* Накладка на 8 модулей ЛЮБОЙ серии — её ёмкости (8) нет у Eikon Tactil [2,3,4] и она не равна
+   дефолтной «3». С таким постом открываем комнату Eikon Tactil в open-3: реальная ёмкость 8 обязана
+   попасть в селектор отдельным вариантом, иначе сохранённый пост показал бы чужое значение. */
+const FRAME_8 = activeFrames.find(f => EPCatalog.frameSlotCount(f) === 8);
 assert.deepEqual(ALL_OPTS, [1, 2, 3, 4, 6, 7, 8, 14, 21], "предпосылка: модульности всего каталога");
 assert.deepEqual(ET_OPTS, [2, 3, 4], "предпосылка: у коллекции Eikon Tactil модульности 2/3/4");
 assert.ok(ET_FRAME_2, "разведка: у Eikon Tactil есть накладка на 2 модуля — с ней и открываем пост");
+assert.ok(FRAME_8, "разведка: в каталоге есть накладка на 8 модулей — её ёмкости у Eikon Tactil нет");
+assert.ok(!ET_OPTS.includes(8), "предпосылка: «8» не входит в модульности Eikon Tactil — потому и годится для open-3");
 
 /* Вырезаем ВМЕСТЕ по зависимостям: frameCollectionList → builderRoomFilter → collectionFramePool →
    renderPostSlotCountSelect → openPostBuilder (последняя и возвращается). Всё в цепочке сужения —
    настоящее; стабим только постороннее для селектора. */
 const CUT = ["frameCollectionList", "builderRoomFilter", "collectionFramePool", "renderPostSlotCountSelect", "openPostBuilder"];
 
-function openPost({ collection, frameId }) {
+function openPost({ collection, frameId, pending = null }) {
   const post = { id: "p1", roomId: "r1", frameId, mechanismIds: [] };
   const state = {
     products: PRODUCTS,
@@ -62,9 +80,15 @@ function openPost({ collection, frameId }) {
     templates: [],
     rooms: [{ id: "r1", name: "Комната", collection }],
     builder: {},
-    pending: null
+    pending
   };
   const dom = stand.makeDom({ selects: ["postSlotCount"] });
+  /* canvas и updateStatus — НАСТОЯЩИЕ зависимости строки снятия взведённого «Разместить»
+     (openPostBuilder), а не селектора. При pending=null (тесты open-1/2/3) ветка не исполняется и
+     они инертны; тест open-4 взводит pending и по ним проверяет снятие режима. canvas берём с
+     классом "placing" — браузерная семантика classList (makeClassList) честно снимет его remove(). */
+  const canvas = stand.makeElement({ classes: ["placing"] });
+  let statusCalls = 0;
   const ctx = {
     state, $: dom.$,
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
@@ -72,6 +96,8 @@ function openPost({ collection, frameId }) {
     frameProduct: product,
     frameSlotOptions: EPCatalog.frameSlotOptions,
     EPCatalog, EPRoom, EPPosts, EPBuilderSlots,
+    canvas,
+    updateStatus: () => { statusCalls += 1; },
     // постороннее для селектора — безопасные стабы
     mechanismModulesTotal: () => 0,
     keySlotKind: () => null,
@@ -84,7 +110,7 @@ function openPost({ collection, frameId }) {
   };
   const open = stand.run(CUT, ctx);
   open({ placedId: "p1" });
-  return { state, dom };
+  return { state, dom, canvas, statusCalls };
 }
 
 test("E13-open-1: openPostBuilder записывает editingPlacedId открываемого поста", () => {
@@ -100,4 +126,36 @@ test("E13-open-2: селектор модульностей после openPostB
     "пост в комнате Eikon Tactil открывается с селектором ровно [2,3,4] — сужение делает НАСТОЯЩИЙ openPostBuilder через editingPlacedId→комнату→коллекцию");
   assert.ok(!opts.includes(8),
     "«8» у Eikon Tactil нет: её появление означало бы, что editingPlacedId потерян и селектор строится по всему каталогу");
+});
+
+test("E13-open-3: фактическая ёмкость открываемого поста попадает в селектор отдельным вариантом", () => {
+  /* Пост с накладкой на 8 модулей в комнате Eikon Tactil (коллекция [2,3,4]). Ёмкость 8 — НАСТОЯЩАЯ,
+     вычисленная из frameSlotCount открываемого поста, а не константа: селектор обязан стать
+     [2,3,4,8], где 8 добавлена отдельным вариантом (extra). Подмена вычисления любой константой из
+     [2,3,4] (напр. capacity=3) не добавит нового варианта — селектор остался бы [2,3,4], и тест
+     краснеет; константа вне модульностей каталога дала бы иное множество и тоже краснеет. */
+  const { dom } = openPost({ collection: "Eikon Tactil", frameId: FRAME_8.id });
+  const opts = optionValues(dom.$("postSlotCount").innerHTML).map(Number);
+  assert.deepEqual(opts, [2, 3, 4, 8],
+    "селектор = модульности коллекции [2,3,4] ПЛЮС фактическая ёмкость открытого поста (8) отдельным вариантом");
+  assert.ok(opts.includes(8),
+    "ёмкость 8 обязана присутствовать: она вычислена из накладки поста, а не взята из модульностей коллекции");
+  assert.equal(dom.$("postSlotCount").value, "8",
+    "value селектора = фактической ёмкости поста: пост с исчезнувшей у коллекции модульностью не должен показать чужое значение");
+});
+
+test("E13-open-4: открытие конструктора снимает взведённый режим «Разместить»", () => {
+  /* Человек нажал «Разместить», передумал и пошёл редактировать пост — openPostBuilder обязан снять
+     взведённый pending В ЕДИНОЙ точке входа, иначе первый клик по плану после закрытия окна поставит
+     ненужный объект. Проверяем ВСЕ три следствия строки: pending обнулён, класс placing снят с
+     канваса, updateStatus вызван. Замена строки на «;» оставляет всё как было — тест краснеет. */
+  const { state, canvas, statusCalls } = openPost({
+    collection: "Eikon Tactil",
+    frameId: ET_FRAME_2.id,
+    pending: { kind: "template", templateId: "t1" }
+  });
+  assert.equal(state.pending, null, "взведённый режим размещения обязан сняться при входе в конструктор");
+  assert.ok(!canvas.classList.contains("placing"),
+    "класс «placing» обязан уйти с канваса — иначе курсор остаётся в режиме размещения");
+  assert.equal(statusCalls, 1, "updateStatus обязан быть вызван, чтобы строка статуса отразила снятие режима");
 });
