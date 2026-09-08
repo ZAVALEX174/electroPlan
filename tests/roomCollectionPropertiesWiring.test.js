@@ -43,7 +43,12 @@
      onchange: r.collection=val всегда (убрать else delete)     → красит §3 (пустое пишет "", поле не удалено);
      убрать renderProperties() из onchange                     → красит §6 (rerender.calls===0);
      убрать persistProject() из onchange                       → красит §4 (persistProject.calls===0);
-     добавить renderSummary()/renderAll() в onchange           → красит §5 (renderSummary/all вызваны).
+     добавить renderSummary()/renderAll() в onchange           → красит §5 (renderSummary/all вызваны);
+     onchange пишет в state.rooms[0] вместо r (и delete rooms[0]) → красит §7-комната (запись/снятие
+                                                                  ушли в первую комнату, выделенная пуста);
+     текст пункта «Не задана…» заменён (value тот же)          → красит §7-текст-пункта (opts[0].text);
+     подпись поля «Коллекция накладок» заменена на «Серия»     → красит §7-подпись-поля (label поля);
+     убрать esc() в опциях коллекций                           → красит §7-esc (сырое <b> в разметке).
    Запуск: node --test tests/ */
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -67,6 +72,11 @@ assert.deepEqual(
 
 const spy = () => { const f = () => { f.calls++; }; f.calls = 0; return f; };
 
+/* НАСТОЯЩИЙ esc app.js (js/app.js:40) — нужен там, где тест доказывает ЭКРАНИРОВАНИЕ имени
+   коллекции. В остальных тестах esc=String достаточно: их тексты («Не задана…», названия каталога)
+   спецсимволов не несут, и String не маскирует находку. */
+const escHtml = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
 /* Исполнить НАСТОЯЩИЙ renderProperties на комнате room и вернуть {props, dom, spies} для проверок.
    Вырезаем ВМЕСТЕ настоящий frameCollectionList — он строит список коллекций сам:
    productCollections(byKind("frame")). Поэтому в ctx кладём не готовый список, а лексику, из
@@ -74,13 +84,22 @@ const spy = () => { const f = () => { f.calls++; }; f.calls = 0; return f; };
    app.js) и настоящий EPCatalog. Так §1 проверяет продакшн-построение опций, а не то, что тест сам
    же подсунул готовым. Порядок в CUT — по зависимостям (frameCollectionList → renderProperties),
    как в tests/builderRoomFilterCollectionWiring.test.js. */
-function renderRoom(room) {
-  const state = { selected: { kind: "room", id: room.id }, rooms: [room], posts: [], products: PRODUCTS, pxPerMeter: 0 };
+function renderRoom(room, opts) {
+  opts = opts || {};
+  /* ДВЕ комнаты, выделена ВТОРАЯ (room). Первая — приманка decoy, по умолчанию БЕЗ коллекции.
+     Так «пишем в выделенную» и «пишем в первую» становятся различимы: мутация onchange
+     (r.collection → state.rooms[0].collection) уводит запись в decoy — §7 это ловит с обеих
+     сторон. opts.firstRoom позволяет §7-снятие дать приманке свою коллекцию и доказать, что
+     delete НЕ бьёт по первой. opts.products/opts.esc — для теста экранирования (свой каталог с
+     опасным именем и настоящий esc). */
+  const products = opts.products || PRODUCTS;
+  const decoy = opts.firstRoom || { id: "r0", name: "Кухня", area: "", polygon: null };
+  const state = { selected: { kind: "room", id: room.id }, rooms: [decoy, room], posts: [], products, pxPerMeter: 0 };
   const dom = stand.makeDom({ selects: ["roomCollectionSelect", "roomSchemeSelect"] });
   const props = stand.makeElement();
   const spies = { persistProject: spy(), renderSummary: spy(), renderAll: spy() };
   const ctx = {
-    state, props, $: dom.$, esc: String,
+    state, props, $: dom.$, esc: opts.esc || String,
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
     flushRoomDraft: spy(),
     findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
@@ -101,14 +120,25 @@ function renderRoom(room) {
   /* ctx возвращаем, чтобы §3–5 мог обернуть renderProperties шпионом: объявление функции при
      исполнении в vm стало свойством контекста (ctx.renderProperties), а обработчик onchange зовёт
      её как свободное имя — переопределив свойство, ловим её вызов, не ломая перерисовку. */
-  return { props, dom, spies, ctx };
+  return { props, dom, spies, ctx, state, decoy };
 }
 
-/* Опции селектора коллекций из отрисованного innerHTML: value + флаг selected. */
+/* Опции селектора коллекций из отрисованного innerHTML: value + флаг selected + видимый текст.
+   text нужен для §7-текст-пункта (подмена «Не задана…» не меняет value, только надпись) и для
+   §7-esc (доказать, что опасное имя в теле опции экранировано). */
 function collectionOptions(props) {
   const m = props.innerHTML.match(/<select id="roomCollectionSelect">([\s\S]*?)<\/select>/);
   assert.ok(m, "селектор #roomCollectionSelect должен присутствовать в панели свойств комнаты");
-  return [...m[1].matchAll(/<option value="([^"]*)"([^>]*)>/g)].map(o => ({ value: o[1], selected: /selected/.test(o[2]) }));
+  return [...m[1].matchAll(/<option value="([^"]*)"([^>]*)>([\s\S]*?)<\/option>/g)]
+    .map(o => ({ value: o[1], selected: /selected/.test(o[2]), text: o[3] }));
+}
+
+/* Подпись поля-обёртки <label class="room-collection-field">…<select…>: текст, который заказчик
+   читает над селектором. Подмена «Коллекция накладок»→«Серия» value не трогает — держим текстом. */
+function collectionFieldLabel(props) {
+  const m = props.innerHTML.match(/<label class="room-collection-field">([^<]*)<select/);
+  assert.ok(m, "поле «Коллекция накладок» (label.room-collection-field) должно присутствовать");
+  return m[1];
 }
 
 /* Подпись <small class="prop-hint prop-collection-source [own]">…</small> под селектором: {own, text}.
@@ -199,4 +229,68 @@ test("§3–6 onchange: пишет коллекцию, пустое УДАЛЯЕ
   assert.equal(spies.persistProject.calls, 2, "снятие коллекции тоже сохраняется");
   assert.equal(spies.renderSummary.calls, 0, "снятие коллекции тоже не трогает смету");
   assert.equal(spies.renderAll.calls, 0, "снятие коллекции тоже не трогает холст");
+});
+
+test("§7-текст-пункта: первый пункт селектора читается «Не задана — предлагать все накладки»", () => {
+  /* §1 держит только ЗНАЧЕНИЕ первого пункта (value===""), а надпись — нет: её можно было
+     замкнуть на «Коллекция», и заказчик перестал бы понимать, что пустой выбор = фильтра нет.
+     Текст, который читает заказчик, покрываем явно (тот же довод, что для prop-collection-source). */
+  const { props } = renderRoom({ id: "r1", name: "Кухня", area: "", polygon: null });
+  const opts = collectionOptions(props);
+  assert.equal(opts[0].text, "Не задана — предлагать все накладки",
+    "первый пункт объясняет, что без коллекции предлагаются все накладки, — не безликая надпись");
+});
+
+test("§7-подпись-поля: поле над селектором подписано «Коллекция накладок»", () => {
+  /* Подпись поля отличает «коллекцию накладок» от «серии»/«цвета» (E14 ляжет рядом). Её можно было
+     переименовать молча — §1–§6 держат опции и обработчик, но не заголовок поля. Покрываем текстом. */
+  const { props } = renderRoom({ id: "r1", name: "Кухня", area: "", polygon: null });
+  assert.equal(collectionFieldLabel(props), "Коллекция накладок",
+    "поле подписано «Коллекция накладок» — заказчик видит, что задаёт именно накладки");
+});
+
+test("§7-esc: имя коллекции из каталога ЭКРАНИРУЕТСЯ в опциях, а не вставляется сырым", () => {
+  /* Название коллекции приходит из каталога (productSeries → productCollections), а прайс
+     перезаливает заказчик — опасные символы в серии не должны пролезть в разметку сырыми.
+     Подаём каталог из одной накладки с series=['A"><b>&'] и НАСТОЯЩИЙ esc; опция обязана нести
+     экранированное имя и в value, и в теле. С esc=String (как в прочих тестах) находку не поймать —
+     поэтому здесь esc реальный. */
+  const danger = 'A"><b>&';
+  const frame = { id: "fx", kind: "frame", active: true, series: [danger] };
+  const { props } = renderRoom(
+    { id: "r1", name: "Кухня", area: "", polygon: null },
+    { products: [frame], esc: escHtml }
+  );
+  const opts = collectionOptions(props);
+  const opt = opts.find(o => o.value.indexOf("&amp;") !== -1);
+  assert.ok(opt, "опция опасной коллекции присутствует (value распарсился — значит кавычка экранирована)");
+  assert.equal(opt.value, "A&quot;&gt;&lt;b&gt;&amp;", "value опции экранирован полностью");
+  assert.equal(opt.text, "A&quot;&gt;&lt;b&gt;&amp;", "видимый текст опции экранирован полностью");
+  /* Проверяем по САМОЙ опасной строке, а не по «<b>»: тег <b> легитимно есть в блоке оборудования
+     (<b>0</b>), а вот сырое имя коллекции A"><b>& в разметке появиться не должно. */
+  assert.ok(props.innerHTML.indexOf(danger) === -1,
+    "сырого имени коллекции A\"><b>& в разметке нет — оно не вставлено как HTML (мутация «убрать esc» краснеет здесь)");
+});
+
+test("§7-комната: запись и снятие коллекции бьют по ВЫДЕЛЕННОЙ комнате, не по первой", () => {
+  /* Обработчик пишет в r (выделенная комната), а не в state.rooms[0]. С одной комнатой эти две
+     мишени неразличимы; берём ДВЕ, выделяем ВТОРУЮ («Кабинет»), первой («Кухня») даём свою
+     коллекцию — и проверяем ОБЕ стороны: выбор оседает в выделенной, а соседнюю не трогает; снятие
+     тоже бьёт по выделенной, а первую не обнуляет. */
+  const kitchen = { id: "r0", name: "Кухня", area: "", polygon: null, collection: "Eikon Evo" };
+  const cabinet = { id: "r2", name: "Кабинет", area: "", polygon: null };
+  const { dom, state } = renderRoom(cabinet, { firstRoom: kitchen });
+  const select = dom.els.roomCollectionSelect;
+
+  // запись: «Plana» уходит в выделенный «Кабинет», «Кухня» не тронута
+  select.onchange({ target: { value: "Plana" } });
+  assert.equal(cabinet.collection, "Plana", "коллекция записана в ВЫДЕЛЕННУЮ комнату (Кабинет)");
+  assert.equal(state.rooms[0].collection, "Eikon Evo",
+    "коллекция первой комнаты (Кухня) НЕ изменилась — запись не ушла в чужую комнату");
+
+  // снятие: delete бьёт по «Кабинету», «Кухня» сохраняет свою коллекцию
+  select.onchange({ target: { value: "" } });
+  assert.ok(!("collection" in cabinet), "«Не задана» сняла коллекцию у ВЫДЕЛЕННОЙ комнаты (Кабинет)");
+  assert.equal(state.rooms[0].collection, "Eikon Evo",
+    "коллекция первой комнаты (Кухня) уцелела — delete не ушёл в чужую комнату");
 });
