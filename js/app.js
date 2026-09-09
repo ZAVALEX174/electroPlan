@@ -3094,6 +3094,34 @@ function applyPlanVisibility(){
   const btn=$("planVisibilityBtn");
   if(btn){btn.textContent=PLAN_VIS_LABEL[mode];btn.title=PLAN_VIS_NEXT[mode];btn.disabled=!state.planLoaded}
 }
+/* ЕДИНАЯ синхронизация UI подложки по state.planLoaded (образец — updateScaleUi): что дизейплить
+   и что показывать, решает ОДНО место, а не каждый потребитель своей копией. Загрузка плана,
+   восстановление проекта и сброс подложки зовут его же — правило «эти органы живут, пока есть
+   чертёж» физически не размножается по вызывающим (HANDOFF §7.1 п.2: на копиях правил проект
+   спотыкался трижды). Кнопки трассировки/определения комнат/разметки, статус-точка «ready» и
+   «Убрать план» завязаны на наличие подложки; видимость подложки дизейблит и applyPlanVisibility
+   (там — под свой режим), правило одно: без плана управлять нечем. */
+function updatePlanUi(){
+  const loaded=!!state.planLoaded;
+  ["autoTraceBtn","detectRoomsBtn","detectRoomsMlBtn","annotateBtn"].forEach(id=>{$(id).disabled=!loaded});
+  $("planStatusDot").classList.toggle("ready",loaded);
+  const clear=$("clearPlanBtn");if(clear)clear.hidden=!loaded;
+  const vis=$("planVisibilityBtn");if(vis)vis.disabled=!loaded;
+}
+/* Сброс подложки (ПЛАН-В-ДОКУМЕНТЕ, часть 2). Подложка — лишь фон для обводки: убираем её и с
+   холста, и из снимка проекта (persistProject увидит planLoaded=false → plan:null, см.
+   projectSnapshot), не трогая ничего нарисованного — комнаты/стены/разметка/посты/масштаб живут
+   в мировых координатах и от картинки не зависят. src снимаем removeAttribute, а НЕ ="": пустая
+   строка резолвится браузером в URL страницы и уходит лишним запросом с onerror. planVisibility→
+   "show", чтобы следующая загрузка не открылась «скрытой». Симметрично applyImportedPlan. */
+function clearPlan(){
+  const img=$("planImage");if(img)img.removeAttribute("src");
+  state.planLoaded=false;state.planLabel="";state.planVisibility="show";
+  clearAnnotations();
+  updatePlanUi();applyPlanVisibility();
+  persistProject();
+  updateStatus("План убран");toast("План убран");
+}
 
 /* Фоновая сетка холста задаётся из JS, а не зашита в CSS: её шаг обязан совпадать
    с фактическим шагом привязки (state.gridStep), иначе визуальная сетка «врёт»
@@ -3252,8 +3280,7 @@ async function restoreProject(){
     });
     if($("planImage").naturalWidth){
       state.planLoaded=true;
-      ["autoTraceBtn","detectRoomsBtn","detectRoomsMlBtn","annotateBtn"].forEach(id=>{$(id).disabled=false});
-      $("planStatusDot").classList.add("ready");
+      updatePlanUi();
     }
   }
   if(state.planLoaded||state.devices.length||state.posts.length||state.rooms.length||state.walls.length)markCanvasUsed();
@@ -4068,6 +4095,7 @@ $("gridStepSelect").onchange=e=>{
 };
 $("clearRoomLinesBtn").onclick=clearRoomLines;
 $("planVisibilityBtn").onclick=cyclePlanVisibility;
+$("clearPlanBtn").onclick=clearPlan;
 $("newPostBtn").onclick=()=>openPostBuilder();
 $("closePostModal").onclick=$("cancelPost").onclick=closePostBuilder;
 $("savePost").onclick=savePostBuilder;$("postSlotCount").onchange=changePostSlotCount;$("postFrameSelect").onchange=renderBuilder;
@@ -4237,10 +4265,10 @@ function applyImportedPlan(file,result){
     img.onload=()=>{
       img.onload=null;img.onerror=null;
       state.planLoaded=true;state.planLabel=file.name;
-      $("autoTraceBtn").disabled=false;$("detectRoomsBtn").disabled=false;$("detectRoomsMlBtn").disabled=false;$("annotateBtn").disabled=false;clearAnnotations();
+      updatePlanUi();clearAnnotations();
       /* новый чертёж показываем целиком, иначе после «скрыть» пользователь увидит пустоту */
       state.planVisibility="show";applyPlanVisibility();
-      $("planStatusDot").classList.add("ready");markCanvasUsed();
+      markCanvasUsed();
       const suffix=result.detail?` · ${result.detail}`:"";
       updateStatus(`План загружен (${result.format}): ${file.name}${suffix}`);resolve();
     };
