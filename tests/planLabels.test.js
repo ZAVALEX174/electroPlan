@@ -91,14 +91,28 @@ test("кадр вписывается в лист: ширина не больш�
   close(tall.widthMm * tall.aspectPct / 100, 224, "высота ровно по полезной площади листа");
 });
 
-test("пустые случаи: блок не выводится и не падает", () => {
-  assert.equal(buildHtml(square({ imageUrl: "" }), deps), "", "нет подложки — блока нет");
-  assert.equal(buildHtml(square({ imageUrl: "   " }), deps), "", "пробельная подложка — блока нет");
-  assert.equal(buildHtml(square({ posts: [] }), deps), "", "нет постов — блока нет");
-  assert.equal(buildHtml(square({ natW: 0 }), deps), "", "SVG без размеров (naturalWidth 0) — блока нет");
-  assert.equal(buildHtml(square({ canvasW: 0, canvasH: 0 }), deps), "", "нет размеров холста — блока нет");
+test("подложка опциональна: без неё блок строится по одним постам", () => {
+  /* НОВЫЙ КОНТРАКТ. Подложка — лишь фон для обводки: помещения и посты рисуются и без
+     чертежа. Раньше «нет картинки → нет блока»; теперь блок обязан появиться. */
+  const noImg = square({ imageUrl: "" });
+  assert.ok(buildHtml(noImg, deps) !== "", "без подложки блок всё равно есть");
+  assert.equal(layout(noImg).image, null, "фона нет — image === null");
+  assert.equal(layout(noImg).imageUrl, null, "imageUrl обнулён, в вёрстку <img> не пойдёт");
+  assert.ok(!/<img\b/.test(buildHtml(noImg, deps)), "без подложки тег <img> не выводится");
+  /* пробельная подложка и SVG без размеров (naturalWidth 0) — тоже «фона нет», не «блока нет» */
+  assert.equal(layout(square({ imageUrl: "   " })).image, null, "пробельная подложка — без фона");
+  assert.equal(layout(square({ natW: 0 })).image, null, "SVG без размеров — без фона, но блок есть");
+  assert.equal(layout(square({ canvasW: 0, canvasH: 0 })).image, null, "нет размеров холста — без фона");
+});
+
+test("блок = null, только когда печатать нечего: ни постов, ни помещений", () => {
+  assert.equal(buildHtml(square({ posts: [] }), deps), "", "ни постов, ни помещений — блока нет");
+  assert.equal(layout(square({ posts: [] })), null, "layout тоже null на пустом проекте");
   assert.equal(buildHtml(null, deps), "", "нет данных вообще — блока нет");
-  assert.equal(layout(square({ posts: [{ number: 1 }] })), null, "пост без координат не рисуется");
+  assert.equal(layout(square({ posts: [{ number: 1 }] })), null, "пост без координат — и без помещений — null");
+  /* но одно помещение без постов уже поднимает блок */
+  assert.ok(layout(square({ posts: [], rooms: [{ name: "Кухня", x: 100, y: 100 }] })) !== null,
+    "помещение без постов — блок есть");
 });
 
 test("пост без номера печатается знаком вопроса, как на плане", () => {
@@ -160,4 +174,52 @@ test("подпись под планом настраивается и може�
   assert.match(buildHtml(square(), deps), /Номер на бирке/, "подпись по умолчанию");
   assert.match(buildHtml(square({ note: "Сверяйте с таблицей" }), deps), /Сверяйте с таблицей/);
   assert.ok(!/Номер на бирке/.test(buildHtml(square({ note: "" }), deps)), "пустая подпись не печатается");
+});
+
+/* Квадрат-контур в мировых точках — удобно проверять руками. */
+const ROOM_POLY = [{ x: 20, y: 20 }, { x: 180, y: 20 }, { x: 180, y: 180 }, { x: 20, y: 180 }];
+
+test("контур помещения рисуется полигоном, имя — у якоря подписи", () => {
+  const html = buildHtml(square({
+    posts: [{ number: 1, x: 100, y: 100 }],
+    rooms: [{ name: "Кухня", polygon: ROOM_POLY, x: 100, y: 100 }]
+  }), deps);
+  assert.match(html, /<polygon /, "контур выведен svg-полигоном");
+  assert.match(html, /vector-effect="non-scaling-stroke"/, "линия контура не растягивается вслед за кадром");
+  assert.match(html, /fill="none"/, "контур без заливки, как .room-poly на экране");
+  assert.match(html, /Кухня/, "имя помещения напечатано");
+});
+
+test("комната без контура печатается подписью, без полигона и не теряется", () => {
+  const spec = { posts: [{ number: 1, x: 100, y: 100 }], rooms: [{ name: "Кладовая", x: 150, y: 150 }] };
+  const L = layout(square(spec));
+  assert.equal(L.rooms.length, 1, "комната без контура осталась в раскладке");
+  assert.equal(L.rooms[0].polygon, null, "контура у неё нет");
+  assert.ok(L.rooms[0].label, "но есть якорь подписи");
+  const html = buildHtml(square(spec), deps);
+  assert.ok(!/<polygon/.test(html), "без контура полигон не рисуется");
+  assert.match(html, /Кладовая/, "имя всё равно напечатано");
+});
+
+test("кадр учитывает контуры помещений, а не только бирки постов", () => {
+  /* Без подложки: контур уходит далеко влево-вверх от единственного поста. Если кадр
+     считать по одним биркам (мутация), пост встал бы в центр; с учётом контура он
+     смещается к правому-нижнему краю кадра. */
+  const L = layout(square({
+    imageUrl: "",
+    posts: [{ number: 1, x: 100, y: 100 }],
+    rooms: [{ name: "Зал", polygon: [{ x: -200, y: -200 }, { x: 0, y: -200 }, { x: 0, y: 0 }, { x: -200, y: 0 }], x: -100, y: -100 }]
+  }));
+  assert.ok(L.rooms[0].polygon, "контур в раскладке");
+  close(L.rooms[0].polygon[0].left, 0, "дальний угол контура — у левого края кадра");
+  assert.ok(L.badges[0].left > 90, "бирка ушла к правому краю: кадр растянут контуром влево");
+});
+
+test("имя помещения проходит esc — тег из названия не оживает", () => {
+  const html = buildHtml(square({
+    posts: [{ number: 1, x: 100, y: 100 }],
+    rooms: [{ name: "<b>Зал</b>", x: 100, y: 100 }]
+  }), deps);
+  assert.match(html, /&lt;b&gt;Зал&lt;\/b&gt;/, "имя помещения экранировано");
+  assert.equal((html.match(/<b>/g) || []).length, 0, "тег из имени помещения не ожил");
 });

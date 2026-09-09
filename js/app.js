@@ -3337,28 +3337,48 @@ function planImageForDoc(img){
     return out.length<src.length?out:src;
   }catch(e){return src}
 }
-/* Данные блока «план с бирками» для EPPlanLabels. null — блока в документе не будет
-   (плана не загружали; проект восстановлен без плана — persistProject при переполнении
-   localStorage сохраняет plan:null; постов нет).
-   ПОДЛОЖКУ ЧИТАЕМ ЖИВУЮ ($("planImage")), а не из снимка проекта — по той же причине.
+/* Данные блока «план с бирками» для EPPlanLabels. Подложка — ЛИШЬ ФОН для обводки (замысел
+   владельца): помещения штатно рисуются разметкой и без чертежа, и документ обязан их
+   показать. Поэтому блок строится по контурам помещений и биркам постов, а подложка идёт
+   фоном, только если она загружена И не скрыта (planVisibility!=="hide"). null — только когда
+   печатать нечего совсем: ни помещений, ни постов.
+   ПОДЛОЖКУ ЧИТАЕМ ЖИВУЮ ($("planImage")), а не из снимка проекта: проект мог быть восстановлен
+   без плана (persistProject при переполнении localStorage сохраняет plan:null).
    Зум и панораму вида (state.scale/panX/panY) компенсировать НЕ надо: applyView — это одна
-   CSS-трансформация #canvas, в мировые координаты постов она не входит. А вот леттербокс
-   подложки (object-fit:contain внутри мирового бокса) снимает уже сам EPPlanLabels — для
-   этого ему и передаются размеры бокса. */
+   CSS-трансформация #canvas, в мировые координаты постов и контуров она не входит. А вот
+   леттербокс подложки (object-fit:contain внутри мирового бокса) снимает уже сам EPPlanLabels —
+   для этого ему и передаются размеры бокса.
+   Контуры/якоря подписей — в тех же МИРОВЫХ координатах, что и посты (r.polygon, seedX/seedY):
+   пересчёт «мир → доли кадра» целиком лежит на чистом EPPlanLabels.layout. */
 function planLabelsSpec(){
   const img=$("planImage");
-  if(!state.planLoaded||!img||!img.src||!img.naturalWidth||!img.naturalHeight)return null;
-  if(!state.posts.length)return null;
-  return {
-    imageUrl:planImageForDoc(img),
-    natW:img.naturalWidth,natH:img.naturalHeight,
-    canvasW:canvas.clientWidth,canvasH:canvas.clientHeight,
-    posts:state.posts.map(p=>({number:p.number,x:p.x+POST_ICON_HALF,y:p.y+POST_ICON_HALF}))
+  /* Режим «скрыта» приравниваем к «подложки нет»: раз проектировщик её убрал, в документ она
+     не идёт; «бледная» (dim) печатается как обычная подложка. */
+  const showImg=state.planLoaded&&img&&img.src&&img.naturalWidth&&img.naturalHeight&&state.planVisibility!=="hide";
+  if(!state.posts.length&&!state.rooms.length)return null;
+  const spec={
+    posts:state.posts.map(p=>({number:p.number,x:p.x+POST_ICON_HALF,y:p.y+POST_ICON_HALF})),
+    /* Контурное помещение отдаём с полигоном и якорем-центроидом (там же, где на плане стоит
+       его площадь); комнату без контура (инструмент «T») — одной точкой подписи (seedX/seedY,
+       с тем же фолбэком x+55/y+18, что и в buildSpaceComponents). */
+    rooms:state.rooms.map(r=>{
+      if(r.polygon&&r.polygon.length>2){
+        const c=polygonCentroid(r.polygon);
+        return {name:r.name,polygon:r.polygon,x:c.x,y:c.y};
+      }
+      return {name:r.name,x:r.seedX!=null?r.seedX:r.x+55,y:r.seedY!=null?r.seedY:r.y+18};
+    })
   };
+  if(showImg){
+    spec.imageUrl=planImageForDoc(img);
+    spec.natW=img.naturalWidth;spec.natH=img.naturalHeight;
+    spec.canvasW=canvas.clientWidth;spec.canvasH=canvas.clientHeight;
+  }
+  return spec;
 }
-/* Готовая секция плана для документа — пустая строка, если рисовать нечего.
-   Режим «подложка скрыта» (planVisibility) документ НЕ подавляет: это переключатель
-   рабочего вида, а печатный план нужен для сверки в любом случае. */
+/* Готовая секция плана для документа — пустая строка, если рисовать нечего. Режим «подложка
+   скрыта» убирает из документа только фон-подложку (см. planLabelsSpec), но не сам блок:
+   контуры помещений и бирки постов нужны для сверки в любом случае. */
 function planBlockHtml(opts){
   const spec=planLabelsSpec();
   if(!spec)return "";
