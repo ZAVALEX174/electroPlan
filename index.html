@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260909.2">
+  <link rel="stylesheet" href="css/styles.css?v=20260909.3">
 </head>
 <body>
 <div class="app">
@@ -267,6 +267,22 @@
           <select id="lightingSchemeSelect" aria-describedby="lightingSchemeHint"></select>
         </label>
         <small class="hint-line" id="lightingSchemeHint"></small>
+        <!-- Подсветка клавиш — настройка ПРОЕКТА (решение владельца 09.09): галочка «считать»
+             плюс цвет и напряжение. Селекторы имеют смысл только при включённой галочке —
+             их доступность ведёт ОДНА функция синхронизации (renderProjectBacklight), а не
+             копии условия по обработчикам. Варианты цвета и напряжения JS строит ИЗ КАТАЛОГА
+             (матчинг строгий: «Зелёная» с ё — иначе подсветка молча не подберётся). -->
+        <label class="scheme-field scheme-field--check">
+          <input type="checkbox" id="backlightEnabled" aria-describedby="backlightHint">
+          Считать подсветку клавиш
+        </label>
+        <label class="scheme-field">Цвет подсветки
+          <select id="backlightColorSelect" aria-describedby="backlightHint"></select>
+        </label>
+        <label class="scheme-field">Напряжение подсветки
+          <select id="backlightVoltageSelect" aria-describedby="backlightHint"></select>
+        </label>
+        <small class="hint-line" id="backlightHint">Аксессуар-LED добавляется к каждому механизму, который принимает подсветку; несовместимым (нет цвета/напряжения) — честный пробел, в цену он не идёт.</small>
         <!-- Группы света: тот же блок, что печатается в КП и листе монтажника
              (EPLightingPlan.buildHtml) — чтобы экран и документы не могли разойтись. -->
         <div id="lightingSummary"></div>
@@ -425,7 +441,7 @@
   <script src="js/catalog-vimar-attrs.js?v=20260828.1"></script>
   <script src="js/catalog-vimar-openings.js?v=20260801.2"></script>
   <script src="js/catalog-vimar-faces.js?v=20260801.2"></script>
-  <script src="js/data.js?v=20260828.1"></script>
+  <script src="js/data.js?v=20260909.9"></script>
 <script src="js/store.js?v=20260723"></script>
 <script src="js/config.js?v=20260902.1"></script>
 <!-- Подтверждение необратимой команды повтором того же действия (у окна есть и нижняя, и
@@ -451,7 +467,7 @@
 <script src="js/catalogSections.js?v=20260828.1"></script>
 <script src="js/builderSlots.js?v=20260903.4"></script>
 <script src="js/offerOptions.js?v=20260906.4"></script>
-<script src="js/estimate.js?v=20260906.3"></script>
+<script src="js/estimate.js?v=20260909.9"></script>
 <script src="js/offerPdf.js?v=20260906.4"></script>
 <script src="js/installSheet.js?v=20260902.1"></script>
 <script src="js/supplierSpec.js?v=20260906.4"></script>
@@ -471,6 +487,6 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-<script src="js/app.js?v=20260909.8"></script>
+<script src="js/app.js?v=20260909.9"></script>
 </body>
 </html>

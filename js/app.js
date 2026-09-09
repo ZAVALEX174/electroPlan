@@ -342,6 +342,7 @@ async function init(){
   renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();
   renderLightingSchemeSelect();   /* селектор схемы в панели проекта: заполняем и на чистом старте */
   renderProjectWallTypeSelect();  /* тип стены проекта — там же, рядом со схемой */
+  renderProjectBacklight();       /* подсветка клавиш — галочка и оба селектора из каталога */
   renderPostSlotCountSelect();    /* модульности рамки строим из каталога (разметка отдаёт пустой select) */
   applyGridStyle();syncMarkupControls();updateZoomUi();applyView();   /* сетка/переключатели/зум/вид — из state (в т.ч. восстановленного) */
   _autosaveOn=true;   /* включаем ПОСЛЕ восстановления, иначе пустой старт затрёт сохранённое */
@@ -1072,6 +1073,7 @@ function applyProjectSettings(){
   updateRateUi();                  /* валюта, курс, надбавка */
   renderLightingSchemeSelect();    /* схема: селектор в панели проекта + строка для чтения в конструкторе */
   renderProjectWallTypeSelect();   /* тип стены проекта */
+  renderProjectBacklight();        /* подсветка клавиш: галочка/цвет/напряжение + их доступность */
   /* 2) потребители: от настроек зависят состав постов, цены и суммы */
   renderAll();                     /* объекты плана: подбор коробки и механизмов мог измениться */
   renderTemplates();
@@ -1844,6 +1846,42 @@ function renderLightingSchemeSelect(){
 function renderProjectWallTypeSelect(){
   const sel=$("projectWallTypeSelect");
   if(sel)sel.value=EP_DATA.settings.wallType==="hollow"?"hollow":"solid";
+}
+/* Подсветка клавиш ПРОЕКТА — галочка «считать» плюс цвет и напряжение. Варианты цвета и
+   напряжения строим ИЗ КАТАЛОГА (аксессуары-LED с askBacklight), а НЕ хардкодом в разметке:
+   матчинг в EPPostFit строгий (===), и «Зеленая» без ё молча дала бы null. Напряжение несёт
+   семейство артикула — читаем его тем же EPPostFit.backlightVoltage, что и подбор, чтобы
+   селектор и расчёт не разошлись. Порядок опций — как товары идут в каталоге (детерминирован).
+   Доступность селекторов при выключенной галочке ведёт ЭТА функция (одна точка синхронизации):
+   выключено → цвет/напряжение недоступны, чтобы человек не крутил настройку, которая ни на что
+   не влияет. */
+function backlightCatalogOptions(){
+  const colors=[],volts=[];
+  byKind("accessory").forEach(a=>{
+    if(!a||!a.askBacklight)return;
+    if(a.backlightColor&&!colors.includes(a.backlightColor))colors.push(a.backlightColor);
+    const v=EPPostFit.backlightVoltage(a.code);
+    if(v&&!volts.includes(v))volts.push(v);
+  });
+  return {colors,volts};
+}
+function renderProjectBacklight(){
+  const setting=EP_DATA.settings.backlight||{enabled:false};
+  const enabled=!!setting.enabled;
+  const chk=$("backlightEnabled");
+  if(chk)chk.checked=enabled;
+  const {colors,volts}=backlightCatalogOptions();
+  const fill=(sel,values,current)=>{
+    if(!sel)return;
+    sel.innerHTML=values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+    /* Присвоение value отсутствующей опции снимает выбор ("") — сохранённый проект с цветом,
+       которого в каталоге уже нет, честно покажет пусто, а не подставит соседний. */
+    if(current!=null)sel.value=current;
+    /* Селектор недоступен, пока подсветка выключена: настройка ни на что не влияет. */
+    sel.disabled=!enabled;
+  };
+  fill($("backlightColorSelect"),colors,setting.color);
+  fill($("backlightVoltageSelect"),volts,setting.voltage);
 }
 /* Селектор «Количество модулей рамки» — НЕ константа в разметке, а производная модульностей
    накладок (EPCatalog.frameSlotOptions). ⚠️ СЧИТАЕМ ОТ ТОГО ЖЕ ПУЛА, ЧТО renderBuilder ФИЛЬТРУЕТ
@@ -3257,8 +3295,8 @@ function projectSnapshot(){
     docHeader:EP_DATA.settings.docHeader||{},
     offerOptions:EPOfferOptions.normalize(EP_DATA.settings.offerOptions),
     /* условия сделки и валюта — часть проекта, а не глобальная настройка приложения */
-    terms:(({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,wallType,lightingScheme,displayCurrency,eurRate,rateDate,rateSource})=>
-      ({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,wallType,lightingScheme,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
+    terms:(({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,wallType,lightingScheme,backlight,displayCurrency,eurRate,rateDate,rateSource})=>
+      ({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,wallType,lightingScheme,backlight,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
 }
 /* План может не влезть в LocalStorage (лимит ~5 МБ). Тогда сохраняем всё остальное,
    пометив, что чертёж придётся загрузить заново, — это лучше полной потери работы. */
@@ -3357,6 +3395,11 @@ async function restoreProject(){
     /* Тип стены проекта едет в terms тем же Object.assign — селектор в панели обязан показать
        восстановленное значение, иначе панель уверяет «бетон», а коробки подбираются под ГКЛ. */
     renderProjectWallTypeSelect();
+    /* Подсветка клавиш: старый проект её поля не несёт — Object.assign выше его не трогает, и
+       остаётся дефолт data.js (ВЫКЛЮЧЕНО). Это и требуется: включение дорожит смету, задним
+       числом дорожать нельзя (тот же принцип, что у надбавки к курсу). Панель обязана показать
+       восстановленное значение и доступность селекторов. */
+    renderProjectBacklight();
   }
   /* реквизиты документа: старый проект без них открывается с пустыми полями и датой
      «сегодня» (fillDocHeaderInputs подставит) — обратная совместимость */
@@ -4230,6 +4273,27 @@ $("projectWallTypeSelect").onchange=e=>{
   EP_DATA.settings.wallType=e.target.value==="hollow"?"hollow":"solid";
   applyProjectSettings();
   toast("Тип стены проекта изменён — посты со своим типом стены не затронуты");
+};
+/* Подсветка клавиш — настройка ВСЕГО проекта (галочка + цвет + напряжение). Как схема и тип
+   стены, обработчик лишь пишет значение в EP_DATA.settings.backlight и зовёт
+   applyProjectSettings(); кого перерисовывать — не его забота. renderProjectBacklight внутри
+   applyProjectSettings синхронизирует и доступность селекторов (одна точка), поэтому здесь
+   условий по галочке нет. */
+function ensureBacklightSetting(){
+  if(!EP_DATA.settings.backlight)EP_DATA.settings.backlight={enabled:false,color:null,voltage:null};
+  return EP_DATA.settings.backlight;
+}
+$("backlightEnabled").onchange=e=>{
+  ensureBacklightSetting().enabled=!!e.target.checked;
+  applyProjectSettings();
+};
+$("backlightColorSelect").onchange=e=>{
+  ensureBacklightSetting().color=e.target.value||null;
+  applyProjectSettings();
+};
+$("backlightVoltageSelect").onchange=e=>{
+  ensureBacklightSetting().voltage=e.target.value||null;
+  applyProjectSettings();
 };
 /* Тип стены ПОСТА — ЧЕРНОВИК ОКНА, а не мгновенная правка проекта. Кнопка писала прямо в
    EP_DATA.settings.wallType и тут же звала scheduleSave(): человек открывал ОДИН пост, менял

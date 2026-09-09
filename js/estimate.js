@@ -84,6 +84,15 @@ function renderItem(it) {
      поймёт, откуда в посте на три клавиши взялись переключатель и инвертор, а не три
      выключателя: роль механизма определяется ЧИСЛОМ МЕСТ группы по всему проекту. */
   if (it.kind === "lighting") return `${it.name} · группа «${it.group}»`;
+  /* Подсветка клавиш: аксессуар-LED, вставленный в механизм (EPPosts.backlightPlan). Пробел
+     «механизм подсветку принимает, но совместимой (цвет+напряжение+позиция) в каталоге нет»
+     печатаем словами — как «не подобрана» у коробки в структурном составе: молчание читалось
+     бы как забытая позиция, а в цену пробел всё равно не входит (postCost его не считает).
+     Матчинг накопительный: у поста бывает несколько принимающих механизмов. */
+  if (it.kind === "backlight") {
+    if (it.gap) return it.count > 1 ? `${it.count} × подсветка не подобрана` : "подсветка не подобрана";
+    return it.count > 1 ? `${it.count} × ${it.name}` : it.name;
+  }
   return it.name;
 }
 
@@ -235,9 +244,28 @@ function build(input) {
     const lightRows = billableLighting(lightingOf(po));
     const lightItems = lightRows.map(r => ({ kind: "lighting", code: r.code || null, name: r.name,
       count: 1, group: r.groupLabel || "", role: r.roleLabel || "" }));
-    /* Порядок состава — как при сборке и как у заказчика: механизмы → суппорт →
+    /* Подсветка клавиш: аксессуары-LED, по одному подобранному на принимающий механизм
+       (EPPosts.backlightPlan.items), плюс честный пробел (gaps: принимает, но совместимой нет).
+       Одинаковые артикулы схлопываем в count — как «N × суппорт», чтобы состав из трёх
+       одинаковых LED не растягивался в три строки. Пробел — одной позицией со счётчиком
+       механизмов; в ЦЕНУ он не идёт (её считает postCost по items, а gaps там нет). Порядок
+       ниже ставит подсветку СРАЗУ ЗА механизмами и их группами света: LED вставлен в механизм,
+       читается рядом с ним — до монтажных элементов (суппорт/коробка) и накладки. */
+    const back = comp && comp.backlight ? comp.backlight : null;
+    const backAgg = new Map();
+    ((back && back.items) || []).forEach((u) => {
+      const acc = u && u.accessory; if (!acc) return;
+      const code = acc.code || null, k = String(code);
+      const cur = backAgg.get(k);
+      if (cur) cur.count += 1;
+      else backAgg.set(k, { kind: "backlight", code, name: acc.name, count: 1 });
+    });
+    const backItems = [...backAgg.values()];
+    const gapCount = (back && back.gaps) ? back.gaps.length : 0;
+    const backGap = gapCount ? { kind: "backlight", code: null, name: "подсветка не подобрана", count: gapCount, gap: true } : null;
+    /* Порядок состава — как при сборке и как у заказчика: механизмы → подсветка → суппорт →
        коробка → накладка (раньше был обратный). */
-    const items = [...mechItems, ...lightItems, supportItem, boxItem, frameItem].filter(Boolean);
+    const items = [...mechItems, ...lightItems, ...backItems, backGap, supportItem, boxItem, frameItem].filter(Boolean);
     /* Группируем посты ПО СОСТАВУ (накладка + набор механизмов), а не по имени/номеру.
        Раньше ключом было имя поста; теперь у каждого размещённого поста свой сквозной
        номер, и по номеру одинаковые посты перестали бы сходиться — смета раздулась бы
@@ -277,6 +305,17 @@ function build(input) {
     const lightPairs = lightItems.map(it => [String(it.code), String(it.group)])
       .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0)));
     if (lightPairs.length) key += "|l:" + JSON.stringify(lightPairs);
+    /* ⚠️ ПОДСВЕТКА ВХОДИТ В КЛЮЧ ГРУППИРОВКИ. Два физически одинаковых поста (та же накладка,
+       те же механизмы) различаются подсветкой: разный ЦВЕТ/НАПРЯЖЕНИЕ дают разный подобранный
+       артикул-LED, а «включена/выключена» — его наличие или пробел. Схлопнуть их в одну строку
+       значило бы напечатать в КП подсветку первого поста как подсветку всех и соврать в деньгах
+       (у строки одна цена на все её посты). Кодируем мультимножество артикулов подсветки
+       (с количеством, отсортировано — строка сметы не зависит от порядка клавиш) плюс число
+       пробелов. Пост без подсветки (выключена, ни items, ни gaps) суффикса не даёт — ключ
+       остаётся байт в байт прежним, старые сметы не перегруппируются. */
+    const backCodes = backItems.map((it) => [String(it.code), it.count])
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    if (backCodes.length || gapCount) key += "|b:" + JSON.stringify([backCodes, gapCount]);
     lines.push({
       key,
       name: po.name,

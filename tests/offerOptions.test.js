@@ -168,7 +168,7 @@ test("D10: UI → снимок проекта → восстановление �
   assert.equal(snap.offerOptions.layout.illustration, true);
   Object.assign(ctx, { ProjectStore: { load: () => snap }, dropOrphanKeyGroups: () => {}, fillDocHeaderInputs: () => {},
     EPConfig: { gridSteps: [10], gridDefault: 10 }, markCanvasUsed: () => {},
-    renderLightingSchemeSelect: () => {}, renderProjectWallTypeSelect: () => {} });
+    renderLightingSchemeSelect: () => {}, renderProjectWallTypeSelect: () => {}, renderProjectBacklight: () => {} });
   // Восстановление настоящей async-функции тем же общим стендом.
   const restore = stand.run(["syncOfferOptions", "restoreProject"], ctx);
   await restore();
@@ -190,6 +190,7 @@ test("D10: init создаёт поля до восстановления — п
   };
   for (const name of ["loadCachedRate", "fillDocHeaderInputs", "renderTemplates", "renderAll", "renderSummary",
     "updateScaleUi", "updateRateUi", "applyPlanVisibility", "renderLightingSchemeSelect", "renderProjectWallTypeSelect",
+    "renderProjectBacklight",
     "renderPostSlotCountSelect", "applyGridStyle", "syncMarkupControls", "updateZoomUi", "applyView"])
     ctx[name] = () => {};
   await stand.run(["syncOfferOptions", "renderOfferOptions", "init"], ctx)();
