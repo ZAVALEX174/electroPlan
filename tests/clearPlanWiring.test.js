@@ -36,7 +36,7 @@ test("clearPlan гасит подложку: src снят removeAttribute, planL
   const dom = makeDom();
   const state = { planLoaded: true, planLabel: "chertezh.png", planVisibility: "hide" };
   const spies = makeSpies();
-  stand.run(["updatePlanUi", "clearPlan"], Object.assign({ state, $: dom.$ }, spies))();
+  stand.run(["updatePlanUi", "bumpPlanToken", "clearPlan"], Object.assign({ state, $: dom.$ }, spies))();
 
   assert.equal("src" in dom.img, false, "src снят через removeAttribute, а не выставлен в пустую строку");
   assert.equal(state.planLoaded, false, "плановый флаг снят");
@@ -49,7 +49,7 @@ test("clearPlan гасит плановые кнопки, статус-точк�
   const state = { planLoaded: true, planLabel: "x", planVisibility: "show" };
   const spies = makeSpies();
   dom.$("planStatusDot").classList.add("ready");
-  stand.run(["updatePlanUi", "clearPlan"], Object.assign({ state, $: dom.$ }, spies))();
+  stand.run(["updatePlanUi", "bumpPlanToken", "clearPlan"], Object.assign({ state, $: dom.$ }, spies))();
 
   PLAN_BTNS.forEach(id => assert.equal(dom.$(id).disabled, true, id + " задизейблен без плана"));
   assert.equal(dom.$("planStatusDot").classList.contains("ready"), false, "статус-точка погашена");
@@ -61,7 +61,7 @@ test("clearPlan дёргает связки очистки/перерисовк�
   const dom = makeDom();
   const state = { planLoaded: true, planLabel: "x", planVisibility: "show" };
   const spies = makeSpies();
-  stand.run(["updatePlanUi", "clearPlan"], Object.assign({ state, $: dom.$ }, spies))();
+  stand.run(["updatePlanUi", "bumpPlanToken", "clearPlan"], Object.assign({ state, $: dom.$ }, spies))();
 
   assert.equal(spies.calls.clearAnnotations, 1, "разметка распознавания снята вместе с подложкой");
   assert.equal(spies.calls.applyPlanVisibility, 1, "видимость применена после сброса");
@@ -78,7 +78,7 @@ test("clearPlan не трогает нарисованное и масштаб �
     planLoaded: true, planLabel: "x", planVisibility: "show",
     rooms, walls, posts, roomLines, pxPerMeter: 42, scaleSegment: seg
   };
-  stand.run(["updatePlanUi", "clearPlan"], Object.assign({ state, $: dom.$ }, makeSpies()))();
+  stand.run(["updatePlanUi", "bumpPlanToken", "clearPlan"], Object.assign({ state, $: dom.$ }, makeSpies()))();
 
   assert.equal(state.rooms, rooms, "комнаты не тронуты");
   assert.equal(state.walls, walls, "стены не тронуты");

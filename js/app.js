@@ -9,6 +9,11 @@ const state={
      старые проекты открываются без пересчёта. Экран↔мир — через EPViewport. */
   tool:"select",scale:1,panX:0,panY:0,pending:null,selected:null,
   products:[],templates:[],devices:[],posts:[],rooms:[],walls:[],autoWalls:[],wallPoints:[],planLoaded:false,
+  /* «поколение подложки»: счётчик меняется при КАЖДОЙ смене фона — загрузке нового
+     чертежа (applyImportedPlan) и сбросе (clearPlan). Долгая операция запоминает его
+     до первого await и сверяется после — так гонка «убрал/сменил план во время
+     распознавания» не портит комнаты/стены и не включает кнопки мимо updatePlanUi. */
+  planToken:0,
   /* линии разметки помещений — отдельный слой (решение владельца): не смешиваются
      ни с ручными стенами (walls), ни с автообрисовкой (autoWalls). roomLinePoints —
      точки текущей рисуемой цепочки, roomLineIds — id её сегментов (для Backspace),
@@ -580,11 +585,13 @@ function loadOpenCv(){
 async function detectRooms(){
   const img=$("planImage");
   if(!state.planLoaded||!img.naturalWidth){toast("Сначала загрузите план");return}
+  const token=state.planToken;   /* запоминаем поколение подложки ДО первого await */
   showTraceProgress(true,"Загрузка модуля распознавания");
   try{
     await loadOpenCv();
     showTraceProgress(true,"Определение комнат");
     await new Promise(r=>setTimeout(r,40));
+    if(planLostDuringOp(token))return;   /* подложку убрали/сменили за время загрузки — не трогаем комнаты */
     const res=EPRoomSeg.segment(img);
     const cw=canvas.clientWidth,ch=canvas.clientHeight;
     /* уничтожаемые авто-комнаты — источники переноса ручных полей на новые (по геометрии) */
@@ -614,11 +621,13 @@ async function detectRooms(){
 async function detectRoomsML(){
   const img=$("planImage");
   if(!state.planLoaded||!img.naturalWidth){toast("Сначала загрузите план");return}
+  const token=state.planToken;   /* запоминаем поколение подложки ДО первого await */
   showTraceProgress(true,"Распознавание плана","Загрузка модели (~100 МБ при первом запуске)…");
   try{
     const res=await EPFloorplanML.segmentRooms(img,{
       onProgress:msg=>showTraceProgress(true,"Распознавание плана",msg||"Анализ чертежа…")
     });
+    if(planLostDuringOp(token))return;   /* ДО удаления авто-комнат: иначе их не восстановить (carryUserRoomFields по пустому res) */
     const cw=canvas.clientWidth,ch=canvas.clientHeight;
     /* уничтожаемые авто-комнаты — источники переноса ручных полей на новые (по геометрии) */
     const oldAuto=state.rooms.filter(r=>r.autoPolygon);
@@ -825,6 +834,7 @@ function renderAnnotations(){
 async function annotatePlan(){
   const img=$("planImage");
   if(!state.planLoaded||!img.naturalWidth){toast("Сначала загрузите план");return}
+  const token=state.planToken;   /* запоминаем поколение подложки ДО первого await */
   const btn=$("annotateBtn");btn.disabled=true;
   showTraceProgress(true,"Распознавание (нейросеть)","Подготовка модели…");
   try{
@@ -832,6 +842,7 @@ async function annotatePlan(){
     showTraceProgress(true,"Распознавание (нейросеть)","Анализ плана…");
     await new Promise(r=>setTimeout(r,40));
     const res=await EPFloorplanML.detect(img,{conf:0.22,onProgress:msg=>showTraceProgress(true,"Распознавание (нейросеть)",msg)});
+    if(planLostDuringOp(token))return;   /* подложку убрали/сменили — не пишем detections и не показываем «Убрать разметку» */
     state.detections={list:res.detections,natW:res.natW,natH:res.natH};
     renderAnnotations();
     $("clearAnnotateBtn").hidden=false;
@@ -840,7 +851,9 @@ async function annotatePlan(){
     toast(shown?`Распознано элементов: ${shown} (${EPFloorplanML.backend||"—"})`:"Элементы не распознаны");
     updateStatus(`Распознано элементов: ${shown}`);
   }catch(e){console.error(e);showTraceProgress(false);toast(e.message||"Не удалось распознать план")}
-  finally{btn.disabled=false}
+  /* приводим кнопки к нынешнему состоянию подложки, а не «включаем annotateBtn всегда»:
+     при живой подложке updatePlanUi вернёт его активным, при убранной — оставит выключенным */
+  finally{updatePlanUi()}
 }
 
 /* Точки, задающие границы сетки свободного пространства: концы всех линий, центры и
@@ -3108,6 +3121,19 @@ function updatePlanUi(){
   const clear=$("clearPlanBtn");if(clear)clear.hidden=!loaded;
   const vis=$("planVisibilityBtn");if(vis)vis.disabled=!loaded;
 }
+/* ЕДИНЫЙ предикат «подложка та же, что была в начале операции». Копий условия по коду
+   быть не должно (HANDOFF §7.1 п.2). Меняет поколение только bumpPlanToken. */
+function planUnchanged(token){return state.planToken===token}
+function bumpPlanToken(){state.planToken=(state.planToken||0)+1}
+/* Единая реакция долгой операции на смену подложки: гасим прогресс и ПРИВОДИМ кнопки к
+   нынешнему состоянию через updatePlanUi (не включаем их сами — иначе всплывут при
+   отсутствующем плане). Ничего не пишем в state и ничего не удаляем. true = прекратить. */
+function planLostDuringOp(token){
+  if(planUnchanged(token))return false;
+  showTraceProgress(false);updatePlanUi();
+  toast("Подложка изменилась — распознавание отменено");
+  return true;
+}
 /* Сброс подложки (ПЛАН-В-ДОКУМЕНТЕ, часть 2). Подложка — лишь фон для обводки: убираем её и с
    холста, и из снимка проекта (persistProject увидит planLoaded=false → plan:null, см.
    projectSnapshot), не трогая ничего нарисованного — комнаты/стены/разметка/посты/масштаб живут
@@ -3116,6 +3142,7 @@ function updatePlanUi(){
    "show", чтобы следующая загрузка не открылась «скрытой». Симметрично applyImportedPlan. */
 function clearPlan(){
   const img=$("planImage");if(img)img.removeAttribute("src");
+  bumpPlanToken();   /* подложка сменилась — идущие распознавания должны прекратиться */
   state.planLoaded=false;state.planLabel="";state.planVisibility="show";
   clearAnnotations();
   updatePlanUi();applyPlanVisibility();
@@ -4000,9 +4027,11 @@ function showTraceProgress(show,message="Анализ линий плана",det
    канваса, привязка к отображаемому плану и отрисовка. ---- */
 function autoTracePlan(){
   if(!state.planLoaded || !$("planImage").src){toast("Сначала загрузите изображение плана");return}
+  const token=state.planToken;   /* запоминаем поколение подложки ДО отложенной обработки */
   showTraceProgress(true);
   setTimeout(()=>{
     try{
+      if(planLostDuringOp(token))return;   /* подложку убрали/сменили за паузу — не перезаписываем autoWalls */
       const image=$("planImage"),analysis=$("analysisCanvas"),ctx=analysis.getContext("2d",{willReadFrequently:true});
       const ratio=Math.min(900/image.naturalWidth,650/image.naturalHeight,1);
       const w=Math.max(1,Math.round(image.naturalWidth*ratio)),h=Math.max(1,Math.round(image.naturalHeight*ratio));
@@ -4264,6 +4293,7 @@ function applyImportedPlan(file,result){
     const img=$("planImage"),previousSrc=img.src;
     img.onload=()=>{
       img.onload=null;img.onerror=null;
+      bumpPlanToken();   /* новый чертёж — то же поколение, что и сброс: гонки прерываются */
       state.planLoaded=true;state.planLabel=file.name;
       updatePlanUi();clearAnnotations();
       /* новый чертёж показываем целиком, иначе после «скрыть» пользователь увидит пустоту */
