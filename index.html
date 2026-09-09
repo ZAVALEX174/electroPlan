@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260909.1">
+  <link rel="stylesheet" href="css/styles.css?v=20260909.2">
 </head>
 <body>
 <div class="app">
@@ -58,6 +58,15 @@
           <button class="btn full" id="planVisibilityBtn" disabled style="margin-top:6px">Подложка: показана</button>
           <small class="hint-line">Показать → бледная → скрыть (клавиша B). Скрывается только чертёж — разметка и объекты остаются</small>
           <button class="text-action" id="clearPlanBtn" hidden>Убрать план</button>
+          <!-- ⚠️ ОТДЕЛЬНАЯ КНОПКА ПОДТВЕРЖДЕНИЯ, А НЕ ПОВТОРНОЕ НАЖАТИЕ «Убрать план». Сброс подложки
+               необратим: undo в приложении нет, а persistProject внутри clearPlan сразу затирает
+               картинку в снимке — растр выбранной страницы PDF больше нигде не хранится. «Убрать план»
+               лежит вплотную к «Определить комнаты», промах стоит дорого. Подтверждать повтором того же
+               нажатия нечестно: поток срабатываний (нетерпеливые клики, зажатый Enter на кнопке в
+               фокусе) рано или поздно попадёт в разрешённое окно и удалит план за человека — любая
+               граница по времени поток лишь ЗАДЕРЖИВАЕТ. Осознанность даёт ДРУГОЙ ЖЕСТ: эта кнопка
+               появляется только после вопроса и в неё поток по «Убрать план» физически не попадает. -->
+          <button class="btn full danger" id="clearPlanConfirmBtn" hidden style="margin-top:6px">Точно убрать план?</button>
           <button class="btn full" id="detectRoomsBtn" disabled style="margin-top:8px">Определить комнаты</button>
           <small class="hint-line">Быстро, OpenCV — для чётких чертежей</small>
           <button class="btn full" id="detectRoomsMlBtn" disabled style="margin-top:8px">Определить комнаты (ML)</button>
@@ -462,6 +471,6 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-<script src="js/app.js?v=20260909.5"></script>
+<script src="js/app.js?v=20260909.6"></script>
 </body>
 </html>

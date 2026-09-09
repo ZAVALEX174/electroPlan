@@ -18,6 +18,9 @@ button{cursor:pointer}
 .btn{border:1px solid var(--line);border-radius:11px;padding:9px 13px;background:#fff;color:var(--text);font-weight:750;transition:.18s}
 .btn:hover{transform:translateY(-1px);border-color:#9ac7ef}.btn.primary{border-color:transparent;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue-dark));box-shadow:0 8px 20px rgba(37,136,237,.24)}
 .btn.ghost{background:var(--panel-soft)}.btn.small{padding:7px 10px;font-size:12px}
+/* Необратимое подтверждение (сброс подложки): цвет опасности, чтобы кнопку не спутать с
+   соседними и клик по ней был осознанным. */
+.btn.danger{border-color:transparent;color:#fff;background:var(--danger)}
 .workspace{min-height:0;display:grid;grid-template-columns:292px 1fr 310px;gap:12px;padding:12px}
 .sidebar,.main-panel{min-height:0;border:1px solid rgba(217,232,247,.92);border-radius:10px;background:#fff;box-shadow:var(--shadow)}
 .sidebar{padding:16px;overflow:auto}.sidebar section+section{margin-top:22px}

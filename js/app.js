@@ -3119,6 +3119,12 @@ function updatePlanUi(){
   ["autoTraceBtn","detectRoomsBtn","detectRoomsMlBtn","annotateBtn"].forEach(id=>{$(id).disabled=!loaded});
   $("planStatusDot").classList.toggle("ready",loaded);
   const clear=$("clearPlanBtn");if(clear)clear.hidden=!loaded;
+  /* Вторая кнопка «Точно убрать план?» не переживает исчезновение подложки: нет плана — нечего
+     убирать, и она не должна остаться висеть одна, когда «Убрать план» уже скрыта. Условие «плана
+     нет» решает ЭТО место (§7.1: копий условия по коду не плодим), поэтому и вторую кнопку прячем
+     здесь же. Взвод при этом обесточен: он привязан к planToken (см. clearPlanSubject) — сброс его
+     сменил, так что даже уцелей armed, подтверждение дало бы cancel, а не удаление. */
+  const clearConfirm=$("clearPlanConfirmBtn");if(clearConfirm&&!loaded)clearConfirm.hidden=true;
   const vis=$("planVisibilityBtn");if(vis)vis.disabled=!loaded;
 }
 /* ЕДИНЫЙ предикат «подложка та же, что была в начале операции». Копий условия по коду
@@ -3148,6 +3154,59 @@ function clearPlan(){
   updatePlanUi();applyPlanVisibility();
   persistProject();
   updateStatus("План убран");toast("План убран");
+}
+
+/* ПОДТВЕРЖДЕНИЕ СБРОСА ПОДЛОЖКИ — ДВА ОРГАНА УПРАВЛЕНИЯ (тот же EPConfirmRepeat, образец —
+   перенумерация постов). clearPlan необратим: undo в приложении нет, а persistProject внутри него
+   сразу затирает картинку в снимке localStorage — растр выбранной страницы PDF больше нигде не
+   хранится. Кнопка «Убрать план» лежит вплотную к «Определить комнаты», промах стоит дорого.
+   Подтверждать повтором того же нажатия здесь неуместно (место под вторую кнопку в панели есть):
+   любая граница по времени поток срабатываний лишь ЗАДЕРЖИВАЕТ — нетерпеливые клики и зажатый
+   Enter рано или поздно попадут в окно и удалят план за человека. Осознанность даёт ДРУГОЙ ЖЕСТ:
+   «Убрать план» только задаёт вопрос (via:"arm" не удаляет НИКОГДА), удаляет отдельная кнопка
+   «Точно убрать план?» (via:"confirm"), в которую поток по первой не попадает. */
+const CLEAR_PLAN_CONFIRM_MS=12000;
+let _clearPlanArmed=null,_clearPlanHideTimer=null;
+/* Кнопка подтверждения живёт ровно столько же, сколько вопрос: истекло окно — снят взвод и
+   спрятана кнопка (иначе обещала бы удаление, которого уже нет). Второй способ снять её —
+   исчезновение плана — решает updatePlanUi. */
+function showClearPlanConfirm(on){
+  const btn=$("clearPlanConfirmBtn");if(!btn)return;
+  btn.hidden=!on;
+  clearTimeout(_clearPlanHideTimer);
+  if(on)_clearPlanHideTimer=setTimeout(()=>{_clearPlanArmed=null;showClearPlanConfirm(false)},CLEAR_PLAN_CONFIRM_MS+200);
+}
+/* Подпись ПОКАЗАННОГО: подтверждают ровно ту подложку, что висела при вопросе. planToken меняется
+   и при загрузке нового чертежа, и при сбросе (bumpPlanToken), planLabel — имя файла. Загрузил
+   другой чертёж, пока висел вопрос → подпись другая → EPConfirmRepeat вернёт cancel, а не молчаливо
+   удалит новый план. */
+const clearPlanSubject=()=>JSON.stringify([state.planToken||0,state.planLabel||""]);
+/* Нажатие на САМУ команду «Убрать план». via:"arm" НЕ удаляет НИКОГДА, сколько бы нажатий ни
+   пришло — только взводит вопрос и показывает вторую кнопку. */
+function askClearPlan(){
+  if(!state.planLoaded)return;
+  const step=EPConfirmRepeat.press(_clearPlanArmed,{now:Date.now(),maxMs:CLEAR_PLAN_CONFIRM_MS,
+    subject:clearPlanSubject(),via:"arm"});
+  _clearPlanArmed=step.armed;
+  showClearPlanConfirm(true);
+  toast(`Убрать подложку «${state.planLabel||"план"}»? Отмены нет. Нажмите «Точно убрать план?»`);
+}
+/* Нажатие на кнопку подтверждения — ДРУГОЙ орган управления: поток по «Убрать план» сюда не
+   попадает, поэтому ни паузы, ни повторов не требуется. Остаются подпись (та же подложка) и окно. */
+function confirmClearPlan(){
+  const step=EPConfirmRepeat.press(_clearPlanArmed,{now:Date.now(),maxMs:CLEAR_PLAN_CONFIRM_MS,
+    subject:clearPlanSubject(),via:"confirm"});
+  _clearPlanArmed=step.armed;
+  /* «wait» — нажатие в тот же миг, когда кнопка появилась: промах по соседней команде из-за сдвига
+     разметки, а не подтверждение. Вопрос остаётся на экране. */
+  if(step.action==="wait")return;
+  if(step.action!=="confirm"){
+    showClearPlanConfirm(false);
+    toast("Подложка сменилась — нажмите «Убрать план» ещё раз");
+    return;
+  }
+  showClearPlanConfirm(false);
+  clearPlan();
 }
 
 /* Фоновая сетка холста задаётся из JS, а не зашита в CSS: её шаг обязан совпадать
@@ -4124,7 +4183,16 @@ $("gridStepSelect").onchange=e=>{
 };
 $("clearRoomLinesBtn").onclick=clearRoomLines;
 $("planVisibilityBtn").onclick=cyclePlanVisibility;
-$("clearPlanBtn").onclick=clearPlan;
+/* «Убрать план» больше НЕ зовёт clearPlan напрямую — оно только задаёт вопрос (via:"arm"); удаляет
+   отдельная кнопка «Точно убрать план?» (см. askClearPlan/confirmClearPlan). */
+$("clearPlanBtn").onclick=askClearPlan;
+$("clearPlanConfirmBtn").onclick=confirmClearPlan;
+/* АВТОПОВТОР НА КНОПКЕ В ФОКУСЕ — НЕ ВТОРОЕ ДЕЙСТВИЕ (как у перенумерации и Esc в конструкторе).
+   Удержанные Enter/Пробел шлют поток click-событий; на кнопке подтверждения это применило бы
+   удаление мгновенно после её появления. Гасим автоповтор в источнике. */
+[$("clearPlanBtn"),$("clearPlanConfirmBtn")].forEach(b=>{
+  b.onkeydown=e=>{if(e.repeat&&(e.key==="Enter"||e.key===" "))e.preventDefault()};
+});
 $("newPostBtn").onclick=()=>openPostBuilder();
 $("closePostModal").onclick=$("cancelPost").onclick=closePostBuilder;
 $("savePost").onclick=savePostBuilder;$("postSlotCount").onchange=changePostSlotCount;$("postFrameSelect").onchange=renderBuilder;
