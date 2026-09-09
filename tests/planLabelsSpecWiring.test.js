@@ -9,6 +9,7 @@ const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
 const { polygonCentroid } = require("../js/geometry.js");
 const EPLightingGroups = require("../js/lightingGroups.js");
+const EPLightingByRoom = require("../js/lightingByRoom.js");
 
 /* Контекст vm: ровно те имена, что planLabelsSpec берёт из лексики app.js. planImageForDoc
    подменяем маркером «IMG» — саму перекодировку подложки проверяет не этот тест. */
@@ -23,6 +24,7 @@ function makeCtx(over) {
     POST_ICON_HALF: 15,
     polygonCentroid,
     EPLightingGroups,
+    EPLightingByRoom,
     planImageForDoc: () => "IMG"
   };
 }
@@ -113,4 +115,37 @@ test("пост без назначенных групп не несёт поле
 test("две клавиши одной группы в одном посте — одна связь, а не две", () => {
   const s = spec(makeCtx({ state: { posts: [{ number: 1, x: 0, y: 0, keyGroups: ["Зал", "зал"] }] } }));
   assert.equal(s.posts[0].groups.length, 1, "дубль ключа в посте схлопнут: пост в группе один");
+});
+
+/* Покомнатность связей (часть 1d): planLabelsSpec обязан положить в каждый пост КЛЮЧ КОМНАТЫ,
+   посчитанный ТЕМ ЖЕ EPLightingByRoom.partitionNorm от post.roomId, что и расчёт денег. Модуль
+   раскладки по этому ключу разводит одноимённые группы разных комнат. */
+
+test("ключ комнаты кладётся в пост из post.roomId через partitionNorm", () => {
+  const s = spec(makeCtx({ state: { posts: [{ number: 1, x: 10, y: 20, roomId: 5 }] } }));
+  assert.equal(s.posts[0].room, EPLightingByRoom.partitionNorm(5), "ключ комнаты — partitionNorm(roomId)");
+});
+
+test("пост без комнаты (roomId===null) → корзина «без помещения»", () => {
+  const s = spec(makeCtx({ state: { posts: [{ number: 1, x: 10, y: 20, roomId: null }] } }));
+  assert.equal(s.posts[0].room, EPLightingByRoom.partitionNorm(null), "roomId=null → ключ «без помещения»");
+});
+
+test("число 1 и строка \"1\" как id комнаты — ОДНА комната", () => {
+  /* Мутационная опора: если бы ключ считался сырым roomId, число и строка разошлись бы. */
+  const s = spec(makeCtx({ state: { posts: [
+    { number: 1, x: 0, y: 0, roomId: 1 },
+    { number: 2, x: 5, y: 5, roomId: "1" }
+  ] } }));
+  assert.equal(s.posts[0].room, s.posts[1].room, "id 1 и \"1\" дают один ключ комнаты");
+});
+
+test("одноимённые группы в РАЗНЫХ комнатах получают разные ключи комнаты в spec", () => {
+  /* Отдельный тест с реальными комнатами (старый «Кухня»/«кухня » — на постах без комнат). */
+  const s = spec(makeCtx({ state: { posts: [
+    { number: 1, x: 0, y: 0, roomId: 1, keyGroups: ["Кухня"] },
+    { number: 2, x: 5, y: 5, roomId: 2, keyGroups: ["Кухня"] }
+  ] } }));
+  assert.equal(s.posts[0].groups[0].key, s.posts[1].groups[0].key, "имя группы одно — ключ группы совпал");
+  assert.notEqual(s.posts[0].room, s.posts[1].room, "но комнаты разные — ключи комнат различаются");
 });

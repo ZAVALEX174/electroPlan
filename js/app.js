@@ -3515,6 +3515,12 @@ function planLabelsSpec(){
   const spec={
     posts:state.posts.map(p=>{
       const o={number:p.number,x:p.x+POST_ICON_HALF,y:p.y+POST_ICON_HALF};
+      /* Комната поста для ПОКОМНАТНОГО разбиения связей (часть 1d): одноимённые группы в разных
+         комнатах — РАЗНЫЕ цепочки, линия через весь проект недопустима. Ключ берём ТЕМ ЖЕ
+         EPLightingByRoom.partitionNorm, что и расчёт денег (partitionKeyOf → p.roomId), чтобы план
+         документа совпал со сметой, а не разошёлся с ней. Пост без комнаты (roomId===null) даёт
+         ключ «без помещения» — одна общая корзина, ровно как в деньгах. */
+      o.room=EPLightingByRoom.partitionNorm(p.roomId);
       /* Группы света поста для связей на плане документа (часть 1b): у каждой КЛАВИШИ своя группа
          (p.keyGroups[i]). Ключ приводим ТЕМ ЖЕ EPLightingGroups.groupKeyOf, что и весь расчёт групп,
          — «Кухня» и «кухня » обязаны слиться в одну связь, а не разъехаться на две по одному месту

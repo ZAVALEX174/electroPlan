@@ -257,7 +257,7 @@ function cacheSignature(input) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { planByRooms, cacheSignature };
+const api = { planByRooms, cacheSignature, partitionNorm };
 if (typeof window !== "undefined") window.EPLightingByRoom = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

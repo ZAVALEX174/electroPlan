@@ -127,7 +127,11 @@ function layout(spec) {
       const groups = (Array.isArray(o.groups) ? o.groups : [])
         .map(g => ({ key: (g && g.key != null) ? String(g.key) : "", label: (g && g.label != null) ? String(g.label) : "" }))
         .filter(g => g.key !== "");
-      return { number: label, x: fin(o.x), y: fin(o.y), groups };
+      /* Комната поста для ПОКОМНАТНОГО разбиения связей (часть 1d): ключ приходит готовым из
+         app.js (EPLightingByRoom.partitionNorm от roomId). Старый spec без поля комнаты не должен
+         падать и обязан вести себя как раньше — тогда у всех постов ключ один (""), и разбиение
+         вырождается в единственную корзину. */
+      return { number: label, x: fin(o.x), y: fin(o.y), groups, room: o.room == null ? "" : String(o.room) };
     })
     .filter(p => isFinite(p.x) && isFinite(p.y));
 
@@ -195,11 +199,17 @@ function layout(spec) {
   /* СВЯЗИ ГРУПП СВЕТА. Посты одной группы собираем по ключу (он уже приведён в app.js — второй
      нормализации нет) и соединяем ЦЕПОЧКОЙ в порядке cmpMember, а не «все со всеми»: при трёх и
      более местах клубок из полного графа превратил бы план в паутину. Группа с ОДНИМ местом линии
-     не даёт — соединять нечего, но подпись у бирки всё равно будет (см. badges ниже). */
+     не даёт — соединять нечего, но подпись у бирки всё равно будет (см. badges ниже).
+     ПОКОМНАТНО (часть 1d): бакет цепочки — пара «комната + ключ группы», а не только ключ. Иначе
+     одноимённая группа «Кухня» на разных этажах сшилась бы в одну линию через весь проект. Ключ
+     комнаты пришёл готовым в p.room (см. маппинг pts выше); в паре его отделяем переводом строки,
+     которого нет ни в ключе комнаты, ни в ключе группы, — иначе склейка строк («a b»+«c» и
+     «a»+«b c») дала бы ложное совпадение бакетов. */
   const byGroup = new Map();
   pts.forEach((p, i) => p.groups.forEach(g => {
-    let m = byGroup.get(g.key);
-    if (!m) { m = { members: [] }; byGroup.set(g.key, m); }
+    const bucket = p.room + "\n" + g.key;
+    let m = byGroup.get(bucket);
+    if (!m) { m = { members: [] }; byGroup.set(bucket, m); }
     m.members.push({ number: p.number, x: p.x, y: p.y, ord: i });
   }));
   const groupLines = [];
