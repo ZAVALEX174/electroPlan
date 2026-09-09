@@ -3357,7 +3357,24 @@ function planLabelsSpec(){
   const showImg=state.planLoaded&&img&&img.src&&img.naturalWidth&&img.naturalHeight&&state.planVisibility!=="hide";
   if(!state.posts.length&&!state.rooms.length)return null;
   const spec={
-    posts:state.posts.map(p=>({number:p.number,x:p.x+POST_ICON_HALF,y:p.y+POST_ICON_HALF})),
+    posts:state.posts.map(p=>{
+      const o={number:p.number,x:p.x+POST_ICON_HALF,y:p.y+POST_ICON_HALF};
+      /* Группы света поста для связей на плане документа (часть 1b): у каждой КЛАВИШИ своя группа
+         (p.keyGroups[i]). Ключ приводим ТЕМ ЖЕ EPLightingGroups.groupKeyOf, что и весь расчёт групп,
+         — «Кухня» и «кухня » обязаны слиться в одну связь, а не разъехаться на две по одному месту
+         (та же цена ошибки, что в смете). Дубли ключа в одном посте (две клавиши одной группы)
+         схлопываем — в группе пост один. Печатное имя — normalizeGroup (то, что печатается везде).
+         Пустой ключ = группа не назначена, место в связь не идёт. Геометрию (линии, порядок цепочки)
+         считает чистый EPPlanLabels.layout — app.js отдаёт лишь факт «пост в такой-то группе». */
+      const seen=Object.create(null),groups=[];
+      (Array.isArray(p.keyGroups)?p.keyGroups:[]).forEach(g=>{
+        const key=EPLightingGroups.groupKeyOf(g);
+        if(!key||seen[key])return;
+        seen[key]=1;groups.push({key,label:EPLightingGroups.normalizeGroup(g)});
+      });
+      if(groups.length)o.groups=groups;
+      return o;
+    }),
     /* Контурное помещение отдаём с полигоном и якорем-центроидом (там же, где на плане стоит
        его площадь); комнату без контура (инструмент «T») — одной точкой подписи (seedX/seedY,
        с тем же фолбэком x+55/y+18, что и в buildSpaceComponents). */

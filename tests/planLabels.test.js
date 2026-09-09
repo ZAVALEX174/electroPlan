@@ -223,3 +223,85 @@ test("имя помещения проходит esc — тег из назва�
   assert.match(html, /&lt;b&gt;Зал&lt;\/b&gt;/, "имя помещения экранировано");
   assert.equal((html.match(/<b>/g) || []).length, 0, "тег из имени помещения не ожил");
 });
+
+/* ─────────────── СВЯЗИ ГРУПП СВЕТА (часть 1b) ───────────────
+   Ключ группы приходит из app.js уже приведённым; модуль по нему собирает посты одной группы,
+   подписывает имя у бирки и соединяет посты линией. Проверяем геометрию числами из layout(). */
+
+const G = (key, label) => ({ key, label: label == null ? key : label });
+
+test("два поста одной группы соединяются линией; концы — центры бирок", () => {
+  const L = layout(square({ posts: [
+    { number: 1, x: 60, y: 60, groups: [G("кухня", "Кухня")] },
+    { number: 2, x: 140, y: 140, groups: [G("кухня", "Кухня")] }
+  ] }));
+  assert.equal(L.groupLines.length, 1, "одна связь на пару постов группы");
+  const ln = L.groupLines[0];
+  /* цепочка идёт по номеру поста: пост 1 → пост 2 */
+  close(ln.x1, L.badges[0].left, "начало линии — центр бирки поста 1 по X");
+  close(ln.y1, L.badges[0].top, "начало линии — центр бирки поста 1 по Y");
+  close(ln.x2, L.badges[1].left, "конец линии — центр бирки поста 2 по X");
+  close(ln.y2, L.badges[1].top, "конец линии — центр бирки поста 2 по Y");
+});
+
+test("группа с одним местом линии не даёт, но подпись у бирки есть", () => {
+  const L = layout(square({ posts: [{ number: 1, x: 100, y: 100, groups: [G("кухня", "Кухня")] }] }));
+  assert.equal(L.groupLines.length, 0, "одно место — соединять нечего");
+  assert.deepEqual(L.badges[0].groups, ["Кухня"], "подпись группы у бирки всё равно есть");
+});
+
+test("посты РАЗНЫХ групп линией не соединяются", () => {
+  const L = layout(square({ posts: [
+    { number: 1, x: 60, y: 60, groups: [G("кухня", "Кухня")] },
+    { number: 2, x: 140, y: 140, groups: [G("спальня", "Спальня")] }
+  ] }));
+  assert.equal(L.groupLines.length, 0, "разные ключи — связи нет");
+});
+
+test("пост без групп остаётся как раньше: без подписи и без линий", () => {
+  const L = layout(square({ posts: [{ number: 1, x: 100, y: 100 }] }));
+  assert.deepEqual(L.badges[0].groups, [], "групп у бирки нет");
+  assert.equal(L.groupLines.length, 0, "линий нет");
+});
+
+test("три места группы — цепочка (N−1 отрезков), а не полный граф", () => {
+  /* Порядок цепочки — по номеру поста; при полном графе было бы 3 отрезка на 3 поста. */
+  const L = layout(square({ posts: [
+    { number: 3, x: 20, y: 20, groups: [G("зал")] },
+    { number: 1, x: 180, y: 20, groups: [G("зал")] },
+    { number: 2, x: 100, y: 180, groups: [G("зал")] }
+  ] }));
+  assert.equal(L.groupLines.length, 2, "три места — два отрезка цепочки, не три");
+  /* цепочка 1→2→3: badges идут во входном порядке (3,1,2) => индексы 1,2,0 */
+  close(L.groupLines[0].x1, L.badges[1].left, "первый отрезок стартует от поста 1");
+  close(L.groupLines[0].x2, L.badges[2].left, "…и идёт к посту 2");
+  close(L.groupLines[1].x1, L.badges[2].left, "второй отрезок стартует от поста 2");
+  close(L.groupLines[1].x2, L.badges[0].left, "…и идёт к посту 3");
+});
+
+test("несколько групп у поста: имена перечислены, связь идёт в каждую группу", () => {
+  const L = layout(square({ posts: [
+    { number: 1, x: 30, y: 30, groups: [G("кухня", "Кухня"), G("зал", "Зал")] },
+    { number: 2, x: 170, y: 30, groups: [G("кухня", "Кухня")] },
+    { number: 3, x: 100, y: 170, groups: [G("зал", "Зал")] }
+  ] }));
+  assert.deepEqual(L.badges[0].groups, ["Кухня", "Зал"], "у бирки перечислены обе группы поста");
+  assert.equal(L.groupLines.length, 2, "две связи: пост-1↔пост-2 (Кухня) и пост-1↔пост-3 (Зал)");
+});
+
+test("вёрстка связей: пунктирная линия и подпись группы под биркой", () => {
+  const html = buildHtml(square({ posts: [
+    { number: 1, x: 60, y: 60, groups: [G("кухня", "Кухня")] },
+    { number: 2, x: 140, y: 140, groups: [G("кухня", "Кухня")] }
+  ] }), deps);
+  assert.match(html, /<line /, "связь выведена svg-линией");
+  assert.match(html, /stroke-dasharray="4 3"/, "линия пунктирная, чтобы не спорить с контурами");
+  assert.match(html, /vector-effect="non-scaling-stroke"/, "толщина связи не растягивается вслед за кадром");
+  assert.equal((html.match(/Кухня/g) || []).length, 2, "имя группы подписано у обеих бирок");
+});
+
+test("имя группы проходит esc — тег из имени группы не оживает", () => {
+  const html = buildHtml(square({ posts: [{ number: 1, x: 100, y: 100, groups: [G("k", "<b>Зал</b>")] }] }), deps);
+  assert.match(html, /&lt;b&gt;Зал&lt;\/b&gt;/, "имя группы экранировано");
+  assert.equal((html.match(/<b>/g) || []).length, 0, "тег из имени группы не ожил");
+});

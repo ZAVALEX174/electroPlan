@@ -8,6 +8,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
 const { polygonCentroid } = require("../js/geometry.js");
+const EPLightingGroups = require("../js/lightingGroups.js");
 
 /* Контекст vm: ровно те имена, что planLabelsSpec берёт из лексики app.js. planImageForDoc
    подменяем маркером «IMG» — саму перекодировку подложки проверяет не этот тест. */
@@ -21,6 +22,7 @@ function makeCtx(over) {
     canvas: { clientWidth: 1000, clientHeight: 700 },
     POST_ICON_HALF: 15,
     polygonCentroid,
+    EPLightingGroups,
     planImageForDoc: () => "IMG"
   };
 }
@@ -73,4 +75,42 @@ test("комната без контура и без seed: фолбэк x+55 / y
 
 test("пустой проект (ни постов, ни помещений) — spec === null", () => {
   assert.equal(spec(makeCtx({ state: { posts: [], rooms: [] } })), null);
+});
+
+/* Группы света поста (часть 1b): planLabelsSpec обязан отдать по каждой клавише её группу — ключ
+   и печатное имя, — а модуль по ним строит подпись у бирки и линию между постами группы. */
+
+test("группы света поста уходят в spec ключом и печатным именем", () => {
+  const s = spec(makeCtx({ state: { posts: [{ number: 1, x: 10, y: 20, keyGroups: ["Кухня", "", "Кухня-бра"] }] } }));
+  const g = s.posts[0].groups;
+  /* g создан внутри vm-реалма стенда — deepStrictEqual спотыкался бы о чужой Array.prototype;
+     примитивы сравниваем поэлементно (они сравнимы между реалмами). */
+  assert.equal(g.length, 2, "пустая клавиша группы не даёт, две назначенные — две группы");
+  assert.equal(g[0].label, EPLightingGroups.normalizeGroup("Кухня"), "печатное имя первой группы");
+  assert.equal(g[1].label, EPLightingGroups.normalizeGroup("Кухня-бра"), "печатное имя второй группы");
+  assert.equal(g[0].key, EPLightingGroups.groupKeyOf("Кухня"), "ключ приведён тем же groupKeyOf, что и расчёт");
+});
+
+test("«Кухня» и «кухня » — ОДИН ключ: посты сольются в одну связь, а не разъедутся", () => {
+  /* Мутационная опора: если ключ считать сырой строкой вместо groupKeyOf, ключи разойдутся и
+     линия между постами исчезнет. Сравниваем ровно ключи, потому что по ним группирует модуль. */
+  const s = spec(makeCtx({ state: { posts: [
+    { number: 1, x: 0, y: 0, keyGroups: ["Кухня"] },
+    { number: 2, x: 50, y: 50, keyGroups: ["кухня "] }
+  ] } }));
+  assert.equal(s.posts[0].groups[0].key, s.posts[1].groups[0].key, "разное написание — один ключ группы");
+});
+
+test("пост без назначенных групп не несёт поле groups", () => {
+  const s = spec(makeCtx({ state: { posts: [
+    { number: 1, x: 0, y: 0, keyGroups: ["", ""] },
+    { number: 2, x: 5, y: 5 }
+  ] } }));
+  assert.equal(s.posts[0].groups, undefined, "все клавиши без группы — поля нет");
+  assert.equal(s.posts[1].groups, undefined, "keyGroups вовсе нет — поля нет");
+});
+
+test("две клавиши одной группы в одном посте — одна связь, а не две", () => {
+  const s = spec(makeCtx({ state: { posts: [{ number: 1, x: 0, y: 0, keyGroups: ["Зал", "зал"] }] } }));
+  assert.equal(s.posts[0].groups.length, 1, "дубль ключа в посте схлопнут: пост в группе один");
 });

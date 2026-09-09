@@ -37,7 +37,12 @@
      imageUrl?,          // подложка (у нас всегда data-URL) — ОПЦИОНАЛЬНА, нет её — блок без фона
      natW?, natH?,       // НАТУРАЛЬНЫЕ размеры подложки (img.naturalWidth/naturalHeight)
      canvasW?, canvasH?, // размеры мирового бокса #canvas на момент сборки документа
-     posts: [ { number, x, y } ],   // x/y — мировая ТОЧКА поста (центр иконки, не левый угол)
+     posts: [ { number, x, y, groups?: [{ key, label }] } ],
+       //  x/y — мировая ТОЧКА поста (центр иконки, не левый угол);
+       //  groups — ГРУППЫ СВЕТА, которыми пост управляет (по клавишам). key — уже приведённый
+       //  ключ группы (тем же EPLightingGroups.groupKeyOf, что и расчёт: «Кухня» и «кухня » — один
+       //  ключ), label — печатное имя. Ключ здесь НЕ нормализуем повторно (второй копии правила
+       //  нет): по нему лишь собираем посты одной группы для подписи у бирки и линии между ними.
      rooms: [ { name, polygon?: [{x,y}], x?, y? } ],
        //  polygon — контур помещения в МИРОВЫХ точках (той же системе, что post.x/y);
        //  x/y — мировая точка ЯКОРЯ подписи (центроид у контурного, позиция подписи у
@@ -75,6 +80,19 @@ function meanPoint(poly) {
   return { x: sx / poly.length, y: sy / poly.length };
 }
 
+/* Порядок постов в цепочке связи группы. ОБЪЯСНИМЫЙ и СТАБИЛЬНЫЙ: по номеру поста по возрастанию —
+   числовые раньше буквенных («В15»), внутри буквенных — коллацией с разбором цифр («В2» < «В10»),
+   при равенстве — по входному индексу (ord). Так линия рисуется цепочкой (не «все со всеми») и не
+   зависит от того, в каком порядке app.js подал посты; иначе картинка прыгала бы от входа. */
+function cmpMember(a, b) {
+  const na = Number(a.number), nb = Number(b.number);
+  const aNum = a.number !== "" && a.number !== "?" && isFinite(na);
+  const bNum = b.number !== "" && b.number !== "?" && isFinite(nb);
+  if (aNum && bNum) return (na - nb) || (a.ord - b.ord);
+  if (aNum !== bNum) return aNum ? -1 : 1;   /* числовые номера идут раньше буквенных */
+  return String(a.number).localeCompare(String(b.number), "ru") || (a.ord - b.ord);
+}
+
 /* Геометрия блока в долях кадра — отдельно от вёрстки, чтобы проверять её тестом напрямую.
    Возвращает null, когда печатать нечего совсем (ни помещений, ни постов с координатами).
    Подложка опциональна: есть — идёт фоном, нет — кадр строится по контурам и биркам. */
@@ -104,7 +122,12 @@ function layout(spec) {
       const o = p || {};
       const label = (o.number === null || o.number === undefined || String(o.number).trim() === "")
         ? "?" : String(o.number);
-      return { number: label, x: fin(o.x), y: fin(o.y) };
+      /* Группы света поста: ключ приходит уже приведённым из app.js, здесь берём его как есть.
+         Место без ключа (группа не назначена) в связи не участвует — отбрасываем. */
+      const groups = (Array.isArray(o.groups) ? o.groups : [])
+        .map(g => ({ key: (g && g.key != null) ? String(g.key) : "", label: (g && g.label != null) ? String(g.label) : "" }))
+        .filter(g => g.key !== "");
+      return { number: label, x: fin(o.x), y: fin(o.y), groups };
     })
     .filter(p => isFinite(p.x) && isFinite(p.y));
 
@@ -168,6 +191,27 @@ function layout(spec) {
   const k = Math.min(maxW / frameW, maxH / frameH);
 
   const px = v => 100 * v / frameW, py = v => 100 * v / frameH;
+
+  /* СВЯЗИ ГРУПП СВЕТА. Посты одной группы собираем по ключу (он уже приведён в app.js — второй
+     нормализации нет) и соединяем ЦЕПОЧКОЙ в порядке cmpMember, а не «все со всеми»: при трёх и
+     более местах клубок из полного графа превратил бы план в паутину. Группа с ОДНИМ местом линии
+     не даёт — соединять нечего, но подпись у бирки всё равно будет (см. badges ниже). */
+  const byGroup = new Map();
+  pts.forEach((p, i) => p.groups.forEach(g => {
+    let m = byGroup.get(g.key);
+    if (!m) { m = { members: [] }; byGroup.set(g.key, m); }
+    m.members.push({ number: p.number, x: p.x, y: p.y, ord: i });
+  }));
+  const groupLines = [];
+  byGroup.forEach(g => {
+    if (g.members.length < 2) return;
+    const chain = g.members.slice().sort(cmpMember);
+    for (let i = 1; i < chain.length; i++) {
+      const a = chain[i - 1], b = chain[i];
+      groupLines.push({ x1: px(a.x - x0), y1: py(a.y - y0), x2: px(b.x - x0), y2: py(b.y - y0) });
+    }
+  });
+
   return {
     imageUrl: hasImage ? imageUrl : null,
     widthMm: frameW * k,
@@ -175,7 +219,10 @@ function layout(spec) {
        (тот же приём, что в EPPostImage) — при сужении страницы чертёж не плющит */
     aspectPct: 100 * frameH / frameW,
     image: img ? { left: px(img.offX - x0), top: py(img.offY - y0), width: px(img.dispW), height: py(img.dispH) } : null,
-    badges: pts.map(p => ({ number: p.number, left: px(p.x - x0), top: py(p.y - y0) })),
+    /* groups у бирки — печатные имена групп поста (подпись под кружком); линии между постами
+       отданы отдельно (groupLines): подпись висит у бирки, а линия живёт в общем SVG кадра. */
+    badges: pts.map(p => ({ number: p.number, left: px(p.x - x0), top: py(p.y - y0), groups: p.groups.map(g => g.label) })),
+    groupLines,
     rooms: rooms.map(r => ({
       name: r.name,
       polygon: r.polygon ? r.polygon.map(pt => ({ left: px(pt.x - x0), top: py(pt.y - y0) })) : null,
@@ -211,6 +258,24 @@ function buildHtml(spec, deps) {
     + `${esc(b.number)}</div>`
   ).join("");
 
+  /* ПОДПИСЬ ГРУПП СВЕТА под биркой: имя(имена) групп, которыми управляет пост, мелким шрифтом.
+     Несколько групп у одного поста (несколько клавиш) перечисляем через « · ». Длинное имя не
+     ломает вёрстку: ширина ограничена (max-width), текст переносится и обрезается многоточием на
+     ДВУХ строках (-webkit-line-clamp — движок печати Chrome его понимает). Подпись отдельным
+     блоком под кружком (transform сдвигает её ниже бирки), а не внутри бирки: имя длиннее номера
+     и в кружок не влезло бы. Полупрозрачная белая подложка держит читаемость над тёмным чертежом. */
+  const captions = L.badges
+    .filter(b => b.groups && b.groups.length)
+    .map(b =>
+      `<div style="position:absolute;left:${f(b.left)}%;top:${f(b.top)}%;`
+      + `transform:translate(-50%,${half + 3}px);max-width:76px;`
+      + `font:600 8px/1.15 Arial,sans-serif;color:#1675c8;text-align:center;`
+      + `background:rgba(255,255,255,.82);padding:0 3px;border-radius:3px;`
+      + `overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;`
+      + `word-break:break-word;-webkit-print-color-adjust:exact;print-color-adjust:exact">`
+      + `${esc(b.groups.join(" · "))}</div>`
+    ).join("");
+
   /* КОНТУРЫ помещений — SVG-полигоном ПОВЕРХ подложки (или вместо неё), в тех же процентах
      кадра, что и бирки. viewBox 0 0 100 100 + preserveAspectRatio:none кладёт проценты прямо
      в координаты вьюбокса; кадр неквадратный, поэтому масштаб по осям разный — vector-effect:
@@ -223,6 +288,20 @@ function buildHtml(spec, deps) {
       + polyRooms.map(r =>
           `<polygon points="${r.polygon.map(pt => f(pt.left) + "," + f(pt.top)).join(" ")}" `
           + `fill="none" stroke="#33475b" stroke-width="1.2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`
+        ).join("")
+      + `</svg>`
+    : "";
+
+  /* ЛИНИИ СВЯЗЕЙ ГРУПП — тем же приёмом, что контуры: SVG-линиями в процентах кадра, viewBox
+     0 0 100 + preserveAspectRatio:none. ТОНКАЯ ПУНКТИРНАЯ (stroke-dasharray) синим — чтобы не
+     спорить с тёмными контурами помещений: монтажник должен различать «стена» и «связь клавиш».
+     non-scaling-stroke держит толщину и штрих ровными при неквадратном кадре. Линия — на переднем
+     плане (не фон), фоновую графику принтера не требует. */
+  const links = (L.groupLines && L.groupLines.length)
+    ? `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none">`
+      + L.groupLines.map(ln =>
+          `<line x1="${f(ln.x1)}" y1="${f(ln.y1)}" x2="${f(ln.x2)}" y2="${f(ln.y2)}" `
+          + `stroke="#1675c8" stroke-width="1" stroke-dasharray="4 3" vector-effect="non-scaling-stroke"/>`
         ).join("")
       + `</svg>`
     : "";
@@ -257,8 +336,10 @@ function buildHtml(spec, deps) {
     + `-webkit-print-color-adjust:exact;print-color-adjust:exact"></div>`
     + image
     + contours
+    + links
     + names
     + badges
+    + captions
     + `</div></div>`
     + (note.trim() ? `<div style="margin:8px 0 0;color:#687f94;font-size:10px;text-align:center">${esc(note)}</div>` : "")
     + `</section>`;
