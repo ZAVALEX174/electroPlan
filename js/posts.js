@@ -209,6 +209,43 @@ function wallTypeTargets(posts, post, scope) {
   return list.filter(p => p && (p.id === post.id || postTypeKey(p) === key));
 }
 
+/* --- ПОДСВЕТКА КЛАВИШ ----------------------------------------------------------------
+   Настройка подсветки приходит ЧЕРЕЗ deps.backlight (как тип стены проекта — deps.wallType):
+   { enabled, color, voltage }. Сам модуль про EP_DATA.settings не знает. Подбор аксессуара
+   делает приложение через deps.findBacklight (EPPostFit.findBacklight) — как findBox/
+   findSupport, ему нужен доступ к каталогу. Нет настройки или она выключена → подсветки
+   нет вовсе: items пуст, в цену ничего не добавляется, ни одна существующая цифра не меняется.
+
+   Количество: ПО ОДНОЙ подсветке на каждый механизм поста, который её принимает
+   (askBacklight). Механизмы одного поста бывают РАЗНОЙ позиции (осевой pos 2 и клавиша
+   pos 3), поэтому подбираем ПО КАЖДОМУ отдельно — по его собственной позиции, а не оптом.
+   ⚠️ Честный пробел: механизм подсветку принимает, но совместимой (цвет+напряжение+позиция)
+   в каталоге нет (осевой + 120V) → он идёт в gaps, а НЕ получает чужой артикул. В цену
+   пробел не входит — так же, как не входит не подобранный суппорт/коробка. */
+function backlightPlan(mechIds, deps) {
+  const setting = deps.backlight || null;
+  const enabled = !!(setting && setting.enabled);
+  const color = (setting && setting.color) || null;
+  const voltage = (setting && setting.voltage) || null;
+  const select = deps.findBacklight || (() => null);
+  const items = [], gaps = [];
+  if (enabled) {
+    (mechIds || []).forEach(id => {
+      const mech = deps.product(id);
+      if (!mech || !mech.askBacklight) return;   // механизм подсветку не принимает — пропускаем
+      const accessory = select({ mechanism: mech, color, voltage }) || null;
+      if (accessory) items.push({ mechId: id, mech, accessory });
+      else gaps.push({ mechId: id, mech });      // принимает, но совместимой нет — честный пробел
+    });
+  }
+  return {
+    enabled, color, voltage,
+    items, gaps,
+    count: items.length,        // столько аксессуаров-подсветок идёт в состав и в цену
+    hasGap: gaps.length > 0     // есть механизм, которому подсветку не подобрали (пробел в составе)
+  };
+}
+
 /* Полный состав поста: стандарт, число коробок, подобранные суппорт и коробка.
    Возвращает объекты каталога (product|null) и флаги для интерфейса — рендер и
    money()/esc() остаются в app.js. Подбор суппорта/коробки делает приложение через
@@ -286,7 +323,11 @@ function postComposition(post, deps) {
        09672.* → 09606, обычные накладки) флага не несут — иначе пометка обесценится. */
     supportAssumed: !!(support && found.assumed),
     box,
-    boxFallback
+    boxFallback,
+    /* Подсветка клавиш: аксессуары-LED, по одному на принимающий механизм, плюс честные
+       пробелы (принимает, но совместимой нет). Выключена/не подобрана → items пуст и цена
+       не меняется. Цену считает postCost по backlight.items (см. ниже). */
+    backlight: backlightPlan(mechIds, deps)
   };
 }
 
@@ -305,7 +346,10 @@ function postCost(post, deps) {
   const mechSum = (post.mechanismIds || []).reduce((s, id) => s + price(deps.product(id)), 0);
   let boxUnit = comp.box || comp.boxFallback;
   if (!boxUnit && !deps.fallbackBox && deps.socketBox) boxUnit = deps.socketBox();
-  return mechSum + price(comp.frame) + price(comp.support) * comp.supportCount + price(boxUnit) * comp.boxCount;
+  /* Подсветки — по одному подобранному аксессуару на принимающий механизм (пробелы в цену
+     не входят). Выключена → items пуст → слагаемое 0, цена байт в байт как раньше. */
+  const backSum = comp.backlight.items.reduce((s, u) => s + price(u.accessory), 0);
+  return mechSum + price(comp.frame) + price(comp.support) * comp.supportCount + price(boxUnit) * comp.boxCount + backSum;
 }
 
 /* Раскладка механизмов по модулям поста: слева направо, каждый механизм занимает

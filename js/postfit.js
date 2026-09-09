@@ -271,9 +271,69 @@ function resolveSupport(opts) {
    берётся из resolveSupport — состав поста (EPPosts.postComposition) зовёт именно её. */
 const findSupport = opts => resolveSupport(opts).support;
 
+/* --- Подсветка клавиш/механизмов -----------------------------------------------------
+   Аксессуар-подсветка (LED) вставляется в механизм, у которого в номенклатуре стоит
+   askBacklight. Правило совместимости выведено из данных VIMAR и подтверждено дважды:
+   подсветка подходит механизму, только если её МОНТАЖНАЯ ПОЗИЦИЯ (backlightPosition)
+   совпадает с позицией механизма — pos 2 у осевых устройств, pos 3 у обычных клавиш;
+   исключений нет. Сверх позиции — совпадение желаемого ЦВЕТА и НАПРЯЖЕНИЯ.
+
+   Признак «принимает подсветку» — askBacklight, а НЕ роль детали: поля partRole в каталоге
+   нет, а подбор «только по клавишам» потерял бы 54 осевых механизма из 81 (бОльшую часть
+   денег). Позиция и цвет лежат явными полями (backlightPosition/backlightColor), а
+   напряжение отдельным полем в каталоге НЕ лежит — его несёт СЕМЕЙСТВО артикула, поэтому
+   разбор кода собран в ОДНОМ месте (таблица BACKLIGHT_VOLTAGE), а не размазан по фильтрам.
+
+   ⚠️ ЧЕСТНЫЙ ПРОБЕЛ. У осевых (pos 2) в каталоге НЕТ варианта 120V. Пост на 120V с осевым
+   механизмом обязан вернуть null («подсветка не подобрана»), а не подставить другое
+   напряжение — тот же принцип, что у findSupport/selectBox: null при отсутствии
+   совместимого, никогда не «похожее». */
+
+/* Напряжение подсветки по семейству артикула (явного поля в каталоге нет). Ключ — базовый
+   артикул семейства; у 00936 напряжение различает средний сегмент кода (120 vs 250). */
+const BACKLIGHT_VOLTAGE = {
+  "00935": "12-24V",       // 00935.* — низковольтные LED, pos 3
+  "00936.120": "120V",     // 00936.120.* — 120V, pos 3
+  "00936.250": "110-250V", // 00936.250.* — 110-250V, pos 3
+  "00937": "12-24V",       // 00937.* — низковольтные «для осевых устройств», pos 2
+  "00938": "110-250V"      // 00938.* — 110-250V «для осевых», pos 2
+};
+function backlightVoltage(code) {
+  const parts = String(code || "").split(".");
+  const pair = parts[0] + "." + parts[1];   // сначала двусегментный ключ (00936.120/00936.250)
+  if (parts.length >= 2 && Object.prototype.hasOwnProperty.call(BACKLIGHT_VOLTAGE, pair)) return BACKLIGHT_VOLTAGE[pair];
+  return BACKLIGHT_VOLTAGE[parts[0]] || "";
+}
+
+/* Механизм принимает подсветку? Признак — askBacklight из номенклатуры (см. коммент выше:
+   роль детали для этого не годится). */
+const acceptsBacklight = mech => !!(mech && mech.askBacklight);
+
+/* Подбор аксессуара-подсветки под механизм. Жёсткие фильтры (все обязательны):
+   kind==="accessory" + askBacklight, совпадение backlightPosition механизма, напряжения и
+   цвета. Нет совместимого (или не заданы желаемые цвет/напряжение) → null, без подмены.
+   opts = { mechanism, color, voltage, accessories:[…товары] }. */
+function findBacklight(opts) {
+  const o = opts || {};
+  const mech = o.mechanism;
+  if (!acceptsBacklight(mech)) return null;   // механизм подсветку не принимает
+  const pos = num(mech.backlightPosition);
+  if (!pos) return null;                       // позиция неизвестна — подбирать не по чему
+  const color = o.color, voltage = o.voltage;
+  if (!color || !voltage) return null;         // без желаемых цвета/напряжения выбор недостоверен
+  const list = o.accessories || [];
+  return list.find(a =>
+    a && a.kind === "accessory" && a.askBacklight &&
+    num(a.backlightPosition) === pos &&
+    a.backlightColor === color &&
+    backlightVoltage(a.code) === voltage
+  ) || null;
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { boxFitsStandard, selectBox, findBox, fallbackBox, socketBox, findSupport, resolveSupport, supportRequired };
+const api = { boxFitsStandard, selectBox, findBox, fallbackBox, socketBox, findSupport, resolveSupport, supportRequired,
+  findBacklight, backlightVoltage, acceptsBacklight };
 if (typeof window !== "undefined") window.EPPostFit = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -5,7 +5,7 @@
    честный null, а не подмена ценой чужого изделия. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { findBox, fallbackBox, findSupport, resolveSupport, socketBox, boxFitsStandard, supportRequired } = require("../js/postfit.js");
+const { findBox, fallbackBox, findSupport, resolveSupport, socketBox, boxFitsStandard, supportRequired, findBacklight, backlightVoltage } = require("../js/postfit.js");
 
 /* Коробки — как их обогащает js/data.js из EP_VIMAR_ATTRS. */
 const BOX = {
@@ -354,4 +354,64 @@ test("socketBox — самая дешёвая круглая коробка (у�
 test("socketBox без круглых — самая дешёвая любая", () => {
   assert.equal(socketBox([BOX.V71703, BOX.V71303]).code, "V71303");
   assert.equal(socketBox([]), undefined);
+});
+
+/* --- Подсветка клавиш/механизмов (findBacklight) ------------------------------------
+   Фикстуры пяти семейств LED VIMAR (askBacklight, kind accessory) и механизмов двух
+   позиций. Пробуем ровно те края, что владелец отметил числами: осевой на 120V даёт
+   честный null, осевой на 110-250V → 00938, обычная клавиша на 110-250V → 00936.250,
+   чужой цвет → null, механизм без askBacklight → подсветку не подбираем. */
+const BL = {
+  // pos 3 — обычные клавиши
+  "00935.A": { code: "00935.A", price: 10.94, kind: "accessory", askBacklight: true, backlightPosition: 3, backlightColor: "Янтарная" },
+  "00936.120.A": { code: "00936.120.A", price: 9.6, kind: "accessory", askBacklight: true, backlightPosition: 3, backlightColor: "Янтарная" },
+  "00936.250.A": { code: "00936.250.A", price: 9.6, kind: "accessory", askBacklight: true, backlightPosition: 3, backlightColor: "Янтарная" },
+  "00936.250.B": { code: "00936.250.B", price: 9.6, kind: "accessory", askBacklight: true, backlightPosition: 3, backlightColor: "Голубая" },
+  // pos 2 — осевые (120V у осевых В КАТАЛОГЕ НЕТ)
+  "00937.A": { code: "00937.A", price: 11.63, kind: "accessory", askBacklight: true, backlightPosition: 2, backlightColor: "Янтарная" },
+  "00938.A": { code: "00938.A", price: 10.15, kind: "accessory", askBacklight: true, backlightPosition: 2, backlightColor: "Янтарная" }
+};
+const ALL_BL = Object.values(BL);
+const mechAxial = { code: "19101", name: "Выключатель 1P осевой", askBacklight: true, backlightPosition: 2 };
+const mechKey = { code: "09021.N", name: "Клавиша 1M", askBacklight: true, backlightPosition: 3 };
+const mechPlain = { code: "20001.0", name: "Механизм без подсветки" };  // askBacklight не стоит
+
+test("backlightVoltage: напряжение по семейству артикула", () => {
+  assert.equal(backlightVoltage("00935.A"), "12-24V");
+  assert.equal(backlightVoltage("00936.120.A"), "120V");
+  assert.equal(backlightVoltage("00936.250.A"), "110-250V");
+  assert.equal(backlightVoltage("00937.A"), "12-24V");
+  assert.equal(backlightVoltage("00938.A"), "110-250V");
+  assert.equal(backlightVoltage("14653"), "", "чужой артикул — напряжение не определяется");
+});
+test("осевой (pos 2) + 120V → null: у осевых 120V в каталоге нет (честный пробел)", () => {
+  assert.equal(findBacklight({ mechanism: mechAxial, color: "Янтарная", voltage: "120V", accessories: ALL_BL }), null);
+});
+test("осевой (pos 2) + 110-250V → 00938 нужного цвета", () => {
+  const a = findBacklight({ mechanism: mechAxial, color: "Янтарная", voltage: "110-250V", accessories: ALL_BL });
+  assert.equal(a && a.code, "00938.A");
+});
+test("обычная клавиша (pos 3) + 110-250V → 00936.250 нужного цвета", () => {
+  const a = findBacklight({ mechanism: mechKey, color: "Янтарная", voltage: "110-250V", accessories: ALL_BL });
+  assert.equal(a && a.code, "00936.250.A");
+});
+test("клавиша (pos 3) + цвета в каталоге нет → null, а не другой цвет", () => {
+  assert.equal(findBacklight({ mechanism: mechKey, color: "Зелёная", voltage: "110-250V", accessories: ALL_BL }), null);
+});
+test("осевую подсветку (pos 2) НЕ ставим обычной клавише (pos 3): позиция жёсткая", () => {
+  // просим 12-24V клавише — в списке только осевой 00937 (pos 2) этого напряжения
+  const onlyAxialLow = [BL["00937.A"]];
+  assert.equal(findBacklight({ mechanism: mechKey, color: "Янтарная", voltage: "12-24V", accessories: onlyAxialLow }), null);
+});
+test("механизм без askBacklight → подсветку не подбираем", () => {
+  assert.equal(findBacklight({ mechanism: mechPlain, color: "Янтарная", voltage: "110-250V", accessories: ALL_BL }), null);
+});
+test("askBacklight=false перевешивает даже валидную позицию (признак жёсткий)", () => {
+  // позиция подошла бы (pos 3), но механизм подсветку не принимает — null
+  const off = { code: "09001.0.250", name: "Механизм со ВСТРОЕННОЙ подсветкой", askBacklight: false, backlightPosition: 3 };
+  assert.equal(findBacklight({ mechanism: off, color: "Янтарная", voltage: "110-250V", accessories: ALL_BL }), null);
+});
+test("не заданы цвет/напряжение → null (выбор недостоверен)", () => {
+  assert.equal(findBacklight({ mechanism: mechKey, accessories: ALL_BL }), null);
+  assert.equal(findBacklight({ mechanism: mechKey, color: "Янтарная", accessories: ALL_BL }), null);
 });

@@ -234,12 +234,19 @@ const findSupport=({frame,standard,modules,box}={})=>EPPostFit.findSupport({
    состава, где он печатается пометкой «(предположительно)». */
 const resolveSupport=({frame,standard,modules,box}={})=>EPPostFit.resolveSupport({
   supports:byKind("support"),frame,standard,modules,frameModules:frameSlotCount(frame),seriesOf:productSeries,box});
+/* Подбор аксессуара-подсветки под механизм — чистый EPPostFit.findBacklight, каталог
+   аксессуаров подкладываем здесь (как boxes/supports у findBox/findSupport). */
+const findBacklight=(opts)=>EPPostFit.findBacklight(Object.assign({accessories:byKind("accessory")},opts||{}));
 /* Единый набор зависимостей для чистой логики поста (EPPosts): каталог, подбор
    суппорта/коробки (точный findBox + стандартно-совместимый фолбэк fallbackBox), признак
-   «суппорт вообще не нужен» (крышки IP55 по номенклатуре монтируются без планки) и тип
-   стены проекта. */
+   «суппорт вообще не нужен» (крышки IP55 по номенклатуре монтируются без планки), тип
+   стены проекта и подсветка клавиш.
+   Настройка подсветки (enabled/color/voltage) пока НЕ существует в проекте — её заводит
+   задача B1b (UI + EP_DATA.settings). До тех пор подсветка ВЫКЛЮЧЕНА: фолбэк {enabled:false}
+   при отсутствии settings.backlight — состав и цена остаются прежними. */
 const postDeps=()=>({product,frameProduct,socketBox,mechanismSpan,findBox,fallbackBox,findSupport,resolveSupport,
-  supportRequired:EPPostFit.supportRequired,wallType:EP_DATA.settings.wallType});
+  supportRequired:EPPostFit.supportRequired,wallType:EP_DATA.settings.wallType,
+  findBacklight,backlight:EP_DATA.settings.backlight||{enabled:false}});
 const postCost=p=>EPPosts.postCost(p,postDeps());
 const postComposition=p=>EPPosts.postComposition(p,postDeps());
 /* Единое изображение собранного поста (EPPostImage): собираем spec из каталога — накладка,

@@ -586,3 +586,75 @@ test("placementFields: шаблон с wallType solid → пост получа�
   assert.equal(fields.wallType, "solid");
   assert.equal(postWallType(fields, "hollow"), "solid");
 });
+
+/* --- Подсветка клавиш в составе и цене поста ---------------------------------------
+   Подбор аксессуара делает настоящий EPPostFit.findBacklight (не заглушка) — так тест
+   ловит и попадание в состав/цену (posts.js), и правило совместимости (postfit.js).
+   Механизмы двух позиций и пять семейств LED — как в каталоге VIMAR. */
+const { findBacklight } = require("../js/postfit.js");
+const BL_CAT = {
+  501: { id: 501, code: "09021.N", name: "Клавиша 1M", price: 4.30, moduleSpan: 1, askBacklight: true, backlightPosition: 3 },
+  502: { id: 502, code: "19101", name: "Выключатель 1P осевой", price: 4.30, moduleSpan: 1, askBacklight: true, backlightPosition: 2 },
+  503: { id: 503, code: "09000", name: "Механизм без подсветки", price: 4.30, moduleSpan: 1 },
+  // аксессуары-подсветки (kind accessory, askBacklight)
+  610: { id: 610, code: "00936.250.A", price: 9.6, kind: "accessory", askBacklight: true, backlightPosition: 3, backlightColor: "Янтарная" },
+  611: { id: 611, code: "00938.A", price: 10.15, kind: "accessory", askBacklight: true, backlightPosition: 2, backlightColor: "Янтарная" }
+};
+const blProduct = id => BL_CAT[id] || CATALOG[id];
+const blAccessories = Object.values(BL_CAT).filter(p => p.kind === "accessory");
+const blFind = opts => findBacklight(Object.assign({ accessories: blAccessories }, opts));
+const blDeps = backlight => baseDeps({ product: blProduct, frameProduct: blProduct, findBacklight: blFind, backlight });
+
+test("подсветка ВЫКЛЮЧЕНА (нет настройки) → состав и цена как прежде", () => {
+  const post = { frameId: 14653, mechanismIds: [501, 501] };  // IT Plana 3М, две клавиши pos 3
+  const off = postComposition(post, blDeps());                // backlight не передан
+  assert.equal(off.backlight.enabled, false);
+  assert.equal(off.backlight.count, 0);
+  assert.equal(off.backlight.items.length, 0);
+  // цена базовая: 2×4.30 механизмы + 3.0 накладка + 0.85 socketBox-фолбэк
+  near(postCost(post, blDeps()), 2 * 4.30 + 3.0 + 0.85, "цена без подсветки");
+  // включённая, но БЕЗ подобранного (заведомо чужой цвет) — тоже прежняя цена
+  const noMatch = { enabled: true, color: "Розовая", voltage: "110-250V" };
+  near(postCost(post, blDeps(noMatch)), 2 * 4.30 + 3.0 + 0.85, "нет совместимой — цена прежняя");
+});
+
+test("подсветка включена: две клавиши pos 3 + 110-250V → два аксессуара 00936.250 в цене", () => {
+  const post = { frameId: 14653, mechanismIds: [501, 501] };
+  const on = { enabled: true, color: "Янтарная", voltage: "110-250V" };
+  const comp = postComposition(post, blDeps(on));
+  assert.equal(comp.backlight.count, 2, "по одной подсветке на каждый принимающий механизм");
+  assert.deepEqual(comp.backlight.items.map(u => u.accessory.code), ["00936.250.A", "00936.250.A"]);
+  assert.equal(comp.backlight.hasGap, false);
+  near(postCost(post, blDeps(on)), 2 * 4.30 + 3.0 + 0.85 + 2 * 9.6, "две подсветки в цене");
+});
+
+test("осевой механизм (pos 2) + 110-250V → 00938 в составе и цене", () => {
+  const post = { frameId: 14653, mechanismIds: [502] };
+  const on = { enabled: true, color: "Янтарная", voltage: "110-250V" };
+  const comp = postComposition(post, blDeps(on));
+  assert.equal(comp.backlight.count, 1);
+  assert.equal(comp.backlight.items[0].accessory.code, "00938.A");
+  near(postCost(post, blDeps(on)), 4.30 + 3.0 + 0.85 + 10.15, "осевая подсветка в цене");
+});
+
+test("ЧЕСТНЫЙ ПРОБЕЛ: осевой (pos 2) + 120V — пробел в составе, в цену не входит", () => {
+  const post = { frameId: 14653, mechanismIds: [502] };
+  const on = { enabled: true, color: "Янтарная", voltage: "120V" };  // у осевых 120V нет
+  const comp = postComposition(post, blDeps(on));
+  assert.equal(comp.backlight.count, 0, "подсветка не подобрана");
+  assert.equal(comp.backlight.hasGap, true, "механизм принимает, но совместимой нет — пробел");
+  assert.equal(comp.backlight.gaps[0].mechId, 502);
+  near(postCost(post, blDeps(on)), 4.30 + 3.0 + 0.85, "пробел в цену не входит");
+});
+
+test("механизм без askBacklight подсветку не получает даже при включённой настройке", () => {
+  const post = { frameId: 14653, mechanismIds: [501, 503] };  // клавиша + механизм без подсветки
+  const on = { enabled: true, color: "Янтарная", voltage: "110-250V" };
+  const comp = postComposition(post, blDeps(on));
+  assert.equal(comp.backlight.count, 1, "только принимающий механизм");
+  assert.equal(comp.backlight.items[0].mechId, 501);
+  // непринимающий механизм — НЕ пробел: пробел только у того, кто подсветку принимает
+  assert.equal(comp.backlight.hasGap, false, "механизм без askBacklight не создаёт пробел");
+  assert.equal(comp.backlight.gaps.length, 0);
+  near(postCost(post, blDeps(on)), 2 * 4.30 + 3.0 + 0.85 + 9.6, "одна подсветка в цене");
+});
