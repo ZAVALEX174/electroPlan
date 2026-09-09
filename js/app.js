@@ -1314,6 +1314,30 @@ function findSelectedEntity(kind,id){
   if(kind==="room")return state.rooms.find(x=>x.id===id);
   return null;
 }
+/* Состояние групп света РАЗМЕЩЁННОГО поста для панели свойств. ЗАЧЕМ ОТДЕЛЬНЫЙ БЛОК: поле группы
+   живёт в конструкторе у слота клавиши и появляется лишь после «Редактировать» — из панели поста
+   не было видно даже, что группы существуют, узнавали только по строке в готовом КП. Показываем
+   явно: у каждой клавиши задана группа (с именем) или нет, а если клавиш в посте нет вовсе —
+   задавать негде.
+   ⚠️ Слоты и «что такое клавиша» — те же, что у конструктора (EPBuilderSlots.fromPost + keySlotKind),
+   имя нормализуем тем же normalizeGroup, которым оно печатается везде: второй копии разбора поста,
+   предиката клавиши и правила написания имени не заводим (§7.1). keySlotKind(id)===true — ровно
+   тот случай, когда конструктор рисует поле ввода группы (isKeyProduct), поэтому и здесь считаем
+   клавишами только его: «потерянная клавиша» (артикул выпал, keySlotKind===null) — забота расчёта
+   групп, а не этой подсказки. */
+function postGroupsPropHtml(post){
+  const keys=EPBuilderSlots.fromPost(post,keySlotKind).filter(s=>keySlotKind(s.id)===true);
+  if(!keys.length)
+    return `<div class="post-groups"><div class="post-groups-head">Группы света</div>`
+      +`<small class="prop-hint">В посте нет клавиш — группы света задавать негде.</small></div>`;
+  const rows=keys.map((s,i)=>{
+    const name=EPLightingGroups.normalizeGroup(s.group);
+    return `<div class="post-group-row ${name?"has-group":"no-group"}"><span>Клавиша ${i+1}</span>`
+      +(name?`<b>${esc(name)}</b>`:`<em>группа не задана</em>`)+`</div>`;
+  }).join("");
+  return `<div class="post-groups"><div class="post-groups-head">Группы света</div>${rows}`
+    +`<small class="prop-hint">Группа задаётся в конструкторе: «Редактировать» → укажите её у нужной клавиши.</small></div>`;
+}
 function renderProperties(){
   flushRoomDraft();   /* §7.1: правило «сначала закоммить черновик» в одной точке — покрывает все ~25 вызовов */
   if(!state.selected){props.className="empty-properties";props.innerHTML="Выберите объект на плане";return}
@@ -1374,6 +1398,7 @@ function renderProperties(){
     </select></label>
     <small class="prop-hint prop-wall-source${ownWall?" own":""}">${ownWall?"Свой тип стены поста":`Унаследован от проекта: ${esc(WALL_STEP_LABEL[projWall]||projWall)}`}</small>
     ${lightSummary?`<label>Механизмы групп света<input value="${esc(lightSummary.text)}" disabled></label>`:""}
+    ${postGroupsPropHtml(p)}
     <label>Стоимость<input value="${money(postTotalCost(p,light))}" disabled></label>
     <div class="property-actions"><button class="btn primary" id="editSelected">Редактировать</button><button class="btn ghost" id="removeSelected">Удалить</button></div>`;
     $("editSelected").onclick=()=>openPostBuilder({placedId:id});$("removeSelected").onclick=()=>removeEntity(kind,id);
@@ -1708,6 +1733,20 @@ function orphanObjectsWarningText(){
   return `⚠ Вне помещений: ${total} — отмечены на плане.${money} `
     +`Перетащите объект в комнату или подвиньте контур.`;
 }
+/* Счётчик постов, у которых есть клавиша БЕЗ группы света. ЗАЧЕМ в сводке: без группы механизм за
+   клавишей не подбирается, но узнавали об этом только из готового КП (строка «Не указана группа»).
+   Показываем ту же проблему ДО печати — тем же приёмом, что «вне помещений» (orphanObjectsWarningText):
+   строку пишет ТОЛЬКО renderSummary в свой узел, hidden гасит пустую.
+   ⚠️ Разбор поста и предикат клавиши — те же, что у конструктора и панели свойств
+   (EPBuilderSlots.fromPost + keySlotKind), имя — normalizeGroup: своей копии правил нет (§7.1). */
+function postsWithMissingGroupsText(){
+  const n=state.posts.filter(p=>
+    EPBuilderSlots.fromPost(p,keySlotKind).some(s=>keySlotKind(s.id)===true&&!EPLightingGroups.normalizeGroup(s.group))
+  ).length;
+  if(!n)return "";
+  return `⚠ Постов с клавишами без группы света: ${n}. Механизм за клавишей не подберётся — `
+    +`откройте пост и задайте группу в конструкторе.`;
+}
 function renderSummary(){
   const light=projectLighting();
   const est=buildEstimate(light);
@@ -1740,6 +1779,10 @@ function renderSummary(){
   const outsideRoomsStatus=orphanObjectsWarningText();
   $("outsideRoomsStatus").textContent=outsideRoomsStatus;
   $("outsideRoomsStatus").hidden=!outsideRoomsStatus;
+  /* Проблема групп света — в сводке, рядом со списком групп: пишем в свой узел, пустую строку прячем. */
+  const missingGroupsStatus=postsWithMissingGroupsText();
+  $("missingGroupsStatus").textContent=missingGroupsStatus;
+  $("missingGroupsStatus").hidden=!missingGroupsStatus;
   updateStatus();
 }
 

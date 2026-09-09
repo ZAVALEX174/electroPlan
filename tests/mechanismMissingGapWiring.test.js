@@ -248,6 +248,7 @@ test("renderSummary: итог ОГОВАРИВАЕТ позиции без це�
     esc: s => String(s),
     lightingHtml: () => "[LIGHT]",
     orphanObjectsWarningText: () => "",
+    postsWithMissingGroupsText: () => "",   // предмет теста — строка «без цены», счётчик групп заглушён
     updateStatus: () => {},
     EPRoomAssign: require("../js/roomAssign.js"),
     /* renderSummary берёт формулировку строки «без цены» из EPEstimate.pricelessNote (той же, что

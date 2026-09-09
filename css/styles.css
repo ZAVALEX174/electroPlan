@@ -124,6 +124,15 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .prop-collection-source.own{color:var(--blue-dark);font-weight:700}
 .prop-hint-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;color:var(--muted);font-size:9px}
 .prop-hint-row b{color:var(--text)}
+/* Группы света поста в панели свойств: перечень клавиш с их группами. Клавишу без группы метим
+   акцентом (как «своя схема»), чтобы пробел «механизм не подберётся» было видно глазом до печати. */
+.post-groups{margin:2px 0 8px;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.post-groups-head{padding:6px 9px;background:var(--panel,#f6f7f9);font-weight:700;font-size:9px}
+.post-group-row{display:flex;justify-content:space-between;gap:8px;padding:6px 9px;border-top:1px solid var(--line);font-size:9px}
+.post-group-row span{color:var(--muted)}
+.post-group-row.has-group b{color:var(--text);font-weight:700}
+.post-group-row.no-group em{color:var(--blue-dark);font-weight:700;font-style:normal}
+.post-groups .prop-hint{margin:6px 9px}
 .terms-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
 .terms-row label{color:var(--muted);font-size:9px;font-weight:800}
 .terms-row input[type=number]{margin-top:3px;padding:6px 7px}

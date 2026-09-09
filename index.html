@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260907.1">
+  <link rel="stylesheet" href="css/styles.css?v=20260909.1">
 </head>
 <body>
 <div class="app">
@@ -260,6 +260,9 @@
         <!-- Группы света: тот же блок, что печатается в КП и листе монтажника
              (EPLightingPlan.buildHtml) — чтобы экран и документы не могли разойтись. -->
         <div id="lightingSummary"></div>
+        <!-- Проблема ДО печати: посты с клавишами без группы света (механизм не подберётся).
+             Пишется только в renderSummary, рядом со списком групп; пустая строка скрыта. -->
+        <div class="price-note" id="missingGroupsStatus" role="status" aria-live="polite" hidden></div>
       </section>
     </aside>
   </main>
@@ -458,6 +461,6 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-<script src="js/app.js?v=20260909.2"></script>
+<script src="js/app.js?v=20260909.3"></script>
 </body>
 </html>

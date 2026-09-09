@@ -60,6 +60,9 @@ function buildRenderSummary(dom, state) {
       discount: 0, discountPercent: 0, vat: 0, vatPercent: 0, groups: []
     }),
     lightingHtml: () => "[LIGHTING_HTML]",
+    /* Счётчик групп света renderSummary тоже пишет в свой узел; здесь предмет — проводка строки
+       «вне помещений», поэтому счётчик заглушён (его собственная проводка — в postLightGroupsUiWiring). */
+    postsWithMissingGroupsText: () => "",
     updateStatus: () => { dom.$("status").textContent = "[TOOL_STATUS]"; }
   });
 }
