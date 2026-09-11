@@ -117,7 +117,9 @@ test("свод поставщику берёт ту же подпись у сн�
 test("подсказка на плане показывает единую подпись вместо пустого <dd>", () => {
   const hover = stand.makeElement();
   const missingInfo = EPPosts.frameAvailability(MISSING_ID, null);
-  const show = stand.run("showHover", {
+  /* showHover теперь строит строку подсветки через backlightRowSummary — режем её вместе с
+     showHover (comp без поля backlight → null → строки нет, подсказка та же, что проверяет тест). */
+  const show = stand.runNamed(["backlightRowSummary", "showHover"], {
     hover,
     postComposition: () => compOf(missingInfo),
     assembledPostHtml: () => "<post-picture>",

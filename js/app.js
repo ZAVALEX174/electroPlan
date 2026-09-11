@@ -1090,10 +1090,15 @@ function showHover(kind,obj,e){
     /* Коробки в подсказке: цена подобранной/фолбэк-коробки × число; если совместимой со
        стандартом коробки нет — честно «не подобрана», без цены (как в составе поста). */
     const boxCell=boxUnit?`${comp.boxCount} × ${money(boxUnit.price)}`:(comp.boxCount?`${comp.boxCount} шт. — не подобрана`:"—");
+    /* Подсветка клавиш в подсказке — та же backlightRowSummary, что состав и карточка: «Стоимость
+       поста» ниже включает LED, значит подсказка обязана его назвать (или пробел). Нет подсветки → null,
+       строки нет, подсказка байт в байт как раньше. */
+    const backSummary=backlightRowSummary(comp.backlight);
+    const backRow=backSummary?`<dt>Подсветка</dt><dd>${esc(backSummary.text)}</dd>`:"";
     /* Миниатюра собранного поста (та же EPPostImage, что в конструкторе) вместо простыни
        названий — сразу видно рамку, посты и импосты. */
     hover.innerHTML=`<h4>${esc(postNumberLabel(obj))}</h4><div class="hover-thumb">${assembledPostHtml(obj,{size:"sm"})}</div>
-    <dl><dt>Накладка</dt><dd>${esc(frameInfo.displayName)}</dd><dt>Коробки</dt><dd>${boxCell}</dd><dt>Стоимость поста</dt><dd>${money(postTotalCost(obj))}</dd></dl>`;
+    <dl><dt>Накладка</dt><dd>${esc(frameInfo.displayName)}</dd><dt>Коробки</dt><dd>${boxCell}</dd>${backRow}<dt>Стоимость поста</dt><dd>${money(postTotalCost(obj))}</dd></dl>`;
   }
   hover.classList.add("show");positionHover(e);
 }
@@ -1403,7 +1408,11 @@ function renderProperties(){
        карточка была согласована ТОЛЬКО ПО НАЙДЕННЫМ и показывала «2 шт.» там, где мест
        управления три, — пробел подбора из неё было не видно. */
     const light=projectLighting();
+    const comp=postComposition(p);   /* один расчёт состава на карточку: и число коробок, и подсветка */
     const lightSummary=lightingRowSummary(lightingRowsFor(p,light));
+    /* Подсветка клавиш — тем же backlightRowSummary, что панель «Состав поста» и подсказка: LED в
+       цене поста, значит карточка, показывающая эту цену, обязана его назвать (или пробел). */
+    const backSummary=backlightRowSummary(comp.backlight);
     /* Тип стены поста прямо в панели свойств. ⚠️ ОТСУТСТВИЕ post.wallType — это «как в проекте»,
        а не «unknown» (EPPosts.postWallType), поэтому «свой» и «унаследован» — РАЗНЫЕ состояния,
        и показываем их по-разному: ownWall различает наличие собственного поля у поста, curWall —
@@ -1413,13 +1422,14 @@ function renderProperties(){
     const curWall=EPPosts.postWallType(p,EP_DATA.settings.wallType);
     props.innerHTML=`<label>Пост<input value="${esc(postNumberLabel(p))}" disabled></label>
     <label>Комната<input value="${esc(room?.name||"Не назначена")}" disabled></label>
-    <label>Механизмов / коробок<input value="${p.mechanismIds.length} / ${postComposition(p).boxCount}" disabled></label>
+    <label>Механизмов / коробок<input value="${p.mechanismIds.length} / ${comp.boxCount}" disabled></label>
     <label>Тип стены<select id="postWallSelect">
       <option value="solid"${curWall==="solid"?" selected":""}>Бетон, кирпич, сплошные стены</option>
       <option value="hollow"${curWall==="hollow"?" selected":""}>ГКЛ и полые стены</option>
     </select></label>
     <small class="prop-hint prop-wall-source${ownWall?" own":""}">${ownWall?"Свой тип стены поста":`Унаследован от проекта: ${esc(WALL_STEP_LABEL[projWall]||projWall)}`}</small>
     ${lightSummary?`<label>Механизмы групп света<input value="${esc(lightSummary.text)}" disabled></label>`:""}
+    ${backSummary?`<label>Подсветка клавиш<input value="${esc(backSummary.text)}" disabled></label>`:""}
     ${postGroupsPropHtml(p)}
     <label>Стоимость<input value="${money(postTotalCost(p,light))}" disabled></label>
     <div class="property-actions"><button class="btn primary" id="editSelected">Редактировать</button><button class="btn ghost" id="removeSelected">Удалить</button></div>`;
@@ -1652,6 +1662,34 @@ function lightingRowSummary(rows){
     text:c.gaps
       ? `${c.found} из ${c.need} · ${money(c.sum)} · без механизма: ${c.gaps}`
       : `${c.found} шт. · ${money(c.sum)}`});
+}
+/* СТРОКА «ПОДСВЕТКА КЛАВИШ» — ОДНА ФОРМУЛИРОВКА НА ВСЕ ЭКРАНЫ (панель «Состав поста»
+   конструктора, карточка размещённого поста и подсказка на плане).
+   ⚠️ СОСТАВ ОБЯЗАН ОБЪЯСНЯТЬ ЦЕНУ. LED вставлен в механизм и входит в цену поста (postCost по
+   comp.backlight.items), а «Стоимость поста» на этих трёх экранах её показывает, — значит строки
+   подсветки обязаны быть рядом, ровно как суппорт/коробка/группы света. Молча показанная цена «за
+   четыре», когда на экране только три позиции, — тот же дефект «три механизма, а денег на четыре».
+   Одинаковые LED сводим количеством («2 × …»), цену показываем ЗА ШТУКУ — как у суппорта и коробки
+   в том же составе (там тоже «N × имя · цена за единицу»). Пробел (механизм подсветку принимает, а
+   совместимой в каталоге нет) называем СЛОВАМИ — «подсветка не подобрана», дословно как в смете и
+   остальных документах; в цену пробел не входит (postCost его не считает).
+   back — comp.backlight. Выключена/не подобрана → items и gaps пусты → null: строки нет, экран байт
+   в байт как раньше. У старого рукотворного состава вне приложения поля backlight может не быть
+   (тот же защитный приём, что в смете и своде) → тоже null. */
+function backlightRowSummary(back){
+  if(!back||(!back.items.length&&!back.gaps.length))return null;
+  /* аккумулируем одинаковые LED по артикулу: у одной настройки цвет+напряжение дают один и тот же
+     аксессуар на однотипные механизмы — «2 × имя», а не две строки; цена у них одна (за штуку). */
+  const agg=new Map();
+  back.items.forEach(u=>{
+    const a=u.accessory,k=a.code||a.name;
+    const cur=agg.get(k)||{name:a.name,price:Number(a.price)||0,count:0};
+    cur.count++;agg.set(k,cur);
+  });
+  const parts=[...agg.values()].map(g=>`${g.count>1?g.count+" × ":""}${g.name} · ${money(g.price)}`);
+  const gaps=back.gaps.length;
+  if(gaps)parts.push(gaps>1?`${gaps} × подсветка не подобрана`:"подсветка не подобрана");
+  return {parts,text:parts.join(", "),gaps,count:back.items.length};
 }
 /* Сумма подставленных механизмов по проекту — подпись в блоке «Группы света». Считается по
    тем же place.product, что и цена в смете (estimate.js берёт их из lightingOf). */
@@ -2711,12 +2749,20 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
   const lightRow=lightSummary
     ? `<div class="composition-row${lightSummary.gaps?" is-missing":""}"><span>Механизмы групп света</span><b>${esc(lightSummary.text)}</b></div>`
     : "";
+  /* Подсветка клавиш — ОТДЕЛЬНАЯ строка состава СРАЗУ ЗА группами света: LED читается рядом с
+     механизмом, в который вставлен, и входит в ту же «Стоимость поста» ниже. Формулировку (счёт,
+     цену за штуку, слова пробела) собирает та же backlightRowSummary, что и карточка с подсказкой —
+     второй копии правила нет. Пробел помечаем is-missing, как суппорт/коробку/группы света. */
+  const backSummary=backlightRowSummary(comp.backlight);
+  const backRow=backSummary
+    ? `<div class="composition-row${backSummary.gaps?" is-missing":""}"><span>Подсветка клавиш</span><b>${esc(backSummary.text)}</b></div>`
+    : "";
   /* Тот же блок «Группы света», что печатается в КП и листе монтажника: подставленные
      механизмы, реле и пробелы с причинами. Один источник — расхождению между конструктором
      и документами взяться неоткуда. */
   const lightBlock=light?lightingHtml(light,"Группы света в проекте"):"";
   host.innerHTML=`${errorHtml||""}<div class="composition-head"><strong>Состав поста</strong><span>Стандарт: ${esc(STANDARD_LABEL[comp.standard]||comp.standard)}</span></div>
-    ${supportRow}${boxRow}${lightRow}
+    ${supportRow}${boxRow}${lightRow}${backRow}
     <div class="composition-row total"><span>Стоимость поста</span><b>${money(postTotalCost(post,light))}</b></div>${note}${lightBlock}`;
 }
 function changePostSlotCount(){
