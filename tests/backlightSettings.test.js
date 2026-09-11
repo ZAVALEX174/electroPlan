@@ -96,7 +96,11 @@ test("restoreProject: сохранённая подсветка возвраща
   assert.equal(dom.$("backlightColorSelect").disabled, false);
 });
 
-test("restoreProject: СТАРЫЙ проект без поля backlight открывается ВЫКЛЮЧЕННЫМ", async () => {
+/* ВНИМАНИЕ: этот тест держит поведение restoreProject — «нет backlight в terms → значение НЕ
+   трогаем, подсветку задним числом НЕ включаем». Само УМОЛЧАНИЕ проекта (что стартовое значение
+   именно выключено) задаётся в data.js и покрыто отдельно (backlightMoney.test.js, M8): здесь
+   стартовое {enabled:false} кладёт стенд, поэтому этот тест про data.js ничего не доказывает. */
+test("restoreProject: нет поля backlight в terms → restoreProject НЕ включает подсветку (оставляет стоящее значение)", async () => {
   const snap = { terms: { workPercent: 18 } };   // подсветки в terms нет вовсе
   const { dom, ctx, restore } = restoreStand(snap, { enabled: false, color: "Белая", voltage: "110-250V" });
   await restore();

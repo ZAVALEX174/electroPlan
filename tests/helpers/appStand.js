@@ -82,6 +82,30 @@ function constSource(name) {
   return end >= 0 ? SRC.slice(start, end) : SRC.slice(start);
 }
 
+/* Полный текст МНОГОСТРОЧНОГО top-level `const <name>=…;` app.js. constSource берёт ровно одну
+   строку (uid/esc/byKind однострочные), но часть связок объявлена стрелкой на несколько строк —
+   postDeps раскладывает объект зависимостей поста на три строки. Читаем блок от `const name=` до
+   закрывающей `;` на НУЛЕВОЙ глубине скобок, пропуская строковые литералы (в них скобки/`;` не
+   считаются). Тот же принцип, что у constSource: исполняем НАСТОЯЩИЙ текст, а не рукописную копию —
+   копия postDeps молча разошлась бы с продакшеном, и подмена backlight на {enabled:false} не
+   покраснела бы. */
+function constBlock(name) {
+  const safe = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const m = new RegExp("(?:^|\\n)const\\s+" + safe + "\\s*=").exec(SRC);
+  assert.ok(m, "top-level const " + name + " должен существовать в app.js");
+  const start = m.index + (SRC[m.index] === "\n" ? 1 : 0);
+  let depth = 0, quote = null;
+  for (let i = SRC.indexOf("=", start); i < SRC.length; i++) {
+    const ch = SRC[i];
+    if (quote) { if (ch === quote && SRC[i - 1] !== "\\") quote = null; continue; }
+    if (ch === '"' || ch === "'" || ch === "`") { quote = ch; continue; }
+    if (ch === "(" || ch === "{" || ch === "[") depth++;
+    else if (ch === ")" || ch === "}" || ch === "]") depth--;
+    else if (ch === ";" && depth === 0) return SRC.slice(start, i + 1);
+  }
+  return assert.fail("не нашёл конец const " + name + " (нет `;` на нулевой глубине скобок)");
+}
+
 /* Имена, которые app.js достаёт деструктуризацией `const {…}=<ns>;`. Нужно, чтобы собрать контекст
    РОВНО из проброшенных имён и воспроизвести браузерный ReferenceError при забытом алиасе. */
 function destructuredNames(ns) {
@@ -218,6 +242,7 @@ module.exports = {
   SRC,
   functionSource,
   constSource,
+  constBlock,
   destructuredNames,
   run,
   runNamed,
