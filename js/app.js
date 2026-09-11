@@ -3671,7 +3671,15 @@ function supplierSpecData(light){
         supportAssumed:comp.supportAssumed,supportNotRequired:comp.supportNotRequired,
         /* Коробка — точная либо стандартно-совместимый фолбэк: тот же выбор, что в листе
            монтажника и в цене поста (тип стены проекта знает только приложение). */
-        box:item(comp.box||comp.boxFallback),boxCount:comp.boxCount
+        box:item(comp.box||comp.boxFallback),boxCount:comp.boxCount,
+        /* Подсветка клавиш: подобранные LED (по объекту на принимающий механизм) и число
+           пробелов (принимает, совместимой нет). Числа берём из уже посчитанного postComposition
+           — той же backlight.items/gaps, что идёт в цену поста и в смету; второй копии подбора
+           не заводим. Выключена/не подобрана → items пуст, gaps пуст → свод как раньше.
+           comp без поля backlight (старый рукотворный состав вне приложения) — как отсутствие
+           подсветки, тот же защитный приём, что в смете (estimate.js): свод не падает. */
+        backlight:(comp.backlight?comp.backlight.items:[]).map(u=>({code:u.accessory.code,name:u.accessory.name,unit:u.accessory.unit})),
+        backlightGaps:comp.backlight?comp.backlight.gaps.length:0
       };
     }),
     /* Одиночные элементы плана: заказчик просил убрать их из инструмента (§4.8 «элементы
@@ -3699,7 +3707,7 @@ function supplierSpecHtml(opts,light,options){
    comp (суппорт/коробка/накладка — товары каталога с kind/categoryId/icon), layout (механизмы с
    позицией и товаром) и frameSpec (фото/окна накладки, что уже собрал assembledPostSpec) — второй
    раз в каталог не ходим. Порядок деталей — как разносят сборку от лица к стене: накладка →
-   механизмы → суппорт → коробка. Значок детали задаём признаками товара (categoryId+icon+name):
+   механизмы (с их LED подсветки за клавишей) → суппорт → коробка. Значок детали задаём признаками товара (categoryId+icon+name):
    их переводит в глиф pickIcon внутри EPExplodedView — тот же, что рисует клавиши сборки. Фото
    КАЖДОЙ детали (накладка, механизмы, суппорт, коробка) берём каталожным productImage(detail) —
    крупный кадр для печати; в отличие от photoReady оно НЕ требует размеченных окон (окна нужны
@@ -3735,6 +3743,17 @@ function buildExplodedSpec(comp,box,layout,frameSpec,lightRows,moduleLabelOf){
      не режет ряд на отдельную колонку, и позиции схемы остаются в том же порядке, что строки
      таблицы модулей над ней. В кикере — номер модуля клавиши, чтобы пара читалась. */
   const lightByKey=new Map((lightRows||[]).map(r=>[Number(r.keyIndex),r]));
+  /* Подсветка клавиш: аксессуар-LED вставлен в механизм (comp.backlight.items). Очередь по
+     mechId — у поста бывают два одинаковых механизма, каждый получает свой LED по порядку.
+     Пробел подбора на схему НЕ выносим — как и не подобранный механизм группы света ниже:
+     взрыв-схема показывает физически присутствующие детали, а пробел назван в обвязке, своде
+     и смете (там же его считает монтажник и поставщик). */
+  const backByMech=new Map();
+  ((comp.backlight&&comp.backlight.items)||[]).forEach(u=>{
+    const k=Number(u.mechId);
+    if(!backByMech.has(k))backByMech.set(k,[]);
+    backByMech.get(k).push(u.accessory);
+  });
   layout.forEach((s,order)=>{
     /* Адрес модуля и его группа света читаются по ПОЗИЦИИ КЛАВИШИ В ПОСТЕ (keyIndex контракта
        групп света), а НЕ по месту в этом массиве: порядок деталей схемы задаёт карточка
@@ -3760,6 +3779,20 @@ function buildExplodedSpec(comp,box,layout,frameSpec,lightRows,moduleLabelOf){
         name:row.product.name,code:row.code,
         icon:{categoryId:row.product.categoryId,icon:row.product.icon,name:row.product.name},
         photo:mechPhoto?{imageUrl:mechPhoto}:null
+      });
+    }
+    /* LED подсветки этой клавиши — той же ролью «Модуль» и сразу за ней (и за её механизмом
+       группы света): EPExplodedView сворачивает подряд идущие «Модули» в одну колонку-стек,
+       поэтому LED встаёт под своей клавишей, а не режет ряд отдельным столбцом. */
+    const bq=backByMech.get(Number(s.id));
+    if(bq&&bq.length){
+      const acc=bq.shift();
+      const backPhoto=photoOf(acc);
+      parts.push({
+        role:"Модуль",pos:`${label} · подсветка`,
+        name:acc.name,code:acc.code||"",
+        icon:{categoryId:acc.categoryId,icon:acc.icon,name:acc.name},
+        photo:backPhoto?{imageUrl:backPhoto}:null
       });
     }
   });

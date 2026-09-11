@@ -64,6 +64,32 @@ function buildFittings(comp, box, lighting) {
     if (r.missing) fittings.push(Object.assign(at, { role: where, name: r.missingText || "механизм не подобран", code: null, count: 0 }));
     else fittings.push(Object.assign(at, { role: where, name: r.name, code: r.code, count: 1 }));
   });
+  /* Подсветка клавиш: аксессуары-LED, вставленные в механизмы (comp.backlight). Одинаковые
+     артикулы сводим в count — как «N × суппорт», а не строкой на каждый LED. Пробел подбора
+     (механизм подсветку принимает, совместимой в каталоге нет) печатаем словами со счётчиком
+     механизмов и НУЛЁМ в «Кол.» — как «суппорт не требуется»: пустое место монтажник читает
+     как забытую позицию, а в заказ пробел не идёт (buildHtml печатает 0 как прочерк).
+     Формулировка «подсветка не подобрана» — та же, что в смете (estimate.js) и своде
+     поставщику (supplierSpec.js); менять только вместе. Порядок — сразу за клавишами (механизмы
+     групп света выше) и до суппорта, как в смете: LED вставлен в механизм. Строки без keyIndex —
+     cardFittingOrder оставляет их после упорядоченных по клавишам, сохраняя этот порядок. */
+  const back = comp.backlight;
+  if (back) {
+    const agg = new Map();
+    (Array.isArray(back.items) ? back.items : []).forEach(u => {
+      const acc = u && u.accessory;
+      if (!acc) return;
+      const k = String(acc.code || acc.name);
+      const cur = agg.get(k);
+      if (cur) cur.count += 1;
+      else agg.set(k, { role: "Подсветка", name: acc.name, code: acc.code || null, count: 1 });
+    });
+    agg.forEach(row => fittings.push(row));
+    const gapCount = Array.isArray(back.gaps) ? back.gaps.length : 0;
+    if (gapCount) fittings.push({ role: "Подсветка",
+      name: gapCount > 1 ? `${gapCount} × подсветка не подобрана` : "подсветка не подобрана",
+      code: null, count: 0 });
+  }
   /* Суппорт: сколько насчитал состав (столько же, сколько коробок), а не «одна планка».
      Изделие, которое по номенклатуре монтируется В КОРОБКУ БЕЗ ПЛАНКИ (крышки IP55,
      принцип NO_SUPPORT), даёт строку «не требуется» с нулём — buildHtml напечатает в
@@ -160,7 +186,8 @@ function cardFittingOrder(fittings, moduleGroups, modules) {
        assembledImageHtml?: string,                     // готовая картинка собранного поста (EPPostImage)
        explodedViewHtml?: string,                       // взрыв-схема поста (EPExplodedView) — деталь → выносная линия → артикул
        fittings: [ { role, name, code, count, keyIndex? } ]  // обвязка: механизмы групп света →
-                                                        // суппорт → коробка → накладка. У строк
+                                                        // подсветка клавиш → суппорт → коробка →
+                                                        // накладка. У строк
                                                         // групп света keyIndex — позиция их
                                                         // клавиши в посте: по нему документ сам
                                                         // ставит их в порядок карточки
