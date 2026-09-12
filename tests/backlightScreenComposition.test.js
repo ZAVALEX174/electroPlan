@@ -160,3 +160,54 @@ test("renderProperties: ветка поста встраивает backlightRowS
   assert.match(postBranch, /Подсветка клавиш<input value="\$\{esc\(backSummary\.text\)\}"/,
     "и показать её отдельной строкой — через esc, как остальной ввод карточки");
 });
+
+/* ---- 4b. renderProperties — ПОВЕДЕНЧЕСКИ: строка есть и стоит ДО «Стоимости» ----------------
+   Текстовый тест выше держит форму строки, но не её ПОВЕДЕНИЕ: мутация «условие рисования всегда
+   ложно, текст цел» и мутация «строка перенесена НИЖЕ „Стоимости“» его не краснят. Исполняем
+   настоящий текст renderProperties в стенде (ветка post) и читаем props.innerHTML: comp.backlight
+   подаём готовым (его считает postComposition, покрытый своими тестами), остальные связки —
+   заглушки, как в hover/composition выше. */
+function renderPropertiesHtml(comp) {
+  const dom = stand.makeDom();
+  const props = stand.makeElement();
+  const post = { id: "p1", mechanismIds: [1, 2], wallType: "solid" };
+  const ctx = {
+    props,
+    flushRoomDraft: () => {},
+    applySelectionClasses: () => {},
+    state: { selected: { kind: "post", id: "p1" }, rooms: [] },
+    findSelectedEntity: () => post,
+    projectLighting: () => ({}),
+    lightingRowsFor: () => [],
+    lightingRowSummary: () => null,
+    postComposition: () => comp,
+    EP_DATA: { settings: { wallType: "solid" } },
+    EPPosts: require("../js/posts.js"),
+    postNumberLabel: () => "Пост № 1",
+    postGroupsPropHtml: () => "",
+    WALL_STEP_LABEL: { solid: "Бетон", hollow: "ГКЛ" },
+    money: v => "€" + v,
+    esc: s => String(s == null ? "" : s),
+    postTotalCost: () => 100,
+    $: dom.$
+  };
+  stand.runNamed(["backlightRowSummary", "renderProperties"], ctx)();
+  return props.innerHTML;
+}
+
+test("renderProperties (поведение): карточка поста РИСУЕТ строку подсветки", () => {
+  const html = renderPropertiesHtml({ boxCount: 1, backlight: backOf([{ accessory: LED }], []) });
+  assert.match(html, /Подсветка клавиш/, "строка подсветки присутствует в карточке — иначе цена «за четыре» без объяснения");
+});
+
+test("renderProperties (поведение): строка подсветки стоит ДО «Стоимости»", () => {
+  const html = renderPropertiesHtml({ boxCount: 1, backlight: backOf([{ accessory: LED }], []) });
+  assert.ok(html.indexOf("Подсветка клавиш") > -1 && html.indexOf("Стоимость") > -1, "обе строки в карточке");
+  assert.ok(html.indexOf("Подсветка клавиш") < html.indexOf("Стоимость"),
+    "подсветка входит в цену — её строка обязана стоять ДО итоговой стоимости, как в подсказке на плане");
+});
+
+test("renderProperties (поведение): подсветка выключена → строки подсветки нет", () => {
+  const html = renderPropertiesHtml({ boxCount: 1, backlight: backOf([], []) });
+  assert.doesNotMatch(html, /Подсветка клавиш/, "нет подсветки — карточка без этой строки (как раньше)");
+});

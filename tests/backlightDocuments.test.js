@@ -184,6 +184,20 @@ const realDeps = bl => ({
 const defectPost = () => ({ id: "p1", number: 1, name: "Пост дефекта",
   frameId: idByCode("14931"), mechanismIds: [idByCode("19021"), idByCode("19101")] });
 const WHITE = { enabled: true, color: "Белая", voltage: "110-250V" };
+const V120 = { enabled: true, color: "Белая", voltage: "120V" };   // pos 2 (осевые) на 120V в каталоге нет → пробел
+/* Пост с ДВУМЯ ОДИНАКОВЫМИ механизмами (обе клавиши принимают подсветку) — дубль ВНУТРИ поста,
+   а не дубль поста. На нём ловится схлопывание одинаковых артикулов подсветки в своде: обе
+   клавиши дают 00936.250.W, и заказ обязан содержать ×2. */
+const dupPost = () => ({ id: "pd", number: 9, name: "Две одинаковые клавиши",
+  frameId: idByCode("14931"), mechanismIds: [idByCode("14021"), idByCode("14021")] });
+/* Осевой (pos 2) + клавиша (pos 3) — штатный «осевой + клавиша». На 110-250V оба LED подобраны
+   (пробелов нет), на 120V осевому пары в каталоге нет (ровно один пробел). */
+const mixedPost = () => ({ id: "pm", number: 7, name: "Осевой + клавиша",
+  frameId: idByCode("14931"), mechanismIds: [idByCode("14021"), idByCode("19101")] });
+/* 09001 подсветку НЕ принимает, 14021 принимает — на нём проверяется привязка LED к своей клавише
+   во взрыв-схеме (LED не должен уехать к соседу по порядку слота). */
+const nonAcceptPost = () => ({ id: "pna", number: 5, name: "Глухой + принимающий",
+  frameId: idByCode("14931"), mechanismIds: [idByCode("09001"), idByCode("14021")] });
 
 /* Настоящий supplierSpecData из app.js — исполняем его текст в стенде поверх настоящего
    postComposition. Мутация backlight-строк в app.js покраснит эти тесты. */
@@ -210,6 +224,13 @@ const ledCountSupplier = data => data.rows.filter(r => r.kind === "backlight" &&
   .reduce((s, r) => s + r.count, 0);
 const ledCountEstimate = est => est.groups.reduce((s, g) => s +
   (g.items || []).filter(it => it.kind === "backlight" && it.code).reduce((a, it) => a + it.count * g.count, 0), 0);
+/* Пробелы подсветки (строки БЕЗ артикула): в своде — строка kind backlight без code, в смете —
+   позиция kind backlight без code (gap). Число пробелов документов обязано совпадать: иначе один
+   документ печатает «подсветка не подобрана», а другой молчит об одном и том же проекте. */
+const gapCountSupplier = data => data.rows.filter(r => r.kind === "backlight" && !r.code)
+  .reduce((s, r) => s + r.count, 0);
+const gapCountEstimate = est => est.groups.reduce((s, g) => s +
+  (g.items || []).filter(it => it.kind === "backlight" && !it.code).reduce((a, it) => a + it.count * g.count, 0), 0);
 
 test("ЖИВОЙ дефект: свод поставщику содержит 00936.250.W ×1 и 00938.W ×1", () => {
   const data = supplierDataFor([defectPost()], WHITE);
@@ -232,6 +253,42 @@ test("СВЕРКА ДЕНЕГ: LED в своде поставщику == LED в 
     "документы не расходятся по количеству оплаченного товара");
 });
 
+test("СВЕРКА ДЕНЕГ: два ОДИНАКОВЫХ механизма в посте — свод не недозаказывает LED", () => {
+  /* Прежняя сверка дублировала ПОСТ, где каждый артикул встречается по разу; схлопывание
+     одинаковых артикулов ВНУТРИ поста (обе клавиши 14021 → один и тот же 00936.250.W) она не
+     ловила. Здесь дубль внутри поста: смета даёт ×2, и свод обязан заказать столько же. */
+  const posts = [dupPost()];
+  const data = supplierDataFor(posts, WHITE);
+  const est = estimateFor(posts, WHITE);
+  assert.equal(ledCountEstimate(est), 2, "14021+14021 — два LED 00936.250.W в смете");
+  assert.equal(ledCountSupplier(data), 2, "столько же в заказе поставщику");
+  assert.equal(ledCountSupplier(data), ledCountEstimate(est),
+    "схлопывание одинаковых артикулов в посте не должно ронять количество заказа");
+});
+
+test("СВЕРКА СОСТАВА: пробелов подсветки в своде == смете, когда пробелов НЕТ", () => {
+  /* 14021 (pos 3) + 19101 (осевой pos 2) на 110-250V — обоим LED подобран, пробелов ноль.
+     Свод не должен выдумывать «подсветка не подобрана»: число пробелов сверяем со сметой того
+     же проекта, а не с нулём вслепую. */
+  const posts = [mixedPost()];
+  const data = supplierDataFor(posts, WHITE);
+  const est = estimateFor(posts, WHITE);
+  assert.equal(gapCountEstimate(est), 0, "оба LED подобраны — в смете пробелов нет");
+  assert.equal(gapCountSupplier(data), 0, "и в своде поставщику ни одной строки «не подобрана»");
+  assert.equal(gapCountSupplier(data), gapCountEstimate(est), "число пробелов документов сходится");
+});
+
+test("СВЕРКА СОСТАВА: пробелов подсветки в своде == смете, когда пробел ЕСТЬ", () => {
+  /* Тот же пост на 120V: клавише LED есть, осевому (pos 2) на 120V пары в каталоге нет — ровно
+     один честный пробел. Свод обязан показать его РОВНО столько же раз, сколько смета. */
+  const posts = [mixedPost()];
+  const data = supplierDataFor(posts, V120);
+  const est = estimateFor(posts, V120);
+  assert.equal(gapCountEstimate(est), 1, "осевому на 120V подсветки нет — один пробел в смете");
+  assert.equal(gapCountSupplier(data), 1, "свод обязан показать ровно один пробел");
+  assert.equal(gapCountSupplier(data), gapCountEstimate(est), "число пробелов документов сходится");
+});
+
 test("ЖИВОЙ дефект: выключенная подсветка — в своде ни одной строки LED", () => {
   const data = supplierDataFor([defectPost()], { enabled: false });
   assert.equal(data.rows.filter(r => r.kind === "backlight").length, 0, "подсветки в заказе нет");
@@ -239,7 +296,7 @@ test("ЖИВОЙ дефект: выключенная подсветка — в 
 
 /* Взрыв-схема: исполняем настоящие buildExplodedSpec+buildPostSheet, EPExplodedView подменён
    на сериализацию spec — так видно, какие детали ушли в схему. */
-const explodedPartsFor = bl => {
+const explodedPartsFor = (bl, post) => {
   const build = stand.run(["buildExplodedSpec", "buildPostSheet"], {
     postComposition: p => EPPosts.postComposition(p, realDeps(bl)),
     product: id => realById.get(id),
@@ -257,7 +314,7 @@ const explodedPartsFor = bl => {
     esc,
     STANDARD_LABEL: { unknown: "неизвестный", BOTH: "универсальный" }
   });
-  const sheet = build(defectPost(), { plan: {} });
+  const sheet = build(post || defectPost(), { plan: {} });
   return JSON.parse(sheet.explodedViewHtml).parts;
 };
 
@@ -273,4 +330,20 @@ test("ЖИВОЙ дефект: взрыв-схема показывает LED п
 test("ЖИВОЙ дефект: выключенная подсветка — во взрыв-схеме LED нет", () => {
   const parts = explodedPartsFor({ enabled: false });
   assert.equal(parts.filter(p => /подсветка/.test(p.pos || "")).length, 0, "деталей подсветки нет");
+});
+
+test("ЖИВОЙ дефект: LED привязан к СВОЕЙ клавише, а не к соседней по порядку слота", () => {
+  /* 09001 подсветку не принимает, 14021 принимает. LED обязан оказаться при 14021: если брать
+     LED по порядку слота, а не по mechId, он уедет под 09001 — монтажник вставит его в механизм,
+     который его физически не принимает. Адрес детали в схеме — «<модуль клавиши> · подсветка». */
+  const parts = explodedPartsFor(WHITE, nonAcceptPost());
+  const mod09001 = parts.find(p => p.code === "09001");
+  const mod14021 = parts.find(p => p.code === "14021");
+  const ledPart = parts.find(p => p.code === "00936.250.W");
+  assert.ok(mod09001 && mod14021 && ledPart, "оба механизма и LED — детали схемы");
+  assert.notEqual(mod09001.pos, mod14021.pos, "у клавиш разные адреса модулей — проверка различает их");
+  assert.equal(ledPart.pos, mod14021.pos + " · подсветка",
+    "LED подписан адресом клавиши 14021, которая его принимает");
+  assert.notEqual(ledPart.pos, mod09001.pos + " · подсветка",
+    "и не адресом 09001, который подсветку не принимает");
 });

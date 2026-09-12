@@ -49,6 +49,22 @@ test("одинаковая подсветка → одна строка count 2 
   assert.equal(e.groups[0].count, 2);
 });
 
+test("РАЗНЫЕ LED в ОДНОМ посте → две строки состава, а не «2 ×» одного артикула", () => {
+  /* Штатный случай «осевой + клавиша»: у одного поста две разные позиции механизма дают РАЗНЫЕ
+     артикулы подсветки (осевой 00938.W и клавиша 00936.250.W). Агрегация обязана идти ПО КОДУ:
+     если ключ агрегации не различает артикулы, смета печатает «2 × …» одного LED и врёт составом
+     и деньгами. */
+  const bl = { enabled: true, items: [
+    { accessory: led("00936.250.W", "Светодиод белый клавиши") },
+    { accessory: led("00938.W", "Светодиод белый осевой") }], gaps: [] };
+  const e = runComp([post()], () => compFor(bl));
+  const back = e.groups[0].items.filter(it => it.kind === "backlight" && it.code);
+  assert.deepEqual(back.map(it => it.code).sort(), ["00936.250.W", "00938.W"],
+    "два разных артикула — две строки состава");
+  assert.equal(back.length, 2, "разные LED не слиты в одну строку");
+  back.forEach(it => assert.equal(it.count, 1, "у каждого артикула своё количество, а не «2 ×» одного"));
+});
+
 test("выключенная подсветка: состав и группировка байт в байт как без поля backlight", () => {
   const off = { enabled: false, items: [], gaps: [] };
   const withOff = runComp([post(), post()], () => compFor(off));
