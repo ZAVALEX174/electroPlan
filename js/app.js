@@ -3535,10 +3535,26 @@ function applyOfferPreset(name){
 function buildPostLayout(options){
   return state.posts.slice().sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0)).map(p=>{
     const comp=postComposition(p);
+    /* Наполнение поста словами с количеством: механизмы даёт EPPosts.fillSummary, следом —
+       подсветка клавиш. LED вставлены в механизмы и уже оплачены (comp.backlight.items идёт в
+       цену поста и в смету), а колонка о них молчала — как раньше молчали свод и лист монтажника.
+       Числа берём из уже посчитанного comp.backlight (backlightPlan), второй копии подбора нет.
+       Все подобранные LED поста сводим в ОДНУ позицию «Подсветка клавиш — N» — колонка сводит
+       наполнение по словам, а не по артикулам («Клавиша — 3»), а подпись берём ту же, что и группа
+       в своде поставщику. Пробел (механизм подсветку принимает, совместимой в каталоге нет)
+       называем словами «подсветка не подобрана» — дословно как в смете, своде и листе монтажника —
+       и в количество к заказу не выводим (noCount): такой строки в fillSummary не бывает, флаг
+       отличает её в рендере. Выключена/не подобрана → items и gaps пусты → строк подсветки нет,
+       таблица байт в байт как раньше; comp без поля backlight (старый рукотворный состав вне
+       приложения) — как отсутствие подсветки, тот же защитный приём, что в смете и своде. */
+    const fill=EPPosts.fillSummary(p.mechanismIds,{product});
+    const back=comp.backlight;
+    if(back&&back.items&&back.items.length)fill.push({word:"Подсветка клавиш",count:back.items.length});
+    if(back&&back.gaps&&back.gaps.length)fill.push({word:back.gaps.length>1?`${back.gaps.length} × подсветка не подобрана`:"подсветка не подобрана",noCount:true});
     return {
       number:p.number,
       modules:comp.modulesTotal,
-      fill:EPPosts.fillSummary(p.mechanismIds,{product}),
+      fill,
       box:{name:(comp.box||comp.boxFallback)?.name,code:(comp.box||comp.boxFallback)?.code,count:comp.boxCount},
       frameCode:comp.frameAvailability.code,
       /* Иллюстрация — собранный пост (EPPostImage), а не фото одной накладки: инлайн-стили,

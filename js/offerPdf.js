@@ -144,7 +144,7 @@ function compose(est, deps) {
      невозможны — колонка появляется только вместе со своим рендерером. */
   const layoutRenderers = {
     number: p => esc(p.number),
-    fill: p => (p.fill || []).map(f => `${esc(itemText(f.word))} — ${Number(f.count) || 0}`).join("<br>") || "—",
+    fill: p => (p.fill || []).map(f => f.noCount ? esc(itemText(f.word)) : `${esc(itemText(f.word))} — ${Number(f.count) || 0}`).join("<br>") || "—",
     modules: p => Number(p.modules) || 0,
     box: p => `${esc(itemText(p.box?.name || "Монтажная коробка не подобрана", p.box?.code))}`
       + (options.articles && p.box?.code ? ` [${esc(p.box.code)}]` : "")
