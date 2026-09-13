@@ -135,7 +135,8 @@ test("реестр: в каких постах группа и сколько м
     place(1, "Холл", EIKON, 0), place(1, "Холл", EIKON, 1), place(4, "Холл"), place(2, "Спальня")
   ]);
   const hall = reg.byKey.get("холл");
-  assert.equal(hall.placeCount, 3);
+  assert.equal(hall.placeCount, 2, "мест управления два — ПОСТА два (p1 и p4), хоть клавиш три");
+  /* post.placeCount по-прежнему считает КЛАВИШИ поста: в p1 их две, в p4 одна. */
   assert.deepEqual(hall.posts, [{ id: "p1", number: 1, placeCount: 2 }, { id: "p4", number: 4, placeCount: 1 }]);
   assert.deepEqual(reg.groups.map(g => g.label), ["Холл", "Спальня"]);   /* порядок — по первому месту */
 });
@@ -342,18 +343,48 @@ test("каталог видит ОДИН И ТОТ ЖЕ ДИАЛОГ: те же 
   assert.deepEqual(base, expected);
 });
 
-test("переключатели достаются первым местам ПО ПЛАНУ (пост, затем клавиша в посте)", () => {
-  /* Наше решение о порядке — по номеру поста, внутри поста по индексу клавиши. Подаём список
-     задом наперёд: раскладка обязана следовать плану, а не вызову. */
+test("★ место управления — ПОСТ: клавиши одной рамки это выключатели, те же клавиши по постам — проходная", () => {
+  /* Правило владельца 13.09: проходная существует только МЕЖДУ постами. Одни и те же пять клавиш
+     «Кухня» дают ПЯТЬ ВЫКЛЮЧАТЕЛЕЙ в одной рамке и переключатели+инверторы, когда разнесены по
+     пяти постам. Раньше счёт шёл по клавишам, и рамка из пяти клавиш требовала проходную из пяти
+     точек внутри одного поста — неверная смета в обе стороны (см. HANDOFF 13.09). */
+  const inOnePost = [0, 1, 2, 3, 4].map(i => place(1, "Кухня", EIKON, i));   /* пост 1, пять клавиш */
+  const one = plan({ scheme: "classic", places: inOnePost }, deps);
+  assert.equal(one.groups[0].placeCount, 1, "пять клавиш в одном посту — ОДНО место управления");
+  assert.deepEqual(codes(one), ["20001.0", "20001.0", "20001.0", "20001.0", "20001.0"]);
+  assert.deepEqual(one.totals, { switch: 5, changeover: 0, inverter: 0, button: 0 });
+  assert.equal(one.missingTotal, 0);
+
+  const acrossPosts = [1, 2, 3, 4, 5].map(n => place(n, "Кухня", EIKON, 0));   /* те же пять — по постам */
+  const many = plan({ scheme: "classic", places: acrossPosts }, deps);
+  assert.equal(many.groups[0].placeCount, 5, "пять постов — пять мест управления");
+  assert.deepEqual(codes(many), ["20005.0", "20005.0", "20013.0", "20013.0", "20013.0"]);
+  assert.deepEqual(many.totals, { switch: 0, changeover: 2, inverter: 3, button: 0 });
+
+  /* Раскладка воспроизводима при перестановке входа: единица счёта — пост, порядок канонический. */
+  const base = plan({ scheme: "classic", places: acrossPosts }, deps);
+  Object.entries(PERMUTATIONS).forEach(([name, permute]) => {
+    assert.deepEqual(fingerprint(plan({ scheme: "classic", places: permute(acrossPosts) }, deps)),
+      fingerprint(base), "перестановка: " + name);
+  });
+});
+
+test("роль раздаётся ПОСТУ, а не клавише: клавиши одного поста — одна роль, инвертор на последнем посту", () => {
+  /* Место управления = пост. Клавиши одной рамки получают ОДНУ роль (нажимаются с одной точки), а
+     какой пост станет инвертором, решает канонический порядок ПОСТОВ, а не порядок входа. Подаём
+     задом наперёд: пост 1 с двумя клавишами, посты 2 и 3 по одной. */
   const res = plan({ scheme: "classic", places: [
-    place(3, "Холл", EIKON, 0), place(1, "Холл", EIKON, 1), place(1, "Холл", EIKON, 0)
+    place(3, "Холл", EIKON, 0), place(2, "Холл", EIKON, 0),
+    place(1, "Холл", EIKON, 1), place(1, "Холл", EIKON, 0)
   ] }, deps);
   const at = (post, key) => res.places.find(p => p.postNumber === post && p.keyIndex === key);
-  assert.equal(at(1, 0).role, ROLES.CHANGEOVER);   /* пост 1, клавиша 0 — первое место */
-  assert.equal(at(1, 1).role, ROLES.CHANGEOVER);   /* пост 1, клавиша 1 — второе */
-  assert.equal(at(3, 0).role, ROLES.INVERTER);     /* пост 3 — третье */
-  assert.deepEqual(res.places.map(p => p.placeNo), [3, 2, 1]);
-  assert.deepEqual(res.totals, { switch: 0, changeover: 2, inverter: 1, button: 0 });
+  assert.equal(at(1, 0).role, ROLES.CHANGEOVER);   /* пост 1 — первое место… */
+  assert.equal(at(1, 1).role, ROLES.CHANGEOVER);   /* …обе его клавиши несут одну роль */
+  assert.equal(at(2, 0).role, ROLES.CHANGEOVER);   /* пост 2 — второе место */
+  assert.equal(at(3, 0).role, ROLES.INVERTER);     /* пост 3 — третье, инвертор всегда здесь */
+  assert.equal(res.groups[0].placeCount, 3, "три ПОСТА — три места управления, хоть клавиш четыре");
+  assert.deepEqual(res.places.map(p => p.placeNo), [3, 2, 1, 1]);   /* обе клавиши поста 1 — «место 1» */
+  assert.deepEqual(res.totals, { switch: 0, changeover: 3, inverter: 1, button: 0 });
 });
 
 test("место без номера поста уходит в КОНЕЦ цепи: инвертор достаётся ему, а не посту с плана", () => {
@@ -418,23 +449,25 @@ test("одинаковые адрес, группа и серия — поряд
 
 test("ПОЗИЦИЯ клавиши в ключе сортировки решает РАНЬШЕ товара клавиши", () => {
   /* Порядок членов ключа — не косметика, а «как человек читает пост»: клавиши слева направо по
-     ПОЗИЦИИ, а не по тому, какой товар в них вставлен. В остальных фикстурах у клавиш одного
-     поста товар совпадает, поэтому перестановка этих двух членов ничего не меняла и правило
-     держалось на честном слове. Здесь товары РАЗНЫЕ и упорядочены ПРОТИВ позиций: по keyIndex
-     порядок 0, 1, 2, по keyId — ровно обратный. Поменяй члены ключа местами — инвертор (42.33 €)
-     уедет с третьей клавиши поста на первую, а на плане и в листе монтажника он обязан стоять
-     на третьем по счёту месте. */
+     ПОЗИЦИИ, а не по тому, какой товар в них вставлен. Здесь товары РАЗНЫЕ и упорядочены ПРОТИВ
+     позиций: по keyIndex порядок 0, 1, 2, по keyId — ровно обратный. Канонический порядок обязан
+     идти по позиции; на этом держатся воспроизводимость раскладки и сортировка строк листа
+     монтажника (rowsByPost сортирует по keyIndex). */
   const key = (keyIndex, keyId) =>
     ({ postId: "p1", postNumber: 1, keyIndex, keyId, series: EIKON, group: "Холл" });
   const list = [key(0, "k9"), key(1, "k5"), key(2, "k1")];
   assert.deepEqual(LG.canonicalOrder(list), [0, 1, 2]);              /* по keyId было бы [2, 1, 0] */
   assert.deepEqual(LG.canonicalOrder(list.slice().reverse()), [2, 1, 0]);
+  /* Три клавиши ОДНОГО поста — одно место управления: все три обычные выключатели, «место 1 из 1».
+     Ролей позиция клавиши внутри поста больше не различает (роль у поста одна), но порядок ключа
+     проверен выше напрямую на canonicalOrder. */
   const res = plan({ scheme: "classic", places: list }, deps);
   const at = i => res.places.find(p => p.keyIndex === i);
-  assert.equal(at(0).code, "20005.0");
-  assert.equal(at(1).code, "20005.0");
-  assert.equal(at(2).code, "20013.0", "инвертор — на ТРЕТЬЕЙ клавише, а не на клавише с товаром k9");
-  assert.deepEqual(res.places.map(p => p.placeNo), [1, 2, 3]);
+  assert.equal(at(0).code, "20001.0");
+  assert.equal(at(1).code, "20001.0");
+  assert.equal(at(2).code, "20001.0");
+  assert.equal(res.groups[0].placeCount, 1);
+  assert.deepEqual(res.places.map(p => p.placeNo), [1, 1, 1]);
 });
 
 test("порядок различает места ТЕМИ ЖЕ сериями, что и подбор: канон читает deps.seriesOf", () => {
@@ -449,26 +482,28 @@ test("порядок различает места ТЕМИ ЖЕ сериями,
   [list, list.slice().reverse()].forEach(places => {
     const res = plan({ scheme: "classic", places }, { findMechanism, seriesOf });
     const roleOf = s => res.places[places.findIndex(p => p.key.vimarSeries === s)].role;
-    assert.equal(roleOf("Arke"), ROLES.CHANGEOVER);
-    assert.equal(roleOf("Eikon Evo"), ROLES.CHANGEOVER);
-    assert.equal(roleOf("Neve Up"), ROLES.INVERTER);   /* инвертор всегда на Neve Up, а не на входном первом */
+    /* Один пост — одно место управления: все три клавиши выключатели, серия у каждой своя. Порядок
+       по сериям проверен выше на canonicalOrder; ролей внутри поста он больше не различает. */
+    assert.equal(roleOf("Arke"), ROLES.SWITCH);
+    assert.equal(roleOf("Eikon Evo"), ROLES.SWITCH);
+    assert.equal(roleOf("Neve Up"), ROLES.SWITCH);
   });
 });
 
-test("места без позиции клавиши: раскладка ролей и СУММА не зависят от порядка входа", () => {
-  /* Три клавиши в одном посту, позиции не переданы. Раньше ключ сортировки на этом обрывался, и
-     роли раздавались по порядку входа: инвертор (42.33 € на Eikon, 29.85 € на Arke, а на Neve Up
-     его нет вовсе) доставался тому, кого первым положили в список. */
+test("клавиши без позиции в одном посту — ОДНО место: все выключатели, при любом порядке входа", () => {
+  /* Три клавиши в одном посту, позиции не переданы. Место управления одно (пост один), поэтому все
+     три — обычные выключатели, независимо от серии и от порядка входа. Раньше счёт по клавишам
+     давал здесь проходную из трёх точек внутри рамки (переключатели + инвертор) — неверная смета. */
   const list = [bare("Холл", ARKE, 1), bare("Холл", EIKON, 1), bare("Холл", NEVE, 1)];
   const check = places => {
     const res = plan({ scheme: "classic", places }, deps);
     const bySeries = s => res.places.find(p => p.series && p.series[0] === s);
-    assert.equal(res.groups[0].placeCount, 3);
-    assert.equal(bySeries("Arke").code, "19005.0");          /* Arke и Eikon — переключатели… */
-    assert.equal(bySeries("Eikon Evo").code, "20005.0");
-    assert.equal(bySeries("Neve Up").role, ROLES.INVERTER);  /* …а инвертор всегда на Neve Up, */
-    assert.equal(bySeries("Neve Up").missingReason, GAPS.NOT_IN_SERIES);   /* где его нет в серии */
-    assert.equal(sum(res), 44.26);
+    assert.equal(res.groups[0].placeCount, 1);               /* один пост — одно место управления */
+    assert.equal(bySeries("Arke").code, "19001.0");          /* все выключатели своей серии */
+    assert.equal(bySeries("Eikon Evo").code, "20001.0");
+    assert.equal(bySeries("Neve Up").code, "09001.0.250");   /* у Neve Up выключатель ЕСТЬ (в отличие от инвертора) */
+    assert.equal(res.missingTotal, 0);
+    assert.equal(sum(res), 41.91);                           /* 14.52 + 20.26 + 7.13 */
   };
   [list, list.slice().reverse(), [list[1], list[2], list[0]], [list[2], list[0], list[1]]].forEach(check);
 });
@@ -497,34 +532,34 @@ test("подпись серий в ключе сортировки НЕСКЛЕ�
     .forEach((places, i) => {
       const res = plan({ scheme: "classic", places }, deps);
       const note = "перестановка " + i;
-      /* 18.47 + 18.47: переключатели достаются честной серии, инвертор — склеенной, а её в
-         каталоге нет (правило «чужую серию не подставляем»), отсюда пробел вместо 29.85 €. */
-      assert.equal(sum(res), 36.94, note);
+      /* Один пост — три выключателя. Склеенная подпись серий каталогу неизвестна (правило «чужую
+         серию не подставляем»), отсюда пробел вместо 14.52 €; честные — по 19001.0. Что подпись в
+         ключе сортировки НЕсклеиваема, проверяет firstOf выше — на роли внутри поста это уже не
+         влияет, но от порядка входа результат зависеть не должен по-прежнему. */
+      assert.equal(sum(res), 29.04, note);
       assert.equal(res.missingTotal, 1, note);
       const bad = res.places.find(p => p.series && p.series.length === 1);
-      assert.equal(bad.role, ROLES.INVERTER, note);
+      assert.equal(bad.role, ROLES.SWITCH, note);
       assert.equal(bad.missingReason, GAPS.NOT_IN_SERIES, note);
       assert.deepEqual(res.places.filter(p => p.series && p.series.length === 2).map(p => p.code),
-        ["19005.0", "19005.0"], note);
+        ["19001.0", "19001.0"], note);
     });
 });
 
-test("серия клавиши неизвестна — место уходит в КОНЕЦ цепи, как всякое пустое поле ключа", () => {
-  /* Подпись серий — последнее содержательное поле ключа, и её пустота обязана вести себя как
-     пустота, а не как значение: механизма место без серии не получит в любом случае (пробел
-     NO_SERIES), но от его позиции зависят ДЕНЬГИ соседей. Стой оно в начале цепи, переключатель
-     (25.79 €) достался бы ему, а настоящему месту с плана — инвертор (42.33 €): +16.54 € из
-     ниоткуда. Проверяем при всех перестановках — правило про порядок, а не про вход. */
+test("серия клавиши неизвестна — своё место остаётся пробелом, соседи по посту считаются", () => {
+  /* Одна из клавиш поста без серии: механизма ей не подобрать (пробел NO_SERIES). Место управления
+     у поста ОДНО, поэтому остальные его клавиши — обычные выключатели, а не проходная. Проверяем
+     при всех перестановках: правило про пост, а не про порядок входа. */
   const at = () => ({ postId: "p1", postNumber: 1, keyId: 7, group: "Холл", series: EIKON });
   const blind = () => ({ postId: "p1", postNumber: 1, keyId: 7, group: "Холл" });   /* серии нет вовсе */
   [[at(), at(), blind()], [blind(), at(), at()], [at(), blind(), at()]].forEach((places, i) => {
     const res = plan({ scheme: "classic", places }, deps);
     const note = "перестановка " + i;
     const lost = res.places.find(p => !p.series);
-    assert.equal(lost.role, ROLES.INVERTER, note);          /* последний в цепи — он */
+    assert.equal(lost.role, ROLES.SWITCH, note);            /* один пост — выключатель */
     assert.equal(lost.missingReason, GAPS.NO_SERIES, note);
-    assert.deepEqual(res.places.filter(p => p.series).map(p => p.code), ["20005.0", "20005.0"], note);
-    assert.equal(sum(res), 51.58, note);
+    assert.deepEqual(res.places.filter(p => p.series).map(p => p.code), ["20001.0", "20001.0"], note);
+    assert.equal(sum(res), 40.52, note);                    /* два выключателя 20001.0 по 20.26 */
   });
 });
 
@@ -685,7 +720,7 @@ test("дубль места: N не растёт, механизм не подм
 test("дубль опознаётся по посту И клавише: соседняя клавиша того же поста дублем не считается", () => {
   const res = plan({ scheme: "classic", places: [place(1, "Холл", EIKON, 0), place(1, "Холл", EIKON, 1)] }, deps);
   assert.deepEqual(res.duplicates, []);
-  assert.deepEqual(codes(res), ["20005.0", "20005.0"]);   /* два места одной группы */
+  assert.deepEqual(codes(res), ["20001.0", "20001.0"]);   /* одно место (один пост) — два выключателя */
 });
 
 test("места без адреса клавиши дублями НЕ объявляются: различить их нечем", () => {
@@ -693,7 +728,7 @@ test("места без адреса клавиши дублями НЕ объя
   const bare = { postId: "p1", postNumber: 1, series: EIKON, group: "Кухня" };
   const res = plan({ scheme: "classic", places: [bare, Object.assign({}, bare)] }, deps);
   assert.deepEqual(res.duplicates, []);
-  assert.deepEqual(codes(res), ["20005.0", "20005.0"]);
+  assert.deepEqual(codes(res), ["20001.0", "20001.0"]);   /* обе клавиши одного поста — выключатели */
 });
 
 test("две ОДИНАКОВЫЕ клавиши 20021 в одном посту — два места, а не место и «дубль»", () => {
@@ -715,14 +750,15 @@ test("две ОДИНАКОВЫЕ клавиши 20021 в одном посту 
   const flipped = plan({ scheme: "classic", places: [right, left] }, deps);
   assert.deepEqual(flipped.groups.map(g => [g.label, g.placeCount]), [["Кухня", 1], ["Холл", 1]]);
 
-  /* Та же пара клавиш в ОДНОЙ группе: два места, значит два переключателя, а не один выключатель. */
+  /* Та же пара клавиш в ОДНОЙ группе и в ОДНОМ посту: одно место управления (пост один), значит
+     два обычных выключателя, а не проходная из двух точек внутри рамки. */
   const same = plan({ scheme: "classic", places: [
     { postId: "p1", postNumber: 1, key: key20021, group: "Холл" },
     { postId: "p1", postNumber: 1, key: key20021, group: "Холл" }
   ] }, deps);
-  assert.equal(same.groups[0].placeCount, 2);
-  assert.deepEqual(codes(same), ["20005.0", "20005.0"]);
-  assert.equal(sum(same), 51.58);
+  assert.equal(same.groups[0].placeCount, 1);
+  assert.deepEqual(codes(same), ["20001.0", "20001.0"]);
+  assert.equal(sum(same), 40.52);
 });
 
 test("позиция клавиши задана — дубль по-прежнему ловится, товар при этом ни при чём", () => {
@@ -767,6 +803,20 @@ test("реле: на каждом месте кнопка ХХ008.0, на гру
   assert.deepEqual(roles(res), [ROLES.BUTTON, ROLES.BUTTON, ROLES.BUTTON]);
   assert.deepEqual(res.relays.map(r => [r.groupLabel, r.buttonCount, r.count]), [["Холл", 2, 1], ["Кухня", 1, 1]]);
   assert.equal(res.relayTotal, 2);
+});
+
+test("реле: кнопки и реле считаются по КЛАВИШАМ, а не по местам управления (постам)", () => {
+  /* Кнопку монтируют на КАЖДУЮ клавишу и заводят на реле, поэтому buttonCount и число реле —
+     по клавишам, а не по постам. Пять клавиш «Холл» в ОДНОМ посту — это одно место управления
+     (нажимаются с одной точки), но пять кнопок и, по ceil(5/4), ДВА реле. Считай мы реле от числа
+     мест (posts=1), вышло бы одно реле — молча заниженная смета «Реле». Числа подобраны так, что
+     «по клавишам» (5→2 реле) и «по постам» (1→1 реле) РАСХОДЯТСЯ. */
+  const res = plan({ scheme: "relay", places: [0, 1, 2, 3, 4].map(i => place(1, "Холл", EIKON, i)) }, deps);
+  assert.equal(res.groups[0].placeCount, 1, "пять клавиш одной рамки — ОДНО место управления");
+  assert.equal(res.relays[0].buttonCount, 5, "кнопок пять — по числу клавиш, а не постов");
+  assert.equal(res.relays[0].count, 2, "ceil(5/4) = два реле; по одному посту вышло бы одно");
+  assert.equal(res.relayTotal, 2);
+  assert.deepEqual(res.totals, { switch: 0, changeover: 0, inverter: 0, button: 5 }, "кнопка на каждой клавише");
 });
 
 test("реле: артикул НЕ подставляется — количество есть, article = null", () => {
@@ -1268,9 +1318,9 @@ test("индекс клавиши читается ТОЛЬКО в десяти�
   assert.equal(idx(HUGE), null, "Infinity — не позиция");
   const huge = () => ({ postId: "p1", postNumber: 1, keyIndex: HUGE, series: EIKON, group: "Холл" });
   const overflow = plan({ scheme: "classic", places: [huge(), huge()] }, deps);
-  assert.deepEqual(overflow.duplicates, []);
-  assert.equal(overflow.groups[0].placeCount, 2);
-  assert.deepEqual(codes(overflow), ["20005.0", "20005.0"]);
+  assert.deepEqual(overflow.duplicates, [], "ложного дубля нет — оба места в расчёте");
+  assert.equal(overflow.groups[0].placeCount, 1, "обе клавиши одного поста — одно место управления");
+  assert.deepEqual(codes(overflow), ["20001.0", "20001.0"]);   /* два выключателя одной рамки */
   assert.deepEqual(overflow.places.map(p => p.keyIndex), [null, null], "позиция честно не определена");
   /* Место с непонятной позицией не опознаётся — и потому не может стать ложным дублем места 16. */
   const at = keyIndex => ({ postId: "p1", postNumber: 1, keyIndex, series: EIKON, group: "Холл" });
@@ -1278,8 +1328,8 @@ test("индекс клавиши читается ТОЛЬКО в десяти�
   assert.equal(LG.identityOf(at(16)), LG.identityOf(at("16")), "«16» и 16 — одна клавиша");
   const res = plan({ scheme: "classic", places: [at(16), at("0x10")] }, deps);
   assert.deepEqual(res.duplicates, [], "ложного дубля нет — оба места в расчёте");
-  assert.equal(res.groups[0].placeCount, 2);
-  assert.deepEqual(codes(res), ["20005.0", "20005.0"]);   /* два переключателя, а не один выключатель */
+  assert.equal(res.groups[0].placeCount, 1, "обе клавиши одного поста — одно место управления");
+  assert.deepEqual(codes(res), ["20001.0", "20001.0"]);   /* два выключателя одной рамки, оба в расчёте */
 });
 
 test("id клавиши: пустое явное поле — «не задано», тогда берём товар", () => {
@@ -1404,13 +1454,11 @@ test("РЕГИСТР СЕРИЙ: каталогу, который регистр
     fingerprint(res), "порядок входа ничего не меняет и здесь");
 });
 
-test("РЕГИСТР СЕРИЙ: порядок и подбор различают места ОДНИМИ И ТЕМИ ЖЕ сериями", () => {
-  /* Ключ кэша и подпись серий в ключе сортировки обязаны жить по одному правилу. Приведи регистр
-     в ПОДПИСИ — и два места, отличающиеся только написанием серии, станут для порядка
-     неразличимы: тайбрейк провалится на позицию во входном списке, а вместе с ним от входа снова
-     начнёт зависеть, кому достанется переключатель (25.79 €), а кому инвертор (42.33 €).
-     Три места в одном посту без позиций клавиш: адрес, группа и товар одинаковы, различают их
-     ТОЛЬКО серии, причём два из трёх — одна серия в разном написании. */
+test("РЕГИСТР СЕРИЙ: результат в одном посту не зависит от порядка входа при любом написании серии", () => {
+  /* Что подпись серий в ключе сортировки НЕсклеиваема и регистрозависима — проверяют тесты
+     подписи и РЕГИСТР СЕРИЙ на РАЗНЫХ постах выше. Здесь три клавиши в ОДНОМ посту (адрес, группа
+     и товар одинаковы, различает их только написание серии): место управления одно, поэтому все
+     три — выключатели, и результат обязан быть одним при любом порядке входа. */
   const at = series => ({ postId: "p1", postNumber: 1, keyId: 7, group: "Холл", series });
   const list = [at(ARKE), at(["Eikon Evo"]), at(["EIKON EVO"])];
   /* Места опознаём НАПИСАНИЕМ СЕРИИ — единственным, чем они различаются (входные индексы следуют
@@ -1422,9 +1470,8 @@ test("РЕГИСТР СЕРИЙ: порядок и подбор различаю
   runs.forEach((res, i) => {
     assert.deepEqual(print(res), print(runs[0]), "перестановка " + i);
     assert.equal(sum(res), sum(runs[0]), "перестановка " + i);
-    /* Роли раздаются по каноническому порядку: два переключателя и один инвертор, и КАКОЙ именно
-       серии достался инвертор — одно и то же при любом входе (это и проверяет слепок выше). */
-    assert.deepEqual(res.totalsRequired, { switch: 0, changeover: 2, inverter: 1, button: 0 });
+    /* Один пост — одно место: три выключателя, независимо от написания серии. */
+    assert.deepEqual(res.totalsRequired, { switch: 3, changeover: 0, inverter: 0, button: 0 });
     assert.equal(res.missingTotal, 0);
   });
 });

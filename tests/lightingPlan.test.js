@@ -52,15 +52,17 @@ test("местом управления становится ТОЛЬКО кла
   assert.equal(places[0].keyId, 1);
 });
 
-test("keyIndex — ПОЗИЦИЯ в посте: две одинаковые клавиши это два места, а не дубль", () => {
-  /* Соблазн взять индекс через indexOf даёт обеим клавишам адрес 0 — модуль опознал бы дубль,
-     посчитал бы одно место и выдал выключатель (20.26 €) вместо двух переключателей. */
+test("keyIndex — ПОЗИЦИЯ в посте: две клавиши одного поста не дубль, но ОДНО место управления", () => {
+  /* Соблазн взять индекс через indexOf даёт обеим клавишам адрес 0 — модуль опознал бы дубль и
+     выкинул бы одну клавишу. Позиция читается как 0 и 1, обе клавиши остаются. При этом место
+     управления у них ОДНО (пост один), поэтому обе — обычные выключатели, а не проходная внутри
+     рамки: нажимать их всё равно с одной точки (правило «место управления = пост»). */
   const places = collect([{ id: "p1", number: 1, mechanismIds: [1, 1], keyGroups: ["Кухня", "Кухня"] }]);
   assert.deepEqual(places.map(p => p.keyIndex), [0, 1]);
   const { plan } = planOf([{ id: "p1", number: 1, mechanismIds: [1, 1], keyGroups: ["Кухня", "Кухня"] }]);
   assert.deepEqual(plan.duplicates, []);
-  assert.equal(plan.groups[0].placeCount, 2);
-  assert.deepEqual(plan.places.map(p => p.code), ["20005.0", "20005.0"]);
+  assert.equal(plan.groups[0].placeCount, 1);   /* один пост — одно место управления */
+  assert.deepEqual(plan.places.map(p => p.code), ["20001.0", "20001.0"]);
 });
 
 test("keyIndex всегда десятичное число — модуль читает его именно так", () => {
@@ -219,16 +221,21 @@ test("isExtraLowVoltage читает напряжение, а не любые ц
 
 /* ── раскладка по постам ──────────────────────────────────────────────────────────── */
 
-test("классическая схема по числу мест группы: 1 → выключатель, 2 → переключатели, 3 → +инвертор", () => {
+test("классическая схема по числу ПОСТОВ группы: 1 → выключатель, 2 → переключатели, 3 → +инвертор", () => {
+  /* Число мест управления — это число ПОСТОВ группы, а не клавиш: клавиши одной рамки — одно
+     место. Поэтому группу «на N мест» собираем из N РАЗНЫХ постов по одной клавише в каждом. */
   const posts = [
     { id: "p1", number: 1, mechanismIds: [1], keyGroups: ["Одна"] },
-    { id: "p2", number: 2, mechanismIds: [1, 1], keyGroups: ["Две", "Две"] },
-    { id: "p3", number: 3, mechanismIds: [1, 1, 1], keyGroups: ["Три", "Три", "Три"] }
+    { id: "p2", number: 2, mechanismIds: [1], keyGroups: ["Две"] },
+    { id: "p3", number: 3, mechanismIds: [1], keyGroups: ["Две"] },
+    { id: "p4", number: 4, mechanismIds: [1], keyGroups: ["Три"] },
+    { id: "p5", number: 5, mechanismIds: [1], keyGroups: ["Три"] },
+    { id: "p6", number: 6, mechanismIds: [1], keyGroups: ["Три"] }
   ];
   const { rows } = planOf(posts);
-  assert.deepEqual(rows.get("p:p1").map(r => r.code), ["20001.0"]);
-  assert.deepEqual(rows.get("p:p2").map(r => r.code), ["20005.0", "20005.0"]);
-  const three = rows.get("p:p3").map(r => r.code).sort();
+  assert.deepEqual(rows.get("p:p1").map(r => r.code), ["20001.0"]);            /* 1 пост — выключатель */
+  assert.deepEqual([rows.get("p:p2")[0].code, rows.get("p:p3")[0].code], ["20005.0", "20005.0"]);
+  const three = [rows.get("p:p4")[0].code, rows.get("p:p5")[0].code, rows.get("p:p6")[0].code].sort();
   assert.deepEqual(three, ["20005.0", "20005.0", "20013.0"]);
 });
 
@@ -291,8 +298,9 @@ const money = n => `${(Number(n) || 0).toFixed(2)} €`;
 
 test("блок печатает группы, подставленные роли и причины пробелов", () => {
   const { plan } = planOf([
-    { id: "p1", number: 1, mechanismIds: [1, 1], keyGroups: ["Кухня", "Кухня"] },
-    { id: "p2", number: 2, mechanismIds: [1], keyGroups: [""] }
+    { id: "p1", number: 1, mechanismIds: [1], keyGroups: ["Кухня"] },
+    { id: "p2", number: 2, mechanismIds: [1], keyGroups: ["Кухня"] },   /* Кухня из двух постов — переключатели */
+    { id: "p3", number: 3, mechanismIds: [1], keyGroups: [""] }
   ]);
   const html = LP.buildHtml(plan, { esc, money, total: 51.58 });
   assert.ok(html.includes("Кухня"));
