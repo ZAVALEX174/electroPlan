@@ -210,15 +210,19 @@ test("подпись кэша стабильна, когда ничего зна
 
 test("одинаковые пробелы из разных комнат склеиваются в одну печатную строку", () => {
   const rooms = [{ id: "A" }, { id: "B" }, { id: "C" }];
-  /* по посту БЕЗ группы в каждой из трёх комнат — три одинаковых пробела group-not-set */
-  const posts = [post("a", "A", ""), post("b", "B", ""), post("c", "C", "")];
+  /* В каждой из трёх комнат — пост группы «Свет» с ПОТЕРЯННОЙ клавишей (товар выпал из каталога,
+     прайс перезалит): один и тот же пробел KEY_UNKNOWN с одним groupKey. Три комнаты → должен
+     склеиться в ОДНУ печатную строку с «мест: 3», а не размножиться по комнате.
+     (Раньше здесь стоял пробел «группа не указана», но он исчез: клавиша без имени теперь
+     самостоятельный выключатель, а не пробел — см. resolveGroup.) */
+  const lost = (id, roomId) => ({ id, number: id, roomId, mechanismIds: [999], keyGroups: ["Свет"] });
+  const posts = [lost("a", "A"), lost("b", "B"), lost("c", "C")];
   const plan = planByRoomsFor(posts, rooms, "classic");
-  const notSet = plan.gaps.filter(g => g.kind === "group-not-set");
-  assert.equal(notSet.length, 1, "один пробел на все три комнаты, а не три");
-  assert.equal(notSet[0].places.length, 3, "места всех трёх комнат объединены (мест: 3)");
+  const unknown = plan.gaps.filter(g => g.kind === "key-unknown");
+  assert.equal(unknown.length, 1, "один пробел на все три комнаты, а не три");
+  assert.equal(unknown[0].places.length, 3, "места всех трёх комнат объединены (мест: 3)");
   const html = LP.buildHtml(plan, {});
   assert.ok(html.includes("мест: 3"), "печать: одна строка с «мест: 3»");
-  assert.equal((html.match(/Не указана группа света/g) || []).length, 1, "предупреждение не размножено");
 });
 
 test("relay-article из разных relay-комнат склеивается в одну строку", () => {
@@ -242,8 +246,8 @@ test("разреженный список мест — дыра попадает
   });
   assert.equal(plan.places.length, 3, "длина выдачи равна длине входа, дыр в ней нет");
   assert.equal(plan.missingTotal, 1, "дыра честно учтена как пробел, не потеряна");
-  assert.ok(plan.gaps.some(g => g.kind === "group-not-set" && g.places.includes(1)),
-    "у дыры честный пробел «группа не назначена» на её индексе");
+  assert.ok(plan.gaps.some(g => g.kind === "series-unknown" && g.places.includes(1)),
+    "у дыры честный пробел: своя группа-выключатель есть, но серии у неё нет");
 });
 
 test("undefined в списке мест не роняет расчёт — честный пробел, как у одиночного plan", () => {
@@ -258,7 +262,7 @@ test("undefined в списке мест не роняет расчёт — че
   assert.doesNotThrow(run, "защита на входе не даёт TypeError");
   const plan = run();
   assert.equal(plan.places.length, 2, "битое место занимает свою позицию");
-  assert.ok(plan.gaps.some(g => g.kind === "group-not-set"), "битое место — честный пробел");
+  assert.ok(plan.gaps.some(g => g.kind === "series-unknown"), "битое место — честный пробел (нет серии)");
 });
 
 /* ── supported при смешанных схемах (одна bell-комната не должна лгать про весь проект) ── */
@@ -337,29 +341,20 @@ test("order слитого плана — перестановка всех гл
   plan.order.forEach(i => assert.ok(plan.places[i], "order[" + i + "] указывает на существующее место"));
 });
 
-test("unassigned.places — глобальные индексы мест без группы", () => {
-  /* Мутация «unassigned.places не перемаплены»: место без группы в комнате A (глобальный индекс 1,
-     суб-индекс 0) попало бы в список как индекс 0 — а там место комнаты B, у которого группа ЕСТЬ. */
+test("место без имени группы раскладывается по своему глобальному индексу (remap)", () => {
+  /* Мутация «места не перемаплены»: место безымянной клавиши комнаты A (глобальный индекс 1,
+     суб-индекс 0) встало бы на индекс 0 — туда, где место комнаты B. Клавиша без имени теперь
+     самостоятельный выключатель (resolveGroup), а не пробел, — проверяем, что её ВЫКЛЮЧАТЕЛЬ
+     лёг на её собственный глобальный индекс, а не на чужой.
+     (Прежние тесты unassigned.places/placeCount удалены вместе с самим полем: «не назначенных»
+     мест больше не бывает — каждая клавиша попадает в какую-то группу.) */
   const rooms = [{ id: "A" }, { id: "B" }];
-  const posts = [post("b1", "B", "Свет"), post("a1", "A", "")];   /* a1 без группы, глоб. индекс 1 */
+  const posts = [post("b1", "B", "Свет"), post("a1", "A", "")];   /* a1 без имени, глоб. индекс 1 */
   const plan = planByRoomsFor(posts, rooms, "classic");
-  assert.deepEqual(plan.unassigned.places, [1], "место без группы адресуется глобальным индексом");
-  plan.unassigned.places.forEach(i => {
-    const pl = plan.places[i];
-    assert.ok(pl, "место без группы существует по индексу " + i);
-    assert.equal(pl.groupKey, "", "место индекса " + i + " действительно без группы");
-  });
-});
-
-test("unassigned.placeCount копится по партициям и равен числу мест без группы", () => {
-  /* Мутация «placeCount не копится»: счётчик остался бы 0, хотя мест без группы два (по одному в
-     каждой комнате). Счётчик обязан совпасть с длиной списка — иначе интерфейс покажет «0
-     недозаполненных» при двух пустых. */
-  const rooms = [{ id: "A" }, { id: "B" }];
-  const posts = [post("a1", "A", ""), post("b1", "B", "")];   /* оба без группы, разные комнаты */
-  const plan = planByRoomsFor(posts, rooms, "classic");
-  assert.equal(plan.unassigned.places.length, 2, "два места без группы собраны из двух комнат");
-  assert.equal(plan.unassigned.placeCount, plan.unassigned.places.length, "счётчик = длине списка");
+  assert.equal(plan.places[1].postId, "a1", "место комнаты A стоит на своём глобальном индексе");
+  assert.equal(plan.places[1].role, LG.ROLES.SWITCH, "безымянная клавиша — самостоятельный выключатель");
+  assert.equal(plan.places[1].code, "20001.0");
+  assert.equal(plan.places[0].postId, "b1", "место комнаты B — на индексе 0");
 });
 
 test("реле relay-комнаты переносится в слитый план и печатается в КП", () => {
@@ -436,10 +431,13 @@ test("комната печатается у реле", () => {
 
 test("комната печатается у пробела одной комнаты", () => {
   const rooms = [{ id: "A", name: "Гостиная" }];
-  const plan = planByRoomsFor([namedPost("a1", "A", "")], rooms, "classic");   /* без группы → пробел */
+  /* Пост группы «Свет» с потерянной клавишей → пробел KEY_UNKNOWN этой комнаты. Раньше здесь стоял
+     пробел «группа не указана», но он исчез (клавиша без имени = выключатель, не пробел). */
+  const posts = [{ id: "a1", number: "a1", roomId: "A", mechanismIds: [999], keyGroups: ["Свет"] }];
+  const plan = planByRoomsFor(posts, rooms, "classic");
   const h = html(plan);
   assert.ok(h.includes("Гостиная"), "пробел одной комнаты называет её");
-  assert.ok(h.includes("Не указана группа света"), "текст пробела на месте");
+  assert.ok(h.includes(LG.GAP_TEXTS[LG.GAPS.KEY_UNKNOWN]), "текст пробела на месте");
 });
 
 test("пост без комнаты — своя честная подпись «Без помещения», а не пустая", () => {
@@ -450,14 +448,21 @@ test("пост без комнаты — своя честная подпись 
 
 test("склеенный пробел РАЗНЫХ комнат единой комнаты не называет (склейка сохранена)", () => {
   const rooms = [{ id: "A", name: "Гостиная" }, { id: "B", name: "Спальня" }, { id: "C", name: "Кухня" }];
-  const posts = [namedPost("a", "A", ""), namedPost("b", "B", ""), namedPost("c", "C", "")];
+  /* Одна и та же группа «Свет» с потерянной клавишей в трёх комнатах → один пробел KEY_UNKNOWN,
+     склеенный по всем трём (раньше это проверялось пробелом «группа не указана», которого больше
+     нет — см. resolveGroup). */
+  const lost = (id, roomId) => ({ id, number: id, roomId, mechanismIds: [999], keyGroups: ["Свет"] });
+  const posts = [lost("a", "A"), lost("b", "B"), lost("c", "C")];
   const plan = planByRoomsFor(posts, rooms, "classic");
-  const notSet = plan.gaps.filter(g => g.kind === "group-not-set");
-  assert.equal(notSet.length, 1, "три пустые группы склеены в одну строку");
-  assert.equal(notSet[0].roomLabel, null, "у склеенного из трёх комнат пробела единой комнаты нет");
+  const unknown = plan.gaps.filter(g => g.kind === "key-unknown");
+  assert.equal(unknown.length, 1, "три комнаты склеены в одну строку");
+  assert.equal(unknown[0].roomLabel, null, "у склеенного из трёх комнат пробела единой комнаты нет");
   const h = html(plan);
   assert.ok(h.includes("мест: 3"), "печать: одна строка «мест: 3»");
-  assert.ok(!/Не указана группа света[^<]*(Гостиная|Спальня|Кухня)/.test(h),
+  /* Проверяем именно САМУ строку пробела (до её закрывающего тега): комнатная подпись у групп
+     света рядом законна, а вот у СКЛЕЕННОГО пробела единой комнаты быть не должно. */
+  const gapText = LG.GAP_TEXTS[LG.GAPS.KEY_UNKNOWN].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  assert.ok(!new RegExp(gapText + "[^<]*(Гостиная|Спальня|Кухня)").test(h),
     "склеенная строка не приписана ни одной комнате — врать про место нельзя");
 });
 

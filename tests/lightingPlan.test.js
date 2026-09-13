@@ -80,11 +80,16 @@ test("группа передаётся СТРОКОЙ: «4.10» и «4.1» ос
   assert.deepEqual(plan.places.map(p => p.code), ["20001.0", "20001.0"]);
 });
 
-test("пост без keyGroups (старый проект) даёт места с пустой группой, а не падает", () => {
+test("пост без keyGroups (старый проект): клавиша это самостоятельный выключатель, а не пробел", () => {
+  /* Раньше клавиша без имени группы давала пробел NO_GROUP; теперь это самостоятельный свет
+     с одним местом управления — обычный выключатель, и старый проект открывается молча. */
   const { plan } = planOf([{ id: "p1", number: 1, mechanismIds: [1], keyGroups: undefined }]);
-  assert.equal(plan.places[0].missing, true);
-  assert.equal(plan.places[0].missingReason, LG.GAPS.NO_GROUP);
-  assert.ok(plan.gaps.some(g => g.kind === LG.GAPS.NO_GROUP));
+  assert.equal(plan.places[0].missing, false);
+  assert.equal(plan.places[0].role, LG.ROLES.SWITCH);
+  assert.equal(plan.places[0].code, "20001.0");
+  assert.equal(plan.gaps.length, 0);
+  /* Имя группы для документов программа проставляет сама. */
+  assert.equal(plan.places[0].groupLabel, "Пост 1 · клавиша 1");
 });
 
 /* ── потерянная клавиша: товара нет в каталоге (прайс перезалит) ───────────────────── */
@@ -129,7 +134,7 @@ test("потеря товара НЕ роняет N группы и НЕ мен�
 
 test("пробел потерянной клавиши — пробел ПОСТАВКИ: поставщик и монтажник обязаны его видеть", () => {
   /* «Изделие нужно, а заказать нечего» — это накладная и обвязка, а не блок «дозаполните
-     проект» (там место только у NO_GROUP и нераспознанной схемы). */
+     проект» (там место только у нераспознанной/неописанной схемы). */
   assert.equal(LG.isSupplyGap(LG.GAPS.KEY_UNKNOWN), true);
   assert.equal(LG.isProjectGap(LG.GAPS.KEY_UNKNOWN), false);
 });
@@ -258,10 +263,13 @@ test("строки поста отсортированы по позиции к�
 });
 
 test("строка несёт причину пробела СЛОВАМИ РАСЧЁТА, а не своим текстом", () => {
-  const { rows } = planOf([{ id: "p1", number: 1, mechanismIds: [1], keyGroups: [""] }]);
+  /* Клавиша Plana: механизма её серии в каталоге-заглушке нет → честный пробел NOT_IN_SERIES.
+     Текст строки обязан прийти из GAP_TEXTS расчёта, а не из своего словаря интерфейса. */
+  const { rows } = planOf([{ id: "p1", number: 1, mechanismIds: [2], keyGroups: ["Кухня"] }]);
   const row = rows.get("p:p1")[0];
   assert.equal(row.missing, true);
-  assert.equal(row.missingText, LG.GAP_TEXTS[LG.GAPS.NO_GROUP]);
+  assert.equal(row.missingReason, LG.GAPS.NOT_IN_SERIES);
+  assert.equal(row.missingText, LG.GAP_TEXTS[LG.GAPS.NOT_IN_SERIES]);
 });
 
 test("адрес поста читается одним правилом и на стороне приложения", () => {
@@ -300,12 +308,12 @@ test("блок печатает группы, подставленные рол�
   const { plan } = planOf([
     { id: "p1", number: 1, mechanismIds: [1], keyGroups: ["Кухня"] },
     { id: "p2", number: 2, mechanismIds: [1], keyGroups: ["Кухня"] },   /* Кухня из двух постов — переключатели */
-    { id: "p3", number: 3, mechanismIds: [1], keyGroups: [""] }
+    { id: "p3", number: 3, mechanismIds: [2], keyGroups: ["Прихожая"] }   /* Plana — механизма серии нет: пробел */
   ]);
   const html = LP.buildHtml(plan, { esc, money, total: 51.58 });
   assert.ok(html.includes("Кухня"));
   assert.ok(html.includes("Переключатель"));
-  assert.ok(html.includes(LG.GAP_TEXTS[LG.GAPS.NO_GROUP]), "причина пробела — словами расчёта");
+  assert.ok(html.includes(LG.GAP_TEXTS[LG.GAPS.NOT_IN_SERIES]), "причина пробела — словами расчёта");
   assert.ok(html.includes("Классическая"));
 });
 
@@ -352,10 +360,15 @@ test("шаблон с заполненной группой, размещённ�
   assert.deepEqual(posts.map(p => p.keyGroups), [[""], [""], [""]], "группы не приехали из шаблона");
 
   const { plan } = planOf(posts);
-  assert.equal(plan.groups.length, 0, "одной группы на три места не появилось");
-  assert.deepEqual(plan.places.map(p => p.missingReason),
-    [LG.GAPS.NO_GROUP, LG.GAPS.NO_GROUP, LG.GAPS.NO_GROUP],
-    "каждое место — честный пробел «группа не указана», а не выдуманная группа");
+  /* Группа шаблона не приезжает, поэтому каждый пост — БЕЗ имени группы. По новому правилу это не
+     пробел, а самостоятельный свет: каждый получает СВОЮ группу-выключатель. Проходной из трёх
+     точек внутри разных постов не возникает — ровно то, что защищает этот тест. */
+  assert.equal(plan.groups.length, 3, "три ОТДЕЛЬНЫЕ группы-выключателя, а не одна на три места");
+  plan.groups.forEach(g => assert.equal(g.placeCount, 1, "у каждой — одно место управления"));
+  assert.deepEqual(plan.places.map(p => p.role),
+    [LG.ROLES.SWITCH, LG.ROLES.SWITCH, LG.ROLES.SWITCH],
+    "каждое место — самостоятельный выключатель, а не проходная");
+  assert.equal(plan.totals.switch, 3, "три выключателя");
   assert.equal(plan.totals.changeover, 0, "переключателей не подставлено");
   assert.equal(plan.totals.inverter, 0, "инвертора не подставлено");
 });

@@ -141,11 +141,14 @@ test("реестр: в каких постах группа и сколько м
   assert.deepEqual(reg.groups.map(g => g.label), ["Холл", "Спальня"]);   /* порядок — по первому месту */
 });
 
-test("реестр: пустая группа не создаёт группу, а попадает в «не назначено»", () => {
+test("реестр: пустая группа даёт клавише СВОЮ группу-выключатель, а не «не назначено»", () => {
   const reg = buildRegistry([place(1, ""), place(2, "  "), place(3, null), place(4, "Кухня")]);
-  assert.equal(reg.groups.length, 1);
-  assert.equal(reg.unassigned.placeCount, 3);
-  assert.deepEqual(reg.unassigned.places, [0, 1, 2]);
+  assert.equal(reg.groups.length, 4, "три безымянные клавиши → три отдельные группы + «Кухня»");
+  const singles = reg.groups.filter(g => g.label !== "Кухня");
+  assert.equal(singles.length, 3);
+  singles.forEach(g => assert.equal(g.placeCount, 1, "безымянная клавиша — одно место управления"));
+  assert.equal(reg.byKey.get("кухня").placeCount, 1);
+  assert.equal(reg.unassigned, undefined, "«не назначено» больше не существует");
 });
 
 /* ─────────────────── классическая схема: формула ─────────────────── */
@@ -230,8 +233,8 @@ test("классическая схема: реле не считаются во
 /* ─────────────────── детерминированность ─────────────────── */
 
 /* Слепок результата, НЕ ЗАВИСЯЩИЙ от порядка входа: места опознаём по посту и клавише. Входные
-   индексы (index, order, group.places, unassigned.places, gaps[].places) — это ссылки на позицию
-   во ВХОДНОМ списке, они по определению следуют за ним и в слепок не берутся. */
+   индексы (index, order, group.places, gaps[].places) — это ссылки на позицию во ВХОДНОМ списке,
+   они по определению следуют за ним и в слепок не берутся. */
 const fingerprint = res => ({
   scheme: res.scheme, supported: res.supported, sum: sum(res),
   totals: res.totals, totalsRequired: res.totalsRequired, missingTotal: res.missingTotal,
@@ -283,7 +286,10 @@ test("СУММА СМЕТЫ не зависит от порядка входа: 
      42.33 €, переключатели 18.47 и 25.79. Пока «первые два» брались по порядку ВХОДА, от него
      зависело, какой серии достанется инвертор, — и вместе с ним итог проекта в деньгах. */
   const base = sum(plan({ scheme: "classic", places: MIXED }, deps));
-  assert.equal(base, 309.98);   /* цифра приколочена: смена правила порядка обязана быть заметной */
+  /* Цифра приколочена: смена правила порядка обязана быть заметной. В MIXED есть безымянная
+     клавиша поста 7 — теперь это самостоятельный выключатель Arke (19001.0, 14.52 €), а не
+     пробел, поэтому итог на 14.52 € выше прежних 309.98 € (см. правило resolveGroup). */
+  assert.equal(base, 324.50);
   Object.entries(PERMUTATIONS).forEach(([name, permute]) => {
     assert.equal(sum(plan({ scheme: "classic", places: permute(MIXED) }, deps)), base, "перестановка: " + name);
   });
@@ -655,40 +661,44 @@ test("набор серий — функция ОТ САМИХ СЕРИЙ, а н
   assert.equal(blind.places[0].series, undefined, "пустышки в серии места не выдаются за серию");
 });
 
-/* ─────────────────── пустая группа ─────────────────── */
+/* ─────────────────── пустая группа = самостоятельный выключатель ─────────────────── */
+/* Правило проекта (владелец 13.09.2026, п.3): клавиша без имени группы — это самостоятельный
+   свет со своим единственным местом управления, то есть обычный ВЫКЛЮЧАТЕЛЬ. Механизм
+   подбирается, цена считается, пробела «нет группы» НЕТ (см. resolveGroup, GAPS.NO_GROUP удалён). */
 
-test("клавиша без группы: подстановки НЕТ, честный пробел с причиной", () => {
+test("клавиша без группы: это самостоятельный выключатель, а не пробел", () => {
   const res = plan({ scheme: "classic", places: [place(1, ""), place(2, "Кухня")] }, deps);
-  assert.equal(res.places[0].code, null);
-  assert.equal(res.places[0].product, null);
-  assert.equal(res.places[0].role, null);
-  assert.equal(res.places[0].missing, true);
-  assert.equal(res.places[0].missingReason, GAPS.NO_GROUP);
-  assert.equal(res.unassigned.placeCount, 1);
-  assert.deepEqual(res.unassigned.places, [0]);
-  /* Соседняя клавиша с группой при этом считается как обычно. */
+  assert.equal(res.places[0].role, ROLES.SWITCH, "N=1 → выключатель");
+  assert.equal(res.places[0].code, "20001.0");
+  assert.ok(res.places[0].product, "механизм подобран");
+  assert.equal(res.places[0].missing, false);
+  assert.equal(res.places[0].missingReason, null);
+  assert.equal(res.places[0].placeCount, 1, "у самостоятельного света одно место управления");
+  /* Имя для документов программа проставляет сама — осмысленный локатор клавиши. */
+  assert.equal(res.places[0].groupLabel, "Пост 1 · клавиша 1");
+  /* Соседняя клавиша с группой считается как обычно. */
   assert.equal(res.places[1].code, "20001.0");
-  assert.ok(res.gaps.some(g => g.kind === GAPS.NO_GROUP && g.places.includes(0)));
+  /* Пробела, привязанного к этой клавише, быть не должно. */
+  assert.ok(!res.gaps.some(g => g.places && g.places.includes(0)));
 });
 
-test("клавиши без группы НЕ считаются местами управления чужой группы", () => {
-  /* Иначе две пустые клавиши схлопнулись бы в «группу из двух мест» и дали переключатели. */
+test("клавиши без группы НЕ склеиваются между собой в проходную", () => {
+  /* Иначе две пустые клавиши схлопнулись бы в «группу из двух мест» и дали переключатели вместо
+     двух самостоятельных выключателей: разный свет нельзя связывать по пустому (авто) имени. */
   const res = plan({ scheme: "classic", places: [place(1, ""), place(2, ""), place(3, "Кухня")] }, deps);
-  assert.deepEqual(codes(res), [null, null, "20001.0"]);
-  assert.equal(res.groups.length, 1);
-  assert.equal(res.missingTotal, 2);
+  assert.deepEqual(codes(res), ["20001.0", "20001.0", "20001.0"], "три выключателя");
+  assert.equal(res.groups.length, 3, "две безымянные клавиши — две отдельные группы + «Кухня»");
+  res.groups.forEach(g => assert.equal(g.placeCount, 1, "каждая — одно место управления"));
+  assert.equal(res.missingTotal, 0);
 });
 
-test("пробелы без группы схлопываются в ОДНУ запись, а не по записи на клавишу", () => {
-  /* У пробела без группы поле groupKey не задано, а в сохранённой записи оно null: пока их
-     сравнивали как есть, совпадение не срабатывало никогда и интерфейс получал по строке
-     «не указана группа света» на каждую клавишу. */
+test("много клавиш без группы: ни одного пробела, каждая — свой выключатель", () => {
+  /* Раньше три безымянные клавиши давали одну запись-пробел «не указана группа света»; теперь
+     пробелов нет вовсе — самый частый случай (поставил пост) обязан работать молча. */
   const res = plan({ scheme: "classic", places: [place(1, ""), place(2, ""), place(3, ""), place(4, "Кухня")] }, deps);
-  const noGroup = res.gaps.filter(g => g.kind === GAPS.NO_GROUP);
-  assert.equal(noGroup.length, 1);
-  assert.deepEqual(noGroup[0].places, [0, 1, 2]);
-  assert.equal(noGroup[0].groupKey, null);
-  assert.ok(noGroup[0].text.length > 0);
+  assert.equal(res.gaps.length, 0, "клавиша без имени группы больше не пробел");
+  assert.equal(res.groups.length, 4);
+  assert.equal(res.missingTotal, 0);
 });
 
 test("пробелы каталога схлопываются по группам: две группы — две записи, а не четыре", () => {
@@ -863,11 +873,15 @@ test("реле считается от ЧИСЛА МЕСТ, а не от чис�
   assert.equal(res.relayTotal, 2);
 });
 
-test("реле: клавиша без группы не даёт ни кнопки, ни реле", () => {
+test("реле: клавиша без группы даёт свою кнопку и реле, как самостоятельный свет", () => {
   const res = plan({ scheme: "relay", places: [place(1, ""), place(2, "Кухня")] }, deps);
-  assert.deepEqual(codes(res), [null, "20008.0"]);
-  assert.equal(res.relayTotal, 1);
-  assert.equal(res.places[0].missingReason, GAPS.NO_GROUP);
+  assert.deepEqual(codes(res), ["20008.0", "20008.0"], "обе клавиши — по кнопке");
+  assert.equal(res.places[0].role, ROLES.BUTTON);
+  assert.equal(res.places[0].missing, false);
+  assert.equal(res.places[0].groupLabel, "Пост 1 · клавиша 1");
+  /* Две отдельные группы (безымянная + «Кухня»), у каждой по кнопке → по одному реле. */
+  assert.equal(res.groups.length, 2);
+  assert.equal(res.relayTotal, 2);
 });
 
 test("реле: раскладка и счёт реле тоже не зависят от порядка входа", () => {
@@ -1041,7 +1055,8 @@ test("РАЗРЕЖЕННЫЙ массив мест: дыра не теряетс
      таким индексом не попадало НИ В ПОРЯДОК, НИ В ГРУППУ, НИ В ПРОБЕЛЫ, а выдача возвращалась
      С ДЫРКАМИ: order = [0, 2, <дыра>] и places[1] === undefined. Потребитель либо терял место
      так же молча (его собственный map/forEach дыру тоже пропустит), либо падал на places[1].code.
-     Дыра — это место без данных, а значит и без группы: честный пробел, а не пропажа. */
+     Дыра — это место без данных: она получает собственную группу-выключатель (resolveGroup), но
+     серии у неё нет → честный пробел NO_SERIES, а не молчаливая пропажа. */
   const list = [place(1, "Кухня"), place(2, "Кухня"), place(3, "Кухня")];
   delete list[1];
   assert.equal(list.length, 3);
@@ -1054,12 +1069,11 @@ test("РАЗРЕЖЕННЫЙ массив мест: дыра не теряетс
   assert.equal(Object.keys(res.places).length, 3, "дыр в выдаче нет");
   assert.ok(res.places[1], "место-дыра в выдаче ЕСТЬ");
   assert.equal(res.places[1].index, 1);
-  assert.equal(res.places[1].missingReason, GAPS.NO_GROUP);
-  assert.deepEqual(res.unassigned, { placeCount: 1, places: [1] });
-  assert.ok(res.gaps.some(g => g.kind === GAPS.NO_GROUP && g.places.includes(1)));
-  /* Настоящие места считаются как обычно: два места «Кухни» — два переключателя. */
-  assert.equal(res.groups.length, 1);
-  assert.equal(res.groups[0].placeCount, 2);
+  assert.equal(res.places[1].missingReason, GAPS.NO_SERIES, "у дыры нет данных → нет серии");
+  assert.ok(res.gaps.some(g => g.kind === GAPS.NO_SERIES && g.places.includes(1)));
+  /* Настоящие места «Кухни» считаются как обычно: два места — два переключателя. */
+  const kitchen = res.groups.find(g => g.label === "Кухня");
+  assert.equal(kitchen.placeCount, 2);
   assert.deepEqual(codes(res), ["20005.0", null, "20005.0"]);
 });
 
@@ -1548,11 +1562,11 @@ test("разложенные «ё» и «й» — та же группа: имя
   assert.deepEqual(codes(res), ["20005.0", "20005.0"]);
 });
 
-test("не-имя группы (объект, массив, boolean) даёт ПРОБЕЛ, а не общую группу «[object Object]»", () => {
-  /* String(value) от любого объекта — «[object Object]», и ВСЕ такие места слипались в одну
+test("не-имя группы (объект, массив, boolean) НЕ склеивает места в общую группу «[object Object]»", () => {
+  /* String(value) от любого объекта — «[object Object]», и ВСЕ такие места слипались бы в одну
      группу: чужие места в чужой группе, завышенный N и другой механизм (два переключателя по
-     25.79 € вместо двух выключателей по 20.26 €). Место без осмысленного имени обязано давать
-     честный пробел «группа не назначена». */
+     25.79 € вместо двух выключателей по 20.26 €). normalizeGroup обязана давать ПУСТОЕ имя, а
+     пустое имя (resolveGroup) — СВОЮ группу-выключатель на каждое место, а не одну общую. */
   assert.equal(normalizeGroup({ id: 7 }), "");
   assert.equal(normalizeGroup([1, 2]), "");
   assert.equal(normalizeGroup(["Кухня"]), "");
@@ -1561,22 +1575,21 @@ test("не-имя группы (объект, массив, boolean) даёт П
   assert.equal(normalizeGroup(Infinity), "");
   assert.equal(normalizeGroup(-0), "0");            /* число именем группы быть может */
   const res = plan({ scheme: "classic", places: [place(1, { id: 7 }), place(2, { id: 9 })] }, deps);
-  assert.deepEqual(res.groups, []);
-  assert.deepEqual(codes(res), [null, null]);
-  assert.equal(res.unassigned.placeCount, 2);
-  assert.equal(res.places[0].missingReason, GAPS.NO_GROUP);
+  assert.equal(res.groups.length, 2, "два не-имени → две ОТДЕЛЬНЫЕ группы, а не одна общая");
+  res.groups.forEach(g => assert.equal(g.placeCount, 1, "каждое — одно место управления"));
+  assert.deepEqual(codes(res), ["20001.0", "20001.0"], "каждое — самостоятельный выключатель");
 });
 
 /* ---- Род пробела: незаполненный проект против дыры поставки ----------------------------- */
 
-test("PROJECT_GAPS: «группа не указана» и «схема не описана» — не пробел поставки", () => {
+test("PROJECT_GAPS: «схема не описана» — не пробел поставки", () => {
   /* Разделение нужно документам: накладная поставщика и обвязка листа монтажника печатают
-     только то, что нужно ЗАКАЗАТЬ И ПРИВЕЗТИ. «Человек не дозаполнил проект» туда не идёт —
-     иначе накладная любого старого проекта (групп там нет ни у одной клавиши) состояла бы из
-     «Не указана группа света», и настоящий пробел поставки утонул бы в этом шуме.
+     только то, что нужно ЗАКАЗАТЬ И ПРИВЕЗТИ. «Человек не дозаполнил проект» туда не идёт.
+     NO_GROUP из этого списка ушёл вместе с самой причиной: клавиша без имени группы теперь
+     самостоятельный выключатель (resolveGroup), а не пробел, — остались только схемные причины.
      Пока список лежал литералом в приложении, о нём знал только свод, а обвязка печатала то,
      что свод отбрасывал: один пробел, два разных документа, две трактовки. */
-  assert.deepEqual(LG.PROJECT_GAPS, [GAPS.NO_GROUP, GAPS.SCHEME_NOT_READY, GAPS.SCHEME_UNKNOWN]);
+  assert.deepEqual(LG.PROJECT_GAPS, [GAPS.SCHEME_NOT_READY, GAPS.SCHEME_UNKNOWN]);
   LG.PROJECT_GAPS.forEach(reason => {
     assert.equal(LG.isProjectGap(reason), true, reason);
     assert.equal(LG.isSupplyGap(reason), false, reason);

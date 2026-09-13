@@ -446,6 +446,42 @@ function identityOf(place) {
   return post + "|i:" + keyIndex;
 }
 
+/* ★ ЕДИНОЕ ПРАВИЛО «КАКАЯ У КЛАВИШИ ГРУППА» (владелец 13.09.2026, п.3: самый частый случай обязан
+   работать МОЛЧА — поставил пост, состав посчитан, вписывать ничего не нужно). Живёт в ОДНОЙ
+   функции намеренно: и реестр, и разбор места, и документы обязаны считать группу одинаково, иначе
+   правило разъедется копиями по модулю, приложению и документам (§7.1 HANDOFF).
+     • ИМЯ ВПИСАЛ ЧЕЛОВЕК → это его группа. Имя главнее автоимени, и одинаковое имя в разных постах
+       по-прежнему связывает их в одну группу (правило «место управления — пост», часть A: имена
+       разных постов = проходная). Ничего в этой ветке не трогаем.
+     • ИМЯ ПУСТО → клавиша это САМОСТОЯТЕЛЬНЫЙ свет со своим единственным местом управления, то есть
+       обычный ВЫКЛЮЧАТЕЛЬ. Даём ей СОБСТВЕННУЮ, ни с чем не сливаемую группу:
+         — ключ синтетический, привязан к АДРЕСУ КЛАВИШИ (identityOf: пост + позиция клавиши), а НЕ
+           к посту: две безымянные клавиши одной рамки это РАЗНЫЙ свет, каждой своя группа и свой
+           выключатель, а не проходная из двух точек внутри одного поста;
+         — безадресную клавишу (нет поста или позиции) держим отдельной по входному индексу — та же
+           логема, что у orphan-мест в реестре ниже: доказать, что она делит свет с другой, нечем;
+         — префикс AUTO_GROUP_PREFIX недостижим для groupKeyOf (﻿ срезает normalizeGroup ещё до
+           ключа), поэтому автоключ НИКОГДА не совпадёт с именем, которое человек может вписать
+           руками, — разный свет не склеится в проходную из-за случайного совпадения подписи.
+   Метка — это ТО, ЧТО ПЕЧАТАЕТСЯ (КП, лист монтажника): локатор клавиши, чтобы электрик понимал, о
+   каком выключателе речь. На расчёт (роль, цена, связь) метка не влияет — связывает только ключ. */
+const AUTO_GROUP_PREFIX = "﻿свет:";
+function autoGroupLabel(place, index) {
+  const num = postNumberOf(place);
+  const ki = keyIndexOf(place);
+  const where = num ? "Пост " + num : "Отдельный выключатель";
+  const keyPart = ki !== null ? " · клавиша " + (ki + 1) : (num ? "" : " · № " + (index + 1));
+  return where + keyPart;
+}
+function resolveGroup(place, index) {
+  const p = place || {};
+  const key = groupKeyOf(p.group);
+  if (key) return { key, label: normalizeGroup(p.group), named: true };
+  const id = identityOf(p);
+  const base = id !== null ? id : ("orphan:" + index);
+  return { key: AUTO_GROUP_PREFIX + base, label: autoGroupLabel(p, index), named: false };
+}
+
 /* Место управления на входе:
      { postId?, postNumber?, keyIndex?, keyId?, key?, series?, group, keyUnknown? }
    key — товар-клавиша (для серии и для передачи в deps), series — можно задать явно.
@@ -459,7 +495,6 @@ function buildRegistry(places, seriesOf) {
   const list = Array.isArray(places) ? places : [];
   const byKey = new Map();
   const groups = [];
-  const unassigned = { placeCount: 0, places: [] };
   const duplicates = [];              /* входные индексы мест-дублей */
   const seen = new Map();             /* identity → входной индекс первого места */
   const postsAt = new Map();          /* «ключ группы + адрес поста» → запись в group.posts */
@@ -473,9 +508,12 @@ function buildRegistry(places, seriesOf) {
       if (seen.has(identity)) { duplicates.push(index); return; }
       seen.set(identity, index);
     }
-    const label = normalizeGroup(place.group);
-    const key = groupKeyOf(place.group);
-    if (!key) { unassigned.placeCount++; unassigned.places.push(index); return; }
+    /* Группа места — через ЕДИНОЕ правило resolveGroup: имя человека или, если его нет, собственная
+       группа-выключатель этой клавиши (см. resolveGroup). «Не назначенных» мест больше не бывает —
+       каждая клавиша попадает в какую-то группу, поэтому и отдельного счётчика unassigned нет. */
+    const eff = resolveGroup(place, index);
+    const label = eff.label;
+    const key = eff.key;
     let group = byKey.get(key);
     if (!group) {
       /* label берём от ПЕРВОГО вхождения В КАНОНИЧЕСКОМ ПОРЯДКЕ: «Кухня» и «кухня» — одна
@@ -528,7 +566,7 @@ function buildRegistry(places, seriesOf) {
   });
 
   /* groups — канонический порядок (по первому месту группы), byKey — быстрый доступ по ключу. */
-  return { groups, byKey, unassigned, duplicates, order };
+  return { groups, byKey, duplicates, order };
 }
 
 /* ─────────────────────── формулы схем ─────────────────────── */
@@ -587,7 +625,6 @@ function roleFor(scheme, index, count) {
    механизм несёт МАШИНОЧИТАЕМУЮ причину — интерфейсу и документам нужно различать «человек не
    дозаполнил проект» и «в каталоге нет изделия». */
 const GAPS = {
-  NO_GROUP: "group-not-set",              /* у клавиши не указана группа света */
   NO_SERIES: "series-unknown",            /* у клавиши не определена серия — искать не в чем */
   SERIES_FAILED: "series-read-failed",    /* чтение серии (deps.seriesOf) бросило исключение */
   NOT_IN_SERIES: "mechanism-not-in-series", /* в серии клавиши нет механизма нужной роли */
@@ -602,7 +639,6 @@ const GAPS = {
   RELAY_ARTICLE: "relay-article-unknown"  /* реле посчитано числом, артикул не определён */
 };
 const GAP_TEXTS = {
-  [GAPS.NO_GROUP]: "Не указана группа света — механизм не подбирается",
   [GAPS.NO_SERIES]: "У клавиши не определена серия — механизм не подобрать",
   [GAPS.SERIES_FAILED]: "Чтение серии клавиши завершилось ошибкой — механизм не подобран",
   [GAPS.NOT_IN_SERIES]: "В серии клавиши нет механизма нужного типа",
@@ -618,17 +654,18 @@ const GAP_TEXTS = {
 };
 
 /* ⚠️ ПРОБЕЛ ПРОЕКТА ≠ ПРОБЕЛ ПОСТАВКИ, И РАЗЛИЧАЕТ ИХ ОДИН СПИСОК НА ВСЕ ДОКУМЕНТЫ.
-   «Группа не указана» и «схема не описана» означают, что человек не дозаполнил проект: изделия
-   тут не хватает не на складе, а в замысле. Такие строки не место ни в накладной поставщика,
-   ни в обвязке листа монтажника — иначе накладная ЛЮБОГО старого проекта (а групп там нет ни
-   у одной клавиши) состояла бы из «Не указана группа света», и настоящий пробел поставки
-   утонул бы в этом шуме. Их место — блок «Группы света», где они и печатаются с причиной.
+   «Схема не описана» (звонковые кнопки, нераспознанная схема) означает, что человек не дозаполнил
+   проект: изделия тут не хватает не на складе, а в замысле. Такие строки не место ни в накладной
+   поставщика, ни в обвязке листа монтажника — их место в блоке «Группы света», где они печатаются
+   с причиной, иначе настоящий пробел поставки утонул бы в этом шуме.
    Всё остальное (в серии нет механизма, у изделия нет артикула, поиск не отработал) — ПРОБЕЛ
    ПОСТАВКИ: изделие нужно, а заказать нечего, и поставщик с монтажником обязаны это видеть.
+   Раньше сюда входил и NO_GROUP («группа не указана»), но клавиша без имени группы теперь считается
+   самостоятельным выключателем (resolveGroup), а не пробелом, — причина исчезла из перечня вовсе.
    Раньше этот список литералом лежал в оркестраторе (app.js), знал о нём только свод, и один и
    тот же пробел печатался в накладной по одному правилу, а в обвязке — по другому. Правило
    одно и живёт рядом с самими причинами; добавили причину — сразу решили, какого она рода. */
-const PROJECT_GAPS = [GAPS.NO_GROUP, GAPS.SCHEME_NOT_READY, GAPS.SCHEME_UNKNOWN];
+const PROJECT_GAPS = [GAPS.SCHEME_NOT_READY, GAPS.SCHEME_UNKNOWN];
 const isProjectGap = reason => PROJECT_GAPS.indexOf(reason) >= 0;
 const isSupplyGap = reason => !!reason && !isProjectGap(reason);
 
@@ -723,8 +760,10 @@ function plan(input, deps) {
      заведя второй копии правил. */
   const buildPlace = (raw, index) => {
     const place = raw || {};
-    const key = groupKeyOf(place.group);
-    const group = key ? registry.byKey.get(key) : null;
+    /* Та же resolveGroup, что и в реестре: группу места читаем ОДНИМ правилом, иначе разбор места
+       разошёлся бы с тем, как место посчитано (§7.1). Ключ всегда непустой → группа в реестре есть
+       (её создал buildRegistry этим же ключом); дубль отсеивается ниже, до обращения к группе. */
+    const group = registry.byKey.get(resolveGroup(place, index).key) || null;
     const pos = orderInGroup.has(index) ? orderInGroup.get(index) : null;
     const counted = pos !== null;   /* место учтено в группе (не дубль, группа назначена) */
     /* Поля места в выдаче — ТЕ ЖЕ функции чтения, что и в опознании, порядке и реестре: то, что
@@ -757,20 +796,15 @@ function plan(input, deps) {
        превратился бы в два переключателя, а смета — подорожала бы за несуществующую клавишу. */
     if (duplicates.has(index)) { out.missingReason = GAPS.DUPLICATE_PLACE; return out; }
 
-    /* Группа не назначена — подстановки НЕТ ни в одной схеме.
-       ⚠️ НАШЕ ДОПУЩЕНИЕ (единое правило для обеих схем). Для классической иначе и нельзя: механизм
-       там — функция от числа мест, а его без группы не существует. Для релейной кнопка формально от
-       числа мест не зависит, и её можно было бы подставить сразу, — но тогда клавиша без группы
-       попала бы в смету с ценой и НЕ попала бы в счёт реле, то есть документ получился бы
-       наполовину правдивым. Плюс молчаливое подорожание уже сохранённых проектов: в старых проектах
-       групп нет ни у одной клавиши. Одно правило «нет группы → нет подстановки, есть пометка»
-       безопаснее и понятнее пользователю: интерфейс покажет, что именно дозаполнить.
-       Проверка !counted — ПРЕДОХРАНИТЕЛЬ, а не второй случай: единственное, что не попадает в
-       группу с непустым ключом, — это дубль, а он отсеян строкой выше. Отдельным тестом такое
-       состояние не воспроизвести (потому и держится оно на конструкции, а не на проверке), но
-       разойдись когда-нибудь реестр с этим проходом — пробел безопаснее места без позиции в
-       группе: pos=null ушёл бы в roleFor и дал бы роль по несуществующему индексу. */
-    if (!group || !counted) { out.missingReason = GAPS.NO_GROUP; return out; }
+    /* ПРЕДОХРАНИТЕЛЬ, а не рабочая ветка. resolveGroup даёт группу КАЖДОЙ клавише (безымянная →
+       своя группа-выключатель), поэтому реального «группа не назначена» больше не существует, а
+       единственное место без назначенного номера (pos=null) — это дубль, отсеянный строкой выше.
+       Оставляем защиту на случай, если реестр когда-нибудь разойдётся с этим проходом: pos=null
+       ушёл бы в roleFor и дал бы роль по несуществующему индексу, а group=null уронил бы
+       group.placeCount. Честный пробел «данные места некорректны» безопаснее правдоподобной
+       подстановки — правило проекта. Отдельным тестом это не воспроизвести (потому и держится на
+       конструкции, а не на проверке). */
+    if (!group || !counted) { out.missingReason = GAPS.NO_ROLE; return out; }
 
     const role = roleFor(schemeId, pos, group.placeCount);
     if (!role) { out.missingReason = GAPS.NO_ROLE; return out; }   /* предохранитель, см. isValidPlaceIndex */
@@ -846,9 +880,9 @@ function plan(input, deps) {
      списка — та же болезнь, что и с раскладкой ролей. */
   const gaps = [];
   const addGap = gap => {
-    /* groupKey нормализуем: у пробелов без группы поле не задано (undefined), а в сохранённой
-       записи оно null — сравнение undefined с null НИКОГДА не истинно, и без этой строки каждая
-       клавиша без группы плодила бы отдельную запись вместо одной общей. */
+    /* groupKey нормализуем: у пробелов уровня ПРОЕКТА (схема не описана, реле без артикула) поле не
+       задано (undefined), а в сохранённой записи оно null — сравнение undefined с null НИКОГДА не
+       истинно, и без этой строки такой пробел плодил бы отдельную запись вместо одной общей. */
     const groupKey = gap.groupKey != null ? gap.groupKey : null;
     const same = gaps.find(g => g.kind === gap.kind && g.groupKey === groupKey);
     if (same) { same.places = same.places.concat(gap.places || []); return; }
@@ -927,7 +961,6 @@ function plan(input, deps) {
     places,
     order: order.slice(),          /* канонический порядок мест — тем, кто печатает по порядку плана */
     groups,
-    unassigned: { placeCount: registry.unassigned.placeCount, places: registry.unassigned.places.slice() },
     duplicates: registry.duplicates.slice(),
     totals,
     totalsRequired,
@@ -946,7 +979,7 @@ function plan(input, deps) {
    обязано читать адрес места ТОЙ ЖЕ функцией, иначе «В15» и « 1» разъедутся уже на его стороне. */
 const api = { ROLES, ROLE_LABELS, SCHEMES, GAPS, GAP_TEXTS, PROJECT_GAPS, isProjectGap, isSupplyGap,
   MAX_BUTTONS_PER_RELAY,
-  normalizeGroup, groupKeyOf, canonicalSeries, canonicalOrder, identityOf,
+  normalizeGroup, groupKeyOf, resolveGroup, canonicalSeries, canonicalOrder, identityOf,
   postNumberOf, postIdOf, keyIndexOf, keyIdOf, keyUnknownOf,
   buildRegistry, classicRole, relayCount, roleFor, plan };
 if (typeof window !== "undefined") window.EPLightingGroups = api;

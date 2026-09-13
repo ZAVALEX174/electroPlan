@@ -820,17 +820,17 @@ test("ИНВАРИАНТ держится, когда одинаковые по�
   assert.deepEqual(estimateTally(est), specTally(data));
 });
 
-test("пробел ПРОЕКТА («группа не указана») не идёт ни в свод, ни в смету", () => {
-  /* Незаполненный проект — не дыра поставки. Иначе накладная ЛЮБОГО старого проекта состояла
-     бы из «Не указана группа света»: групп там нет ни у одной клавиши. Оба документа молчат
-     одинаково — расхождения нет, а причину человек видит в блоке «Группы света». */
+test("клавиша без имени группы — обычный выключатель: он есть и в своде, и в смете", () => {
+  /* Раньше клавиша без имени давала пробел ПРОЕКТА, который не шёл ни в свод, ни в смету. Теперь
+     это самостоятельный выключатель (resolveGroup): изделие реальное (09001.0.250), поставщик и
+     смета обязаны его видеть, и по количествам оба документа обязаны совпасть — без пробелов. */
   const posts = [{ id: "p1", number: 1, name: "Пост", frameId: 10, mechanismIds: [3], keyGroups: [""] }];
   const light = lightingFromProject(posts);
   const data = collect(specFromProject(posts, [], undefined, light));
   const est = estimateFromProject(posts, [], undefined, light);
-  assert.equal(data.rows.filter(r => /не подобран/i.test(r.name)).length, 0, "в своде такой строки нет");
-  assert.ok(!/группа/i.test(est.groups[0].composition), "и состав в КП о ней молчит");
-  assert.deepEqual(estimateTally(est), specTally(data));
+  assert.equal(data.rows.filter(r => /не подобран/i.test(r.name)).length, 0, "пробелов «не подобран» нет");
+  assert.ok(data.rows.some(r => r.code === "09001.0.250"), "выключатель попал в свод поставщика");
+  assert.deepEqual(estimateTally(est), specTally(data), "свод и смета совпадают — выключатель есть в обоих");
 });
 
 test("пробел ПОСТАВКИ группы света: свод его называет, смета молчит — как у суппорта", () => {

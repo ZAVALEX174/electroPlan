@@ -36,12 +36,12 @@ function addCounts(target, src) {
 
 /* Склейка пробелов подпланов по тому же ключу, что и addGap внутри одиночного plan: kind +
    groupKey. Без неё planByRooms печатал бы одинаковое предупреждение отдельной строкой на КАЖДУЮ
-   комнату, где оно встретилось («Не указана группа света…» ×3 вместо «…· мест: 3», relay-article —
-   по строке на relay-комнату): деньги это не двигает, но КП размножает дубли. Списки places (уже
-   глобальные после перемапа) объединяем — «мест: N» в печати есть длина places, так что счётчик
-   собирается сам. groupKey у пробелов без группы приходит null (у групповых — ключ группы);
-   undefined приводим к null тем же приёмом, что и addGap, иначе undefined !== null плодил бы
-   отдельные записи. Первое вхождение задаёт позицию и текст записи — порядок детерминирован
+   комнату, где оно встретилось (relay-article — по строке на каждую relay-комнату, «схема не
+   описана» — на каждую комнату с такой схемой, вместо одной записи «…· мест: N»): деньги это не
+   двигает, но КП размножает дубли. Списки places (уже глобальные после перемапа) объединяем —
+   «мест: N» в печати есть длина places, так что счётчик собирается сам. groupKey у пробелов уровня
+   проекта приходит null (у групповых — ключ группы); undefined приводим к null тем же приёмом, что
+   и addGap, иначе undefined !== null плодил бы отдельные записи. Первое вхождение задаёт позицию и текст записи — порядок детерминирован
    сортировкой партиций и каноническим порядком пробелов внутри подплана.
 
    КОМНАТА У СКЛЕЕННОГО ПРОБЕЛА. Теперь документ называет комнату у пробела (дефект 2), а склейку
@@ -94,7 +94,7 @@ const partitionNorm = key => (key == null ? "no-room" : "r:" + String(key));
      planDeps                // deps для plan: { seriesOf, findMechanism } — ОДИН объект на все
    }                         //   партиции, чтобы побочный сбор (ambiguous) копился сквозь них.
    Возвращает объект той же формы, что и plan: { scheme, schemeLabel, supported, places, order,
-   groups, unassigned, duplicates, totals, totalsRequired, missingTotal, relays, relayTotal, gaps }.
+   groups, duplicates, totals, totalsRequired, missingTotal, relays, relayTotal, gaps }.
    places СЛИТОГО плана выровнены по индексу ВХОДНОГО списка мест — ровно как у одиночного plan,
    поэтому EPLightingPlan.rowsByPost(plan, places, …) читает src[i] по-прежнему. */
 function planByRooms(input) {
@@ -156,7 +156,6 @@ function planByRooms(input) {
     places: new Array(sources.length),
     order: [],
     groups: [],
-    unassigned: { placeCount: 0, places: [] },
     duplicates: [],
     totals: {},
     totalsRequired: {},
@@ -197,10 +196,6 @@ function planByRooms(input) {
       /* roomLabel — чтобы одноимённые группы разных комнат («Кухня» и «Кухня») различались в КП. */
       merged.groups.push(Object.assign({}, g, { places: (g.places || []).map(remap), roomLabel }));
     });
-    if (sub.unassigned) {
-      merged.unassigned.placeCount += Number(sub.unassigned.placeCount) || 0;
-      (sub.unassigned.places || []).forEach(j => merged.unassigned.places.push(remap(j)));
-    }
     (Array.isArray(sub.duplicates) ? sub.duplicates : []).forEach(j => merged.duplicates.push(remap(j)));
     (Array.isArray(sub.gaps) ? sub.gaps : []).forEach(g => {
       mergeGap(merged.gaps, Object.assign({}, g, { places: (g.places || []).map(remap), roomLabel }));
