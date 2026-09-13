@@ -463,7 +463,7 @@ test("postModuleGroups: нумерация модулей начинается �
    Заказчик разместил один пост дважды, поменял тип стены у одного — «изменилось у обоих»
    (на деле — у всего проекта: тип стены был только настройкой EP_DATA.settings). Теперь
    тип стены может быть СВОИМ у поста, а настройка проекта осталась значением по умолчанию. */
-const { postWallType, postTypeKey, wallTypeTargets, placementFields } = require("../js/posts.js");
+const { postWallType, postTypeKey, wallTypeTargets, placementFields, postBacklight } = require("../js/posts.js");
 /* Коробки под ту же 3М-сборку: сплошная стена дешевле полой — по ним и видно, что подбор
    пошёл по типу стены поста, а не проекта. */
 const BOX_SOLID = { id: 900, code: "V71303", name: "Коробка 3М (бетон)", price: 1.04, kind: "socket_box", wallType: "solid" };
@@ -657,4 +657,69 @@ test("механизм без askBacklight подсветку не получа�
   assert.equal(comp.backlight.hasGap, false, "механизм без askBacklight не создаёт пробел");
   assert.equal(comp.backlight.gaps.length, 0);
   near(postCost(post, blDeps(on)), 2 * 4.30 + 3.0 + 0.85 + 9.6, "одна подсветка в цене");
+});
+
+/* --- Подсветка ПОСТА: переопределение проектной настройки (B2b-1) --------------------
+   Тот же класс правила, что тип стены поста: настройка живёт у проекта, но у поста может быть
+   СВОЁ переопределение. Резолвер postBacklight — единственный шов; backlightPlan/состав/цена
+   ходят только через него. */
+const ON_WHITE = { enabled: true, color: "Белая", voltage: "110-250V" };
+const ON_AMBER = { enabled: true, color: "Янтарная", voltage: "110-250V" };
+
+test("postBacklight: свой объект поста главнее проектной настройки (смена цвета)", () => {
+  const eff = postBacklight({ backlight: ON_AMBER }, ON_WHITE);
+  assert.equal(eff.enabled, true);
+  assert.equal(eff.color, "Янтарная", "цвет берётся из переопределения поста, а не проекта");
+  assert.equal(eff.voltage, "110-250V");
+});
+
+test("postBacklight: { enabled:false } СНИМАЕТ подсветку у поста, хотя проект её включил", () => {
+  /* Мутация «резолвер всегда возвращает проектную настройку» здесь краснеет: проект enabled,
+     а действующая у поста обязана быть выключена — «задано пустым» ≠ «не задано». */
+  const eff = postBacklight({ backlight: { enabled: false } }, ON_AMBER);
+  assert.equal(eff.enabled, false, "снятие подсветки у поста должно действовать поверх проекта");
+});
+
+test("postBacklight: нет поля / null / не-объект → наследует проект (обратная совместимость)", () => {
+  /* Все посты, сохранённые до B2b-1, поля не имеют и обязаны читать проектную настройку —
+     ни цена, ни состав у них не меняются. */
+  assert.deepEqual(postBacklight({}, ON_AMBER), { enabled: true, color: "Янтарная", voltage: "110-250V" });
+  assert.deepEqual(postBacklight({ backlight: null }, ON_AMBER), { enabled: true, color: "Янтарная", voltage: "110-250V" });
+  assert.deepEqual(postBacklight({ backlight: "мусор" }, ON_AMBER), { enabled: true, color: "Янтарная", voltage: "110-250V" });
+  assert.deepEqual(postBacklight(null, ON_AMBER), { enabled: true, color: "Янтарная", voltage: "110-250V" });
+  assert.deepEqual(postBacklight({}, null), { enabled: false, color: null, voltage: null }, "нет ни своей, ни проектной — подсветки нет");
+});
+
+test("postComposition: переопределение поста ВЫКЛ действует на состав и цену, хотя проект ВКЛ", () => {
+  /* Проект включает подсветку (blDeps(ON_AMBER)); у поста своё «снять». Состав и цена обязаны
+     стать как без подсветки — иначе резолвер не дошёл до backlightPlan. */
+  const post = { frameId: 14653, mechanismIds: [501, 501], backlight: { enabled: false } };
+  const comp = postComposition(post, blDeps(ON_AMBER));
+  assert.equal(comp.backlight.enabled, false);
+  assert.equal(comp.backlight.count, 0, "подсветка снята у поста — LED в составе нет");
+  near(postCost(post, blDeps(ON_AMBER)), 2 * 4.30 + 3.0 + 0.85, "цена как без подсветки");
+});
+
+test("postComposition: переопределение цвета у поста меняет подобранный LED, проект — другой цвет", () => {
+  /* Проект — «Белая» (в BL_CAT такого аксессуара нет → пробел), пост переопределяет на
+     «Янтарная» (00936.250.A есть). Действует цвет ПОСТА. */
+  const post = { frameId: 14653, mechanismIds: [501], backlight: ON_AMBER };
+  const comp = postComposition(post, blDeps({ enabled: true, color: "Белая", voltage: "110-250V" }));
+  assert.equal(comp.backlight.count, 1);
+  assert.equal(comp.backlight.items[0].accessory.code, "00936.250.A", "LED подобран по цвету ПОСТА (янтарный)");
+  near(postCost(post, blDeps({ enabled: true, color: "Белая", voltage: "110-250V" })), 4.30 + 3.0 + 0.85 + 9.6, "янтарный LED в цене");
+});
+
+test("placementFields: шаблон с backlight-объектом → пост получает КОПИЮ (не общую ссылку)", () => {
+  const tpl = { id: "tpl", frameId: 14653, mechanismIds: [501], backlight: ON_AMBER };
+  const a = placementFields(tpl), b = placementFields(tpl);
+  assert.deepEqual(a.backlight, { enabled: true, color: "Янтарная", voltage: "110-250V" });
+  assert.notEqual(a.backlight, tpl.backlight, "пост не делит объект с шаблоном");
+  assert.notEqual(a.backlight, b.backlight, "два поста из одного шаблона не делят объект между собой");
+});
+
+test("placementFields: шаблон без backlight / мусор → поля нет, пост следует проекту", () => {
+  assert.equal("backlight" in placementFields({ id: "tpl", frameId: 14653, mechanismIds: [501] }), false);
+  assert.equal("backlight" in placementFields({ id: "tpl", frameId: 14653, mechanismIds: [501], backlight: null }), false);
+  assert.equal("backlight" in placementFields({ id: "tpl", frameId: 14653, mechanismIds: [501], backlight: "мусор" }), false);
 });

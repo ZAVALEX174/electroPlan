@@ -222,8 +222,46 @@ function wallTypeTargets(posts, post, scope) {
    ⚠️ Честный пробел: механизм подсветку принимает, но совместимой (цвет+напряжение+позиция)
    в каталоге нет (осевой + 120V) → он идёт в gaps, а НЕ получает чужой артикул. В цену
    пробел не входит — так же, как не входит не подобранный суппорт/коробка. */
-function backlightPlan(mechIds, deps) {
-  const setting = deps.backlight || null;
+
+/* Приводит настройку подсветки к каноничному виду { enabled, color, voltage }. Один нормализатор
+   и на проект, и на переопределение поста — второй трактовки «что такое включено/какой цвет» в
+   коде не появляется. */
+function normalizeBacklight(setting) {
+  return {
+    enabled: !!(setting && setting.enabled),
+    color: (setting && setting.color) || null,
+    voltage: (setting && setting.voltage) || null
+  };
+}
+
+/* --- ДЕЙСТВУЮЩАЯ ПОДСВЕТКА ПОСТА -----------------------------------------------------
+   Тот же класс правила, что postWallType: настройка подсветки живёт у ПРОЕКТА
+   (deps.backlight), но у поста может быть СВОЁ переопределение (post.backlight) — прямое
+   решение владельца 09.09 «1+2»: опция проекта И возможность у конкретного поста снять
+   подсветку или сменить цвет (случай «в спальне красная, в коридоре голубая»).
+
+   ⚠️ ФОРМА ПОЛЯ И «НЕ ЗАДАНО» ПРОТИВ «ЗАДАНО ПУСТЫМ».
+   Тип стены — скаляр, и там «нет поля» = «как в проекте». Подсветка составная (три поля),
+   поэтому переопределение — это ОБЪЕКТ, целиком замещающий действующую настройку:
+     · post.backlight ОТСУТСТВУЕТ / null / не объект → «не задано» → пост следует проекту
+       (обратная совместимость: все посты, сохранённые до этой правки, поля не имеют и обязаны
+       продолжать читать проектную настройку — ни цена, ни состав у них не меняются);
+     · post.backlight — ОБЪЕКТ → «задано»: действует ровно он (после нормализации), даже
+       { enabled:false } — это ОСОЗНАННОЕ «снять подсветку у поста», а не наследование.
+   Без этого различия снять подсветку у одного поста было бы нельзя: «пусто» читалось бы как
+   «наследуй проект», где подсветка включена. Скаляром (как wallType) это не выражается —
+   «выключить у поста» и «нет переопределения» слились бы в одно значение.
+   Все потребители действующей подсветки обязаны ходить сюда (backlightPlan — тоже), чтобы
+   правило жило в одной функции. */
+function postBacklight(post, projectBacklight) {
+  const own = post && post.backlight;
+  if (own && typeof own === "object") return normalizeBacklight(own);
+  return normalizeBacklight(projectBacklight);
+}
+
+/* setting — уже РАЗРЕШЁННАЯ действующая настройка поста (postBacklight): проектная либо
+   переопределённая. backlightPlan сам про наследование не знает — только подбирает LED. */
+function backlightPlan(mechIds, setting, deps) {
   const enabled = !!(setting && setting.enabled);
   const color = (setting && setting.color) || null;
   const voltage = (setting && setting.voltage) || null;
@@ -326,8 +364,10 @@ function postComposition(post, deps) {
     boxFallback,
     /* Подсветка клавиш: аксессуары-LED, по одному на принимающий механизм, плюс честные
        пробелы (принимает, но совместимой нет). Выключена/не подобрана → items пуст и цена
-       не меняется. Цену считает postCost по backlight.items (см. ниже). */
-    backlight: backlightPlan(mechIds, deps)
+       не меняется. Цену считает postCost по backlight.items (см. ниже).
+       Действующая настройка — СВОЯ у поста, если задана, иначе проектная (postBacklight):
+       один шов, как у типа стены (postWallType выше). backlightPlan уже разрешённую и получает. */
+    backlight: backlightPlan(mechIds, postBacklight(post, deps.backlight), deps)
   };
 }
 
@@ -464,6 +504,12 @@ function placementFields(template) {
      до того, как шаблон стал нести тип стены) обязаны продолжать читать тип стены проекта.
      Условие ровно как в postWallType — второй трактовки «валидности» в коде не появляется. */
   if (t.wallType === "solid" || t.wallType === "hollow") fields.wallType = t.wallType;
+  /* Переопределение подсветки переносим в пост ТОЛЬКО когда шаблон несёт валидный собственный
+     объект (postBacklight трактует «валидность» так же — второй копии правила нет). Копируем
+     ПОимённо и МЕЛКОЙ КОПИЕЙ: иначе все посты из одного шаблона делили бы один объект настройки
+     и правка у одного меняла бы остальных. Нет объекта (шаблон без переопределения, как все
+     сегодняшние) → поля нет → пост следует проекту, состав и цена прежние. */
+  if (t.backlight && typeof t.backlight === "object") fields.backlight = normalizeBacklight(t.backlight);
   return fields;
 }
 
@@ -657,7 +703,7 @@ function postModuleGroups(mechanismIds, frame, deps) {
 const api = { frameAvailability, mechanismAvailability, postCost, postComposition, boxCount, fitMechanismIds, fitMechanismIdsPreserving,
   moduleLayout, fillWord, fillSummary, nextPostNumber, ensurePostNumbers, placementFields,
   frameLayout, distributePosts, maxFreeSpan, postModuleGroups,
-  postWallType, postTypeKey, wallTypeTargets };
+  postWallType, postTypeKey, wallTypeTargets, postBacklight };
 if (typeof window !== "undefined") window.EPPosts = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

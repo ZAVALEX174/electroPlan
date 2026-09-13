@@ -151,3 +151,19 @@ test("E13-save-5: текст тоста соответствует случаю 
   assert.deepEqual(fresh.toasts, ["Пост сохранён в библиотеку"],
     "новый шаблон — «Пост сохранён в библиотеку» (вторая ветка тоста, чтобы обе были прибиты)");
 });
+
+test("B2b-1: правка поста НА ПЛАНЕ СОХРАНЯЕТ его переопределение подсветки (post.backlight)", async () => {
+  /* Подсветка у поста (post.backlight) — не в белом списке base (её орган правки — задача B2b-2),
+     но она обязана ПЕРЕЖИТЬ сохранение механизмов: savePostBuilder дописывает base в
+     существующий пост через Object.assign, не затирая посторонние поля. Мутация, заменяющая
+     пост целиком на base (вместо слияния), тихо стёрла бы переопределение — этот тест её краснит. */
+  const post = { id: "p1", roomId: "r1", frameId: FRAME_2.id, mechanismIds: [MECH_2M],
+    backlight: { enabled: true, color: "Белая", voltage: "110-250V" } };
+  const { state } = await runSave({
+    slots: [EPBuilderSlots.slot(MECH_2M, "Кухня")],
+    editingPlacedId: "p1", posts: [post]
+  });
+  assert.deepEqual(state.posts[0].backlight, { enabled: true, color: "Белая", voltage: "110-250V" },
+    "переопределение подсветки поста обязано пережить сохранение механизмов");
+  assert.deepEqual([...state.posts[0].keyGroups], ["Кухня"], "контроль: сборка base всё же применилась");
+});
