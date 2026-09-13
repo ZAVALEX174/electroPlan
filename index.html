@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260909.3">
+  <link rel="stylesheet" href="css/styles.css?v=20260913.1">
 </head>
 <body>
 <div class="app">
@@ -345,6 +345,31 @@
                  Подпись динамическая (renderBuilderComposition). -->
             <small class="wall-type-hint" id="postWallTypeHint"></small>
           </fieldset>
+          <!-- Подсветка клавиш ПОСТА — переопределение проектной настройки (решение владельца
+               13.09 «пост главнее»). Три состояния: «как в проекте» (переопределения нет),
+               «своя подсветка» (цвет+напряжение из каталога) и «выключить у поста». Как и тип
+               стены, это ЧЕРНОВИК окна: правится до «Сохранить», применяется при сохранении
+               (renderPostBacklight + savePostBuilder). Орган управления показан ТОЛЬКО у поста
+               на плане; у шаблона/нового поста переопределения нет (как у группы света — один
+               шаблон в трёх комнатах это три разные подсветки), вместо него объяснение. Что
+               именно показать, решает renderPostBacklight. Цвет и напряжение JS наполняет ИЗ
+               КАТАЛОГА (backlightCatalogOptions), тем же способом, что панель «Спецификация». -->
+          <fieldset class="wall-type-step" id="postBacklightStep">
+            <legend>Подсветка клавиш поста</legend>
+            <div id="postBacklightControl" hidden>
+              <div class="wall-type-options is-triple" id="postBacklightMode" role="radiogroup" aria-label="Подсветка клавиш поста">
+                <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-backlight="project">Как в проекте</button>
+                <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-backlight="on">Своя подсветка</button>
+                <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-backlight="off">Выключить у поста</button>
+              </div>
+              <div class="form-row backlight-post-custom">
+                <label>Цвет подсветки<select id="postBacklightColor"></select></label>
+                <label>Напряжение подсветки<select id="postBacklightVoltage"></select></label>
+              </div>
+              <small class="wall-type-hint" id="postBacklightHint"></small>
+            </div>
+            <small class="wall-type-hint" id="postBacklightTemplateNote" hidden>Подсветка задаётся у поста на плане: разместите пост и настройте её там. У шаблона своей подсветки нет намеренно — один шаблон в трёх комнатах это три разные подсветки. Пост следует настройке подсветки всего проекта (панель «Спецификация»).</small>
+          </fieldset>
           <!-- Схема электрики — свойство ПРОЕКТА (EP_DATA.settings, едет в terms), поэтому
                здесь она ТОЛЬКО ПОКАЗАНА: группы клавишам назначают в этом окне, и схема нужна
                под рукой, но менять настройку всего проекта из окна отдельного поста нельзя —
@@ -487,6 +512,6 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-<script src="js/app.js?v=20260912.1"></script>
+<script src="js/app.js?v=20260913.1"></script>
 </body>
 </html>

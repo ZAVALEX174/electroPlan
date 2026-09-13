@@ -187,13 +187,19 @@ function makeSelect() {
    их не трогают, — лишний узнаваемый props не может скрыть запись в проверяемое поле. */
 function makeElement(over) {
   over = over || {};
+  const attrs = {};
   return {
     className: "", innerHTML: "", value: "", textContent: "",
     hidden: false, disabled: false,
     dataset: Object.assign({}, over.dataset),
     style: {},
     onclick: null, onmouseenter: null, onmousemove: null, onmouseleave: null, ondblclick: null,
-    classList: makeClassList(over.classes)
+    classList: makeClassList(over.classes),
+    /* setAttribute/getAttribute поверх карты атрибутов — как в браузере. Нужен связкам, что
+       ведут ARIA-состояние параллельно классу (aria-checked у кнопок-радиостатусов): без него
+       вызов setAttribute падал бы TypeError, скрывая проверяемое поведение. */
+    setAttribute: (name, value) => { attrs[name] = String(value); },
+    getAttribute: name => (name in attrs ? attrs[name] : null)
   };
 }
 

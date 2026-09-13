@@ -46,7 +46,7 @@ assert.equal(EPCatalog.mechanismSpan(product(MECH_2M)), 2, "разведка: м
 /* Сборка стенда для savePostBuilder. Возвращает управляющие каналы: сохранённый шаблон (аргумент
    DataService.savePost), список тостов, флаг закрытия окна. НЕ стабим сборку base и адресацию —
    именно их проверяют находки. */
-function runSave({ slots, wallType = null, editingPlacedId = null, editingTemplateId = null, posts = [], templates = [], socketBoxId = "sb1" }) {
+function runSave({ slots, wallType = null, backlight = null, editingPlacedId = null, editingTemplateId = null, posts = [], templates = [], socketBoxId = "sb1" }) {
   const dom = stand.makeDom();
   dom.$("postName").value = "Пост";
   dom.$("postFrameSelect").value = String(FRAME_2.id);
@@ -55,7 +55,9 @@ function runSave({ slots, wallType = null, editingPlacedId = null, editingTempla
     products: PRODUCTS,
     posts,
     templates,
-    builder: { slots, wallType, editingPlacedId, editingTemplateId }
+    // backlight — ЧЕРНОВИК подсветки поста (B2b-2): null = «как в проекте», объект = переопределение.
+    // savePostBuilder переносит его в post.backlight поимённо, как keyGroups.
+    builder: { slots, wallType, backlight, editingPlacedId, editingTemplateId }
   };
   const toasts = [];
   let savedTemplate; // аргумент DataService.savePost — по нему видно id (обновление vs дубль)
@@ -152,18 +154,48 @@ test("E13-save-5: текст тоста соответствует случаю 
     "новый шаблон — «Пост сохранён в библиотеку» (вторая ветка тоста, чтобы обе были прибиты)");
 });
 
-test("B2b-1: правка поста НА ПЛАНЕ СОХРАНЯЕТ его переопределение подсветки (post.backlight)", async () => {
-  /* Подсветка у поста (post.backlight) — не в белом списке base (её орган правки — задача B2b-2),
-     но она обязана ПЕРЕЖИТЬ сохранение механизмов: savePostBuilder дописывает base в
-     существующий пост через Object.assign, не затирая посторонние поля. Мутация, заменяющая
-     пост целиком на base (вместо слияния), тихо стёрла бы переопределение — этот тест её краснит. */
+test("B2b-2-save-a: ЧЕРНОВИК подсветки поста доезжает до post.backlight при сохранении", async () => {
+  /* B2b-2 дал подсветке орган правки: state.builder.backlight — черновик окна, savePostBuilder
+     переносит его в post ПОИМЁННО (base его не несёт). Мутация «черновик не доезжает» (убрать
+     запись post.backlight из savePostBuilder) оставит пост без переопределения — этот тест краснеет.
+     Форму нормализуем ({enabled,color,voltage}), поэтому сверяем именно её. */
+  const post = { id: "p1", roomId: "r1", frameId: FRAME_2.id, mechanismIds: [MECH_2M] };
+  const { state } = await runSave({
+    slots: [EPBuilderSlots.slot(MECH_2M, "Кухня")],
+    backlight: { enabled: true, color: "Белая", voltage: "110-250V" },
+    editingPlacedId: "p1", posts: [post]
+  });
+  assert.deepEqual({ ...state.posts[0].backlight }, { enabled: true, color: "Белая", voltage: "110-250V" },
+    "черновик подсветки обязан доехать до поста — иначе переопределение теряется молча");
+  assert.deepEqual([...state.posts[0].keyGroups], ["Кухня"], "контроль: сборка base всё же применилась");
+});
+
+test("B2b-2-save-b: «выключить у поста» сохраняется как объект enabled:false (осознанное снятие)", async () => {
+  /* Режим «выключить у поста» — объект { enabled:false }: осознанное «снять подсветку у этого
+     поста», отличимое от «как в проекте». Обязан доехать именно объектом, а не превратиться в
+     отсутствие поля (иначе пост снова унаследовал бы включённую подсветку проекта). */
+  const post = { id: "p1", roomId: "r1", frameId: FRAME_2.id, mechanismIds: [MECH_2M] };
+  const { state } = await runSave({
+    slots: [EPBuilderSlots.slot(MECH_2M, "")],
+    backlight: { enabled: false, color: null, voltage: null },
+    editingPlacedId: "p1", posts: [post]
+  });
+  assert.deepEqual({ ...state.posts[0].backlight }, { enabled: false, color: null, voltage: null },
+    "«выключить у поста» обязано сохраниться объектом enabled:false, а не исчезнуть в наследование");
+});
+
+test("B2b-2-save-c: «как в проекте» СБРАСЫВАЕТ прежнее переопределение (удаляет post.backlight)", async () => {
+  /* Возврат «как в проекте» — черновик null. Пост, у которого раньше было переопределение,
+     обязан снова следовать проекту: поле post.backlight УДАЛЯЕТСЯ. Мутация «null ничего не
+     сбрасывает» (оставить прежний объект / не делать delete) — пост навсегда завис бы на своём
+     переопределении, и «вернуть как в проекте» из окна перестало бы работать. */
   const post = { id: "p1", roomId: "r1", frameId: FRAME_2.id, mechanismIds: [MECH_2M],
     backlight: { enabled: true, color: "Белая", voltage: "110-250V" } };
   const { state } = await runSave({
-    slots: [EPBuilderSlots.slot(MECH_2M, "Кухня")],
+    slots: [EPBuilderSlots.slot(MECH_2M, "")],
+    backlight: null,
     editingPlacedId: "p1", posts: [post]
   });
-  assert.deepEqual(state.posts[0].backlight, { enabled: true, color: "Белая", voltage: "110-250V" },
-    "переопределение подсветки поста обязано пережить сохранение механизмов");
-  assert.deepEqual([...state.posts[0].keyGroups], ["Кухня"], "контроль: сборка base всё же применилась");
+  assert.equal("backlight" in state.posts[0], false,
+    "режим «как в проекте» обязан удалить post.backlight — иначе возврат к проекту не работает");
 });

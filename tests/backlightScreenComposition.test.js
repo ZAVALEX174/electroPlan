@@ -80,6 +80,9 @@ function compositionCtx(dom, comp) {
     document: { querySelectorAll: () => [] },
     $: dom.$,
     builderWallType: () => "solid",
+    // Орган подсветки поста синхронизирует отдельная функция (её держит backlightPostBuilderUi.test.js);
+    // здесь проверяется СТРОКА состава, орган посторонний — стабим no-op.
+    renderPostBacklight: () => {},
     WALL_STEP_LABEL: { solid: "Бетон", hollow: "ГКЛ" },
     STANDARD_LABEL: { IT: "Итальянский" }, STANDARD_GENITIVE: { IT: "итальянского" },
     postComposition: () => comp,

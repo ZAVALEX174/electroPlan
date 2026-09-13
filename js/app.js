@@ -39,7 +39,7 @@ const state={
      меняла подбор коробки у ВСЕХ постов проекта и не откатывалась «Отменой». Теперь правка
      живёт в черновике до «Сохранить» — как имя, накладка и слоты. */
   builder:{editingTemplateId:null,editingPlacedId:null,slots:[],target:{mode:"add"},query:"",openSections:new Set(),
-    snapshot:null,escArmed:null,wallType:null}
+    snapshot:null,escArmed:null,wallType:null,backlight:null}
 };
 const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -1921,6 +1921,52 @@ function renderProjectBacklight(){
   fill($("backlightColorSelect"),colors,setting.color);
   fill($("backlightVoltageSelect"),volts,setting.voltage);
 }
+/* Подсветка клавиш ПОСТА в конструкторе — орган управления ЧЕРНОВИКОМ переопределения
+   (state.builder.backlight): «как в проекте» (null), «своя подсветка» (объект enabled:true) и
+   «выключить у поста» (объект enabled:false). Синхронизирует UI из черновика — активную кнопку
+   режима, значения и доступность селекторов, подсказку.
+   ⚠️ Показываем орган ТОЛЬКО у поста НА ПЛАНЕ (editingPlacedId): переопределение — свойство места,
+   а не заготовки, как и группа света («один шаблон в трёх комнатах это три разные подсветки»). У
+   шаблона/нового поста вместо органа — объяснение (postBacklightTemplateNote), той же логикой, что
+   у поля группы в renderBuilderSlots.
+   Варианты цвета и напряжения — ИЗ КАТАЛОГА (backlightCatalogOptions), тем же способом и из того
+   же источника, что панель «Спецификация»: матчинг в подборе строгий (===), хардкод «Зеленая» без ё
+   молча дал бы пустой подбор. Одна точка синхронизации доступности: цвет/напряжение недоступны, пока
+   выбран не режим «своя подсветка», чтобы человек не крутил настройку, которая ни на что не влияет. */
+function renderPostBacklight(){
+  const step=$("postBacklightStep");
+  if(!step)return;
+  const placed=!!state.builder.editingPlacedId;
+  const control=$("postBacklightControl"),note=$("postBacklightTemplateNote");
+  if(control)control.hidden=!placed;
+  if(note)note.hidden=placed;
+  if(!placed)return;
+  const draft=state.builder.backlight;
+  const mode=draft==null?"project":(draft.enabled?"on":"off");
+  document.querySelectorAll("#postBacklightMode .wall-type-option").forEach(b=>{
+    const on=b.dataset.backlight===mode;
+    b.classList.toggle("active",on);
+    b.setAttribute("aria-checked",on?"true":"false");
+  });
+  const {colors,volts}=backlightCatalogOptions();
+  const own=mode==="on";
+  const fill=(sel,values,current)=>{
+    if(!sel)return;
+    sel.innerHTML=values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+    /* Присвоение value отсутствующей опции снимает выбор ("") — сохранённое переопределение с
+       цветом, которого в каталоге уже нет, честно покажет пусто, а не подставит соседний. */
+    if(current!=null)sel.value=current;
+    sel.disabled=!own;
+  };
+  fill($("postBacklightColor"),colors,draft&&draft.color);
+  fill($("postBacklightVoltage"),volts,draft&&draft.voltage);
+  const hint=$("postBacklightHint");
+  if(hint)hint.textContent=mode==="project"
+    ?"Пост следует настройке подсветки всего проекта (панель «Спецификация»). Меняется вместе с ней."
+    :mode==="off"
+      ?"У этого поста подсветка выключена — даже если в проекте она включена."
+      :"У этого поста своя подсветка: цвет и напряжение из каталога, независимо от проекта.";
+}
 /* Селектор «Количество модулей рамки» — НЕ константа в разметке, а производная модульностей
    накладок (EPCatalog.frameSlotOptions). ⚠️ СЧИТАЕМ ОТ ТОГО ЖЕ ПУЛА, ЧТО renderBuilder ФИЛЬТРУЕТ
    (collectionFramePool), а не от всего каталога: коллекция комнаты (E13) сужает список накладок
@@ -1983,6 +2029,14 @@ function openPostBuilder({templateId=null,placedId=null}={}){
      то же правило, по которому его читает подбор коробки, второй копии правила не заводим).
      Новый пост своего типа стены не имеет и открывается со значением проекта. */
   state.builder.wallType=EPPosts.postWallType(src,EP_DATA.settings.wallType);
+  /* Подсветка поста — ЧЕРНОВИК окна, как тип стены: у поста своё переопределение (src.backlight,
+     если это объект — та же трактовка «валидности», что у EPPosts.postBacklight), иначе null =
+     «как в проекте». Копируем ОБЪЕКТ, а не ссылку: правка черновика до «Сохранить» не должна
+     менять сам пост (иначе «Отмена» уже ничего не откатила бы). У шаблона/нового поста
+     переопределения нет — src.backlight отсутствует → null. */
+  state.builder.backlight=(src.backlight&&typeof src.backlight==="object")
+    ?{enabled:!!src.backlight.enabled,color:src.backlight.color||null,voltage:src.backlight.voltage||null}
+    :null;
   $("postFrameSelect").dataset.preferredFrameId=String(src.frameId??"");
   $("builderSearch").value="";
   renderLightingSchemeSelect();
@@ -2012,11 +2066,12 @@ const builderWallType=()=>state.builder.wallType||EP_DATA.settings.wallType||"so
    Нужна ровно для одного вопроса — «есть ли что терять при закрытии» (см. builderDirty). Слоты
    кодирует чистая EPBuilderSlots.signature (JSON, а не склейка через разделитель: имя группы
    вводит человек, и запятая в нём законна).
-   ТИП СТЕНЫ В ПОДПИСИ ОБЯЗАТЕЛЕН: он стал черновиком окна, и без него закрытие по Esc считало
-   бы пост нетронутым и молча выбрасывало бы правку, о которой человек не предупреждён. */
+   ТИП СТЕНЫ И ПОДСВЕТКА В ПОДПИСИ ОБЯЗАТЕЛЬНЫ: оба стали черновиком окна, и без них закрытие по
+   Esc считало бы пост нетронутым и молча выбрасывало бы правку, о которой человек не предупреждён.
+   Подсветка — объект/null, кодируем JSON (как слоты), а не склейкой. */
 function builderSignature(){
   return JSON.stringify([$("postName").value,String($("postFrameSelect").value||""),
-    builderWallType(),EPBuilderSlots.signature(state.builder.slots)]);
+    builderWallType(),state.builder.backlight,EPBuilderSlots.signature(state.builder.slots)]);
 }
 const builderDirty=()=>state.builder.snapshot!=null&&builderSignature()!==state.builder.snapshot;
 
@@ -2044,7 +2099,12 @@ function builderPostDraft(frame){
     mechanismIds:fields.mechanismIds,keyGroups:fields.keyGroups,
     /* Тип стены — из ЧЕРНОВИКА окна: состав и цена в конструкторе обязаны показывать ту
        коробку, которую человек только что выбрал кнопкой, а не ту, что записана в проекте. */
-    wallType:builderWallType()};
+    wallType:builderWallType(),
+    /* Подсветка — из ЧЕРНОВИКА окна по той же причине: состав и «Стоимость поста» обязаны
+       показывать LED, который человек выбрал прямо сейчас. null → поля нет → postComposition
+       (через EPPosts.postBacklight) читает проектную настройку, ровно как у сохранённого поста
+       без переопределения. */
+    backlight:state.builder.backlight};
 }
 /* Проект глазами расчёта: посты плана + черновик — но черновик участвует ТОЛЬКО тогда, когда
    в конструкторе открыт пост, СТОЯЩИЙ НА ПЛАНЕ. Тогда он ПОДМЕНЯЕТ свой пост (фильтр по id), а
@@ -2685,6 +2745,9 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
   if(wallHint)wallHint.textContent=placed
     ?"Влияет на подбор монтажной коробки. У поста на плане — свой; при сохранении спросим, менять только в нём или во всех однотипных."
     :"Влияет на подбор монтажной коробки. Тип стены сохранится в шаблоне и перейдёт посту при размещении на плане; настройку всего проекта это не меняет — она в панели «Спецификация».";
+  /* Подсветка поста синхронизируется рядом с типом стены (тот же класс «настройка поста»):
+     draft.backlight уже участвует в comp/цене через builderPostDraft, здесь — только UI органа. */
+  renderPostBacklight();
   const host=$("builderComposition");if(!host)return;
   if(!selectedFrame){host.innerHTML=errorHtml||"";return;}
   const post=draft||{frameId:Number($("postFrameSelect").value),
@@ -2840,6 +2903,15 @@ async function savePostBuilder(){
        вслед за изменившимся значением проекта. Посты, у которых поля нет, продолжают читать
        проект (EPPosts.postWallType) — старые проекты этим не задеты. */
     if(wallChanged)EPPosts.wallTypeTargets(state.posts,post,scope).forEach(p=>{p.wallType=wall});
+    /* ⚠️ ПОДСВЕТКА ПОСТА — из ЧЕРНОВИКА окна, ПОИМЁННО, как keyGroups: base её не несёт, а
+       Object.assign(post,base) чужих полей не трогает — без этой записи черновик молча не
+       доезжал бы до поста (тот самый капкан белого списка). Объект → своё переопределение
+       (нормализуем, чтобы форма поля совпала с EPPosts.postBacklight). null (режим «как в
+       проекте») → поле УДАЛЯЕМ: оставить старый объект значило бы, что «как в проекте» ничего
+       не сбросил и пост по-прежнему переопределяет проект. Нет поля → пост следует проекту. */
+    const bl=state.builder.backlight;
+    if(bl&&typeof bl==="object")post.backlight={enabled:!!bl.enabled,color:bl.color||null,voltage:bl.voltage||null};
+    else delete post.backlight;
     renderAll();renderProperties();renderSummary();
     toast(wallChanged&&scope==="sameType"?"Обновлён пост и все однотипные посты":"Пост на плане обновлён");
   }else{
@@ -2872,7 +2944,7 @@ async function savePostBuilder(){
 function closePostBuilder(){
   $("postModal").classList.remove("open");
   state.builder={editingTemplateId:null,editingPlacedId:null,slots:[],target:{mode:"add"},query:"",openSections:new Set(),
-    snapshot:null,escArmed:null,wallType:null};
+    snapshot:null,escArmed:null,wallType:null,backlight:null};
 }
 /* СЛУЧАЙНОЕ закрытие (Esc, клик мимо окна) с потерей несохранённой работы просит подтверждения
    — повтором того же действия, а не системным confirm(): своих модальных диалогов в приложении
@@ -4402,6 +4474,34 @@ $("backlightVoltageSelect").onchange=e=>{
 document.querySelectorAll("#postWallType .wall-type-option").forEach(b=>b.onclick=()=>{
   state.builder.wallType=b.dataset.wall;renderBuilder();
 });
+/* Подсветка ПОСТА — ЧЕРНОВИК окна, ровно как тип стены: кнопки правят только
+   state.builder.backlight, применяет — сохранение (savePostBuilder). Проект отсюда не трогаем.
+   Три режима: «как в проекте» (null — переопределения нет), «выключить у поста» (объект
+   enabled:false) и «своя подсветка» (объект enabled:true). Для «своей» цвет/напряжение сеем из
+   уже выбранного черновика → проектной настройки → первого варианта КАТАЛОГА
+   (backlightCatalogOptions), чтобы переопределение сразу было осмысленным, а не пустым. */
+document.querySelectorAll("#postBacklightMode .wall-type-option").forEach(b=>b.onclick=()=>{
+  const mode=b.dataset.backlight;
+  if(mode==="project")state.builder.backlight=null;
+  else if(mode==="off")state.builder.backlight={enabled:false,color:null,voltage:null};
+  else{
+    const cur=state.builder.backlight,proj=EP_DATA.settings.backlight||{},{colors,volts}=backlightCatalogOptions();
+    state.builder.backlight={enabled:true,
+      color:(cur&&cur.color)||proj.color||colors[0]||null,
+      voltage:(cur&&cur.voltage)||proj.voltage||volts[0]||null};
+  }
+  renderBuilder();
+});
+/* Цвет/напряжение переопределения — пишем в черновик только когда действует режим «своя
+   подсветка»; renderBuilder пересчитывает состав и «Стоимость поста» с новым LED. */
+$("postBacklightColor").onchange=e=>{
+  if(state.builder.backlight&&state.builder.backlight.enabled)state.builder.backlight.color=e.target.value||null;
+  renderBuilder();
+};
+$("postBacklightVoltage").onchange=e=>{
+  if(state.builder.backlight&&state.builder.backlight.enabled)state.builder.backlight.voltage=e.target.value||null;
+  renderBuilder();
+};
 /* Клик мимо окна — такое же СЛУЧАЙНОЕ закрытие, как Esc: с несохранёнными правками просит
    повтора (см. requestClosePostBuilder), а не выбрасывает собранный пост молча. */
 $("postModal").onclick=e=>{if(e.target===$("postModal"))requestClosePostBuilder()};
