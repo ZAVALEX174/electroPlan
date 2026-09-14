@@ -109,8 +109,15 @@ function cmpMember(a, b) {
    переводом строки, которого нет ни в одном ключе: иначе склейка строк («a b»+«c» и «a»+«b c»)
    дала бы ложное совпадение бакетов.
 
-   Вход — посты [{ number, x, y, room?, groups:[{ key, label }] }]. Пост без координат или место
-   без ключа группы в связь не идут — так же, как их отбрасывает layout. */
+   ⚠️ ПРОХОДНАЯ ПО НОМЕРУ — СКВОЗНАЯ ПО ПРОЕКТУ (владелец 13.09.2026). Связь по номеру человек
+   задаёт ЯВНО, и она обязана соединять посты через границы комнат — иначе номер, придуманный ради
+   связи «свет из разных мест», рвался бы на этаже. Для таких групп вызывающий ставит g.global:true,
+   и комната из бакета уходит — цепочка строится ТЕМ ЖЕ ключом, что считает механизмы (buildRegistry
+   тоже группирует проходную по номеру сквозно): линии и механизмы не расходятся (§7.1). Группы без
+   флага (связь по имени) остаются покомнатными, как были.
+
+   Вход — посты [{ number, x, y, room?, groups:[{ key, label, global? }] }]. Пост без координат или
+   место без ключа группы в связь не идут — так же, как их отбрасывает layout. */
 function groupChains(posts) {
   const byGroup = new Map();
   (Array.isArray(posts) ? posts : []).forEach((p, i) => {
@@ -122,7 +129,8 @@ function groupChains(posts) {
     (Array.isArray(o.groups) ? o.groups : []).forEach(g => {
       const key = (g && g.key != null) ? String(g.key) : "";
       if (key === "") return;                   /* место без назначенной группы в связь не идёт */
-      const bucket = room + "\n" + key;
+      /* Проходная по номеру — сквозная (g.global): бакет без комнаты. Связь по имени — покомнатно. */
+      const bucket = (g && g.global) ? ("\n" + key) : (room + "\n" + key);
       let m = byGroup.get(bucket);
       if (!m) { m = { members: [] }; byGroup.set(bucket, m); }
       m.members.push({ number, x, y, ord: i, key, label: (g && g.label != null) ? String(g.label) : "" });
@@ -172,7 +180,7 @@ function layout(spec) {
       /* Группы света поста: ключ приходит уже приведённым из app.js, здесь берём его как есть.
          Место без ключа (группа не назначена) в связи не участвует — отбрасываем. */
       const groups = (Array.isArray(o.groups) ? o.groups : [])
-        .map(g => ({ key: (g && g.key != null) ? String(g.key) : "", label: (g && g.label != null) ? String(g.label) : "" }))
+        .map(g => ({ key: (g && g.key != null) ? String(g.key) : "", label: (g && g.label != null) ? String(g.label) : "", global: !!(g && g.global) }))
         .filter(g => g.key !== "");
       /* Комната поста для ПОКОМНАТНОГО разбиения связей (часть 1d): ключ приходит готовым из
          app.js (EPLightingByRoom.partitionNorm от roomId). Старый spec без поля комнаты не должен

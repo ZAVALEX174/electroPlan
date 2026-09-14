@@ -283,8 +283,18 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .slot-actions button{padding:5px 7px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--blue-dark);font-size:10px;font-weight:800;cursor:pointer}
 .slot-actions button:hover{border-color:#9ac7ef;background:var(--blue-soft)}
 .slot-hint{grid-column:2;color:var(--muted);font-size:10px}
-.slot-group{grid-column:2;display:block;margin-top:6px;color:var(--muted);font-size:10px;font-weight:800}
-.slot-group input{width:100%;margin-top:4px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:11px}
+/* Поля КЛАВИШИ — группа света / № проходной / выбор механизма — одним рядом во второй колонке
+   слота, теми же токенами, что и прежнее одиночное поле группы. Подписи в одну строку каждая
+   (white-space:nowrap), поля выровнены по низу (align-items:flex-end — базовая линия у input и
+   select одна); на узкой панели ряд переносит поля целиком (flex-wrap), а не рвёт подписи. */
+.slot-keyfields{grid-column:2;margin-top:6px;display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px 10px}
+.slot-group,.slot-cross,.slot-mech{display:flex;flex-direction:column;color:var(--muted);font-size:10px;font-weight:800;white-space:nowrap}
+.slot-group{flex:1 1 130px;min-width:0}          /* имя тянется и сжимается — оно длиннее всех */
+.slot-cross,.slot-mech{flex:0 0 auto}             /* номеру и списку хватает своей ширины */
+.slot-group input,.slot-cross input,.slot-mech select{margin-top:4px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:11px;font-weight:600}
+.slot-group input{width:100%}
+.slot-cross input{width:72px}                     /* номеру достаточно узкого поля */
+.slot-mech select{background:#fff}
 .slot-light{grid-column:2;margin-top:5px;padding:5px 7px;border-radius:7px;background:#f2f8ff;color:var(--blue-dark);font-size:10px}
 .slot-light.is-missing{background:#fdf0f0;color:#9a4a2f}
 .slot-bare{grid-column:2;margin-top:5px;color:#9a4a2f;font-size:10px}

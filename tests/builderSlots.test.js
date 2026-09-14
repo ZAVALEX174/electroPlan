@@ -25,14 +25,21 @@ const product = id => CATALOG[id];
 const mechanismSpan = item => (item && item.moduleSpan) || 0;
 const deps = { product, mechanismSpan };
 const items = ids => ids.map(id => CATALOG[id]);
+/* Проекция «механизмы + группы»: часть тестов проверяет именно СОВМЕСТНОЕ движение группы и
+   механизма. Новые поля клавиши (keyCrossNumbers — номер проходной, keyMechanisms — ручной выбор)
+   по умолчанию пусты и проверяются отдельными тестами (crossLinkNumbers.test.js); здесь их
+   отбрасываем, чтобы ожидания остались про то, что тест на самом деле стережёт. */
+const mk = r => ({ mechanismIds: r.mechanismIds, keyGroups: r.keyGroups });
+/* То же для массива слотов: проверяем id и группу, новые поля (cross/mech) отдельными тестами. */
+const sg = arr => arr.map(s => ({ id: s.id, group: s.group }));
 /* Клавиша ли механизм, знает КАТАЛОГ приложения (partRole === "key"); модуль спрашивает об этом
    предикатом. В фикстуре клавиши — 1 и 2, розетка — 3. */
 const isKey = id => /^Клавиша/.test((CATALOG[id] || {}).name || "");
 
 test("fromPost/toPost: группы едут вместе с механизмами и той же длины", () => {
   const slots = S.fromPost({ mechanismIds: [1, 2], keyGroups: ["Кухня", "Спальня"] });
-  assert.deepEqual(slots, [{ id: 1, group: "Кухня" }, { id: 2, group: "Спальня" }]);
-  assert.deepEqual(S.toPost(slots), { mechanismIds: [1, 2], keyGroups: ["Кухня", "Спальня"] });
+  assert.deepEqual(sg(slots), [{ id: 1, group: "Кухня" }, { id: 2, group: "Спальня" }]);
+  assert.deepEqual(mk(S.toPost(slots)), { mechanismIds: [1, 2], keyGroups: ["Кухня", "Спальня"] });
 });
 
 test("старый пост без keyGroups открывается с пустыми группами, а не падает", () => {
@@ -61,13 +68,13 @@ test("ФИЛЬТРАЦИЯ настоящей EPPosts.fitMechanismIds не пу�
   const tokenDeps = S.tokenDeps(slots, deps);
   const kept = EPPosts.fitMechanismIds(S.tokens(slots), S.allowedTokens(slots, items([1, 2])), 3, tokenDeps);
   const next = S.pick(slots, kept);
-  assert.deepEqual(S.toPost(next), { mechanismIds: [1, 2], keyGroups: ["Кухня", "Спальня"] });
+  assert.deepEqual(mk(S.toPost(next)), { mechanismIds: [1, 2], keyGroups: ["Кухня", "Спальня"] });
 });
 
 test("чужой для набора механизм выкидывается вместе со своей группой", () => {
   const slots = S.fromPost({ mechanismIds: [9, 1], keyGroups: ["Чужая", "Кухня"] });
   const kept = EPPosts.fitMechanismIds(S.tokens(slots), S.allowedTokens(slots, items([1, 2])), 3, S.tokenDeps(slots, deps));
-  assert.deepEqual(S.toPost(S.pick(slots, kept)), { mechanismIds: [1], keyGroups: ["Кухня"] });
+  assert.deepEqual(mk(S.toPost(S.pick(slots, kept))), { mechanismIds: [1], keyGroups: ["Кухня"] });
 });
 
 test("ПЕРЕСТАНОВКА при упаковке по постам переносит группы, даже когда механизмы одинаковые", () => {
@@ -90,8 +97,8 @@ test("ПЕРЕСТАНОВКА при упаковке по постам пер�
 
 test("замена клавиши НА КЛАВИШУ сохраняет группу слота, добавление даёт пустую", () => {
   const slots = S.fromPost({ mechanismIds: [1], keyGroups: ["Кухня"] });
-  assert.deepEqual(S.toPost(S.replaceAt(slots, 0, 2, isKey)), { mechanismIds: [2], keyGroups: ["Кухня"] });
-  assert.deepEqual(S.toPost(S.add(slots, 2)), { mechanismIds: [1, 2], keyGroups: ["Кухня", ""] });
+  assert.deepEqual(mk(S.toPost(S.replaceAt(slots, 0, 2, isKey))), { mechanismIds: [2], keyGroups: ["Кухня"] });
+  assert.deepEqual(mk(S.toPost(S.add(slots, 2))), { mechanismIds: [1, 2], keyGroups: ["Кухня", ""] });
 });
 
 test("замена клавиши на НЕ-клавишу уносит группу — она не переживает место управления", () => {
@@ -100,7 +107,7 @@ test("замена клавиши на НЕ-клавишу уносит груп
      последствиями (см. комментарий у replaceAt): фантомное место, когда артикул пропадёт из
      прайса, и молчаливое воскрешение группы при обратной замене. */
   const slots = S.fromPost({ mechanismIds: [1, 1], keyGroups: ["Кухня", "Холл"] });
-  assert.deepEqual(S.toPost(S.replaceAt(slots, 0, 3, isKey)),
+  assert.deepEqual(mk(S.toPost(S.replaceAt(slots, 0, 3, isKey))),
     { mechanismIds: [3, 1], keyGroups: ["", "Холл"] });
   assert.deepEqual(S.toPost(slots).keyGroups, ["Кухня", "Холл"], "исходный массив не тронут");
 });
@@ -108,14 +115,14 @@ test("замена клавиши на НЕ-клавишу уносит груп
 test("замена на НЕ-клавишу и обратно не воскрешает старую группу", () => {
   const slots = S.fromPost({ mechanismIds: [1], keyGroups: ["Кухня"] });
   const back = S.replaceAt(S.replaceAt(slots, 0, 3, isKey), 0, 1, isKey);
-  assert.deepEqual(S.toPost(back), { mechanismIds: [1], keyGroups: [""] });
+  assert.deepEqual(mk(S.toPost(back)), { mechanismIds: [1], keyGroups: [""] });
 });
 
 test("без предиката replaceAt ведёт себя как прежде — модуль о каталоге не знает", () => {
   /* Старый контракт: приложение обязано передавать предикат, а чистый модуль сам решать,
      что такое клавиша, не может и не должен. */
   const slots = S.fromPost({ mechanismIds: [1], keyGroups: ["Кухня"] });
-  assert.deepEqual(S.toPost(S.replaceAt(slots, 0, 3)), { mechanismIds: [3], keyGroups: ["Кухня"] });
+  assert.deepEqual(mk(S.toPost(S.replaceAt(slots, 0, 3))), { mechanismIds: [3], keyGroups: ["Кухня"] });
 });
 
 /* ---- МИГРАЦИЯ ПРИ ЧТЕНИИ: осиротевшая группа не переживает открытие поста ----------------
@@ -132,7 +139,7 @@ const keyKind = id => (CATALOG[id] ? /^Клавиша/.test(CATALOG[id].name) : 
 test("СТАРЫЙ ПРОЕКТ: группа на не-клавише снимается уже при ЧТЕНИИ поста", () => {
   /* Так выглядит пост, сохранённый до правила: розетка (id 3) с группой «Прихожая». */
   const old = { mechanismIds: [1, 3], keyGroups: ["Прихожая", "Прихожая"] };
-  assert.deepEqual(S.fromPost(old, keyKind), [{ id: 1, group: "Прихожая" }, { id: 3, group: "" }]);
+  assert.deepEqual(sg(S.fromPost(old, keyKind)), [{ id: 1, group: "Прихожая" }, { id: 3, group: "" }]);
 });
 
 test("ЦИКЛ «открыть → Сохранить» больше не возвращает фантомную группу в проект", () => {
@@ -181,7 +188,7 @@ test("ФАНТОМНОЕ МЕСТО НЕ ОЖИВАЕТ ПОСЛЕ ПЕРЕЗА�
 
 test("удаление слота уносит только его группу", () => {
   const slots = S.fromPost({ mechanismIds: [1, 1, 1], keyGroups: ["А", "Б", "В"] });
-  assert.deepEqual(S.toPost(S.removeAt(slots, 1)), { mechanismIds: [1, 1], keyGroups: ["А", "В"] });
+  assert.deepEqual(mk(S.toPost(S.removeAt(slots, 1))), { mechanismIds: [1, 1], keyGroups: ["А", "В"] });
 });
 
 test("setGroup меняет ровно один слот и не мутирует исходный массив", () => {
@@ -198,12 +205,12 @@ test("fitMechanismIdsPreserving через токены: лишний уходи
   const slots = S.fromPost({ mechanismIds: [1, 3, 1], keyGroups: ["А", "Б", "В"] });
   const kept = EPPosts.fitMechanismIdsPreserving(S.tokens(slots),
     S.allowedTokens(slots, items([1, 2, 3])), 3, 1, S.tokenDeps(slots, deps));
-  assert.deepEqual(S.toPost(S.pick(slots, kept)), { mechanismIds: [1, 3], keyGroups: ["А", "Б"] });
+  assert.deepEqual(mk(S.toPost(S.pick(slots, kept))), { mechanismIds: [1, 3], keyGroups: ["А", "Б"] });
 });
 
 test("pick пропускает токен вне диапазона, а не роняет слоты в undefined", () => {
   const slots = S.fromPost({ mechanismIds: [1], keyGroups: ["А"] });
-  assert.deepEqual(S.toPost(S.pick(slots, [0, 7, -1])), { mechanismIds: [1], keyGroups: ["А"] });
+  assert.deepEqual(mk(S.toPost(S.pick(slots, [0, 7, -1]))), { mechanismIds: [1], keyGroups: ["А"] });
 });
 
 /* ---- Группа света — свойство ПОСТА НА ПЛАНЕ, а не шаблона ------------------------------- */
@@ -214,7 +221,7 @@ test("clearGroups снимает группы, оставляя механизм
      иначе уедут обратно в шаблон при следующем сохранении. */
   const slots = S.fromPost({ mechanismIds: [1, 2, 1], keyGroups: ["Кухня", "Кухня", "Холл"] });
   const cleared = S.clearGroups(slots);
-  assert.deepEqual(S.toPost(cleared), { mechanismIds: [1, 2, 1], keyGroups: ["", "", ""] });
+  assert.deepEqual(mk(S.toPost(cleared)), { mechanismIds: [1, 2, 1], keyGroups: ["", "", ""] });
   assert.equal(S.hasGroups(cleared), false);
   assert.deepEqual(S.toPost(slots).keyGroups, ["Кухня", "Кухня", "Холл"], "исходный массив не тронут");
 });

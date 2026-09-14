@@ -1402,12 +1402,20 @@ function postGroupsPropHtml(post){
       +`<small class="prop-hint">В посте нет клавиш — группы света задавать негде.</small></div>`;
   const rows=keys.map((s,i)=>{
     const name=EPLightingGroups.normalizeGroup(s.group);
-    return `<div class="post-group-row ${name?"has-group":"no-group"}"><span>Клавиша ${i+1}</span>`
-      +(name?`<b>${esc(name)}</b>`:`<em>отдельный выключатель</em>`)+`</div>`;
+    const cross=EPLightingGroups.normalizeGroup(s.cross);
+    const mech=EPLightingGroups.roleOverrideOf({roleOverride:s.mech});
+    const mechLabel=mech?EPLightingGroups.ROLE_LABELS[mech]:"";
+    /* Связывает клавишу НОМЕР (проходная); имя — подпись для документов; без того и другого клавиша
+       это отдельный выключатель. Ручной механизм (ВАРИАНТ C) — отдельной пометкой, только когда
+       выбран: «как посчитано» строки не заслуживает. */
+    const main=cross?`проходная № ${esc(cross)}${name?` «${esc(name)}»`:""}`:(name?esc(name):"отдельный выключатель");
+    const extra=mechLabel?`<em>механизм: ${esc(mechLabel)} (вручную)</em>`:"";
+    return `<div class="post-group-row ${cross||name?"has-group":"no-group"}"><span>Клавиша ${i+1}</span>`
+      +`<b>${main}</b>${extra}</div>`;
   }).join("");
   return `<div class="post-groups"><div class="post-groups-head">Группы света</div>${rows}`
-    +`<small class="prop-hint">Имя группы нужно только чтобы связать клавиши разных постов в проходную. `
-    +`Без имени клавиша — обычный выключатель; задать имя можно в конструкторе: «Редактировать».</small></div>`;
+    +`<small class="prop-hint">Проходную задаёт НОМЕР: одинаковый номер у клавиш разных постов свяжет их в одну проходную. `
+    +`Имя группы — только для документов. Без номера клавиша — обычный выключатель; номер, имя и механизм задаются в конструкторе: «Редактировать».</small></div>`;
 }
 function renderProperties(){
   flushRoomDraft();   /* §7.1: правило «сначала закоммить черновик» в одной точке — покрывает все ~25 вызовов */
@@ -2123,6 +2131,9 @@ function builderPostDraft(frame){
   return {id:placed?placed.id:"builder-draft",number:placed?placed.number:"—",
     name:$("postName").value,frameId:frame&&frame.id,roomId:placed?placed.roomId:null,
     mechanismIds:fields.mechanismIds,keyGroups:fields.keyGroups,
+    /* Номер проходной и ручной механизм — из ЧЕРНОВИКА окна, как keyGroups: расчёт связи и цены
+       в конструкторе обязан учитывать номер/выбор, которые человек ввёл прямо сейчас. */
+    keyCrossNumbers:fields.keyCrossNumbers,keyMechanisms:fields.keyMechanisms,
     /* Тип стены — из ЧЕРНОВИКА окна: состав и цена в конструкторе обязаны показывать ту
        коробку, которую человек только что выбрал кнопкой, а не ту, что записана в проекте. */
     wallType:builderWallType(),
@@ -2531,9 +2542,16 @@ function renderBuilderSlots(layout,remaining,lightRows){
         /* maxlength — не украшение: имя группы печатается ЦЕЛИКОМ в блоке «Группы света» КП,
            листа монтажника и панели проекта, и без ограничения одно поле выдавливало соседнюю
            колонку документа. 40 знаков с запасом хватает и «Кухне», и «4.1», и «Спальня,
-           бра у кровати» — а длиннее это уже не имя группы, а примечание. */
-        ? `<label class="slot-group">Группа света<input type="text" data-slot-group="${index}" value="${esc(state.builder.slots[index]?.group||"")}" maxlength="${GROUP_NAME_MAX}" placeholder="например «Кухня» или «4.1»" autocomplete="off"></label>`
-        : `<div class="slot-group-note">Группа света задаётся у поста на плане: разместите пост и укажите группу там. У шаблона её нет намеренно — один шаблон в трёх комнатах это три разные группы, а не одна на три места.</div>`;
+           бра у кровати» — а длиннее это уже не имя группы, а примечание.
+           ⚠️ РЯДОМ — НОМЕР ПРОХОДНОЙ И ВЫБОР МЕХАНИЗМА (владелец 13.09). Имя — для документов, номер —
+           для связи: одинаковый номер у клавиш РАЗНЫХ постов = одна проходная. Поле «Механизм» —
+           ВАРИАНТ C: по умолчанию «как посчитано», но выбор руками главнее расчёта. Оба поля тоже
+           только у поста на плане (у шаблона своей проходной/механизма быть не может). Номер строго
+           текстовый, как имя: <input type="number"> склеил бы «4.10» и «4.1». */
+        ? `<div class="slot-keyfields"><label class="slot-group">Группа света<input type="text" data-slot-group="${index}" value="${esc(state.builder.slots[index]?.group||"")}" maxlength="${GROUP_NAME_MAX}" placeholder="например «Кухня» или «4.1»" autocomplete="off"></label>`
+          +`<label class="slot-cross">№&nbsp;проходной<input type="text" data-slot-cross="${index}" value="${esc(state.builder.slots[index]?.cross||"")}" maxlength="${GROUP_NAME_MAX}" placeholder="напр. 5" autocomplete="off"></label>`
+          +`<label class="slot-mech">Механизм<select data-slot-mech="${index}">${mechOverrideOptions(state.builder.slots[index]?.mech||"")}</select></label></div>`
+        : `<div class="slot-group-note">Группа света и проходная задаются у поста на плане: разместите пост и укажите их там. У шаблона их нет намеренно — один шаблон в трёх комнатах это три разные группы, а не одна на три места.</div>`;
     return `<div class="builder-slot${isTarget?" is-target":""}">
       <div class="slot-number" title="${esc(moduleWord(slot.span))}">${esc(slot.label)}</div>
       <div class="slot-body">${productPicture(item,{label:item?item.name:"Элемент"})}
@@ -2581,6 +2599,29 @@ function renderBuilderSlots(layout,remaining,lightRows){
     input.onchange=()=>{state.builder.slots=EPBuilderSlots.setGroup(state.builder.slots,index,input.value);refreshBuilderLighting()};
     input.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();input.blur()}};
   });
+  /* Номер проходной — тем же приёмом, что имя группы: на ввод запоминаем (без перерисовки, иначе
+     уводится фокус), на change точечно пересчитываем связь и подставленный механизм. Смена номера
+     меняет N проходной у ДРУГИХ постов, но refreshBuilderLighting считает полный расчёт по проекту. */
+  host.querySelectorAll("[data-slot-cross]").forEach(input=>{
+    const index=Number(input.dataset.slotCross);
+    input.oninput=()=>{state.builder.slots=EPBuilderSlots.setCross(state.builder.slots,index,input.value)};
+    input.onchange=()=>{state.builder.slots=EPBuilderSlots.setCross(state.builder.slots,index,input.value);refreshBuilderLighting()};
+    input.onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();input.blur()}};
+  });
+  /* Ручной выбор механизма (ВАРИАНТ C): select меняет значение сразу — пересчитываем связь и цену. */
+  host.querySelectorAll("[data-slot-mech]").forEach(sel=>{
+    const index=Number(sel.dataset.slotMech);
+    sel.onchange=()=>{state.builder.slots=EPBuilderSlots.setMech(state.builder.slots,index,sel.value);refreshBuilderLighting()};
+  });
+}
+/* Опции селектора ВАРИАНТА C. Значения — те же строки-роли, что принимает EPLightingGroups.roleOverrideOf
+   ("" = «как посчитано»), подписи — из ROLE_LABELS расчёта (второй копии терминологии заказчика нет:
+   «Инвертор», а не «перекрёстный переключатель»). «Проходной» в словах владельца = переключатель. */
+function mechOverrideOptions(current){
+  const L=EPLightingGroups.ROLE_LABELS,R=EPLightingGroups.ROLES;
+  const choices=[["","Как посчитано"],[R.SWITCH,L[R.SWITCH]],[R.CHANGEOVER,L[R.CHANGEOVER]],[R.INVERTER,L[R.INVERTER]]];
+  const cur=String(current||"").trim().toLowerCase();
+  return choices.map(([v,label])=>`<option value="${esc(v)}"${v===cur?" selected":""}>${esc(label)}</option>`).join("");
 }
 /* Пересчёт ТОЛЬКО групп света: строки «что подставил расчёт» в слотах и блок состава поста.
    Роль механизма зависит от числа мест группы ПО ВСЕМУ ПРОЕКТУ, поэтому считаем полный расчёт
@@ -2896,12 +2937,14 @@ async function savePostBuilder(){
   const dist=EPPosts.distributePosts(fields.mechanismIds,frameProduct($("postFrameSelect").value),{product,mechanismSpan});
   if(!dist.valid){toast("Несовместимое сочетание — см. причину над составом поста");return}
   if(!dist.full){toast("Заполните все модули рамки");return}
-  /* Поля поста перечислены ПОИМЁННО (белый список). keyGroups обязан быть здесь: забыть его —
-     значит молча потерять группы света при сохранении, без единой ошибки в консоли. Он всегда
-     той же длины, что mechanismIds (EPBuilderSlots.toPost), и соответствие идёт по индексу —
-     это и есть keyIndex контракта модуля групп света. */
+  /* Поля поста перечислены ПОИМЁННО (белый список). keyGroups/keyCrossNumbers/keyMechanisms обязаны
+     быть здесь: забыть любой — значит молча потерять при сохранении группы света, связь проходной по
+     номеру или ручной выбор механизма, без единой ошибки в консоли. Все три всегда той же длины, что
+     mechanismIds (EPBuilderSlots.toPost), и соответствие идёт по индексу — это и есть keyIndex
+     контракта модуля групп света. */
   const base={name:$("postName").value.trim()||"Пост",frameId:Number($("postFrameSelect").value),
-    mechanismIds:[...fields.mechanismIds],keyGroups:[...fields.keyGroups],socketBoxProductId:socketBox()?.id};
+    mechanismIds:[...fields.mechanismIds],keyGroups:[...fields.keyGroups],
+    keyCrossNumbers:[...fields.keyCrossNumbers],keyMechanisms:[...fields.keyMechanisms],socketBoxProductId:socketBox()?.id};
   if(state.builder.editingPlacedId){
     const post=state.posts.find(x=>x.id===state.builder.editingPlacedId);
     /* ⚠️ ОХВАТ ПРАВКИ ТИПА СТЕНЫ СПРАШИВАЕМ ДО ЛЮБЫХ ЗАПИСЕЙ. Иначе отказ от вопроса (Esc,
@@ -3727,16 +3770,29 @@ function postsForGroupLinks(){
        РАЗНЫЕ цепочки. Ключ берём ТЕМ ЖЕ EPLightingByRoom.partitionNorm, что и расчёт денег
        (partitionKeyOf → p.roomId), чтобы план совпал со сметой. Пост без комнаты → «без помещения». */
     const room=EPLightingByRoom.partitionNorm(p.roomId);
-    /* Группы света поста: у каждой КЛАВИШИ своя группа (p.keyGroups[i]). Ключ приводим ТЕМ ЖЕ
-       EPLightingGroups.groupKeyOf, что и весь расчёт групп («Кухня» и «кухня » — одна связь). Дубли
-       ключа в одном посте (две клавиши одной группы) схлопываем — в группе пост один. Печатное имя —
-       normalizeGroup. Пустой ключ = группа не назначена, место в связь не идёт. */
+    /* Группы света поста — ТЕМ ЖЕ правилом связи, что и расчёт механизмов (EPLightingGroups.resolveGroup),
+       иначе линии на плане разойдутся с деньгами (§7.1). Приоритет: НОМЕР ПРОХОДНОЙ (p.keyCrossNumbers[i])
+       главнее — связь сквозная по проекту (global:true, groupChains не дробит её по комнатам, как и
+       buildRegistry считает N по всему проекту). Номера нет — связь по ИМЕНИ (p.keyGroups[i]), покомнатно,
+       как прежде. Ключ проходной — тот же EPLightingGroups.crossGroupKey, что в расчёте; ключ имени — тот
+       же groupKeyOf. Дубли ключа в одном посте схлопываем: в группе пост один. Пусто — место в связь не
+       идёт (одиночный выключатель линии не даёт). */
+    const crosses=Array.isArray(p.keyCrossNumbers)?p.keyCrossNumbers:[];
+    const names=Array.isArray(p.keyGroups)?p.keyGroups:[];
     const seen=Object.create(null),groups=[];
-    (Array.isArray(p.keyGroups)?p.keyGroups:[]).forEach(g=>{
-      const key=EPLightingGroups.groupKeyOf(g);
-      if(!key||seen[key])return;
-      seen[key]=1;groups.push({key,label:EPLightingGroups.normalizeGroup(g)});
-    });
+    const upto=Math.max(crosses.length,names.length);
+    for(let i=0;i<upto;i++){
+      const crossKey=EPLightingGroups.crossGroupKey(crosses[i]);
+      const name=EPLightingGroups.normalizeGroup(names[i]);
+      if(crossKey){
+        if(seen[crossKey])continue;
+        seen[crossKey]=1;groups.push({key:crossKey,label:name||("Проходная № "+EPLightingGroups.normalizeGroup(crosses[i])),global:true});
+        continue;
+      }
+      const key=EPLightingGroups.groupKeyOf(names[i]);
+      if(!key||seen[key])continue;
+      seen[key]=1;groups.push({key,label:name});
+    }
     const o={number:p.number,x:p.x+POST_ICON_HALF,y:p.y+POST_ICON_HALF,room};
     /* Поле groups кладём, только когда группы есть, — прежний контракт spec (пост без групп его
        не несёт); groupChains и renderGroupLinks трактуют отсутствие поля как «групп нет». */
@@ -4124,6 +4180,7 @@ function installSheetForBuilder(){
   const post={id:placed?placed.id:"builder-draft",number:placed?placed.number:"—",
     frameId:Number(selectedFrameId),
     mechanismIds:[...fields.mechanismIds],keyGroups:[...fields.keyGroups],
+    keyCrossNumbers:[...fields.keyCrossNumbers],keyMechanisms:[...fields.keyMechanisms],
     roomId:placed?placed.roomId:null,height:placed?.height,purpose:placed?.purpose,
     /* Тип стены — из черновика окна: лист монтажника обязан назвать ту коробку, что видна
        в составе поста рядом, а не ту, что записана в проекте (правка ещё не сохранена). */

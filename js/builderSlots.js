@@ -26,10 +26,18 @@
    переключателями (25.79 €). Поэтому и здесь, и в поле ввода интерфейса значение живёт строкой,
    а нормализацию написания делает уже EPLightingGroups.normalizeGroup. */
 const groupText = v => (v === null || v === undefined) ? "" : String(v);
+/* Номер проходной — тоже свободная строка человека, и ТОЖЕ только строка: 4.10 в JS это 4.1, и
+   проходная «4.10» слилась бы с «4.1» (та же ловушка, что у имени группы). */
+const crossText = groupText;
+/* Выбор механизма руками (ВАРИАНТ C): строка-роль либо пусто «как посчитано». */
+const mechText = v => (v === null || v === undefined) ? "" : String(v);
 
-/* Слот: id механизма (число, как в post.mechanismIds) + группа света (строка).
-   Группа хранится ВМЕСТЕ с механизмом, а не в параллельном массиве, — в этом вся суть модуля. */
-const slot = (id, group) => ({ id: Number(id), group: groupText(group) });
+/* Слот: id механизма (число, как в post.mechanismIds) + группа света + НОМЕР ПРОХОДНОЙ + выбранный
+   РУКАМИ механизм. Всё это — свойства КЛАВИШИ, стоящей в слоте, и хранятся ВМЕСТЕ с механизмом, а не
+   в параллельных массивах: перестановка/фильтрация слотов (упаковка по постам, отсев чужой серии)
+   иначе указала бы номером и выбором НЕ НА ТУ клавишу — и модуль групп посчитал бы связь и деньги по
+   чужим местам, ничего не сообщив. В этом вся суть модуля, и она распространяется на все три поля. */
+const slot = (id, group, cross, mech) => ({ id: Number(id), group: groupText(group), cross: crossText(cross), mech: mechText(mech) });
 
 /* ОСТАВЛЯТЬ ЛИ ГРУППУ НА ЭТОМ МЕХАНИЗМЕ — ОДНО ПРАВИЛО НА ЧТЕНИЕ И НА ЗАМЕНУ.
    Группу назначают КЛАВИШЕ (место управления — только она, см. EPLightingPlan.collect), и поле
@@ -65,15 +73,23 @@ function fromPost(post, isKey) {
   const p = post || {};
   const ids = Array.isArray(p.mechanismIds) ? p.mechanismIds : [];
   const groups = Array.isArray(p.keyGroups) ? p.keyGroups : [];
-  return ids.map((id, i) => slot(id, keepsGroup(id, isKey) ? groups[i] : ""));
+  const crosses = Array.isArray(p.keyCrossNumbers) ? p.keyCrossNumbers : [];
+  const mechs = Array.isArray(p.keyMechanisms) ? p.keyMechanisms : [];
+  /* keepsGroup решает судьбу ВСЕХ полей клавиши разом: заменили клавишу на не-клавишу — и группа, и
+     номер проходной, и ручной механизм снимаются вместе (стоять им не на чем, см. keepsGroup). */
+  return ids.map((id, i) => {
+    const keep = keepsGroup(id, isKey);
+    return slot(id, keep ? groups[i] : "", keep ? crosses[i] : "", keep ? mechs[i] : "");
+  });
 }
 
-/* Слоты → поля поста. keyGroups отдаём ВСЕГДА той же длины, что mechanismIds: массив короче
-   («хвост пустой, зачем его хранить») развалил бы соответствие по индексу при первой же правке
-   середины поста. */
+/* Слоты → поля поста. keyGroups/keyCrossNumbers/keyMechanisms отдаём ВСЕГДА той же длины, что
+   mechanismIds: массив короче («хвост пустой, зачем его хранить») развалил бы соответствие по
+   индексу при первой же правке середины поста. */
 function toPost(slots) {
   const list = Array.isArray(slots) ? slots : [];
-  return { mechanismIds: list.map(s => Number(s.id)), keyGroups: list.map(s => groupText(s.group)) };
+  return { mechanismIds: list.map(s => Number(s.id)), keyGroups: list.map(s => groupText(s.group)),
+    keyCrossNumbers: list.map(s => crossText(s.cross)), keyMechanisms: list.map(s => mechText(s.mech)) };
 }
 
 /* Есть ли в посте хоть одна заполненная группа — по этому признаку интерфейс и документы
@@ -137,7 +153,7 @@ function pick(slots, tokenList) {
   return (Array.isArray(tokenList) ? tokenList : [])
     .map(t => list[Number(t)])
     .filter(Boolean)
-    .map(s => slot(s.id, s.group));
+    .map(s => slot(s.id, s.group, s.cross, s.mech));
 }
 
 /* ─────────────────────── правки слотов ─────────────────────── */
@@ -146,7 +162,7 @@ function pick(slots, tokenList) {
    исходного массива прятала бы источник изменений. Группа при замене механизма СОХРАНЯЕТСЯ —
    человек меняет клавишу «на 1 модуль» на «на 2 модуля» в том же месте той же группы, и
    заставлять его вводить группу заново значило бы терять данные на ровном месте. */
-const add = (slots, id) => (Array.isArray(slots) ? slots : []).concat([slot(id, "")]);
+const add = (slots, id) => (Array.isArray(slots) ? slots : []).concat([slot(id, "", "", "")]);
 const removeAt = (slots, index) => (Array.isArray(slots) ? slots : []).filter((_, i) => i !== Number(index));
 /* replaceAt(slots, index, id, isKey?) — заменить механизм слота, сохранив его группу света.
 
@@ -169,12 +185,25 @@ function replaceAt(slots, index, id, isKey) {
   const list = Array.isArray(slots) ? slots : [];
   const i = Number(index);
   const keepGroup = keepsGroup(id, isKey);
-  return list.map((s, j) => j === i ? slot(id, keepGroup ? s.group : "") : slot(s.id, s.group));
+  return list.map((s, j) => j === i
+    ? slot(id, keepGroup ? s.group : "", keepGroup ? s.cross : "", keepGroup ? s.mech : "")
+    : slot(s.id, s.group, s.cross, s.mech));
 }
 function setGroup(slots, index, group) {
   const list = Array.isArray(slots) ? slots : [];
   const i = Number(index);
-  return list.map((s, j) => j === i ? slot(s.id, group) : slot(s.id, s.group));
+  return list.map((s, j) => j === i ? slot(s.id, group, s.cross, s.mech) : slot(s.id, s.group, s.cross, s.mech));
+}
+/* Номер проходной и ручной механизм правятся так же точечно, сохраняя остальные поля слота. */
+function setCross(slots, index, cross) {
+  const list = Array.isArray(slots) ? slots : [];
+  const i = Number(index);
+  return list.map((s, j) => j === i ? slot(s.id, s.group, cross, s.mech) : slot(s.id, s.group, s.cross, s.mech));
+}
+function setMech(slots, index, mech) {
+  const list = Array.isArray(slots) ? slots : [];
+  const i = Number(index);
+  return list.map((s, j) => j === i ? slot(s.id, s.group, s.cross, mech) : slot(s.id, s.group, s.cross, s.mech));
 }
 
 /* Снять группы со всего набора, сохранив сами механизмы.
@@ -184,7 +213,10 @@ function setGroup(slots, index, group) {
    независимых выключателя (3 × 20.26 €) в проходную схему из двух переключателей и инвертора
    (25.79 + 25.79 + 42.33 €) — другая схема, другой монтаж и другие деньги. Поэтому конструктор
    шаблона открывает набор БЕЗ групп, а размещение на плане их не копирует. */
-const clearGroups = slots => (Array.isArray(slots) ? slots : []).map(s => slot(s && s.id, ""));
+/* Снимаем и номер проходной, и ручной механизм вместе с группой: всё это — свойства ПОСТА НА ПЛАНЕ,
+   не шаблона. Один шаблон в трёх комнатах — три разных проходных и три разных выбора механизма, а не
+   один на всех (см. требование владельца: механизм — свойство клавиши размещённого поста). */
+const clearGroups = slots => (Array.isArray(slots) ? slots : []).map(s => slot(s && s.id, "", "", ""));
 
 /* Новая позиция слота после перестановки/фильтрации, выполненной через pick(): tokenList —
    ответ EPPosts (старые индексы в новом порядке), index — старый индекс. Слот выброшен → -1.
@@ -209,12 +241,13 @@ function reindex(tokenList, index) {
    Кодирование НЕСКЛЕИВАЕМОЕ (JSON), а не «id:группа через запятую»: имя группы вводит человек
    и в нём законно бывают и запятые, и двоеточия («Кухня, рабочая зона»), — склеенная подпись
    объявила бы два разных набора одинаковыми и потеряла бы правки без предупреждения. */
-const signature = slots => JSON.stringify((Array.isArray(slots) ? slots : []).map(s => [Number(s && s.id), groupText(s && s.group)]));
+const signature = slots => JSON.stringify((Array.isArray(slots) ? slots : [])
+  .map(s => [Number(s && s.id), groupText(s && s.group), crossText(s && s.cross), mechText(s && s.mech)]));
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
 const api = { slot, fromPost, toPost, hasGroups, tokens, tokenDeps, allowedTokens, pick,
-  add, removeAt, replaceAt, setGroup, clearGroups, reindex, signature };
+  add, removeAt, replaceAt, setGroup, setCross, setMech, clearGroups, reindex, signature };
 if (typeof window !== "undefined") window.EPBuilderSlots = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

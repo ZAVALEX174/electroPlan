@@ -1589,7 +1589,9 @@ test("PROJECT_GAPS: «схема не описана» — не пробел п�
      самостоятельный выключатель (resolveGroup), а не пробел, — остались только схемные причины.
      Пока список лежал литералом в приложении, о нём знал только свод, а обвязка печатала то,
      что свод отбрасывал: один пробел, два разных документа, две трактовки. */
-  assert.deepEqual(LG.PROJECT_GAPS, [GAPS.SCHEME_NOT_READY, GAPS.SCHEME_UNKNOWN]);
+  /* Проходные пробелы (нет пары у номера; один номер на двух клавишах поста) тоже про недозаполненный
+     замысел, а не про поставку: заказать нечего, человек не достроил связь. */
+  assert.deepEqual(LG.PROJECT_GAPS, [GAPS.SCHEME_NOT_READY, GAPS.SCHEME_UNKNOWN, GAPS.CROSS_DUP_IN_POST, GAPS.CROSS_LONELY]);
   LG.PROJECT_GAPS.forEach(reason => {
     assert.equal(LG.isProjectGap(reason), true, reason);
     assert.equal(LG.isSupplyGap(reason), false, reason);

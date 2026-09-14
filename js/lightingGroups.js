@@ -123,6 +123,22 @@ function normalizeGroup(value) {
    представления в JS, угадывать за него мы не вправе. Число 1 при этом даёт ключ «1». */
 const groupKeyOf = value => normalizeGroup(value).toLocaleLowerCase("ru-RU");
 
+/* ─────────────────────── проходная ПО НОМЕРУ (владелец 13.09.2026) ───────────────────────
+
+   ЯВНАЯ СВЯЗЬ. Прежде «один свет из разных мест» выводился из совпадения ИМЁН групп — программа
+   связывала клавиши сама, а владелец этого не хочет: связь должен задавать ЧЕЛОВЕК номером. У
+   клавиши есть ПОЛЕ НОМЕРА проходной (crossNo), СКВОЗНОЕ по всему проекту: одинаковый номер у
+   клавиш РАЗНЫХ постов = одна проходная (два поста → два переключателя, три и больше → плюс
+   инверторы). Пусто — клавиша в проходную не входит.
+   Номер — это СТРОКА (как имя группы): 4.10 в JS это 4.1, и «проходная 4.10» слилась бы с «4.1».
+   Нормализация — та же, что у имени (crossNo и имя вводят рядом, правила написания одни). Ключ
+   проходной живёт в ОТДЕЛЬНОМ пространстве имён (префикс с U+FEFF, который normalizeGroup срезает
+   ещё до ключа): номер «Кухня» и имя-группа «Кухня» — это РАЗНЫЕ связи и никогда не сольются.
+   Ключ отдан наружу (crossGroupKey): холст и печатный план строят линии проходных ТЕМ ЖЕ ключом,
+   что и расчёт механизмов, — второй копии правила связи быть не должно (§7.1 HANDOFF). */
+const CROSS_GROUP_PREFIX = "﻿проходная:";
+const crossGroupKey = value => { const k = groupKeyOf(value); return k ? CROSS_GROUP_PREFIX + k : ""; };
+
 /* ─────────────────────── чтение полей места ─────────────────────── */
 
 /* ⚠️ ОДНО ПОЛЕ — ОДНА ФУНКЦИЯ ЧТЕНИЯ. Это не стилистика, а корректность: пока номер поста в одном
@@ -473,13 +489,33 @@ function autoGroupLabel(place, index) {
   const keyPart = ki !== null ? " · клавиша " + (ki + 1) : (num ? "" : " · № " + (index + 1));
   return where + keyPart;
 }
+/* Печатный ярлык проходной, когда ИМЕНИ у клавиши нет: сам номер связи. Имя — для документов,
+   номер — для связи (решение владельца), поэтому при наличии имени в ярлык идёт имя, а номер лишь
+   подстраховывает, когда человек связал клавиши номером, но подписать группу словами не стал. */
+function crossLabel(place) {
+  const n = normalizeGroup(place && place.crossNo);
+  return n ? "Проходная № " + n : "Проходная";
+}
+/* ★ КАКОЙ ГРУППЕ ПРИНАДЛЕЖИТ КЛАВИША — ЕДИНОЕ ПРАВИЛО (§7.1). Приоритет связи:
+     1) ЕСТЬ НОМЕР ПРОХОДНОЙ (crossNo) → клавиша в проходной группе этого номера (сквозной по
+        проекту, cross:true). Имя тут — только ярлык. Это НОВЫЙ, ЯВНЫЙ способ связи (владелец 13.09).
+     2) НОМЕРА НЕТ, ЕСТЬ ИМЯ → связь по имени (прежнее правило — сохранено ради совместимости со
+        старыми проектами; владельцу предложено отказаться от неявной связи по имени отдельным
+        шагом, см. отчёт). cross:false: правила «нет пары»/«дубль в посту» к безномерной группе не
+        применяются — они про проходную.
+     3) НИ НОМЕРА, НИ ИМЕНИ → самостоятельный ВЫКЛЮЧАТЕЛЬ этой клавиши (своя группа по адресу).
+   named/cross отданы наружу: интерфейсу нужно различать «связано номером», «связано именем» и
+   «одиночный выключатель», чтобы подсказка не врала. */
 function resolveGroup(place, index) {
   const p = place || {};
+  const name = normalizeGroup(p.group);
+  const crossKey = crossGroupKey(p.crossNo);
+  if (crossKey) return { key: crossKey, label: name || crossLabel(p), named: !!name, cross: true };
   const key = groupKeyOf(p.group);
-  if (key) return { key, label: normalizeGroup(p.group), named: true };
+  if (key) return { key, label: name, named: true, cross: false };
   const id = identityOf(p);
   const base = id !== null ? id : ("orphan:" + index);
-  return { key: AUTO_GROUP_PREFIX + base, label: autoGroupLabel(p, index), named: false };
+  return { key: AUTO_GROUP_PREFIX + base, label: autoGroupLabel(p, index), named: false, cross: false };
 }
 
 /* Место управления на входе:
@@ -499,6 +535,7 @@ function buildRegistry(places, seriesOf) {
   const seen = new Map();             /* identity → входной индекс первого места */
   const postsAt = new Map();          /* «ключ группы + адрес поста» → запись в group.posts */
   const controlAt = new Map();        /* «ключ группы + место управления» → порядковый номер места в группе */
+  const crossAt = new Map();          /* «проходная + адрес поста» → входные индексы клавиш этого номера в этом посту */
   const order = canonicalOrder(list, seriesOf);
 
   order.forEach(index => {
@@ -521,7 +558,7 @@ function buildRegistry(places, seriesOf) {
          в списке вызова — иначе название прыгало бы вслед за порядком входа).
          placeOrdinals — параллельно places: для каждой клавиши группы номер её МЕСТА управления
          (см. ниже), чтобы plan раздал роли по местам, а не по клавишам. */
-      group = { key, label, placeCount: 0, places: [], placeOrdinals: [], posts: [] };
+      group = { key, label, cross: !!eff.cross, placeCount: 0, places: [], placeOrdinals: [], posts: [] };
       byKey.set(key, group);
       groups.push(group);
     }
@@ -562,11 +599,20 @@ function buildRegistry(places, seriesOf) {
         group.posts.push(post);
       }
       post.placeCount++;
+      /* ДУБЛЬ ПРОХОДНОГО НОМЕРА ВНУТРИ ОДНОГО ПОСТА (владелец, п.4: это ошибка). Копим индексы
+         клавиш проходной группы по посту; две и больше в одном посту — ошибка данных (нельзя
+         повесить один проходной на две клавиши одной рамки). Считаем только для проходных групп
+         (cross): у безномерной группы две клавиши одного поста — законная «пять выключателей». */
+      if (eff.cross) { let arr = crossAt.get(at); if (!arr) { arr = []; crossAt.set(at, arr); } arr.push(index); }
     }
   });
 
+  /* Клавиши, попавшие в дубль проходного номера внутри поста (см. выше) — их индексы для plan. */
+  const crossDuplicates = new Set();
+  crossAt.forEach(arr => { if (arr.length > 1) arr.forEach(i => crossDuplicates.add(i)); });
+
   /* groups — канонический порядок (по первому месту группы), byKey — быстрый доступ по ключу. */
-  return { groups, byKey, duplicates, order };
+  return { groups, byKey, duplicates, order, crossDuplicates };
 }
 
 /* ─────────────────────── формулы схем ─────────────────────── */
@@ -619,6 +665,17 @@ function roleFor(scheme, index, count) {
   return null;   /* bell и всё нераспознанное — механизм не подбираем */
 }
 
+/* ★ ВАРИАНТ C (владелец): у клавиши есть ВЫБОР механизма, и выбранное РУКАМИ главнее расчёта — та
+   же модель, что «пост главнее» у подсветки. roleOverride хранит выбор человека; принимаем только
+   выключатель/переключатель/инвертор. Кнопку переопределить нельзя (это схема реле, а не механизм
+   проходной). «Как посчитано», пусто и любой мусор → null: считает программа. */
+const OVERRIDE_ROLES = { [ROLES.SWITCH]: ROLES.SWITCH, [ROLES.CHANGEOVER]: ROLES.CHANGEOVER, [ROLES.INVERTER]: ROLES.INVERTER };
+function roleOverrideOf(place) {
+  const v = place && place.roleOverride;
+  if (typeof v !== "string") return null;
+  return OVERRIDE_ROLES[v.trim().toLowerCase()] || null;
+}
+
 /* ─────────────────────── причины пробелов ─────────────────────── */
 
 /* Правило проекта: честный пробел лучше правдоподобно неверной суммы. Каждый неподставленный
@@ -636,7 +693,9 @@ const GAPS = {
   DUPLICATE_PLACE: "place-duplicate",     /* та же клавиша того же поста подана дважды */
   SCHEME_NOT_READY: "scheme-not-implemented", /* схема известна, но правил расчёта нет (звонковые кнопки) */
   SCHEME_UNKNOWN: "scheme-unknown",       /* идентификатор схемы не распознан вовсе */
-  RELAY_ARTICLE: "relay-article-unknown"  /* реле посчитано числом, артикул не определён */
+  RELAY_ARTICLE: "relay-article-unknown", /* реле посчитано числом, артикул не определён */
+  CROSS_DUP_IN_POST: "cross-duplicate-in-post", /* один проходной номер на двух клавишах одного поста — ошибка */
+  CROSS_LONELY: "cross-single-place"      /* проходной номер встречается в проекте один раз — пары нет */
 };
 const GAP_TEXTS = {
   [GAPS.NO_SERIES]: "У клавиши не определена серия — механизм не подобрать",
@@ -650,7 +709,9 @@ const GAP_TEXTS = {
   [GAPS.DUPLICATE_PLACE]: "Место управления указано дважды — повтор в расчёт не взят",
   [GAPS.SCHEME_NOT_READY]: "Схема «Звонковые кнопки» не описана заказчиком — расчёт недоступен, вопрос отправлен (письмо от 26.08, §3)",
   [GAPS.SCHEME_UNKNOWN]: "Схема электрики не распознана — расчёт недоступен",
-  [GAPS.RELAY_ARTICLE]: "Импульсное реле: артикул не определён (в каталоге и номенклатуре VIMAR отсутствует)"
+  [GAPS.RELAY_ARTICLE]: "Импульсное реле: артикул не определён (в каталоге и номенклатуре VIMAR отсутствует)",
+  [GAPS.CROSS_DUP_IN_POST]: "Один проходной номер стоит на двух клавишах одного поста — это ошибка; механизм не подобран",
+  [GAPS.CROSS_LONELY]: "Проходной номер встречается в проекте только раз — второго места нет; проверьте связь"
 };
 
 /* ⚠️ ПРОБЕЛ ПРОЕКТА ≠ ПРОБЕЛ ПОСТАВКИ, И РАЗЛИЧАЕТ ИХ ОДИН СПИСОК НА ВСЕ ДОКУМЕНТЫ.
@@ -665,7 +726,10 @@ const GAP_TEXTS = {
    Раньше этот список литералом лежал в оркестраторе (app.js), знал о нём только свод, и один и
    тот же пробел печатался в накладной по одному правилу, а в обвязке — по другому. Правило
    одно и живёт рядом с самими причинами; добавили причину — сразу решили, какого она рода. */
-const PROJECT_GAPS = [GAPS.SCHEME_NOT_READY, GAPS.SCHEME_UNKNOWN];
+/* Проходные пробелы (нет пары у номера; один номер на двух клавишах поста) — это НЕДОЗАПОЛНЕННЫЙ
+   ЗАМЫСЕЛ, а не пробел поставки: заказать тут нечего, человек не достроил связь. Место таких строк —
+   в блоке «Группы света» с причиной, а не в накладной поставщика и обвязке монтажника. */
+const PROJECT_GAPS = [GAPS.SCHEME_NOT_READY, GAPS.SCHEME_UNKNOWN, GAPS.CROSS_DUP_IN_POST, GAPS.CROSS_LONELY];
 const isProjectGap = reason => PROJECT_GAPS.indexOf(reason) >= 0;
 const isSupplyGap = reason => !!reason && !isProjectGap(reason);
 
@@ -806,8 +870,28 @@ function plan(input, deps) {
        конструкции, а не на проверке). */
     if (!group || !counted) { out.missingReason = GAPS.NO_ROLE; return out; }
 
-    const role = roleFor(schemeId, pos, group.placeCount);
-    if (!role) { out.missingReason = GAPS.NO_ROLE; return out; }   /* предохранитель, см. isValidPlaceIndex */
+    /* ОШИБКА: один проходной номер на двух клавишах ОДНОГО поста (владелец, п.4). Красный пробел,
+       механизм не подставляем. Это ошибка данных, а не предпочтение расчёта, — поэтому она стоит
+       ДО ручного переопределения и переопределением не гасится: сначала человек чинит номер. */
+    if (group.cross && registry.crossDuplicates.has(index)) { out.missingReason = GAPS.CROSS_DUP_IN_POST; return out; }
+
+    /* ★ ВАРИАНТ C: механизм, выбранный РУКАМИ, главнее расчёта (та же модель, что «пост главнее»
+       у подсветки). Действует в классической схеме; «как посчитано»/пусто → считает программа. */
+    const override = schemeId === "classic" ? roleOverrideOf(place) : null;
+    let role;
+    if (override) {
+      /* Рука главнее — в том числе гасит предупреждение «пары нет»: человек сознательно назначил
+         механизм этой клавише. Подберётся ли он в её серии — решит подбор ниже (в Neve Up голого
+         инвертора нет — честный пробел NOT_IN_SERIES, а не подстановка чужой серии). */
+      role = override;
+    } else {
+      /* НЕЗАКОНЧЕННАЯ ПРОХОДНАЯ (владелец, п.5): проходной номер встретился в проекте РОВНО РАЗ —
+         второго места нет. ПРЕДУПРЕЖДАЕМ, а не считаем молча выключателем. Обычный (безномерной)
+         выключатель сюда не попадает: у его группы cross=false. */
+      if (group.cross && group.placeCount === 1) { out.missingReason = GAPS.CROSS_LONELY; return out; }
+      role = roleFor(schemeId, pos, group.placeCount);
+      if (!role) { out.missingReason = GAPS.NO_ROLE; return out; }   /* предохранитель, см. isValidPlaceIndex */
+    }
     out.role = role;
     out.roleLabel = ROLE_LABELS[role];
 
@@ -925,7 +1009,7 @@ function plan(input, deps) {
       if (p.role) { rolesRequired[p.role]++; if (p.product) roles[p.role]++; }
       if (p.missing) missing++;
     });
-    return { key: group.key, label: group.label, placeCount: group.placeCount, places: group.places.slice(),
+    return { key: group.key, label: group.label, cross: !!group.cross, placeCount: group.placeCount, places: group.places.slice(),
       posts: group.posts.map(p => ({ id: p.id, number: p.number, placeCount: p.placeCount })),
       roles, rolesRequired, missing };
   });
@@ -979,7 +1063,7 @@ function plan(input, deps) {
    обязано читать адрес места ТОЙ ЖЕ функцией, иначе «В15» и « 1» разъедутся уже на его стороне. */
 const api = { ROLES, ROLE_LABELS, SCHEMES, GAPS, GAP_TEXTS, PROJECT_GAPS, isProjectGap, isSupplyGap,
   MAX_BUTTONS_PER_RELAY,
-  normalizeGroup, groupKeyOf, resolveGroup, canonicalSeries, canonicalOrder, identityOf,
+  normalizeGroup, groupKeyOf, crossGroupKey, resolveGroup, roleOverrideOf, canonicalSeries, canonicalOrder, identityOf,
   postNumberOf, postIdOf, keyIndexOf, keyIdOf, keyUnknownOf,
   buildRegistry, classicRole, relayCount, roleFor, plan };
 if (typeof window !== "undefined") window.EPLightingGroups = api;

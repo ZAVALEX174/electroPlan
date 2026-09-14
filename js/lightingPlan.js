@@ -77,12 +77,20 @@ function collect(posts, deps) {
     const p = post || {};
     const ids = Array.isArray(p.mechanismIds) ? p.mechanismIds : [];
     const groups = Array.isArray(p.keyGroups) ? p.keyGroups : [];
+    /* Номер проходной и выбранный руками механизм — параллельные keyGroups массивы клавиши
+       (см. builderSlots.toPost). Старый пост их не несёт — тогда пусто «связи по номеру нет,
+       механизм считает программа». crossNo/roleOverride читает EPLightingGroups (place.crossNo,
+       place.roleOverride); здесь только протягиваем их из формы поста, второй копии правила нет. */
+    const crosses = Array.isArray(p.keyCrossNumbers) ? p.keyCrossNumbers : [];
+    const mechs = Array.isArray(p.keyMechanisms) ? p.keyMechanisms : [];
     ids.forEach((id, keyIndex) => {
       const item = product(id);
       const key = !!isKey(item);
       const group = groupText(groups[keyIndex]);
-      /* потерянная клавиша: товара нет в каталоге, но группа у позиции назначена */
-      const lostKey = !key && !item && group.trim() !== "";
+      const crossNo = groupText(crosses[keyIndex]);
+      /* потерянная клавиша: товара нет в каталоге, но у позиции назначена группа ИЛИ номер проходной
+         (и то, и другое — свидетельство «здесь стояла клавиша», см. шапку про lostKey). */
+      const lostKey = !key && !item && (group.trim() !== "" || crossNo.trim() !== "");
       if (!key && !lostKey) return;
       out.push({
         postId: p.id, postNumber: p.number,
@@ -91,7 +99,7 @@ function collect(posts, deps) {
         keyId: item && item.id != null ? item.id : id,
         /* У потерянного товара серии нет и взять её неоткуда — пустой список, а не догадка. */
         series: key ? seriesOf(item) : [],
-        group,
+        group, crossNo, roleOverride: groupText(mechs[keyIndex]),
         keyUnknown: !key,
         /* служебное для документов: имя поста и сам товар-клавиша (может быть не найден) */
         postName: p.name, key: item || null
