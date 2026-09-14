@@ -28,7 +28,9 @@ function makeCtx(over) {
     planImageForDoc: () => "IMG"
   };
 }
-const spec = ctx => stand.run(["planLabelsSpec"], ctx)();
+/* planLabelsSpec теперь зовёт настоящий postsForGroupLinks (сборка постов с группами — одна на
+   документ и холст), поэтому режем и исполняем обе функции в общем контексте. */
+const spec = ctx => stand.run(["postsForGroupLinks", "planLabelsSpec"], ctx)();
 
 const SQUARE = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
 

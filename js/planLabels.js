@@ -93,6 +93,53 @@ function cmpMember(a, b) {
   return String(a.number).localeCompare(String(b.number), "ru") || (a.ord - b.ord);
 }
 
+/* КТО С КЕМ СВЯЗАН И В КАКОМ ПОРЯДКЕ — ЕДИНСТВЕННАЯ копия правила связей групп света (§7.1
+   HANDOFF: правило живёт в одной функции). Возвращает связи ОТРЕЗКАМИ в МИРОВЫХ координатах
+   постов (x/y как пришли на вход), без всякой привязки к листу документа. Тем же расчётом
+   пользуются оба потребителя: печатный план (layout ниже переводит мир→доли кадра) и рабочий
+   холст приложения (app.js рисует отрезки прямо в координатах #canvas — зум/панораму снимает
+   его CSS-трансформация).
+
+   Посты одной группы собираем по ключу и соединяем ЦЕПОЧКОЙ в порядке cmpMember, а не «все со
+   всеми»: при трёх и более местах клубок из полного графа превратил бы план в паутину. Группа с
+   ОДНИМ местом линии не даёт — соединять нечего (подпись у бирки при этом остаётся, её собирает
+   вызывающий). ПОКОМНАТНО: бакет цепочки — пара «комната + ключ группы», а не только ключ; иначе
+   одноимённая «Кухня» на разных этажах сшилась бы в одну линию через весь проект. Ключ комнаты и
+   ключ группы приходят готовыми (room / g.key) — второй нормализации здесь нет. В паре их отделяем
+   переводом строки, которого нет ни в одном ключе: иначе склейка строк («a b»+«c» и «a»+«b c»)
+   дала бы ложное совпадение бакетов.
+
+   Вход — посты [{ number, x, y, room?, groups:[{ key, label }] }]. Пост без координат или место
+   без ключа группы в связь не идут — так же, как их отбрасывает layout. */
+function groupChains(posts) {
+  const byGroup = new Map();
+  (Array.isArray(posts) ? posts : []).forEach((p, i) => {
+    const o = p || {};
+    const x = fin(o.x), y = fin(o.y);
+    if (!isFinite(x) || !isFinite(y)) return;   /* пост без координат соединять некуда */
+    const room = o.room == null ? "" : String(o.room);
+    const number = (o.number === null || o.number === undefined || String(o.number).trim() === "") ? "?" : String(o.number);
+    (Array.isArray(o.groups) ? o.groups : []).forEach(g => {
+      const key = (g && g.key != null) ? String(g.key) : "";
+      if (key === "") return;                   /* место без назначенной группы в связь не идёт */
+      const bucket = room + "\n" + key;
+      let m = byGroup.get(bucket);
+      if (!m) { m = { members: [] }; byGroup.set(bucket, m); }
+      m.members.push({ number, x, y, ord: i, key, label: (g && g.label != null) ? String(g.label) : "" });
+    });
+  });
+  const links = [];
+  byGroup.forEach(g => {
+    if (g.members.length < 2) return;
+    const chain = g.members.slice().sort(cmpMember);
+    for (let i = 1; i < chain.length; i++) {
+      const a = chain[i - 1], b = chain[i];
+      links.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, key: a.key, label: a.label });
+    }
+  });
+  return links;
+}
+
 /* Геометрия блока в долях кадра — отдельно от вёрстки, чтобы проверять её тестом напрямую.
    Возвращает null, когда печатать нечего совсем (ни помещений, ни постов с координатами).
    Подложка опциональна: есть — идёт фоном, нет — кадр строится по контурам и биркам. */
@@ -196,31 +243,13 @@ function layout(spec) {
 
   const px = v => 100 * v / frameW, py = v => 100 * v / frameH;
 
-  /* СВЯЗИ ГРУПП СВЕТА. Посты одной группы собираем по ключу (он уже приведён в app.js — второй
-     нормализации нет) и соединяем ЦЕПОЧКОЙ в порядке cmpMember, а не «все со всеми»: при трёх и
-     более местах клубок из полного графа превратил бы план в паутину. Группа с ОДНИМ местом линии
-     не даёт — соединять нечего, но подпись у бирки всё равно будет (см. badges ниже).
-     ПОКОМНАТНО (часть 1d): бакет цепочки — пара «комната + ключ группы», а не только ключ. Иначе
-     одноимённая группа «Кухня» на разных этажах сшилась бы в одну линию через весь проект. Ключ
-     комнаты пришёл готовым в p.room (см. маппинг pts выше); в паре его отделяем переводом строки,
-     которого нет ни в ключе комнаты, ни в ключе группы, — иначе склейка строк («a b»+«c» и
-     «a»+«b c») дала бы ложное совпадение бакетов. */
-  const byGroup = new Map();
-  pts.forEach((p, i) => p.groups.forEach(g => {
-    const bucket = p.room + "\n" + g.key;
-    let m = byGroup.get(bucket);
-    if (!m) { m = { members: [] }; byGroup.set(bucket, m); }
-    m.members.push({ number: p.number, x: p.x, y: p.y, ord: i });
+  /* СВЯЗИ ГРУПП СВЕТА. КТО с кем и в каком порядке считает groupChains (единственная копия
+     правила, §7.1). Здесь остаётся лишь перевод его МИРОВЫХ отрезков в доли кадра документа:
+     леттербокс подложки и поле вокруг бирок — забота печатного листа, а не правила связей. */
+  const groupLines = groupChains(pts).map(ln => ({
+    x1: px(ln.x1 - x0), y1: py(ln.y1 - y0),
+    x2: px(ln.x2 - x0), y2: py(ln.y2 - y0)
   }));
-  const groupLines = [];
-  byGroup.forEach(g => {
-    if (g.members.length < 2) return;
-    const chain = g.members.slice().sort(cmpMember);
-    for (let i = 1; i < chain.length; i++) {
-      const a = chain[i - 1], b = chain[i];
-      groupLines.push({ x1: px(a.x - x0), y1: py(a.y - y0), x2: px(b.x - x0), y2: py(b.y - y0) });
-    }
-  });
 
   return {
     imageUrl: hasImage ? imageUrl : null,
@@ -358,8 +387,9 @@ function buildHtml(spec, deps) {
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). layout отдан наружу отдельно: перевод
    мировых координат в доли кадра — самостоятельная логика, её проверяют числами, а не
-   поиском подстрок в HTML. */
-const api = { buildHtml, layout };
+   поиском подстрок в HTML. groupChains — тоже наружу: тем же правилом связей пользуется
+   рабочий холст (app.js.renderGroupLinks), второй копии быть не должно. */
+const api = { buildHtml, layout, groupChains };
 if (typeof window !== "undefined") window.EPPlanLabels = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

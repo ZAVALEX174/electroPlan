@@ -82,7 +82,15 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .canvas{position:relative;width:100%;height:100%;min-width:100%;min-height:100%;transform-origin:top left;overflow:visible;border-radius:0;background-color:#fff;background-image:linear-gradient(#edf4fb 1px,transparent 1px),linear-gradient(90deg,#edf4fb 1px,transparent 1px);box-shadow:none}
 /* overflow:visible на слоях — линии/полигоны за пределами блока рендерятся (иначе
    SVG клипует их своим вьюпортом, и нарисованное вне листа пропадает при панораме) */
-.canvas.placing{cursor:crosshair}#planImage{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:.58;pointer-events:none;transition:opacity .15s ease}#wallsSvg,#roomsSvg,#detectSvg,#markupSvg,#scaleSvg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.canvas.placing{cursor:crosshair}#planImage{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:.58;pointer-events:none;transition:opacity .15s ease}#wallsSvg,#roomsSvg,#detectSvg,#markupSvg,#scaleSvg,#linksSvg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+/* Связи групп света на холсте: синий пунктир между постами общей группы и мелкая подпись группы
+   у поста. Пунктир — чтобы не спорить со сплошными контурами комнат (.room-poly): проектировщик
+   должен различать «стена» и «связь клавиш». Слой pointer-events:none (в группе выше) и z-index
+   по умолчанию (0) — связи под иконками постов (z-index 6) и подписями комнат (z-index 3), клик и
+   перенос не перехватывают. Толщина/штрих в МИРОВЫХ единицах — масштабируются вместе с планом, как
+   и обводка комнат. */
+.group-link{fill:none;stroke:#1675c8;stroke-width:1.5;stroke-dasharray:6 4;stroke-linecap:round}
+.group-link-label{fill:#1675c8;font:700 9px/1 Arial,sans-serif;text-anchor:middle;dominant-baseline:hanging;paint-order:stroke;stroke:rgba(255,255,255,.85);stroke-width:2px}
 /* линии разметки помещений: намеренно отличаются от стен (auto — синий пунктир,
    ручные — тёмно-синие сплошные) — фиолетовым штрихом, чтобы слои не путались */
 .room-line{stroke:#7b3fe4;stroke-width:2.5;stroke-linecap:round;stroke-dasharray:7 4}

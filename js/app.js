@@ -417,6 +417,39 @@ function compactIcon(entity,kind){
 }
 function renderDevices(){canvas.querySelectorAll(".plan-icon.device-only").forEach(e=>e.remove());state.devices.forEach(d=>{const el=compactIcon(d,"device");el.classList.add("device-only");canvas.appendChild(el)})}
 function renderPosts(){canvas.querySelectorAll(".plan-icon.post").forEach(e=>e.remove());state.posts.forEach(p=>{const el=compactIcon(p,"post");el.ondblclick=e=>{e.stopPropagation();openPostBuilder({placedId:p.id})};canvas.appendChild(el)})}
+/* СВЯЗИ ГРУПП СВЕТА НА РАБОЧЕМ ХОЛСТЕ. Владелец хотел видеть связи между постами не только в
+   КП, но и прямо в окне приложения: между постами общей группы — синий пунктир, у постов —
+   мелкая подпись группы. Рисуем в отдельном SVG #linksSvg внутри #canvas, поэтому связи живут
+   в МИРОВЫХ координатах и едут вместе с планом при зуме/панораме (та же CSS-трансформация
+   #canvas, что у контуров комнат и стен) — компенсировать вид вручную не нужно.
+   КТО с кем и в каком порядке считает чистый EPPlanLabels.groupChains — ТА ЖЕ функция, что
+   строит связи для документа (§7.1: правило в одной функции). Здесь только отрисовка. SVG
+   pointer-events:none и z-index под иконками постов — связи не перехватывают клик и перенос.
+   Подпись у бирки повторяет КП: имя(имена) групп поста через « · ». */
+function renderGroupLinks(){
+  const svg=$("linksSvg");if(!svg)return;
+  svg.innerHTML="";
+  const posts=postsForGroupLinks();
+  EPPlanLabels.groupChains(posts).forEach(ln=>{
+    const line=document.createElementNS(SVG_NS,"line");
+    line.setAttribute("x1",ln.x1);line.setAttribute("y1",ln.y1);
+    line.setAttribute("x2",ln.x2);line.setAttribute("y2",ln.y2);
+    line.setAttribute("class","group-link");
+    svg.appendChild(line);
+  });
+  /* Подпись группы у поста — как в КП: у всех постов с назначенной группой, независимо от того,
+     есть ли пара (одиночная группа линии не даёт, но имя показать надо). Ниже иконки (y+половина
+     +отступ), центр по X. SVG-текст масштабируется вместе с планом — как контуры комнат. */
+  posts.forEach(p=>{
+    const groups=p.groups||[];   /* пост без групп поле groups не несёт (см. postsForGroupLinks) */
+    if(!groups.length)return;
+    const t=document.createElementNS(SVG_NS,"text");
+    t.setAttribute("x",p.x);t.setAttribute("y",p.y+POST_ICON_HALF+11);
+    t.setAttribute("class","group-link-label");
+    t.textContent=groups.map(g=>g.label).join(" · ");
+    svg.appendChild(t);
+  });
+}
 function renderRooms(){
   canvas.querySelectorAll(".room-label").forEach(e=>e.remove());
   const svg=$("roomsSvg");if(svg)svg.innerHTML="";
@@ -1007,6 +1040,11 @@ function recalculateRoomAssignments(){
 function refreshAfterRoomAssignments(paint, save){
   recalculateRoomAssignments();
   paint();
+  /* Связи групп зависят от комнаты поста (покомнатное разбиение): пересчёт привязки мог сдвинуть
+     пост в другую комнату и переклеить цепочки. Обновляем их здесь единой точкой — не в каждом
+     paint-колбэке (когда paint===renderAll, тот тоже зовёт renderGroupLinks; лишний прогон
+     идемпотентен и дешёв). */
+  renderGroupLinks();
   renderProperties();
   renderSummary();
   if(save)save();
@@ -1021,7 +1059,7 @@ function getObjectsInRoom(roomId){
 
 function renderAll(){
   recalculateRoomAssignments();
-  renderDevices();renderPosts();renderRooms();drawWalls();drawRoomLines();
+  renderDevices();renderPosts();renderRooms();drawWalls();drawRoomLines();renderGroupLinks();
   scheduleSave();   /* renderAll идёт после каждой правки состояния — точка автосохранения */
 }
 /* ⚠️ ЕДИНАЯ ТОЧКА «НАСТРОЙКА ПРОЕКТА ИЗМЕНИЛАСЬ». Обработчик настройки пишет значение
@@ -1210,6 +1248,9 @@ function makeDraggable(el,obj,kind){
     const p=EPDrag.worldPosition({x:bx,y:by},{x:sx,y:sy},{x:clientX,y:clientY},state.scale);
     obj.x=p.x;obj.y=p.y;el.style.left=obj.x+"px";el.style.top=obj.y+"px";
     if(kind!=="room"){const room=getRoomForPoint(obj.x+12,obj.y+12,dragMap);setRoomDropHighlight(room?room.id:null)}
+    /* Связи групп ведём за постом ЖИВЬЁМ: пунктир не должен отставать от иконки при переносе.
+       Перерисовывается только #linksSvg (иконки/комнаты не трогаем — перенос не ломаем). */
+    if(kind==="post")renderGroupLinks();
   }
   function onUp(){
     const dragged=mode==="dragging",wasSwitched=switched;
@@ -1237,7 +1278,7 @@ function makeDraggable(el,obj,kind){
       /* финальную привязку считаем свежей картой (updateObjectRoom): объект мог уехать за
          габарит превью-карты; она годится только для подсветки на лету, не для итога */
       const room=updateObjectRoom(obj);
-      renderRooms();renderProperties();renderSummary();
+      renderRooms();renderGroupLinks();renderProperties();renderSummary();
       updateStatus(room?`Объект прикреплён к комнате: ${room.name}`:"Объект находится вне назначенных комнат");
     }
     scheduleSave();   /* новая позиция — часть проекта: перенос закончился, сохраняем */
@@ -3675,6 +3716,34 @@ function planImageForDoc(img){
    для этого ему и передаются размеры бокса.
    Контуры/якоря подписей — в тех же МИРОВЫХ координатах, что и посты (r.polygon, seedX/seedY):
    пересчёт «мир → доли кадра» целиком лежит на чистом EPPlanLabels.layout. */
+/* Посты в форме, которую понимает EPPlanLabels (groupChains/layout): сквозной номер, МИРОВОЙ
+   ЦЕНТР иконки и группы света по клавишам с приведённым ключом. ОДНА сборка на обоих
+   потребителей связей — печатный план документа (planLabelsSpec) и связи на рабочем холсте
+   (renderGroupLinks): правило «ключ группы = groupKeyOf, комната = partitionNorm» не должно
+   раздваиваться (§7.1). Само «кто с кем и в каком порядке» считает уже EPPlanLabels.groupChains. */
+function postsForGroupLinks(){
+  return state.posts.map(p=>{
+    /* Комната поста для ПОКОМНАТНОГО разбиения связей: одноимённые группы в разных комнатах —
+       РАЗНЫЕ цепочки. Ключ берём ТЕМ ЖЕ EPLightingByRoom.partitionNorm, что и расчёт денег
+       (partitionKeyOf → p.roomId), чтобы план совпал со сметой. Пост без комнаты → «без помещения». */
+    const room=EPLightingByRoom.partitionNorm(p.roomId);
+    /* Группы света поста: у каждой КЛАВИШИ своя группа (p.keyGroups[i]). Ключ приводим ТЕМ ЖЕ
+       EPLightingGroups.groupKeyOf, что и весь расчёт групп («Кухня» и «кухня » — одна связь). Дубли
+       ключа в одном посте (две клавиши одной группы) схлопываем — в группе пост один. Печатное имя —
+       normalizeGroup. Пустой ключ = группа не назначена, место в связь не идёт. */
+    const seen=Object.create(null),groups=[];
+    (Array.isArray(p.keyGroups)?p.keyGroups:[]).forEach(g=>{
+      const key=EPLightingGroups.groupKeyOf(g);
+      if(!key||seen[key])return;
+      seen[key]=1;groups.push({key,label:EPLightingGroups.normalizeGroup(g)});
+    });
+    const o={number:p.number,x:p.x+POST_ICON_HALF,y:p.y+POST_ICON_HALF,room};
+    /* Поле groups кладём, только когда группы есть, — прежний контракт spec (пост без групп его
+       не несёт); groupChains и renderGroupLinks трактуют отсутствие поля как «групп нет». */
+    if(groups.length)o.groups=groups;
+    return o;
+  });
+}
 function planLabelsSpec(){
   const img=$("planImage");
   /* Режим «скрыта» приравниваем к «подложки нет»: раз проектировщик её убрал, в документ она
@@ -3682,30 +3751,9 @@ function planLabelsSpec(){
   const showImg=state.planLoaded&&img&&img.src&&img.naturalWidth&&img.naturalHeight&&state.planVisibility!=="hide";
   if(!state.posts.length&&!state.rooms.length)return null;
   const spec={
-    posts:state.posts.map(p=>{
-      const o={number:p.number,x:p.x+POST_ICON_HALF,y:p.y+POST_ICON_HALF};
-      /* Комната поста для ПОКОМНАТНОГО разбиения связей (часть 1d): одноимённые группы в разных
-         комнатах — РАЗНЫЕ цепочки, линия через весь проект недопустима. Ключ берём ТЕМ ЖЕ
-         EPLightingByRoom.partitionNorm, что и расчёт денег (partitionKeyOf → p.roomId), чтобы план
-         документа совпал со сметой, а не разошёлся с ней. Пост без комнаты (roomId===null) даёт
-         ключ «без помещения» — одна общая корзина, ровно как в деньгах. */
-      o.room=EPLightingByRoom.partitionNorm(p.roomId);
-      /* Группы света поста для связей на плане документа (часть 1b): у каждой КЛАВИШИ своя группа
-         (p.keyGroups[i]). Ключ приводим ТЕМ ЖЕ EPLightingGroups.groupKeyOf, что и весь расчёт групп,
-         — «Кухня» и «кухня » обязаны слиться в одну связь, а не разъехаться на две по одному месту
-         (та же цена ошибки, что в смете). Дубли ключа в одном посте (две клавиши одной группы)
-         схлопываем — в группе пост один. Печатное имя — normalizeGroup (то, что печатается везде).
-         Пустой ключ = группа не назначена, место в связь не идёт. Геометрию (линии, порядок цепочки)
-         считает чистый EPPlanLabels.layout — app.js отдаёт лишь факт «пост в такой-то группе». */
-      const seen=Object.create(null),groups=[];
-      (Array.isArray(p.keyGroups)?p.keyGroups:[]).forEach(g=>{
-        const key=EPLightingGroups.groupKeyOf(g);
-        if(!key||seen[key])return;
-        seen[key]=1;groups.push({key,label:EPLightingGroups.normalizeGroup(g)});
-      });
-      if(groups.length)o.groups=groups;
-      return o;
-    }),
+    /* Посты с группами — та же сборка, что и для связей на холсте (второй копии правила нет).
+       Геометрию (линии, порядок цепочки) считает чистый EPPlanLabels.layout. */
+    posts:postsForGroupLinks(),
     /* Контурное помещение отдаём с полигоном и якорем-центроидом (там же, где на плане стоит
        его площадь); комнату без контура (инструмент «T») — одной точкой подписи (seedX/seedY,
        с тем же фолбэком x+55/y+18, что и в buildSpaceComponents). */

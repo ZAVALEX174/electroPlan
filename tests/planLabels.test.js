@@ -6,7 +6,7 @@
    а не поиск подстрок в вёрстке. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildHtml, layout } = require("../js/planLabels.js");
+const { buildHtml, layout, groupChains } = require("../js/planLabels.js");
 
 /* esc как в приложении (из app.js наружу не экспортируется) — чтобы проверить экранирование. */
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -360,4 +360,71 @@ test("spec без поля комнаты: прежнее поведение (в
     { number: 2, x: 140, y: 140, groups: [G("кухня", "Кухня")] }
   ] }));
   assert.equal(L.groupLines.length, 1, "нет поля комнаты — прежняя одна цепочка, не падение");
+});
+
+/* ── groupChains: ЕДИНСТВЕННАЯ копия правила «кто с кем и в каком порядке» ──────────────────────
+   Ту же функцию, что строит связи для документа (layout зовёт её и переводит мир→кадр), напрямую
+   использует рабочий холст (app.js.renderGroupLinks). Поэтому её проверяем ОТДЕЛЬНО и в МИРОВЫХ
+   координатах: холст рисует отрезки прямо в координатах #canvas, без перевода в доли листа. */
+
+test("groupChains: два поста одной группы — один отрезок в МИРОВЫХ координатах (центры постов)", () => {
+  const links = groupChains([
+    { number: 1, x: 60, y: 60, groups: [G("кухня", "Кухня")] },
+    { number: 2, x: 140, y: 140, groups: [G("кухня", "Кухня")] }
+  ]);
+  assert.equal(links.length, 1, "одна связь на пару");
+  /* координаты — сырые мировые, НЕ проценты кадра: холст рисует их как есть */
+  assert.deepEqual(
+    { x1: links[0].x1, y1: links[0].y1, x2: links[0].x2, y2: links[0].y2 },
+    { x1: 60, y1: 60, x2: 140, y2: 140 },
+    "концы отрезка — мировые центры постов 1 и 2"
+  );
+});
+
+test("groupChains: три места — цепочка по номеру (N−1 отрезков), а не полный граф", () => {
+  const links = groupChains([
+    { number: 3, x: 20, y: 20, groups: [G("зал")] },
+    { number: 1, x: 180, y: 20, groups: [G("зал")] },
+    { number: 2, x: 100, y: 180, groups: [G("зал")] }
+  ]);
+  assert.equal(links.length, 2, "три места — два отрезка цепочки, не три");
+  /* цепочка 1→2→3 по номерам, не по порядку входа */
+  assert.deepEqual([links[0].x1, links[0].y1], [180, 20], "первый отрезок стартует от поста 1");
+  assert.deepEqual([links[0].x2, links[0].y2], [100, 180], "…и идёт к посту 2");
+  assert.deepEqual([links[1].x1, links[1].y1], [100, 180], "второй отрезок — от поста 2");
+  assert.deepEqual([links[1].x2, links[1].y2], [20, 20], "…и идёт к посту 3");
+});
+
+test("groupChains: одиночная группа отрезка не даёт", () => {
+  const links = groupChains([{ number: 1, x: 10, y: 10, groups: [G("кухня", "Кухня")] }]);
+  assert.equal(links.length, 0, "соединять нечего");
+});
+
+test("groupChains: одноимённая группа в РАЗНЫХ комнатах не сшивается (покомнатный бакет)", () => {
+  const links = groupChains([
+    { number: 1, x: 60, y: 60, room: "r:1", groups: [G("кухня", "Кухня")] },
+    { number: 2, x: 140, y: 140, room: "r:2", groups: [G("кухня", "Кухня")] }
+  ]);
+  assert.equal(links.length, 0, "разные комнаты — разные цепочки");
+});
+
+test("groupChains: место без ключа группы и пост без координат в связь не идут", () => {
+  const links = groupChains([
+    { number: 1, x: 60, y: 60, groups: [G("", "")] },              // ключ пустой — не в связь
+    { number: 2, x: null, y: null, groups: [G("зал")] },           // нет координат — соединять некуда
+    { number: 3, x: 100, y: 100, groups: [G("зал")] }              // одинок в своей группе
+  ]);
+  assert.equal(links.length, 0, "нечего соединять: пустой ключ, нет координат, одиночка");
+});
+
+test("groupChains: одна копия правила — число связей совпадает с layout().groupLines", () => {
+  /* Тот же вход через layout (документ) и напрямую (холст) обязан дать одинаковое ЧИСЛО связей:
+     если бы правило раздвоилось, эти два пути разошлись бы. */
+  const posts = [
+    { number: 1, x: 40, y: 40, room: "r:1", groups: [G("кухня", "Кухня"), G("зал", "Зал")] },
+    { number: 2, x: 160, y: 40, room: "r:1", groups: [G("кухня", "Кухня")] },
+    { number: 3, x: 100, y: 160, room: "r:1", groups: [G("зал", "Зал")] }
+  ];
+  const L = layout(square({ posts }));
+  assert.equal(groupChains(posts).length, L.groupLines.length, "холст и документ считают связи одним правилом");
 });
