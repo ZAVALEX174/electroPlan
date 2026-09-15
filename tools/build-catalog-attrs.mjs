@@ -52,7 +52,7 @@ async function main() {
   let overridesDoc = { overrides: {} };
   try { overridesDoc = JSON.parse((await fs.readFile(OVERRIDES, "utf8")).replace(/^﻿/, "")); } catch { /* нет файла — ноль правок */ }
   applyKindOverrides(records, overridesDoc.overrides || {});
-  const { standards, supports, boxes, wallTypes, mounting, roles, groups } = buildAttrs(records);
+  const { standards, supports, boxes, wallTypes, mounting, roles, groups, colors } = buildAttrs(records);
 
   const tally = (obj, pick) => {
     const t = {};
@@ -67,8 +67,9 @@ async function main() {
     `   boxModularity; у механизмов — раздел mounting), роль детали в посте и роль\n` +
     `   управления (раздел roles: part=bare_mechanism|key, control=switch|changeover|\n` +
     `   button|inverter|sensor|bluetooth), функциональная группа и подгруппа механизма\n` +
-    `   (раздел groups — разделы выбора товара в конструкторе поста). Подмешиваются\n` +
-    `   к товарам в js/data.js. */\n`;
+    `   (раздел groups — разделы выбора товара в конструкторе поста), цвет элемента\n` +
+    `   начинки (раздел colors — «Цвет элемента», по нему конструктор сужает начинку\n` +
+    `   под цвет комнаты). Подмешиваются к товарам в js/data.js. */\n`;
   const body = {
     generatedAt: new Date().toISOString().slice(0, 10),
     source: {
@@ -79,6 +80,7 @@ async function main() {
       mounting: path.basename(NOM),
       roles: path.basename(NOM),
       groups: path.basename(NOM),
+      colors: path.basename(NOM),
     },
     standards,
     supports,
@@ -87,6 +89,7 @@ async function main() {
     mounting,
     roles,
     groups,
+    colors,
   };
   await fs.writeFile(OUT, banner + `window.EP_VIMAR_ATTRS = ${JSON.stringify(body, null, 2)};\n`, "utf8");
 
@@ -118,6 +121,11 @@ async function main() {
   // раздел, которого не стало в номенклатуре, обязан быть виден при пересборке, а не в рантайме.
   const byGroup = tally(groups, (a) => a.group || "—");
   console.log(`  функциональные группы:  ${Object.keys(groups).length} позиций — ${JSON.stringify(byGroup)}`);
+  // Цвет элемента начинки (ОТДЕЛКА-ПОРЯДОК, п.4): охват и число РАЗЛИЧНЫХ цветов — по ним при
+  // пересборке видно, что столбец «Цвет элемента» доехал и написания сложились ожидаемо.
+  const colorTally = {};
+  for (const c in colors) colorTally[colors[c]] = (colorTally[colors[c]] || 0) + 1;
+  console.log(`  цвет элемента начинки:  ${Object.keys(colors).length} позиций (${Object.keys(colorTally).length} цветов) — ${JSON.stringify(colorTally)}`);
   // Отделка накладки (E14): материал/форма/цвет каноническим написанием. Печатаем охват и число
   // РАЗЛИЧНЫХ значений — по ним сверяется полнота проброса при пересборке (склейка написаний
   // должна давать ожидаемое число цветов, а не разъехавшиеся дубли).

@@ -93,7 +93,7 @@ function makeCtx(state, dom) {
     renderBuilder: () => {}, builderCtx: {}, EPBuilderSlots, EPPosts
   };
 }
-const CUT = ["frameCollectionList", "frameFacingList", "builderRoomFilter", "collectionFramePool", "frameFacingLabels", "frameFacingHintText", "frameOptions", "builderCapacity", "renderBuilder"];
+const CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "builderRoomFilter", "builderInnardsFilter", "collectionFramePool", "frameFacingLabels", "frameFacingHintText", "frameOptions", "builderCapacity", "renderBuilder"];
 const makeDom = () => stand.makeDom({ selects: ["postFrameSelect"] });
 
 /* Открыть конструктор для поста, стоящего в комнате: как openPostBuilder — накладка поста явно

@@ -128,7 +128,7 @@ function makeCtx(state, dom) {
     renderBuilderComposition: (frame, errorHtml) => { dom.$("builderComposition").innerHTML = frame ? "<composition>" : (errorHtml || ""); },
     renderBuilder: () => {},
     builderCtx: {},
-    collectionFramePool: frames => frames, frameFacingHintText: () => "",
+    collectionFramePool: frames => frames, frameFacingHintText: () => "", EPCatalog, builderInnardsFilter: () => ({}), builderFilterRoom: () => null, frameFacingList: () => [], EPRoom: { roomFrameFacing: () => null },
     EPBuilderSlots, EPPosts
   };
   /* Контекст создаёт стенд при stand.run(...); свойства, дописанные в ctx до вызова

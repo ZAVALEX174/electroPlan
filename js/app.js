@@ -39,7 +39,13 @@ const state={
      меняла подбор коробки у ВСЕХ постов проекта и не откатывалась «Отменой». Теперь правка
      живёт в черновике до «Сохранить» — как имя, накладка и слоты. */
   builder:{editingTemplateId:null,editingPlacedId:null,slots:[],target:{mode:"add"},query:"",openSections:new Set(),
-    snapshot:null,escArmed:null,wallType:null,backlight:null}
+    /* roomId — КОМНАТА, ПОД КОТОРУЮ собираем пост (ОТДЕЛКА-ПОРЯДОК, п.3): её задают ДО сборки, и по
+       ней сужаются и накладки, и начинка. Для нового поста — выбор в селекторе «Комната»; для поста
+       на плане — комната поста. restrictInnardsColor — галочка поста (решение владельца 16.09):
+       ВКЛЮЧАЕТ ограничение начинки цветом накладки. По умолчанию ВЫКЛЮЧЕНА — начинка любого цвета
+       (у 169 из 181 цвета накладок начинки того же цвета не существует, поэтому дефолт — без
+       ограничения). Накладку галочка не трогает; это свойство поста, переживает сохранение. */
+    snapshot:null,escArmed:null,wallType:null,backlight:null,roomId:null,restrictInnardsColor:false}
 };
 const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -2141,6 +2147,18 @@ function openPostBuilder({templateId=null,placedId=null}={}){
   state.builder.backlight=(src.backlight&&typeof src.backlight==="object")
     ?{enabled:!!src.backlight.enabled,color:src.backlight.color||null,voltage:src.backlight.voltage||null}
     :null;
+  /* ⚠️ КОМНАТА ИЗВЕСТНА ДО СБОРКИ (ОТДЕЛКА-ПОРЯДОК, п.3). Пост на плане уже стоит в комнате —
+     берём её (roomId поста). НОВЫЙ пост/шаблон комнаты не имеет: подставляем ПЕРВУЮ комнату проекта,
+     чтобы отбор был активен сразу («выбираем комнату, для которой будем составлять пост»); человек
+     меняет её селектором «Комната». Комнат в проекте нет → null: отбор не сужаем, поведение прежнее
+     (собираем без ограничений), а не блокируем работу. */
+  state.builder.roomId=placedId?(src.roomId??null):(state.rooms[0]?state.rooms[0].id:null);
+  /* Галочка «ограничить цветом накладки» — свойство поста, переживает сохранение. По умолчанию
+     ВЫКЛЮЧЕНА (начинка любого цвета). Старый пост без поля читается как «ограничение выключено»
+     (!!undefined === false) — новый дефолт, не включённое ограничение. */
+  state.builder.restrictInnardsColor=!!src.restrictInnardsColor;
+  renderBuilderRoomSelect();
+  $("builderRestrictColor").checked=state.builder.restrictInnardsColor;
   $("postFrameSelect").dataset.preferredFrameId=String(src.frameId??"");
   $("builderSearch").value="";
   renderLightingSchemeSelect();
@@ -2170,12 +2188,13 @@ const builderWallType=()=>state.builder.wallType||EP_DATA.settings.wallType||"so
    Нужна ровно для одного вопроса — «есть ли что терять при закрытии» (см. builderDirty). Слоты
    кодирует чистая EPBuilderSlots.signature (JSON, а не склейка через разделитель: имя группы
    вводит человек, и запятая в нём законна).
-   ТИП СТЕНЫ И ПОДСВЕТКА В ПОДПИСИ ОБЯЗАТЕЛЬНЫ: оба стали черновиком окна, и без них закрытие по
-   Esc считало бы пост нетронутым и молча выбрасывало бы правку, о которой человек не предупреждён.
-   Подсветка — объект/null, кодируем JSON (как слоты), а не склейкой. */
+   ТИП СТЕНЫ, ПОДСВЕТКА И ГАЛОЧКА «ограничить цветом накладки» В ПОДПИСИ ОБЯЗАТЕЛЬНЫ: все они —
+   черновик окна и свойство поста, и без них закрытие по Esc считало бы пост нетронутым и молча
+   выбрасывало бы правку, о которой человек не предупреждён. Подсветка — объект/null, кодируем JSON
+   (как слоты), а не склейкой; галочка — булев флаг. */
 function builderSignature(){
   return JSON.stringify([$("postName").value,String($("postFrameSelect").value||""),
-    builderWallType(),state.builder.backlight,EPBuilderSlots.signature(state.builder.slots)]);
+    builderWallType(),state.builder.backlight,!!state.builder.restrictInnardsColor,EPBuilderSlots.signature(state.builder.slots)]);
 }
 const builderDirty=()=>state.builder.snapshot!=null&&builderSignature()!==state.builder.snapshot;
 
@@ -2256,15 +2275,57 @@ function frameFacingList(field){return EPCatalog.productFacingValues(byKind("fra
    (editingPlacedId → roomId → комната); шаблон и НОВЫЙ пост комнаты не имеют → все критерии null →
    фильтра нет (пост «вне комнат»). Валидируем по спискам каталога: мёртвое (снятое из прайса)
    значение → null → предикат не применяется. */
-function builderRoomFilter(){
+/* Комната, ПОД КОТОРУЮ конструктор сужает каталог (ОТДЕЛКА-ПОРЯДОК, п.3). Источник — селектор
+   «Комната» (state.builder.roomId): для нового поста его задаёт человек ДО сборки, для поста на
+   плане openPostBuilder инициализирует его комнатой поста. Если roomId по какой-то причине не
+   задан (старый вызов, тест-стенд без builder.roomId) — фолбэк на комнату размещённого поста, чтобы
+   прежнее поведение E13/E14 не сломалось. Комнаты нет → null (каталог не сужаем). */
+function builderFilterRoom(){
+  if(state.builder.roomId!=null){
+    const r=state.rooms.find(x=>x.id===state.builder.roomId);
+    if(r)return r;
+  }
   const placed=state.builder.editingPlacedId?state.posts.find(p=>p.id===state.builder.editingPlacedId):null;
-  const room=placed?state.rooms.find(r=>r.id===placed.roomId):null;
+  return placed?state.rooms.find(r=>r.id===placed.roomId)||null:null;
+}
+function builderRoomFilter(){
+  const room=builderFilterRoom();
   return {
     collection:EPRoom.roomCollection(room,frameCollectionList()),
     frameMaterial:EPRoom.roomFrameFacing(room,"frameMaterial",frameFacingList("frameMaterial")),
     frameShape:EPRoom.roomFrameFacing(room,"frameShape",frameFacingList("frameShape")),
     frameColor:EPRoom.roomFrameFacing(room,"frameColor",frameFacingList("frameColor"))
   };
+}
+/* Критерий отбора НАЧИНКИ (клавиш/розеток/механизмов) под комнату — ПРОДОЛЖЕНИЕ того же
+   productsForRoom, что сужает накладки (§7.1: правило «что подходит комнате» одно). У начинки
+   ДРУГОЙ набор признаков, и это видно здесь, в одной точке: сужаем по цвету ЭЛЕМЕНТА, а значением
+   критерия служит цвет НАКЛАДКИ комнаты (единственный цвет, заданный помещению) — их сводит
+   EPCatalog.facingColorKey внутри productsForRoom. Серию начинке уже задаёт compatibleMechanisms по
+   выбранной накладке, второй серийный фильтр не заводим.
+   Галочка поста (restrictInnardsColor) ВКЛЮЧАЕТ цветовое ограничение начинки — накладку она не
+   трогает (её сужает builderRoomFilter отдельно). По умолчанию ВЫКЛЮЧЕНА → критерий пуст → начинка
+   не сужается по цвету (новый дефолт, решение владельца 16.09). Цвет комнаты не задан → критерий
+   тоже пуст. */
+function builderInnardsFilter(){
+  if(!state.builder.restrictInnardsColor)return {};
+  const color=EPRoom.roomFrameFacing(builderFilterRoom(),"frameColor",frameFacingList("frameColor"));
+  return color?{elementColor:color}:{};
+}
+/* Селектор «Комната поста» в конструкторе. Комнат нет → поле скрыто (пост «вне комнат», отбор не
+   сужаем). Для поста на плане комната фиксирована геометрией — селектор показываем, но отключаем:
+   менять её здесь нельзя, привязка к помещению правится на плане. Значения — ЧЕЛОВЕЧЕСКИЕ имена
+   комнат, id в value; экранируем имя (пользовательский ввод в HTML). */
+function renderBuilderRoomSelect(){
+  const wrap=$("builderRoomField"),sel=$("builderRoomSelect");
+  if(!wrap||!sel)return;
+  if(!state.rooms.length){wrap.hidden=true;sel.innerHTML="";return}
+  wrap.hidden=false;
+  const placed=!!state.builder.editingPlacedId;
+  sel.disabled=placed;
+  const cur=state.builder.roomId;
+  sel.innerHTML=state.rooms.map((r,i)=>`<option value="${esc(String(r.id))}"${String(r.id)===String(cur)?" selected":""}>${esc(r.name||("Комната "+(i+1)))}</option>`).join("");
+  sel.value=cur!=null?String(cur):"";
 }
 /* Накладки, ПОДХОДЯЩИЕ помещению поста по его отделке (коллекция E13 + материал/форма/цвет E14) —
    ЕДИНСТВЕННАЯ точка сужения каталога под комнату (второго правила для механизмов НЕ заводим: они
@@ -2299,6 +2360,14 @@ function frameFacingLabels(filter){
    разошлись бы в объяснении одного и того же пустого пула. list — человеческие подписи «что сузило». */
 function frameFacingEmptyText(list){
   return `Под выбранную отделку (${list}) в каталоге накладок нет — измените материал, форму или цвет в свойствах комнаты.`;
+}
+/* ОДНА формулировка «под цвет комнаты начинки того же цвета нет» (ОТДЕЛКА-ПОРЯДОК, п.5). Параллельна
+   frameFacingEmptyText, но про НАЧИНКУ и с выходом через галочку: у большинства декоративных цветов
+   накладок (замер: 12 из 181) начинки того же цвета в каталоге не бывает — это законный пустой отбор.
+   Достижимо ТОЛЬКО когда галочка ограничения включена, поэтому выход — СНЯТЬ её. color — цвет
+   накладки комнаты, которым сузили. */
+function innardsEmptyText(color){
+  return `Под цвет накладки комнаты («${color}») клавиш, розеток и механизмов того же цвета в каталоге нет. Снимите галочку ограничения цвета над каталогом — тогда предложим совместимые изделия любого цвета.`;
 }
 /* Подписи ВСЕХ активных признаков выбора (серия + отделка) — для крошек и пустого сообщения мастера.
    Серию frameFacingLabels не несёт (её хинт конструктора показывает отдельно), поэтому добавляем
@@ -2626,7 +2695,13 @@ function renderBuilder(){
      (селектор), а фильтр каталога — от накладки: выбор «5 модулей» при 3-модульной накладке давал
      «свободно 2» рядом с «свободно 0 модулей». */
   const capacity=builderCapacity();
+  /* mechs — начинка, совместимая с накладкой ПО СЕРИИ (физическая совместимость): идёт в fit/упаковку
+     и в keepMechs, её галочка/цвет НЕ сужают — уже стоящий в посте механизм цвет не выкидывает.
+     catalogMechs — то же, но ДОПОЛНИТЕЛЬНО суженное под цвет комнаты (ОТДЕЛКА-ПОРЯДОК, п.4) через
+     ТОТ ЖЕ productsForRoom, что сужает накладки: сужаем только то, что ПРЕДЛАГАЕМ карточками. */
   const mechs=compatibleMechanisms(selectedFrame,allMechanisms);
+  const catalogMechs=EPCatalog.productsForRoom(mechs,builderInnardsFilter());
+  const innardsColor=state.builder.restrictInnardsColor?EPRoom.roomFrameFacing(builderFilterRoom(),"frameColor",frameFacingList("frameColor")):null;
   /* ⚠️ МЕХАНИЗМ, УЖЕ СТОЯЩИЙ В ПОСТЕ И СНЯТЫЙ С ПРОИЗВОДСТВА (active:false), УДЕРЖИВАЕМ — то же
      правило владельца, что для накладки (4456bd0): изделие могло быть заложено в проект до снятия
      позиции и физически существует, смета обязана считаться по нему. byKind фильтрует active,
@@ -2740,7 +2815,10 @@ function renderBuilder(){
   const missingMechErrorHtml=missingMechIds.length
     ?`<div class="builder-error" role="alert"><strong>Артикул механизма пропал из каталога</strong><span>${esc(missingMechIds.map(id=>EPPosts.mechanismAvailability(id,null).displayName).join(", "))} — этих артикулов больше нет в прайсе (вероятно, перезалит). Позиция оставлена явным пробелом и названа во всех документах, чтобы номера модулей не сдвинулись; цена по ней неизвестна. Пока пробел в посте, сохранение и лист монтажника заблокированы: замените позицию карточкой в каталоге или уточните артикул у поставщика.</span></div>`
     :"";
-  builderCtx={mechs,keepMechs,missingMechIds,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:frameNoticeHtml+mechNoticeHtml+missingMechErrorHtml+builderErrorHtml(dist)};
+  /* mechs каталога = catalogMechs (суженное под цвет комнаты); seriesCount — сколько было ДО цвета,
+     чтобы renderBuilderCatalog отличил «начинка обнулилась цветом» от «каталог не загружен».
+     innardsColor — цвет накладки комнаты, которым сузили (для объяснения словами). */
+  builderCtx={mechs:catalogMechs,seriesCount:mechs.length,innardsColor,keepMechs,missingMechIds,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:frameNoticeHtml+mechNoticeHtml+missingMechErrorHtml+builderErrorHtml(dist)};
   renderBuilderCatalog();
   renderBuilderComposition(selectedFrame,builderCtx.errorHtml,light,draft);
   /* Сохранять можно, только когда сборка физически собирается (никакой механизм не шире поста
@@ -2920,7 +2998,13 @@ function renderBuilderCatalog(){
       ? `Добавить элемент в пост<small>Свободно ${esc(moduleWord(builderCtx.remaining))}. Нажмите карточку.</small>`
       : `Рамка заполнена<small>Уберите элемент или увеличьте число модулей.</small>`;
   if(!builderCtx.mechs.length){
-    host.innerHTML='<div class="catalog-empty">Каталог механизмов не загружен — проверьте, что прайс подключён.</div>';return;
+    /* Различаем ДВЕ причины пустого каталога: цвет комнаты обнулил начинку (серийный набор был
+       непуст, но того же цвета механизмов нет — ОТДЕЛКА-ПОРЯДОК п.5, объясняем словами и даём выход
+       галочкой) либо прайс действительно не подключён (серийный набор тоже пуст). */
+    host.innerHTML=builderCtx.innardsColor&&builderCtx.seriesCount>0
+      ?`<div class="catalog-empty">${esc(innardsEmptyText(builderCtx.innardsColor))}</div>`
+      :'<div class="catalog-empty">Каталог механизмов не загружен — проверьте, что прайс подключён.</div>';
+    return;
   }
   if(!replacing&&!builderCtx.remaining){
     host.innerHTML='<div class="catalog-empty">Все модули рамки заняты. Чтобы поменять элемент, нажмите «Заменить» в нужном модуле слева.</div>';return;
@@ -3188,7 +3272,12 @@ async function savePostBuilder(){
      контракта модуля групп света. */
   const base={name:$("postName").value.trim()||"Пост",frameId:Number($("postFrameSelect").value),
     mechanismIds:[...fields.mechanismIds],keyGroups:[...fields.keyGroups],
-    keyCrossNumbers:[...fields.keyCrossNumbers],keyMechanisms:[...fields.keyMechanisms],socketBoxProductId:socketBox()?.id};
+    keyCrossNumbers:[...fields.keyCrossNumbers],keyMechanisms:[...fields.keyMechanisms],socketBoxProductId:socketBox()?.id,
+    /* Галочка «ограничить начинку цветом накладки» — свойство поста (решение владельца: именно у
+       поста). В белом списке base, поэтому переживает сохранение и у поста на плане
+       (Object.assign(post,base)), и у шаблона (template={...base}). Старый пост без поля читается
+       как «ограничение выключено» (новый дефолт) — см. openPostBuilder. */
+    restrictInnardsColor:!!state.builder.restrictInnardsColor};
   if(state.builder.editingPlacedId){
     const post=state.posts.find(x=>x.id===state.builder.editingPlacedId);
     /* ⚠️ ОХВАТ ПРАВКИ ТИПА СТЕНЫ СПРАШИВАЕМ ДО ЛЮБЫХ ЗАПИСЕЙ. Иначе отказ от вопроса (Esc,
@@ -3257,7 +3346,7 @@ async function savePostBuilder(){
 function closePostBuilder(){
   $("postModal").classList.remove("open");
   state.builder={editingTemplateId:null,editingPlacedId:null,slots:[],target:{mode:"add"},query:"",openSections:new Set(),
-    snapshot:null,escArmed:null,wallType:null,backlight:null};
+    snapshot:null,escArmed:null,wallType:null,backlight:null,roomId:null,restrictInnardsColor:false};
 }
 /* СЛУЧАЙНОЕ закрытие (Esc, клик мимо окна) с потерей несохранённой работы просит подтверждения
    — повтором того же действия, а не системным confirm(): своих модальных диалогов в приложении
@@ -4753,6 +4842,21 @@ $("clearPlanConfirmBtn").onclick=confirmClearPlan;
 $("newPostBtn").onclick=()=>openPostBuilder();
 $("closePostModal").onclick=$("cancelPost").onclick=closePostBuilder;
 $("savePost").onclick=savePostBuilder;$("postSlotCount").onchange=changePostSlotCount;$("postFrameSelect").onchange=renderBuilder;
+/* Смена комнаты поста (ОТДЕЛКА-ПОРЯДОК, п.3): под новую комнату меняются и пул накладок, и цветовой
+   отбор начинки, и селектор модульностей (он считается от того же пула, collectionFramePool).
+   Перенаполняем модульности, сохранив текущую ёмкость (extra), чтобы её опция не пропала, затем
+   пересобираем конструктор. */
+$("builderRoomSelect").onchange=e=>{
+  state.builder.roomId=e.target.value||null;
+  const capacity=builderCapacity();
+  renderPostSlotCountSelect(capacity);
+  $("postSlotCount").value=String(capacity);
+  renderBuilder();
+};
+/* Галочка «ограничить цветом накладки» (решение владельца 16.09): меняет только цветовой отбор
+   начинки — накладка и раскладка те же, достаточно перерисовать конструктор (renderBuilder
+   пересчитает catalogMechs). */
+$("builderRestrictColor").onchange=e=>{state.builder.restrictInnardsColor=e.target.checked;renderBuilder()};
 /* Поиск по каталогу конструктора перерисовывает ТОЛЬКО карточки: поле ввода лежит снаружи
    #builderCatalog, поэтому фокус и каретка на месте, а раскладка по постам не пересчитывается. */
 $("builderSearch").oninput=e=>{state.builder.query=e.target.value;renderBuilderCatalog()};

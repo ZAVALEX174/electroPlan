@@ -520,7 +520,7 @@ export function canonicalFacingMap(records, pick) {
  * 287 правил из 449 — остальные молча терялись на сборке.
  */
 export function buildAttrs(records) {
-  const standards = {}, supports = {}, boxes = {}, wallTypes = {}, mounting = {}, roles = {}, groups = {};
+  const standards = {}, supports = {}, boxes = {}, wallTypes = {}, mounting = {}, roles = {}, groups = {}, colors = {};
   /* Канонические написания отделки — по всем НАКЛАДКАМ сразу, до основного цикла: одно написание
      на признак должно быть одинаковым у всех накладок этого цвета/материала/формы, иначе список
      комнаты раздвоился бы на «Слоновая Кость» и «Слоновая кость». Строим три карты один раз. */
@@ -528,6 +528,13 @@ export function buildAttrs(records) {
   const canonMaterial = canonicalFacingMap(frameRecs, r => r.frameMaterialRaw);
   const canonShape = canonicalFacingMap(frameRecs, r => r.frameShapeRaw);
   const canonColor = canonicalFacingMap(frameRecs, r => r.frameColorRaw);
+  /* ОТДЕЛКА НАЧИНКИ (ОТДЕЛКА-ПОРЯДОК, п.4): «Цвет элемента» (колонка L) — СОБСТВЕННЫЙ цвет
+     механизмов и клавиш, отдельный от «Цвета накладки» (колонки M), которая у механизмов пуста, а
+     этот столбец пуст у накладок. Нужен, чтобы конструктор сужал начинку под цвет комнаты той же
+     ЕДИНОЙ нормализацией написаний (facingKey), что и отделка накладки. Канонизируем по всем
+     записям с цветом сразу (у накладок он пуст → в карту не попадут), чтобы «Белый»/«Белый»
+     сошлись к одному написанию, как у цветов накладки. */
+  const canonElementColor = canonicalFacingMap(records.filter(r => r && r.color), r => r.color);
   /* Приложить каноническое написание отделки к записи накладки, только если сырое непусто —
      как principle/layoutRows: «признака нет» рантайм отличает по отсутствию ключа. */
   const addFacing = (entry, rec) => {
@@ -576,6 +583,13 @@ export function buildAttrs(records) {
     if (rec.controlRole) role.control = rec.controlRole;
     if (Object.keys(role).length) roles[rec.code] = role;
 
+    /* Цвет элемента (ОТДЕЛКА-ПОРЯДОК, п.4) — сквозной раздел colors, ключ на ПОЛНЫЙ артикул (у
+       механизмов суффикс после точки кодирует цвет: 09001.0.250 и цветной вариант — разные коды,
+       каждый с одним цветом; коллизий нет, проверено на сборке). Кладём только непустое значение:
+       у накладок и прочих видов столбец пуст → ключа нет, рантайм отличает «цвета нет» по его
+       отсутствию, как principle/partRole. */
+    if (rec.color) colors[rec.code] = canonElementColor.get(facingKey(rec.color)) || norm(rec.color);
+
     if (rec.kind === "frame") {
       // Раскладку на посты считаем здесь, на сборке (задача: признак ставится как остальные
       // атрибуты, не разбором названия в рантайме). Немецкая «(2+2)» → [[2,2]], двухрядная
@@ -616,5 +630,5 @@ export function buildAttrs(records) {
       if (Object.keys(entry).length) mounting[rec.code] = entry;
     }
   }
-  return { standards, supports, boxes, wallTypes, mounting, roles, groups };
+  return { standards, supports, boxes, wallTypes, mounting, roles, groups, colors };
 }

@@ -143,7 +143,7 @@ assert.notEqual(FRAME_3.id, FRAME_FIRST.id, "предпосылка: 3-моду�
 /* Вырезаем ВМЕСТЕ по зависимостям: frameCollectionList → builderRoomFilter → collectionFramePool →
    renderPostSlotCountSelect → openPostBuilder (последняя и возвращается). Всё в цепочке сужения —
    настоящее; стабим только постороннее для селектора. */
-const CUT = ["frameCollectionList", "frameFacingList", "builderRoomFilter", "collectionFramePool", "renderPostSlotCountSelect", "openPostBuilder"];
+const CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "builderRoomFilter", "collectionFramePool", "renderPostSlotCountSelect", "renderBuilderRoomSelect", "openPostBuilder"];
 /* builderSignature (function) режем ВМЕСТЕ с openPostBuilder, а не стабим: снимок «как было при
    открытии» обязан быть НАСТОЯЩИМ, иначе мутация «снять снимок ДО renderBuilder» осталась бы зелёной
    (стаб `() => ""` игнорирует момент снятия). builderWallType отдельно НЕ режем: он const-стрелкой
@@ -188,6 +188,7 @@ function openPost({ collection, frameId, pending = null, open, templates, mechan
     frameProduct: product,
     frameSlotOptions: EPCatalog.frameSlotOptions,
     EPCatalog, EPRoom, EPPosts, EPBuilderSlots,
+    esc: s => String(s == null ? "" : s),
     canvas,
     updateStatus: () => { statusCalls += 1; },
     // НАСТОЯЩИЙ mechanismModulesTotal — второе плечо capacity обязано зависеть от механизмов ЭТОГО поста

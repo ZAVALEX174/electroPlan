@@ -51,7 +51,7 @@ assert.ok(ET_FRAME_2, "разведка: у Eikon Tactil есть накладк
 
 /* Тот же срез, что у openPostBuilderCollectionWiring: builderSignature режем настоящим ВМЕСТЕ с
    openPostBuilder (снимок «как было» обязан быть настоящим), остальное по цепочке зависимостей. */
-const NAMED_CUT = ["builderSignature", "frameCollectionList", "frameFacingList", "builderRoomFilter", "collectionFramePool", "renderPostSlotCountSelect", "openPostBuilder"];
+const NAMED_CUT = ["builderSignature", "frameCollectionList", "frameFacingList", "builderFilterRoom", "builderRoomFilter", "collectionFramePool", "renderPostSlotCountSelect", "renderBuilderRoomSelect", "openPostBuilder"];
 
 function openPost({ builderPre, searchFieldPre } = {}) {
   const post = { id: "p1", roomId: "r1", frameId: ET_FRAME_2.id, mechanismIds: [] };
@@ -75,6 +75,7 @@ function openPost({ builderPre, searchFieldPre } = {}) {
     frameProduct: product,
     frameSlotOptions: EPCatalog.frameSlotOptions,
     EPCatalog, EPRoom, EPPosts, EPBuilderSlots,
+    esc: s => String(s == null ? "" : s),
     canvas,
     updateStatus: () => {},
     mechanismModulesTotal,

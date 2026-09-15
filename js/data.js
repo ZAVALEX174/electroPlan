@@ -55,7 +55,7 @@ window.EP_DATA = {
      (стандарт → unknown, тип стены → не подтверждён), приложение это переживает. */
   products: (function enrichCatalog(){
     const list = window.EP_VIMAR_CATALOG?.products || [];
-    const attrs = window.EP_VIMAR_ATTRS || {standards:{},supports:{},wallTypes:{},boxes:{},mounting:{},roles:{},groups:{}};
+    const attrs = window.EP_VIMAR_ATTRS || {standards:{},supports:{},wallTypes:{},boxes:{},mounting:{},roles:{},groups:{},colors:{}};
     const supports = attrs.supports || {};
     const boxes = attrs.boxes || {};
     /* Роль детали в посте и роль управления — из колонок номенклатуры «Функциональная группа»
@@ -72,6 +72,11 @@ window.EP_DATA = {
        заказчик («управление светом» размазано по пяти категориям, «Информационные разъемы»
        и «Зарядные устройства» слиты в одну). Ключ раздела — артикул, запись {group, subgroup}. */
     const groups = attrs.groups || {};
+    // Цвет элемента начинки («Цвет элемента» номенклатуры, раздел colors) — СОБСТВЕННЫЙ цвет
+    // механизмов/клавиш, отдельный от цвета накладки. По нему конструктор поста сужает начинку
+    // под цвет комнаты (ОТДЕЛКА-ПОРЯДОК, п.4). Ключ — полный артикул; поле появляется, только
+    // если номенклатура столбец заполнила (у накладок он пуст), — как frameColor у рамок.
+    const colors = attrs.colors || {};
     // Монтажное правило видов, у которых своего раздела признаков нет (механизмы, аксессуары):
     // «Принцип обработки» номенклатуры заполнен и им (BUTTON/SCHUP/Bluetooth). У накладок,
     // суппортов и коробок правило приезжает вместе с их атрибутами — см. ветки ниже.
@@ -187,6 +192,14 @@ window.EP_DATA = {
         out = out === p ? {...p} : out;
         if (g.group) out.functionalGroup = g.group;
         if (g.subgroup) out.functionalSubgroup = g.subgroup;
+      }
+      /* Цвет элемента начинки: по нему productsForRoom сужает клавиши/розетки/механизмы под цвет
+         накладки комнаты (ОТДЕЛКА-ПОРЯДОК, п.4). Поля нет, если столбец пуст, — «цвета нет»
+         отличается от «пустой» по отсутствию ключа, как functionalGroup/partRole. */
+      const col = colors[p.code];
+      if (col) {
+        out = out === p ? {...p} : out;
+        out.elementColor = col;
       }
       return out;
     });

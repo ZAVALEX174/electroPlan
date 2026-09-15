@@ -46,7 +46,7 @@ assert.equal(EPCatalog.mechanismSpan(product(MECH_2M)), 2, "разведка: м
 /* Сборка стенда для savePostBuilder. Возвращает управляющие каналы: сохранённый шаблон (аргумент
    DataService.savePost), список тостов, флаг закрытия окна. НЕ стабим сборку base и адресацию —
    именно их проверяют находки. */
-function runSave({ slots, wallType = null, backlight = null, editingPlacedId = null, editingTemplateId = null, posts = [], templates = [], socketBoxId = "sb1" }) {
+function runSave({ slots, wallType = null, backlight = null, editingPlacedId = null, editingTemplateId = null, posts = [], templates = [], socketBoxId = "sb1", restrictInnardsColor = false }) {
   const dom = stand.makeDom();
   dom.$("postName").value = "Пост";
   dom.$("postFrameSelect").value = String(FRAME_2.id);
@@ -57,7 +57,7 @@ function runSave({ slots, wallType = null, backlight = null, editingPlacedId = n
     templates,
     // backlight — ЧЕРНОВИК подсветки поста (B2b-2): null = «как в проекте», объект = переопределение.
     // savePostBuilder переносит его в post.backlight поимённо, как keyGroups.
-    builder: { slots, wallType, backlight, editingPlacedId, editingTemplateId }
+    builder: { slots, wallType, backlight, editingPlacedId, editingTemplateId, restrictInnardsColor }
   };
   const toasts = [];
   let savedTemplate; // аргумент DataService.savePost — по нему видно id (обновление vs дубль)
@@ -198,4 +198,24 @@ test("B2b-2-save-c: «как в проекте» СБРАСЫВАЕТ прежн
   });
   assert.equal("backlight" in state.posts[0], false,
     "режим «как в проекте» обязан удалить post.backlight — иначе возврат к проекту не работает");
+});
+
+test("ОТДЕЛКА-ПОРЯДОК-save-a: галочка «ограничить цветом накладки» доезжает до поста НА ПЛАНЕ", async () => {
+  /* restrictInnardsColor — свойство поста (решение владельца: у поста). В белом списке base, поэтому
+     Object.assign(post,base) обязан записать его. Мутация «убрать restrictInnardsColor из base»
+     оставит пост без флага — этот тест краснеет. */
+  const post = { id: "p1", roomId: "r1", frameId: FRAME_2.id };
+  const { state } = await runSave({
+    slots: [EPBuilderSlots.slot(MECH_2M, "")],
+    restrictInnardsColor: true, editingPlacedId: "p1", posts: [post]
+  });
+  assert.equal(state.posts[0].restrictInnardsColor, true, "галочка сохранена у поста на плане (переживает сохранение)");
+});
+
+test("ОТДЕЛКА-ПОРЯДОК-save-b: галочка доезжает и до ШАБЛОНА (base общий)", async () => {
+  const { savedTemplate } = await runSave({
+    slots: [EPBuilderSlots.slot(MECH_2M, "")],
+    restrictInnardsColor: true, editingTemplateId: null
+  });
+  assert.equal(savedTemplate().restrictInnardsColor, true, "галочка сохранена в шаблоне — тот же base");
 });

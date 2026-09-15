@@ -94,8 +94,26 @@ function productFacingValues(items, field) {
   return [...set].sort((a, b) => String(a).localeCompare(String(b), "ru-RU"));
 }
 
-/* Товары, подходящие помещению по его ОТДЕЛКЕ. criteria — объект-критерий: collection (E13, серия)
-   и материал/форма/цвет накладки (E14, frameMaterial/frameShape/frameColor). Каждый ключ — предикат
+/* Единый ключ сравнения ЦВЕТА между накладкой и начинкой (ОТДЕЛКА-ПОРЯДОК, п.4). Написания
+   регистра/ё конвертер уже свёл (facingKey), но цвет накладки («Цвет накладки») и цвет начинки
+   («Цвет элемента») — РАЗНЫЕ словари, различающиеся РОДОМ прилагательного: накладка «Белая» /
+   «Чёрная» против механизма «Белый» / «Чёрный», «Белые матовые» против «Белая матовая». Сравнение
+   равенством строк развело бы одну гамму на две, поэтому ключ дополнительно снимает родовое/
+   числовое окончание с каждого слова (…ый/…ая/…ое/…ые → основа). Это ЕДИНСТВЕННОЕ место такого
+   сведения (§7.1): и значение критерия (цвет накладки комнаты), и значение товара (цвет элемента)
+   проходят через него в productsForRoom. Замер по каталогу: все 10 цветов элемента так сходятся
+   к своей накладочной гамме 1:1; из 181 цвета накладок начинку того же цвета имеют 12 — у
+   остальных отбор начинки по цвету ПУСТ (это законно, снимается галочкой поста, см. app.js). */
+function facingColorKey(raw) {
+  return String(raw || "")
+    .toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim()
+    .split(" ").map(t => t.replace(/(ый|ий|ой|ая|яя|ое|ее|ые|ие)$/, "")).join(" ");
+}
+
+/* Товары, подходящие помещению по его ОТДЕЛКЕ. criteria — объект-критерий: collection (E13, серия),
+   материал/форма/цвет накладки (E14, frameMaterial/frameShape/frameColor) и цвет НАЧИНКИ
+   (elementColor, ОТДЕЛКА-ПОРЯДОК п.4 — сравнивается через facingColorKey с цветом накладки комнаты).
+   Каждый ключ — предикат
    И-цепочки, применяется, ТОЛЬКО если задан; пустой критерий целиком (нет коллекции/отделки у
    комнаты, пост вне комнат, шаблон) → фильтра нет: возвращаем КОПИЮ списка, чтобы вызывающий не
    мутировал исходный.
@@ -133,6 +151,13 @@ function productsForRoom(items, criteria) {
   if (c.frameMaterial) out = out.filter(item => item && item.frameMaterial === c.frameMaterial);
   if (c.frameShape) out = out.filter(item => item && item.frameShape === c.frameShape);
   if (c.frameColor) out = out.filter(item => item && item.frameColor === c.frameColor);
+  /* ⚠️ ЦВЕТ НАЧИНКИ — ОСОЗНАННО через facingColorKey, а не равенством строк (в отличие от отделки
+     накладки выше). criteria.elementColor приходит ЦВЕТОМ НАКЛАДКИ комнаты (единственный цвет,
+     заданный помещению), а item.elementColor — собственным цветом механизма из ДРУГОГО словаря
+     (см. facingColorKey): равенство строк «Белая»≠«Белый» выкинуло бы всю белую начинку из белой
+     комнаты. Так фильтр начинки — продолжение ТОГО ЖЕ productsForRoom, что сужает накладки, а не
+     второй отбор рядом (§7.1). */
+  if (c.elementColor) { const key = facingColorKey(c.elementColor); out = out.filter(item => item && item.elementColor && facingColorKey(item.elementColor) === key); }
   return out;
 }
 
@@ -305,7 +330,7 @@ const productImage = (item, { detail = false } = {}) => {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { pluralRu, moduleWord, placeWord, mechanismSpan, productSeries, productCollections, productFacingValues, productsForRoom, compatibleMechanisms, frameSlotCount, frameSlotCounts, frameSlotOptions, defaultPostName, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage };
+const api = { pluralRu, moduleWord, placeWord, mechanismSpan, productSeries, productCollections, productFacingValues, productsForRoom, facingColorKey, compatibleMechanisms, frameSlotCount, frameSlotCounts, frameSlotOptions, defaultPostName, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage };
 if (typeof window !== "undefined") window.EPCatalog = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

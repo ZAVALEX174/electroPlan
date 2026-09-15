@@ -82,7 +82,7 @@ test("§2 builderRoomFilter не признаёт валидной коллек�
     posts: [{ id: "p1", roomId: "r1" }],
     builder: { editingPlacedId: "p1" }
   };
-  const filter = stand.run(["frameCollectionList", "frameFacingList", "builderRoomFilter"], { state, byKind, EPCatalog, EPRoom })();
+  const filter = stand.run(["frameCollectionList", "frameFacingList", "builderFilterRoom", "builderRoomFilter"], { state, byKind, EPCatalog, EPRoom })();
 
   assert.equal(filter.collection, null,
     "«GhostFrame» жива только у неактивной накладки → не валидна как коллекция комнаты → критерий пуст (весь каталог)");
