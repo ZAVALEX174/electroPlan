@@ -54,9 +54,24 @@ function roomCollection(room, collections) {
   return collections.indexOf(own) !== -1 ? own : null;           /* мёртвое (нет в каталоге) название → не задана */
 }
 
+/* --- ОТДЕЛКА НАКЛАДКИ КОМНАТЫ (E14: материал / форма / цвет) ----------------------------
+   Рядом с коллекцией комнаты (E13) у помещения появляются три критерия отделки: материал,
+   форма и цвет накладки. Правило разрешения — ТО ЖЕ, что у roomCollection (у отделки тоже нет
+   значения-умолчания проекта): отсутствие поля / мусор / мёртвое (нет в каталоге) значение → null
+   «признак не задан, каталог по нему не сужаем». Одна функция на все три признака (§7.1): prop —
+   имя поля комнаты (frameMaterial|frameShape|frameColor), values — список допустимых написаний из
+   каталога (EPCatalog.productFacingValues). Список не передан — проверку по каталогу пропускаем,
+   валидной считаем любую непустую строку (симметрично roomCollection). */
+function roomFrameFacing(room, prop, values) {
+  const own = room && room[prop];
+  if (typeof own !== "string" || !own) return null;              /* нет поля / пусто / не-строка → не задан */
+  if (!values) return own;                                       /* список не задан — не проверяем написание */
+  return values.indexOf(own) !== -1 ? own : null;                /* мёртвое (нет в каталоге) написание → не задан */
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { roomLightingScheme, roomCollection };
+const api = { roomLightingScheme, roomCollection, roomFrameFacing };
 if (typeof window !== "undefined") window.EPRoom = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

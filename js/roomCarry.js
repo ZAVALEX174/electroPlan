@@ -9,9 +9,10 @@
    полей остаются в app.js — здесь только чистое сопоставление, без state и без DOM.
 
    ЧТО ПЕРЕНОСИМ. Только введённое человеком: имя (если оно НЕ авто-формата), непустую площадь,
-   схему электрики комнаты (room.lightingScheme — своя схема, отличная от проектной) и коллекцию
-   накладок (room.collection, E13). Список полей расширяется в normUserFields — правило сбора
-   «ручного» держим в одной точке.
+   схему электрики комнаты (room.lightingScheme — своя схема, отличная от проектной), коллекцию
+   накладок (room.collection, E13) и отделку накладок комнаты (room.frameMaterial/frameShape/
+   frameColor, E14). Список полей расширяется в normUserFields — правило сбора «ручного» держим в
+   одной точке.
    НЕ переносим геометрию (polygon, seedX/seedY, x/y, roomSource) и id — они на то и
    пересчитываются, а привязка объектов к комнатам всё равно пересчитывается заново.
 
@@ -88,7 +89,16 @@ function normUserFields(o) {
      (мёртвое значение отфильтрует уже EPRoom.roomCollection при чтении). */
   const rawCollection = o.collection;
   const collection = typeof rawCollection === "string" && rawCollection ? rawCollection : null;
-  return { name, area, lightingScheme, collection };
+  /* Отделка накладки комнаты (E14: frameMaterial/frameShape/frameColor) — такие же введённые
+     человеком поля, как коллекция: без переноса они исчезали бы при каждой правке линий разметки
+     (scheduleRoomsFromLines пересобирает авто-комнаты). Переносим ТОЛЬКО непустую строку; отсутствие
+     поля = «признак не задан», материализовать нельзя. Валидность по каталогу здесь не проверяем —
+     мёртвое написание отсеет EPRoom.roomFrameFacing при чтении, как у коллекции. */
+  const facing = (raw) => (typeof raw === "string" && raw ? raw : null);
+  const frameMaterial = facing(o.frameMaterial);
+  const frameShape = facing(o.frameShape);
+  const frameColor = facing(o.frameColor);
+  return { name, area, lightingScheme, collection, frameMaterial, frameShape, frameColor };
 }
 
 /* carry(oldRooms, newRooms[, geom]) → массив переносов
@@ -131,9 +141,11 @@ function carry(oldRooms, newRooms, geom) {
     if (usedSrc.has(c.s.room) || usedDst.has(c.d.room)) return;   /* один-к-одному */
     const f = normUserFields(c.s.room);
     /* пара занята в любом случае (один-к-одному), но перенос добавляем, только если есть что нести */
-    if (f.name == null && f.area == null && f.lightingScheme == null && f.collection == null) { usedSrc.add(c.s.room); usedDst.add(c.d.room); return; }
+    if (f.name == null && f.area == null && f.lightingScheme == null && f.collection == null
+        && f.frameMaterial == null && f.frameShape == null && f.frameColor == null) { usedSrc.add(c.s.room); usedDst.add(c.d.room); return; }
     usedSrc.add(c.s.room); usedDst.add(c.d.room);
-    out.push({ toId: c.d.room.id, fromId: c.s.room.id, name: f.name, area: f.area, lightingScheme: f.lightingScheme, collection: f.collection });
+    out.push({ toId: c.d.room.id, fromId: c.s.room.id, name: f.name, area: f.area, lightingScheme: f.lightingScheme, collection: f.collection,
+      frameMaterial: f.frameMaterial, frameShape: f.frameShape, frameColor: f.frameColor });
   });
   return out;
 }

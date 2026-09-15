@@ -59,3 +59,28 @@ test("runtime-каталог: data.js подмешивает реальные la
       `${frame.code}: механизм не должен пересечь горизонтальный импост`);
   }
 });
+
+test("runtime-каталог: data.js подмешивает отделку накладки (материал/форма/цвет) из attrs", async () => {
+  // Тот же путь и порядок, что index.html: сырой каталог → attrs → data.js. Отделка (E14) лежит в
+  // attrs.standards и обязана доехать до товара, иначе фильтр комнаты сравнивать нечему.
+  const win = {};
+  const context = vm.createContext({ window: win, structuredClone });
+  for (const file of FILES) {
+    vm.runInContext(fs.readFileSync(path.join(JS_DIR, file), "utf8"), context, { filename: file });
+  }
+  const products = await win.DataService.getProducts();
+  const frames = products.filter(p => p.kind === "frame" && p.active);
+  const attrs = win.EP_VIMAR_ATTRS.standards;
+
+  // у всех накладок с отделкой в attrs она доехала до рантайм-товара тем же написанием
+  const withMaterial = frames.filter(f => attrs[f.code] && attrs[f.code].frameMaterial);
+  assert.ok(withMaterial.length > 1000, "предпосылка: у большинства накладок материал заполнен");
+  for (const f of withMaterial) {
+    assert.equal(f.frameMaterial, attrs[f.code].frameMaterial, `${f.code}: материал накладки доехал`);
+    assert.equal(f.frameShape, attrs[f.code].frameShape, `${f.code}: форма накладки доехала`);
+    assert.equal(f.frameColor, attrs[f.code].frameColor, `${f.code}: цвет накладки доехал`);
+  }
+  // механизм отделки не получает (её кладут только накладкам)
+  const mech = products.find(p => p.kind === "mechanism");
+  assert.equal("frameMaterial" in mech, false, "механизму отделку накладки не подмешивают");
+});

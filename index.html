@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260914.3">
+  <link rel="stylesheet" href="css/styles.css?v=20260915.1">
 </head>
 <body>
 <div class="app">
@@ -324,6 +324,11 @@
               <select id="postFrameSelect"></select>
             </label>
           </div>
+          <!-- Хинт отделки накладки (E14): «показано N из M · сузили: …» либо словами про пустое
+               сочетание. Заполняет renderBuilder по критерию комнаты (frameFacingHintText); пусто,
+               когда отделка комнаты не задана. Это <small>, а не <label> — на него не действует
+               .builder-form label{display:block}. -->
+          <small class="builder-frame-facing-hint" id="builderFrameFacingHint"></small>
           <div class="builder-capacity" id="builderCapacity"></div>
           <div class="builder-slots" id="builderSlots"></div>
           <label class="builder-name">Название поста<input id="postName" value="Пост 3 места"></label>
@@ -461,17 +466,17 @@
 
 <div class="toast" id="toast"></div>
   <script src="js/catalog-vimar.js?v=20260908.1"></script>
-  <script src="js/catalog-vimar-attrs.js?v=20260828.1"></script>
+  <script src="js/catalog-vimar-attrs.js?v=20260915.1"></script>
   <script src="js/catalog-vimar-openings.js?v=20260801.2"></script>
   <script src="js/catalog-vimar-faces.js?v=20260801.2"></script>
-  <script src="js/data.js?v=20260909.9"></script>
+  <script src="js/data.js?v=20260915.1"></script>
 <script src="js/store.js?v=20260723"></script>
 <script src="js/config.js?v=20260902.1"></script>
 <!-- Подтверждение необратимой команды повтором того же действия (у окна есть и нижняя, и
      верхняя граница). Общий модуль: им пользуются и перенумерация постов, и закрытие
      конструктора с несохранёнными правками. -->
 <script src="js/confirmRepeat.js?v=20260828.4"></script>
-<script src="js/catalog.js?v=20260907.3"></script>
+<script src="js/catalog.js?v=20260915.1"></script>
 <!-- Чистый модуль (ни DOM, ни state): подбор механизма по группе света и схеме электрики.
      Считается по ВСЕМУ проекту, результат отдаётся в состав поста, поэтому грузится до postfit/posts. -->
 <script src="js/lightingGroups.js?v=20260914.2"></script>
@@ -503,13 +508,13 @@
 <script src="js/viewport.js?v=20260730.1"></script>
 <script src="js/roomsFromLines.js?v=20260801.1"></script>
 <script src="js/roomDraft.js?v=20260828.2"></script>
-<script src="js/room.js?v=20260907.1"></script>
-<script src="js/roomCarry.js?v=20260907.1"></script>
+<script src="js/room.js?v=20260915.1"></script>
+<script src="js/roomCarry.js?v=20260915.1"></script>
 <script src="js/roomAssign.js?v=20260831.1"></script>
 <script src="js/planTrace.js?v=20260727.1"></script>
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-<script src="js/app.js?v=20260914.2"></script>
+<script src="js/app.js?v=20260915.1"></script>
 </body>
 </html>

@@ -275,6 +275,10 @@ const COL = {
   // держим чистым, а расхождение по пробелам гасит нормализация в поиске колонки (см. ниже).
   principle: "Принцип обработки", subgroup: "Подгруппы", boxModularity: "Модульность для коробки",
   note: "Описание особенностей элемента",
+  // Отделка накладки (E14): три отдельные колонки номенклатуры — НЕ «Цвет элемента» (L, у накладок
+  // всегда пуст), а собственные «Цвет накладки»/«Материал накладки»/«Форма накладки». Заполнены
+  // ровно у декоративных накладок; конструктор поста сужает по ним список рамок под отделку комнаты.
+  frameColor: "Цвет накладки", frameMaterial: "Материал накладки", frameShape: "Форма накладки",
   // Три колонки блока «подсветка клавиш» (часть A — только данные). Заголовки взяты из
   // файла дословно, с пояснениями внутри; пробелы/расхождения гасит та же нормализация
   // поиска колонки, что и «Подгруппы » выше — руками пробелы не хардкодим.
@@ -377,6 +381,13 @@ export function readNomenclature(xlsPath, { excludeSeries = ["idea"] } = {}) {
       boxModularity: typeof boxModCell === "number" ? boxModCell : null,
       accessGroup: typeof accessCell === "number" ? accessCell : null,
       color: norm(at(row, COL.color)) || null,
+      // Отделка накладки (E14) — СЫРЫЕ написания из трёх колонок номенклатуры. Канонизацию
+      // (склейку написаний, различающихся только регистром/ё) делает buildAttrs через facingKey,
+      // а не здесь: одно человекочитаемое написание на признак выбирается по ВСЕМУ множеству
+      // накладок сразу. Читаем для любого вида, но заполнены эти колонки только у накладок.
+      frameColorRaw: norm(at(row, COL.frameColor)) || null,
+      frameMaterialRaw: norm(at(row, COL.frameMaterial)) || null,
+      frameShapeRaw: norm(at(row, COL.frameShape)) || null,
       controlType,
       // Производные признаки роли детали — считаем здесь, как categoryId/icon: рантайм
       // не должен разбирать названия и «Функциональную группу» заново.
@@ -450,6 +461,52 @@ function addMountingRule(entry, rec) {
 }
 
 /*
+ * ЕДИНСТВЕННАЯ нормализация написаний отделки накладки (цвет/материал/форма). Разнобой в
+ * номенклатуре — ТОЛЬКО регистр и ё↔е (проверено: 181 сырое написание цвета → 163 после складки;
+ * материал и форма и без складки чисты). Ключ складывает регистр, ё→е и внутренние пробелы —
+ * иностранных синонимов в данных нет (латиница встречается лишь в названии линии Reflex), поэтому
+ * ручного словаря синонимов не заводим. Правило живёт в ОДНОЙ функции и переиспользуется всюду,
+ * где эти написания сравниваются или сводятся к одному (§7.1 HANDOFF).
+ */
+export function facingKey(raw) {
+  return norm(raw).toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
+}
+
+/*
+ * Канонические написания одного признака отделки по ВСЕМУ множеству записей: foldKey → одно
+ * человекочитаемое написание. Выбор ДЕТЕРМИНИРОВАННЫЙ и воспроизводимый (тот же .xls → тот же
+ * результат): самое частое написание, тай-брейк — наименьший номер исходной строки. Так на экран
+ * идёт реальное написание производителя (например «Слоновая кость», а не синтезированный регистр),
+ * а все его варианты («Слоновая Кость») сходятся к нему одному, и в выпадающем списке комнаты не
+ * будет дублей. pick(rec) — как достать сырое написание из записи; пустые пропускаем.
+ */
+export function canonicalFacingMap(records, pick) {
+  const acc = new Map();                       // foldKey → Map(написание → {count, row})
+  for (const rec of records) {
+    const raw = norm(pick(rec));
+    if (!raw) continue;
+    const k = facingKey(raw);
+    if (!acc.has(k)) acc.set(k, new Map());
+    const variants = acc.get(k);
+    const cur = variants.get(raw) || { count: 0, row: rec.sourceRow ?? Infinity };
+    cur.count++;
+    cur.row = Math.min(cur.row, rec.sourceRow ?? Infinity);
+    variants.set(raw, cur);
+  }
+  const out = new Map();
+  for (const [k, variants] of acc) {
+    let best = null;
+    for (const [display, s] of variants) {
+      if (!best || s.count > best.count || (s.count === best.count && s.row < best.row)) {
+        best = { display, count: s.count, row: s.row };
+      }
+    }
+    out.set(k, best.display);
+  }
+  return out;
+}
+
+/*
  * Признаки автосостава поста для рантайма (window.EP_VIMAR_ATTRS) — в том же формате,
  * что читает js/data.js: standards (накладки), supports, boxes, wallTypes + mounting
  * (монтажное правило видов, у которых своего раздела признаков нет). Раньше их
@@ -464,6 +521,22 @@ function addMountingRule(entry, rec) {
  */
 export function buildAttrs(records) {
   const standards = {}, supports = {}, boxes = {}, wallTypes = {}, mounting = {}, roles = {}, groups = {};
+  /* Канонические написания отделки — по всем НАКЛАДКАМ сразу, до основного цикла: одно написание
+     на признак должно быть одинаковым у всех накладок этого цвета/материала/формы, иначе список
+     комнаты раздвоился бы на «Слоновая Кость» и «Слоновая кость». Строим три карты один раз. */
+  const frameRecs = records.filter(r => r && r.kind === "frame");
+  const canonMaterial = canonicalFacingMap(frameRecs, r => r.frameMaterialRaw);
+  const canonShape = canonicalFacingMap(frameRecs, r => r.frameShapeRaw);
+  const canonColor = canonicalFacingMap(frameRecs, r => r.frameColorRaw);
+  /* Приложить каноническое написание отделки к записи накладки, только если сырое непусто —
+     как principle/layoutRows: «признака нет» рантайм отличает по отсутствию ключа. */
+  const addFacing = (entry, rec) => {
+    const mat = norm(rec.frameMaterialRaw), shp = norm(rec.frameShapeRaw), col = norm(rec.frameColorRaw);
+    if (mat) entry.frameMaterial = canonMaterial.get(facingKey(mat)) || mat;
+    if (shp) entry.frameShape = canonShape.get(facingKey(shp)) || shp;
+    if (col) entry.frameColor = canonColor.get(facingKey(col)) || col;
+    return entry;
+  };
   for (const rec of records) {
     /* Функциональная группа и подгруппа — сквозной раздел groups, ключ на артикул,
        запись { group, subgroup }. Это РАЗДЕЛЫ ВЫБОРА товара в конструкторе поста: заказчик
@@ -512,6 +585,10 @@ export function buildAttrs(records) {
       const entry = { standard: rec.standard, postCount: postCountOf(layoutRows) };
       if (layoutRows) entry.layoutRows = layoutRows;   // число постов = boxCount немецкого стандарта
       addMountingRule(entry, rec);
+      // Отделка накладки (E14): материал/форма/цвет каноническим написанием. Едут тем же путём,
+      // что principle/layoutRows — подмешиваются к товару в js/data.js. Конструктор поста сужает
+      // по ним список рамок под отделку комнаты; на состав/цену уже выбранной накладки не влияют.
+      addFacing(entry, rec);
       standards[rec.code] = entry;
     } else if (rec.kind === "support") {
       const entry = { standard: rec.standard, modules: rec.moduleSize, pitchMm: rec.pitchMm ?? null };

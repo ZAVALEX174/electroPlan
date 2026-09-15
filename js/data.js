@@ -113,6 +113,13 @@ window.EP_DATA = {
           // однорядная) — рантайм выведет один пост на всю ширину.
           out = {...p, standard: a.standard, postCount: a.postCount};
           if (a.layoutRows) out.layoutRows = a.layoutRows;
+          // Отделка накладки (E14): материал/форма/цвет каноническим написанием (из номенклатуры,
+          // раздел standards). По ним конструктор поста сужает список рамок под отделку комнаты
+          // (room.frameMaterial/frameShape/frameColor). Поля появляются, ТОЛЬКО если номенклатура
+          // их заполнила, — «признака нет» отличается от «пустой» по отсутствию ключа, как principle.
+          if (a.frameMaterial) out.frameMaterial = a.frameMaterial;
+          if (a.frameShape) out.frameShape = a.frameShape;
+          if (a.frameColor) out.frameColor = a.frameColor;
           // Монтажное правило накладки («Принцип обработки» + «Модульность для коробки»):
           // principle — код схемы монтажа (1M_CENTRAL/2M_CENTRAL/NO_SUPPORT/…), boxModularity —
           // модульность КОРОБКИ, которая у «центральных» накладок больше их собственной ёмкости

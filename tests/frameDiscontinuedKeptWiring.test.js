@@ -80,7 +80,7 @@ function makeCtx(state, dom) {
     builderErrorHtml: () => "",
     renderBuilderCatalog: () => {},
     renderBuilderComposition: (frame, errorHtml) => { dom.$("builderComposition").innerHTML = frame ? ("<composition>" + (errorHtml || "")) : (errorHtml || ""); },
-    renderBuilder: () => {}, builderCtx: {}, collectionFramePool: frames => frames, EPBuilderSlots, EPPosts
+    renderBuilder: () => {}, builderCtx: {}, collectionFramePool: frames => frames, frameFacingHintText: () => "", EPBuilderSlots, EPPosts
   };
 }
 

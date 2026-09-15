@@ -281,6 +281,68 @@ test("buildAttrs: принцип обработки КОРОБКИ едет в �
   assert.equal("14901" in a.wallTypes, false);  // тип стены неизвестен — в подбор не идёт
 });
 
+/* ───────────────────── ОТДЕЛКА НАКЛАДКИ (E14): facingKey / canonicalFacingMap / buildAttrs ─── */
+
+test("facingKey: складывает регистр, ё→е и внутренние пробелы (одно написание — один ключ)", () => {
+  // разнобой заказчика — только регистр и ё; ключ обязан свести варианты к одному
+  assert.equal(N.facingKey("Слоновая Кость"), N.facingKey("Слоновая кость"));
+  assert.equal(N.facingKey("Зелёный"), N.facingKey("Зеленый"));      // ё→е
+  assert.equal(N.facingKey("Никель  Матовый"), N.facingKey("Никель матовый")); // двойной пробел
+  assert.equal(N.facingKey("  Металл "), "металл");                  // трим краёв
+  // РАЗНЫЕ цвета в один ключ не сливаются — фильтр остался бы точным
+  assert.notEqual(N.facingKey("Слоновая кость"), N.facingKey("Reflex Слоновая Кость"));
+  assert.equal(N.facingKey(null), "");                               // пусто → пустой ключ (пропускается)
+});
+
+test("canonicalFacingMap: одно человекочитаемое написание на ключ — самое частое, тай-брейк по строке", () => {
+  // «Слоновая кость» встречается дважды, «Слоновая Кость» — раз: побеждает частое
+  const recs = [
+    { sourceRow: 5, frameColorRaw: "Слоновая Кость" },
+    { sourceRow: 6, frameColorRaw: "Слоновая кость" },
+    { sourceRow: 7, frameColorRaw: "Слоновая кость" },
+  ];
+  const map = N.canonicalFacingMap(recs, r => r.frameColorRaw);
+  assert.equal(map.get(N.facingKey("Слоновая кость")), "Слоновая кость");
+  // при равной частоте — меньший номер строки
+  const tie = N.canonicalFacingMap([
+    { sourceRow: 9, frameColorRaw: "Белая матовая" },
+    { sourceRow: 3, frameColorRaw: "Белая Матовая" },
+  ], r => r.frameColorRaw);
+  assert.equal(tie.get(N.facingKey("белая матовая")), "Белая Матовая");   // строка 3 раньше строки 9
+});
+
+test("buildAttrs: отделка накладки (материал/форма/цвет) едет в запись standards каноничным написанием", () => {
+  // две накладки одного цвета разным регистром → в обеих одно каноническое написание (не два в списке)
+  const a = N.buildAttrs([
+    { code: "F1", kind: "frame", standard: "IT", sourceRow: 2,
+      frameMaterialRaw: "Металл", frameShapeRaw: "Скруглённая", frameColorRaw: "Никель Матовый" },
+    { code: "F2", kind: "frame", standard: "IT", sourceRow: 3,
+      frameMaterialRaw: "Металл", frameShapeRaw: "Скруглённая", frameColorRaw: "Никель матовый" },
+    { code: "F3", kind: "frame", standard: "IT", sourceRow: 4,
+      frameMaterialRaw: "Металл", frameShapeRaw: "Классическая", frameColorRaw: "Никель матовый" },
+  ]);
+  assert.deepEqual(a.standards["F1"], { standard: "IT", postCount: null,
+    frameMaterial: "Металл", frameShape: "Скруглённая", frameColor: "Никель матовый" });
+  assert.equal(a.standards["F2"].frameColor, "Никель матовый");   // тот же цвет, одно написание
+  assert.equal(a.standards["F1"].frameColor, a.standards["F2"].frameColor);
+});
+
+test("buildAttrs: у накладки без отделки ключей материал/форма/цвет НЕТ (как principle)", () => {
+  const a = N.buildAttrs([{ code: "F9", kind: "frame", standard: "IT" }]);
+  assert.deepEqual(a.standards["F9"], { standard: "IT", postCount: null });
+  assert.equal("frameColor" in a.standards["F9"], false);
+});
+
+test("buildAttrs: отделка — признак ТОЛЬКО накладки; у механизма/коробки её нет", () => {
+  // канонические карты строятся по kind==="frame" — чужой вид отделку не получает
+  const a = N.buildAttrs([
+    { code: "M1", kind: "mechanism", standard: "BOTH", frameColorRaw: "Металл", principle: "BUTTON" },
+    { code: "B1", kind: "socket_box", wallType: "solid", boxShape: "rect", moduleSize: 3, boxStandards: ["IT"], frameColorRaw: "Металл" },
+  ]);
+  assert.equal("frameColor" in (a.mounting["M1"] || {}), false);
+  assert.equal("frameColor" in a.boxes["B1"], false);
+});
+
 /* ───────────────────── readNomenclature: чтение реального .xls ─────────────────────
    Файл номенклатуры заказчика лежит ВНЕ репозитория, поэтому мини-книгу собираем сами.
    Шапка воспроизводит настоящую, включая «Подгруппы » с ПРОБЕЛОМ на конце — именно из-за

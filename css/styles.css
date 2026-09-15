@@ -132,6 +132,8 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 /* Коллекция накладок комнаты (E13) — отдельное поле ниже схемы, тем же приёмом: отбивка сверху,
    а «коллекция задана» подсвечено акцентом (как «своя схема»), чтобы фильтр каталога было видно. */
 .room-collection-field{margin-top:12px}
+/* Поля отделки накладки комнаты (E14) — те же отступы, что у коллекции. */
+.room-facing-field{margin-top:12px}
 .prop-collection-source.own{color:var(--blue-dark);font-weight:700}
 .prop-hint-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;color:var(--muted);font-size:9px}
 .prop-hint-row b{color:var(--text)}
@@ -265,6 +267,11 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .builder-note{display:flex;flex-direction:column;padding:12px;border-radius:12px;background:var(--blue-soft)}.builder-note strong{font-size:11px}.builder-note span{margin-top:3px;color:var(--muted);font-size:10px}
 .builder-form{min-width:0}.builder-form label{display:block;min-width:0;color:var(--muted);font-size:10px;font-weight:800}.builder-form label input,.builder-form label select{margin-top:5px}.builder-form select{width:100%;min-width:0;max-width:100%;text-overflow:ellipsis}.form-row{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;margin-top:10px}.form-row>*{min-width:0}
 .builder-capacity{margin-top:12px;padding:10px;border:1px solid #d5e4f0;border-radius:10px;background:#f7fbfe}.builder-capacity-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px}.builder-capacity-head span{color:var(--muted);text-align:right}.module-meter{display:grid;grid-template-columns:repeat(var(--module-count),minmax(0,1fr));gap:4px;margin-top:7px}.module-meter span{height:6px;border-radius:999px;background:#dbe7f0}.module-meter span.occupied{background:var(--blue)}
+/* Хинт отделки накладки (E14): «показано N из M · сузили…» приглушённо; пустое сочетание —
+   янтарным (как .price-note), пустой текст скрываем целиком. */
+.builder-frame-facing-hint{display:block;margin:8px 0 0;color:var(--muted);font-size:10px;line-height:1.4}
+.builder-frame-facing-hint:empty{display:none}
+.builder-frame-facing-hint.is-empty{color:#7a5a12;font-weight:700}
 /* Выбранные модули поста. Раньше здесь стоял <select> на слот; теперь товар выбирается
    карточкой в каталоге справа, а слот показывает выбранное, поле группы света у клавиши и
    подставленный расчётом механизм. .is-target — слот, который заменит следующая карточка. */

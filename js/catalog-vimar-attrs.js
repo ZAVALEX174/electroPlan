@@ -7,7 +7,7 @@
    (раздел groups — разделы выбора товара в конструкторе поста). Подмешиваются
    к товарам в js/data.js. */
 window.EP_VIMAR_ATTRS = {
-  "generatedAt": "2026-08-27",
+  "generatedAt": "2026-09-15",
   "source": {
     "standards": "Номенклатура новая.xls",
     "supports": "Номенклатура новая.xls",
@@ -21,182 +21,290 @@ window.EP_VIMAR_ATTRS = {
     "14931": {
       "standard": "BOTH",
       "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE"
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая влагостойкая"
     },
     "14932": {
       "standard": "BOTH",
       "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE"
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая влагостойкая"
     },
     "14943": {
       "standard": "IT",
       "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE"
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая влагостойкая"
     },
     "14944": {
       "standard": "IT",
       "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE"
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая влагостойкая"
     },
     "14931.01": {
       "standard": "BOTH",
       "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE"
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая влагостойкая"
     },
     "14931.14": {
       "standard": "BOTH",
       "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE"
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серый гранит влагостойкая"
     },
     "14932.01": {
       "standard": "BOTH",
       "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE"
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая влагостойкая"
     },
     "14932.14": {
       "standard": "BOTH",
       "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE"
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серый гранит влагостойкая"
     },
     "14943.01": {
       "standard": "IT",
       "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE"
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая влагостойкая"
     },
     "14943.14": {
       "standard": "IT",
       "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE"
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серый гранит влагостойкая"
     },
     "14944.01": {
       "standard": "IT",
       "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE"
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая влагостойкая"
     },
     "14944.14": {
       "standard": "IT",
       "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE"
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серый гранит влагостойкая"
     },
     "09661.01": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09661.02": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "09661.03": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия"
     },
     "09661.04": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "09661.11": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "09661.12": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Горлица Матовая"
     },
     "09661.13": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Глина Матовая"
     },
     "09661.14": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Карбон Матовый"
     },
     "09661.21": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "09661.22": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "09661.23": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "09661.24": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Медь Матовая"
     },
     "09662.01": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09662.02": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "09662.03": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия"
     },
     "09662.04": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "09662.11": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "09662.12": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Горлица Матовая"
     },
     "09662.13": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Глина Матовая"
     },
     "09662.14": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Карбон Матовый"
     },
     "09662.21": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "09662.22": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "09662.23": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "09662.24": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Медь Матовая"
     },
     "09664.01": {
       "standard": "DE",
@@ -206,7 +314,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09664.02": {
       "standard": "DE",
@@ -216,7 +327,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "09664.03": {
       "standard": "DE",
@@ -226,7 +340,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия"
     },
     "09664.04": {
       "standard": "DE",
@@ -236,7 +353,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "09664.11": {
       "standard": "DE",
@@ -246,7 +366,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "09664.12": {
       "standard": "DE",
@@ -256,7 +379,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Горлица Матовая"
     },
     "09664.13": {
       "standard": "DE",
@@ -266,7 +392,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Глина Матовая"
     },
     "09664.14": {
       "standard": "DE",
@@ -276,7 +405,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Карбон Матовый"
     },
     "09664.21": {
       "standard": "DE",
@@ -286,7 +418,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "09664.22": {
       "standard": "DE",
@@ -296,7 +431,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "09664.23": {
       "standard": "DE",
@@ -306,7 +444,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "09664.24": {
       "standard": "DE",
@@ -316,7 +457,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Медь Матовая"
     },
     "09666.01": {
       "standard": "DE",
@@ -327,7 +471,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09666.02": {
       "standard": "DE",
@@ -338,7 +485,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "09666.03": {
       "standard": "DE",
@@ -349,7 +499,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия"
     },
     "09666.04": {
       "standard": "DE",
@@ -360,7 +513,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "09666.11": {
       "standard": "DE",
@@ -371,7 +527,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "09666.12": {
       "standard": "DE",
@@ -382,7 +541,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Горлица Матовая"
     },
     "09666.13": {
       "standard": "DE",
@@ -393,7 +555,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Глина Матовая"
     },
     "09666.14": {
       "standard": "DE",
@@ -404,7 +569,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Карбон Матовый"
     },
     "09666.21": {
       "standard": "DE",
@@ -415,7 +583,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "09666.22": {
       "standard": "DE",
@@ -426,7 +597,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "09666.23": {
       "standard": "DE",
@@ -437,7 +611,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "09666.24": {
       "standard": "DE",
@@ -448,7 +625,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Медь Матовая"
     },
     "09668.01": {
       "standard": "DE",
@@ -460,7 +640,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09668.02": {
       "standard": "DE",
@@ -472,7 +655,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "09668.03": {
       "standard": "DE",
@@ -484,7 +670,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия"
     },
     "09668.04": {
       "standard": "DE",
@@ -496,7 +685,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "09668.11": {
       "standard": "DE",
@@ -508,7 +700,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "09668.12": {
       "standard": "DE",
@@ -520,7 +715,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Горлица Матовая"
     },
     "09668.13": {
       "standard": "DE",
@@ -532,7 +730,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Глина Матовая"
     },
     "09668.14": {
       "standard": "DE",
@@ -544,7 +745,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Карбон Матовый"
     },
     "09668.21": {
       "standard": "DE",
@@ -556,7 +760,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "09668.22": {
       "standard": "DE",
@@ -568,7 +775,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "09668.23": {
       "standard": "DE",
@@ -580,7 +790,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "09668.24": {
       "standard": "DE",
@@ -592,757 +805,1213 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Медь Матовая"
     },
     "09671.01": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09671.02": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "09671.03": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия"
     },
     "09671.04": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "09671.11": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "09671.12": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Горлица Матовая"
     },
     "09671.13": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Глина Матовая"
     },
     "09671.14": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Карбон Матовый"
     },
     "09671.21": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "09671.22": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "09671.23": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "09671.24": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Медь Матовая"
     },
     "09672.01": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09672.02": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "09672.03": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия"
     },
     "09672.04": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "09672.11": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "09672.12": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Горлица Матовая"
     },
     "09672.13": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Глина Матовая"
     },
     "09672.14": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Карбон Матовый"
     },
     "09672.21": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "09672.22": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "09672.23": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "09672.24": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Медь Матовая"
     },
     "09673.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09673.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "09673.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия"
     },
     "09673.04": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "09673.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "09673.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Горлица Матовая"
     },
     "09673.13": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Глина Матовая"
     },
     "09673.14": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Карбон Матовый"
     },
     "09673.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "09673.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "09673.23": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "09673.24": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Медь Матовая"
     },
     "09674.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09674.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "09674.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия"
     },
     "09674.04": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "09674.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "09674.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Горлица Матовая"
     },
     "09674.13": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Глина Матовая"
     },
     "09674.14": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Карбон Матовый"
     },
     "09674.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "09674.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "09674.23": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "09674.24": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Медь Матовая"
     },
     "09677.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09677.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "09677.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия"
     },
     "09677.04": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "09677.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "09677.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Горлица Матовая"
     },
     "09677.13": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Глина Матовая"
     },
     "09677.14": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Карбон Матовый"
     },
     "09677.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "09677.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "09677.23": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "09677.24": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Медь Матовая"
     },
     "09679.01": {
       "standard": "IT",
       "postCount": null,
       "principle": "2_OFFSET",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09679.02": {
       "standard": "IT",
       "postCount": null,
       "principle": "2_OFFSET",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "09679.03": {
       "standard": "IT",
       "postCount": null,
       "principle": "2_OFFSET",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия"
     },
     "09679.04": {
       "standard": "IT",
       "postCount": null,
       "principle": "2_OFFSET",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "09679.11": {
       "standard": "IT",
       "postCount": null,
       "principle": "2_OFFSET",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "09679.12": {
       "standard": "IT",
       "postCount": null,
       "principle": "2_OFFSET",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Горлица Матовая"
     },
     "09679.13": {
       "standard": "IT",
       "postCount": null,
       "principle": "2_OFFSET",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Глина Матовая"
     },
     "09679.14": {
       "standard": "IT",
       "postCount": null,
       "principle": "2_OFFSET",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Карбон Матовый"
     },
     "09679.21": {
       "standard": "IT",
       "postCount": null,
       "principle": "2_OFFSET",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "09679.22": {
       "standard": "IT",
       "postCount": null,
       "principle": "2_OFFSET",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "09679.23": {
       "standard": "IT",
       "postCount": null,
       "principle": "2_OFFSET",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "09679.24": {
       "standard": "IT",
       "postCount": null,
       "principle": "2_OFFSET",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Медь Матовая"
     },
     "14641.01": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "14641.02": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "14641.03": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Бежевая"
     },
     "14641.04": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Кремовая"
     },
     "14641.05": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "14641.06": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белый гранит"
     },
     "14641.20": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "14641.21": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "14641.22": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "14641.23": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневая переливающаяся"
     },
     "14641.24": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото блестящее"
     },
     "14641.25": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "14641.31": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Ясень"
     },
     "14641.32": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Красную сосну"
     },
     "14641.33": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Макоре"
     },
     "14641.40": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Пепельная\""
     },
     "14641.41": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Снежная\""
     },
     "14641.42": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Воздушная\""
     },
     "14641.43": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Янтарь\""
     },
     "14641.44": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Мята\""
     },
     "14641.45": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Вода\""
     },
     "14641.46": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Лимон\""
     },
     "14641.47": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Изумруд\""
     },
     "14641.48": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Оранжевая\""
     },
     "14641.49": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Табак\""
     },
     "14641.50": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Сапфир\""
     },
     "14641.51": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Рубин\""
     },
     "14641.61": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральный Клен"
     },
     "14641.62": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная Груша"
     },
     "14641.63": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная Вишня"
     },
     "14641.70": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза металлизированная"
     },
     "14641.71": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро металлизированное"
     },
     "14641.72": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Зелёная металлизированная"
     },
     "14641.73": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Синяя металлизированная"
     },
     "14641.74": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель перламутровый"
     },
     "14641.75.01": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро перламутровое"
     },
     "14641.81": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Зашкуренный алюминий"
     },
     "14642.01": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "14642.02": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "14642.03": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Бежевая"
     },
     "14642.04": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Кремовая"
     },
     "14642.05": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "14642.06": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белый гранит"
     },
     "14642.20": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "14642.21": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "14642.22": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "14642.23": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневая переливающаяся"
     },
     "14642.24": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото блестящее"
     },
     "14642.25": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "14642.26": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза металлизированная"
     },
     "14642.27": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро металлизированное"
     },
     "14642.31": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Ясень"
     },
     "14642.32": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Красную сосну"
     },
     "14642.33": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Макоре"
     },
     "14642.40": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Пепельная\""
     },
     "14642.41": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Снежная\""
     },
     "14642.42": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Воздушная\""
     },
     "14642.43": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Янтарь\""
     },
     "14642.44": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Мята\""
     },
     "14642.45": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Вода\""
     },
     "14642.46": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Лимон\""
     },
     "14642.47": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Изумруд\""
     },
     "14642.48": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Оранжевая\""
     },
     "14642.49": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Табак\""
     },
     "14642.50": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Сапфир\""
     },
     "14642.51": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Рубин\""
     },
     "14642.61": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральный Клен"
     },
     "14642.62": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная Груша"
     },
     "14642.63": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная Вишня"
     },
     "14642.70": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза металлизированная"
     },
     "14642.71": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро металлизированное"
     },
     "14642.72": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Зелёная металлизированная"
     },
     "14642.73": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Синяя металлизированная"
     },
     "14642.74": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель перламутровый"
     },
     "14642.75.01": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро перламутровое"
     },
     "14642.76": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Античная латунь"
     },
     "14642.81": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Зашкуренный алюминий"
     },
     "14642.AB.01": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "14642.C.01": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С крышкой белая"
     },
     "14643.01": {
       "standard": "DE",
@@ -1352,7 +2021,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "14643.02": {
       "standard": "DE",
@@ -1362,7 +2034,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "14643.03": {
       "standard": "DE",
@@ -1372,7 +2047,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Бежевая"
     },
     "14643.04": {
       "standard": "DE",
@@ -1382,7 +2060,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Кремовая"
     },
     "14643.05": {
       "standard": "DE",
@@ -1392,7 +2073,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "14643.06": {
       "standard": "DE",
@@ -1402,7 +2086,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белый гранит"
     },
     "14643.20": {
       "standard": "DE",
@@ -1412,7 +2099,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "14643.21": {
       "standard": "DE",
@@ -1422,7 +2112,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "14643.22": {
       "standard": "DE",
@@ -1432,7 +2125,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "14643.23": {
       "standard": "DE",
@@ -1442,7 +2138,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневая переливающаяся"
     },
     "14643.24": {
       "standard": "DE",
@@ -1452,7 +2151,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото блестящее"
     },
     "14643.25": {
       "standard": "DE",
@@ -1462,7 +2164,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "14643.26": {
       "standard": "DE",
@@ -1472,7 +2177,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза металлизированная"
     },
     "14643.27": {
       "standard": "DE",
@@ -1482,7 +2190,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро металлизированное"
     },
     "14643.40": {
       "standard": "DE",
@@ -1492,7 +2203,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Пепельная\""
     },
     "14643.41": {
       "standard": "DE",
@@ -1502,7 +2216,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Снежная\""
     },
     "14643.42": {
       "standard": "DE",
@@ -1512,7 +2229,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Воздушная\""
     },
     "14643.43": {
       "standard": "DE",
@@ -1522,7 +2242,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Янтарь\""
     },
     "14643.44": {
       "standard": "DE",
@@ -1532,7 +2255,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Мята\""
     },
     "14643.45": {
       "standard": "DE",
@@ -1542,7 +2268,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Вода\""
     },
     "14643.46": {
       "standard": "DE",
@@ -1552,7 +2281,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Лимон\""
     },
     "14643.47": {
       "standard": "DE",
@@ -1562,7 +2294,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Изумруд\""
     },
     "14643.48": {
       "standard": "DE",
@@ -1572,7 +2307,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Оранжевая\""
     },
     "14643.49": {
       "standard": "DE",
@@ -1582,7 +2320,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Табак\""
     },
     "14643.50": {
       "standard": "DE",
@@ -1592,7 +2333,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Сапфир\""
     },
     "14643.51": {
       "standard": "DE",
@@ -1602,7 +2346,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Рубин\""
     },
     "14643.AB.01": {
       "standard": "DE",
@@ -1612,7 +2359,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "14644.01": {
       "standard": "DE",
@@ -1623,7 +2373,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "14644.02": {
       "standard": "DE",
@@ -1634,7 +2387,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "14644.03": {
       "standard": "DE",
@@ -1645,7 +2401,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Бежевая"
     },
     "14644.04": {
       "standard": "DE",
@@ -1656,7 +2415,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Кремовая"
     },
     "14644.05": {
       "standard": "DE",
@@ -1667,7 +2429,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "14644.06": {
       "standard": "DE",
@@ -1678,7 +2443,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белый гранит"
     },
     "14644.20": {
       "standard": "DE",
@@ -1689,7 +2457,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "14644.21": {
       "standard": "DE",
@@ -1700,7 +2471,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "14644.22": {
       "standard": "DE",
@@ -1711,7 +2485,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "14644.23": {
       "standard": "DE",
@@ -1722,7 +2499,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневая переливающаяся"
     },
     "14644.24": {
       "standard": "DE",
@@ -1733,7 +2513,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото блестящее"
     },
     "14644.25": {
       "standard": "DE",
@@ -1744,7 +2527,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "14644.26": {
       "standard": "DE",
@@ -1755,7 +2541,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза металлизированная"
     },
     "14644.27": {
       "standard": "DE",
@@ -1766,7 +2555,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро металлизированное"
     },
     "14644.40": {
       "standard": "DE",
@@ -1777,7 +2569,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Пепельная\""
     },
     "14644.41": {
       "standard": "DE",
@@ -1788,7 +2583,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Снежная\""
     },
     "14644.42": {
       "standard": "DE",
@@ -1799,7 +2597,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Воздушная\""
     },
     "14644.43": {
       "standard": "DE",
@@ -1810,7 +2611,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Янтарь\""
     },
     "14644.44": {
       "standard": "DE",
@@ -1821,7 +2625,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Мята\""
     },
     "14644.45": {
       "standard": "DE",
@@ -1832,7 +2639,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Вода\""
     },
     "14644.46": {
       "standard": "DE",
@@ -1843,7 +2653,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Лимон\""
     },
     "14644.47": {
       "standard": "DE",
@@ -1854,7 +2667,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Изумруд\""
     },
     "14644.48": {
       "standard": "DE",
@@ -1865,7 +2681,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Оранжевая\""
     },
     "14644.49": {
       "standard": "DE",
@@ -1876,7 +2695,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Табак\""
     },
     "14644.50": {
       "standard": "DE",
@@ -1887,7 +2709,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Сапфир\""
     },
     "14644.51": {
       "standard": "DE",
@@ -1898,7 +2723,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Рубин\""
     },
     "14644.AB.01": {
       "standard": "DE",
@@ -1909,7 +2737,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "14669.01": {
       "standard": "DE",
@@ -1921,7 +2752,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "14669.02": {
       "standard": "DE",
@@ -1933,7 +2767,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "14669.03": {
       "standard": "DE",
@@ -1945,7 +2782,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Бежевая"
     },
     "14669.04": {
       "standard": "DE",
@@ -1957,7 +2797,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Кремовая"
     },
     "14669.05": {
       "standard": "DE",
@@ -1969,7 +2812,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "14669.06": {
       "standard": "DE",
@@ -1981,7 +2827,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белый гранит"
     },
     "14669.20": {
       "standard": "DE",
@@ -1993,7 +2842,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "14669.21": {
       "standard": "DE",
@@ -2005,7 +2857,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "14669.22": {
       "standard": "DE",
@@ -2017,7 +2872,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "14669.23": {
       "standard": "DE",
@@ -2029,7 +2887,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневая переливающаяся"
     },
     "14669.24": {
       "standard": "DE",
@@ -2041,7 +2902,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото блестящее"
     },
     "14669.25": {
       "standard": "DE",
@@ -2053,7 +2917,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "14669.26": {
       "standard": "DE",
@@ -2065,7 +2932,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза металлизированная"
     },
     "14669.27": {
       "standard": "DE",
@@ -2077,7 +2947,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро металлизированное"
     },
     "14669.40": {
       "standard": "DE",
@@ -2089,7 +2962,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Пепельная\""
     },
     "14669.41": {
       "standard": "DE",
@@ -2101,7 +2977,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Снежная\""
     },
     "14669.42": {
       "standard": "DE",
@@ -2113,7 +2992,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Воздушная\""
     },
     "14669.43": {
       "standard": "DE",
@@ -2125,7 +3007,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Янтарь\""
     },
     "14669.44": {
       "standard": "DE",
@@ -2137,7 +3022,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Мята\""
     },
     "14669.45": {
       "standard": "DE",
@@ -2149,7 +3037,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Вода\""
     },
     "14669.46": {
       "standard": "DE",
@@ -2161,7 +3052,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Лимон\""
     },
     "14669.47": {
       "standard": "DE",
@@ -2173,7 +3067,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Изумруд\""
     },
     "14669.48": {
       "standard": "DE",
@@ -2185,7 +3082,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Оранжевая\""
     },
     "14669.49": {
       "standard": "DE",
@@ -2197,7 +3097,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Табак\""
     },
     "14669.50": {
       "standard": "DE",
@@ -2209,7 +3112,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Сапфир\""
     },
     "14669.51": {
       "standard": "DE",
@@ -2221,7 +3127,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Рубин\""
     },
     "14669.AB.01": {
       "standard": "DE",
@@ -2233,679 +3142,1135 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "14652.01": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "14652.02": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "14652.03": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Бежевая"
     },
     "14652.04": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Кремовая"
     },
     "14652.05": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "14652.06": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белый гранит"
     },
     "14652.20": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "14652.21": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "14652.22": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "14652.23": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневая переливающаяся"
     },
     "14652.24": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото блестящее"
     },
     "14652.25": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "14652.31": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Ясень"
     },
     "14652.32": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Красную сосну"
     },
     "14652.33": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Макоре"
     },
     "14652.40": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Пепельная\""
     },
     "14652.41": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Снежная\""
     },
     "14652.42": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Воздушная\""
     },
     "14652.43": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Янтарь\""
     },
     "14652.44": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Мята\""
     },
     "14652.45": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Вода\""
     },
     "14652.46": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Лимон\""
     },
     "14652.47": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Изумруд\""
     },
     "14652.48": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Оранжевая\""
     },
     "14652.49": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Табак\""
     },
     "14652.50": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Сапфир\""
     },
     "14652.51": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Рубин\""
     },
     "14652.70": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза металлизированная"
     },
     "14652.71": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро металлизированное"
     },
     "14652.72": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Зелёная металлизированная"
     },
     "14652.73": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Синяя металлизированная"
     },
     "14652.74": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель перламутровый"
     },
     "14652.75.01": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро перламутровое"
     },
     "14652.81": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Зашкуренный алюминий"
     },
     "14653.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "14653.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "14653.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Бежевая"
     },
     "14653.04": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Кремовая"
     },
     "14653.05": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "14653.06": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белый гранит"
     },
     "14653.20": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "14653.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "14653.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "14653.23": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневая переливающаяся"
     },
     "14653.24": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото блестящее"
     },
     "14653.25": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "14653.31": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Ясень"
     },
     "14653.32": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Красную сосну"
     },
     "14653.33": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Макоре"
     },
     "14653.40": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Пепельная\""
     },
     "14653.41": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Снежная\""
     },
     "14653.42": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Воздушная\""
     },
     "14653.43": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Янтарь\""
     },
     "14653.44": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Мята\""
     },
     "14653.45": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Вода\""
     },
     "14653.46": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Лимон\""
     },
     "14653.47": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Изумруд\""
     },
     "14653.48": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Оранжевая\""
     },
     "14653.49": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Табак\""
     },
     "14653.50": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Сапфир\""
     },
     "14653.51": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Рубин\""
     },
     "14653.61": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральный Клен"
     },
     "14653.62": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная Груша"
     },
     "14653.63": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная Вишня"
     },
     "14653.70": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза металлизированная"
     },
     "14653.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро металлизированное"
     },
     "14653.72": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Зелёная металлизированная"
     },
     "14653.73": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Синяя металлизированная"
     },
     "14653.74": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель перламутровый"
     },
     "14653.75.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро перламутровое"
     },
     "14653.76": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Античная латунь"
     },
     "14653.81": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Зашкуренный алюминий"
     },
     "14653.AB.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "14654.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "14654.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "14654.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Бежевая"
     },
     "14654.04": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Кремовая"
     },
     "14654.05": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "14654.06": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белый гранит"
     },
     "14654.20": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "14654.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "14654.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "14654.23": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневая переливающаяся"
     },
     "14654.24": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото блестящее"
     },
     "14654.25": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "14654.31": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Ясень"
     },
     "14654.32": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Красную сосну"
     },
     "14654.33": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Макоре"
     },
     "14654.40": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Пепельная\""
     },
     "14654.41": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Снежная\""
     },
     "14654.42": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Воздушная\""
     },
     "14654.43": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Янтарь\""
     },
     "14654.44": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Мята\""
     },
     "14654.45": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Вода\""
     },
     "14654.46": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Лимон\""
     },
     "14654.47": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Изумруд\""
     },
     "14654.48": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Оранжевая\""
     },
     "14654.49": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Табак\""
     },
     "14654.50": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Сапфир\""
     },
     "14654.51": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Рубин\""
     },
     "14654.61": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральный Клен"
     },
     "14654.62": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная Груша"
     },
     "14654.63": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная Вишня"
     },
     "14654.70": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза металлизированная"
     },
     "14654.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро металлизированное"
     },
     "14654.72": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Зелёная металлизированная"
     },
     "14654.73": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Синяя металлизированная"
     },
     "14654.74": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель перламутровый"
     },
     "14654.75.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро перламутровое"
     },
     "14654.76": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Античная латунь"
     },
     "14654.81": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Зашкуренный алюминий"
     },
     "14654.AB.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "14657.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "14657.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "14657.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Бежевая"
     },
     "14657.04": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Кремовая"
     },
     "14657.05": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "14657.06": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белый гранит"
     },
     "14657.20": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "14657.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "14657.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "14657.23": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневая переливающаяся"
     },
     "14657.24": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото блестящее"
     },
     "14657.25": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "14657.31": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Ясень"
     },
     "14657.32": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Красную сосну"
     },
     "14657.33": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Макоре"
     },
     "14657.40": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Пепельная\""
     },
     "14657.41": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Снежная\""
     },
     "14657.42": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Воздушная\""
     },
     "14657.43": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Янтарь\""
     },
     "14657.44": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Мята\""
     },
     "14657.45": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Вода\""
     },
     "14657.46": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Лимон\""
     },
     "14657.47": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Изумруд\""
     },
     "14657.48": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Оранжевая\""
     },
     "14657.49": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Табак\""
     },
     "14657.50": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Сапфир\""
     },
     "14657.51": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Рубин\""
     },
     "14657.61": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральный Клен"
     },
     "14657.62": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная Груша"
     },
     "14657.63": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная Вишня"
     },
     "14657.70": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза металлизированная"
     },
     "14657.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро металлизированное"
     },
     "14657.72": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Зелёная металлизированная"
     },
     "14657.73": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Синяя металлизированная"
     },
     "14657.74": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель перламутровый"
     },
     "14657.75.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро перламутровое"
     },
     "14657.76": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Античная латунь"
     },
     "14657.81": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Зашкуренный алюминий"
     },
     "14657.AB.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "14668.01": {
       "standard": "IT",
@@ -2917,7 +4282,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "14668.02": {
       "standard": "IT",
@@ -2929,7 +4297,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "14668.03": {
       "standard": "IT",
@@ -2941,7 +4312,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Бежевая"
     },
     "14668.04": {
       "standard": "IT",
@@ -2953,7 +4327,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Кремовая"
     },
     "14668.05": {
       "standard": "IT",
@@ -2965,7 +4342,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "14668.06": {
       "standard": "IT",
@@ -2977,7 +4357,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белый гранит"
     },
     "14668.20": {
       "standard": "IT",
@@ -2989,7 +4372,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "14668.21": {
       "standard": "IT",
@@ -3001,7 +4387,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "14668.22": {
       "standard": "IT",
@@ -3013,7 +4402,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "14668.23": {
       "standard": "IT",
@@ -3025,7 +4417,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневая переливающаяся"
     },
     "14668.24": {
       "standard": "IT",
@@ -3037,7 +4432,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото блестящее"
     },
     "14668.25": {
       "standard": "IT",
@@ -3049,7 +4447,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "14668.31": {
       "standard": "IT",
@@ -3061,7 +4462,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Ясень"
     },
     "14668.32": {
       "standard": "IT",
@@ -3073,7 +4477,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Красную сосну"
     },
     "14668.33": {
       "standard": "IT",
@@ -3085,7 +4492,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Отделка под Макоре"
     },
     "14668.40": {
       "standard": "IT",
@@ -3097,7 +4507,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Пепельная\""
     },
     "14668.41": {
       "standard": "IT",
@@ -3109,7 +4522,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Снежная\""
     },
     "14668.42": {
       "standard": "IT",
@@ -3121,7 +4537,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Воздушная\""
     },
     "14668.43": {
       "standard": "IT",
@@ -3133,7 +4552,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Янтарь\""
     },
     "14668.44": {
       "standard": "IT",
@@ -3145,7 +4567,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Мята\""
     },
     "14668.45": {
       "standard": "IT",
@@ -3157,7 +4582,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Вода\""
     },
     "14668.46": {
       "standard": "IT",
@@ -3169,7 +4597,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Лимон\""
     },
     "14668.47": {
       "standard": "IT",
@@ -3181,7 +4612,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Изумруд\""
     },
     "14668.48": {
       "standard": "IT",
@@ -3193,7 +4627,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Оранжевая\""
     },
     "14668.49": {
       "standard": "IT",
@@ -3205,7 +4642,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Табак\""
     },
     "14668.50": {
       "standard": "IT",
@@ -3217,7 +4657,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Сапфир\""
     },
     "14668.51": {
       "standard": "IT",
@@ -3229,7 +4672,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex \"Рубин\""
     },
     "14668.70": {
       "standard": "IT",
@@ -3241,7 +4687,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза металлизированная"
     },
     "14668.71": {
       "standard": "IT",
@@ -3253,7 +4702,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро металлизированное"
     },
     "14668.72": {
       "standard": "IT",
@@ -3265,7 +4717,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Зелёная металлизированная"
     },
     "14668.73": {
       "standard": "IT",
@@ -3277,7 +4732,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Синяя металлизированная"
     },
     "14668.74": {
       "standard": "IT",
@@ -3289,7 +4747,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель перламутровый"
     },
     "14668.75.01": {
       "standard": "IT",
@@ -3301,7 +4762,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро перламутровое"
     },
     "14690.01": {
       "standard": "IT",
@@ -3313,7 +4777,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "14690.02": {
       "standard": "IT",
@@ -3325,7 +4792,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "14690.05": {
       "standard": "IT",
@@ -3337,7 +4807,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "14690.20": {
       "standard": "IT",
@@ -3349,7 +4822,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "14690.21": {
       "standard": "IT",
@@ -3361,7 +4837,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "14691.01": {
       "standard": "IT",
@@ -3376,7 +4855,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "14691.02": {
       "standard": "IT",
@@ -3391,7 +4873,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "14691.05": {
       "standard": "IT",
@@ -3406,7 +4891,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "14691.20": {
       "standard": "IT",
@@ -3421,7 +4909,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "14691.21": {
       "standard": "IT",
@@ -3436,395 +4927,632 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "19641.01": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Графит матовый"
     },
     "19641.02": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия матовая"
     },
     "19641.03": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "19641.04": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "19641.05": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Жемчужная матовая"
     },
     "19641.06": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная"
     },
     "19641.07": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "19641.08": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сталь матовая"
     },
     "19641.09": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Хром черный"
     },
     "19641.10": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель черный"
     },
     "19641.11": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Медь зачищенная щеткой"
     },
     "19641.12": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19641.13": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "19641.15": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральный алюминий"
     },
     "19641.16": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Лава"
     },
     "19641.17": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза темная"
     },
     "19641.41": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "19641.42": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Вишня"
     },
     "19641.43": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Лиственница"
     },
     "19641.61": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серый дым"
     },
     "19641.62": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Карамель"
     },
     "19641.63": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex оранжевый"
     },
     "19641.64": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Ультрамарин"
     },
     "19641.65": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex шалфей"
     },
     "19641.66": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex лед"
     },
     "19641.67": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19641.71": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "19641.72": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая"
     },
     "19641.73": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19641.74": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "19641.75": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Красная матовая"
     },
     "19641.76": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Синяя матовая"
     },
     "19641.77": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Зелёная матовая"
     },
     "19641.78": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "19641.79": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "19641.80": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Metal"
     },
     "19641.B06": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная Total Look"
     },
     "19641.B66": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Лед Total Look"
     },
     "19642.01": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Графит матовый"
     },
     "19642.02": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия матовая"
     },
     "19642.03": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "19642.04": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "19642.05": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Жемчужная матовая"
     },
     "19642.06": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная"
     },
     "19642.07": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "19642.08": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сталь матовая"
     },
     "19642.09": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Хром черный"
     },
     "19642.10": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель черный"
     },
     "19642.11": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Медь зачищенная щеткой"
     },
     "19642.12": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19642.13": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "19642.15": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральный алюминий"
     },
     "19642.16": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Лава"
     },
     "19642.17": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза темная"
     },
     "19642.41": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "19642.42": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Вишня"
     },
     "19642.43": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Лиственница"
     },
     "19642.61": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серый дым"
     },
     "19642.62": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Карамель"
     },
     "19642.63": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex оранжевый"
     },
     "19642.64": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Ультрамарин"
     },
     "19642.65": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex шалфей"
     },
     "19642.66": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex лед"
     },
     "19642.67": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19642.71": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "19642.72": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая"
     },
     "19642.73": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19642.74": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "19642.75": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Красная матовая"
     },
     "19642.76": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Синяя матовая"
     },
     "19642.77": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Зелёная матовая"
     },
     "19642.78": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "19642.79": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "19642.80": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Metal"
     },
     "19642.AB.71": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, Чёрная"
     },
     "19642.AB.74": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "19642.B06": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная Total Look"
     },
     "19642.B66": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Лед Total Look"
     },
     "19643.01": {
       "standard": "DE",
@@ -3834,7 +5562,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Графит матовый"
     },
     "19643.04": {
       "standard": "DE",
@@ -3844,7 +5575,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "19643.06": {
       "standard": "DE",
@@ -3854,7 +5588,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная"
     },
     "19643.08": {
       "standard": "DE",
@@ -3864,7 +5601,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сталь матовая"
     },
     "19643.12": {
       "standard": "DE",
@@ -3874,7 +5614,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19643.13": {
       "standard": "DE",
@@ -3884,7 +5627,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "19643.71": {
       "standard": "DE",
@@ -3894,7 +5640,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "19643.73": {
       "standard": "DE",
@@ -3904,7 +5653,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19643.74": {
       "standard": "DE",
@@ -3914,7 +5666,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "19643.78": {
       "standard": "DE",
@@ -3924,7 +5679,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "19643.79": {
       "standard": "DE",
@@ -3934,7 +5692,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "19643.80": {
       "standard": "DE",
@@ -3944,7 +5705,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Metal"
     },
     "19643.AB.71": {
       "standard": "DE",
@@ -3954,7 +5718,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, Чёрная"
     },
     "19643.AB.74": {
       "standard": "DE",
@@ -3964,7 +5731,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "19644.01": {
       "standard": "DE",
@@ -3975,7 +5745,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Графит матовый"
     },
     "19644.04": {
       "standard": "DE",
@@ -3986,7 +5759,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "19644.06": {
       "standard": "DE",
@@ -3997,7 +5773,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная"
     },
     "19644.08": {
       "standard": "DE",
@@ -4008,7 +5787,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Сталь матовая"
     },
     "19644.12": {
       "standard": "DE",
@@ -4019,7 +5801,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19644.13": {
       "standard": "DE",
@@ -4030,7 +5815,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "19644.71": {
       "standard": "DE",
@@ -4041,7 +5829,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "19644.73": {
       "standard": "DE",
@@ -4052,7 +5843,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19644.74": {
       "standard": "DE",
@@ -4063,7 +5857,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "19644.78": {
       "standard": "DE",
@@ -4074,7 +5871,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "19644.79": {
       "standard": "DE",
@@ -4085,7 +5885,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "19644.80": {
       "standard": "DE",
@@ -4096,7 +5899,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Metal"
     },
     "19644.AB.71": {
       "standard": "DE",
@@ -4107,7 +5913,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, Чёрная"
     },
     "19644.AB.74": {
       "standard": "DE",
@@ -4118,7 +5927,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "19669.01": {
       "standard": "DE",
@@ -4130,7 +5942,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Графит матовый"
     },
     "19669.04": {
       "standard": "DE",
@@ -4142,7 +5957,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "19669.06": {
       "standard": "DE",
@@ -4154,7 +5972,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная"
     },
     "19669.08": {
       "standard": "DE",
@@ -4166,7 +5987,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Сталь матовая"
     },
     "19669.12": {
       "standard": "DE",
@@ -4178,7 +6002,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19669.13": {
       "standard": "DE",
@@ -4190,7 +6017,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "19669.71": {
       "standard": "DE",
@@ -4202,7 +6032,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "19669.73": {
       "standard": "DE",
@@ -4214,7 +6047,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19669.74": {
       "standard": "DE",
@@ -4226,7 +6062,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "19669.78": {
       "standard": "DE",
@@ -4238,7 +6077,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "19669.79": {
       "standard": "DE",
@@ -4250,7 +6092,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "19669.80": {
       "standard": "DE",
@@ -4262,7 +6107,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Metal"
     },
     "19669.AB.71": {
       "standard": "DE",
@@ -4274,7 +6122,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, Чёрная"
     },
     "19669.AB.74": {
       "standard": "DE",
@@ -4286,715 +6137,1192 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "19652.01": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Графит матовый"
     },
     "19652.02": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия матовая"
     },
     "19652.03": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "19652.04": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "19652.05": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Жемчужная матовая"
     },
     "19652.06": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная"
     },
     "19652.07": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "19652.08": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сталь матовая"
     },
     "19652.09": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Хром черный"
     },
     "19652.10": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель черный"
     },
     "19652.11": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Медь зачищенная щеткой"
     },
     "19652.12": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19652.13": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "19652.15": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральный алюминий"
     },
     "19652.16": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Лава"
     },
     "19652.17": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза темная"
     },
     "19652.41": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "19652.42": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Вишня"
     },
     "19652.43": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Лиственница"
     },
     "19652.61": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Серый Дым"
     },
     "19652.62": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Карамель"
     },
     "19652.63": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex оранжевый"
     },
     "19652.64": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Ультрамарин"
     },
     "19652.65": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex шалфей"
     },
     "19652.66": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex лед"
     },
     "19652.67": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Слоновая Кость"
     },
     "19652.71": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "19652.72": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая"
     },
     "19652.73": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19652.74": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "19652.75": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Красная матовая"
     },
     "19652.76": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Синяя матовая"
     },
     "19652.77": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Зелёная матовая"
     },
     "19652.78": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "19652.79": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "19652.80": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Metal"
     },
     "19652.B06": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная Total Look"
     },
     "19652.B66": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Лед Total Look"
     },
     "19653.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Графит матовый"
     },
     "19653.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия матовая"
     },
     "19653.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "19653.04": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "19653.05": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Жемчужная матовая"
     },
     "19653.06": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная"
     },
     "19653.07": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "19653.08": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сталь матовая"
     },
     "19653.09": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Хром черный"
     },
     "19653.10": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель черный"
     },
     "19653.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19653.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19653.13": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "19653.15": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральный алюминий"
     },
     "19653.16": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Лава"
     },
     "19653.17": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза темная"
     },
     "19653.41": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "19653.42": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Вишня"
     },
     "19653.43": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Лиственница"
     },
     "19653.61": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серый дым"
     },
     "19653.62": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Карамель"
     },
     "19653.63": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex оранжевый"
     },
     "19653.64": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Ультрамарин"
     },
     "19653.65": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex шалфей"
     },
     "19653.66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflexт Лед"
     },
     "19653.67": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19653.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "19653.72": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая"
     },
     "19653.73": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19653.74": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "19653.75": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Красная матовая"
     },
     "19653.76": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Синяя матовая"
     },
     "19653.77": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Зелёная матовая"
     },
     "19653.78": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "19653.79": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "19653.80": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Metal"
     },
     "19653.AB.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, Чёрная"
     },
     "19653.AB.74": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "19653.B06": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная Total Look"
     },
     "19653.B66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Лед Total Look"
     },
     "19654.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Графит матовый"
     },
     "19654.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия матовая"
     },
     "19654.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "19654.04": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "19654.05": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Жемчужная матовая"
     },
     "19654.06": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная"
     },
     "19654.07": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "19654.08": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сталь матовая"
     },
     "19654.09": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Хром черный"
     },
     "19654.10": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель черный"
     },
     "19654.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19654.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19654.13": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "19654.15": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральный алюминий"
     },
     "19654.16": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Лава"
     },
     "19654.17": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза темная"
     },
     "19654.41": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "19654.42": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Вишня"
     },
     "19654.43": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Лиственница"
     },
     "19654.61": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серый дым"
     },
     "19654.62": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Карамель"
     },
     "19654.63": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex оранжевый"
     },
     "19654.64": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Ультрамарин"
     },
     "19654.65": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex шалфей"
     },
     "19654.66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex лед"
     },
     "19654.67": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19654.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "19654.72": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая"
     },
     "19654.73": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19654.74": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "19654.75": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Красная матовая"
     },
     "19654.76": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Синяя матовая"
     },
     "19654.77": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Зелёная матовая"
     },
     "19654.78": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "19654.79": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "19654.80": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Metal"
     },
     "19654.AB.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, Чёрная"
     },
     "19654.AB.74": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "19654.B06": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная Total Look"
     },
     "19654.B66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Лед Total Look"
     },
     "19657.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Графит матовый"
     },
     "19657.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия матовая"
     },
     "19657.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "19657.04": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "19657.05": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Жемчужная матовая"
     },
     "19657.06": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная"
     },
     "19657.07": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "19657.08": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сталь матовая"
     },
     "19657.09": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Хром черный"
     },
     "19657.10": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель черный"
     },
     "19657.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Медь зачищенная щеткой"
     },
     "19657.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19657.13": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "19657.15": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральный алюминий"
     },
     "19657.16": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Лава"
     },
     "19657.17": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза темная"
     },
     "19657.41": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "19657.42": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Вишня"
     },
     "19657.43": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Лиственница"
     },
     "19657.61": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серый дым"
     },
     "19657.62": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Карамель"
     },
     "19657.63": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex оранжевый"
     },
     "19657.64": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Ультрамарин"
     },
     "19657.65": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex шалфей"
     },
     "19657.66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex лед"
     },
     "19657.67": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19657.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "19657.72": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая"
     },
     "19657.73": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19657.74": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "19657.75": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Красная матовая"
     },
     "19657.76": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Синяя матовая"
     },
     "19657.77": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Зелёная матовая"
     },
     "19657.78": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "19657.79": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "19657.80": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Metal"
     },
     "19657.AB.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, Чёрная"
     },
     "19657.AB.74": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "19657.B06": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная Total Look"
     },
     "19657.B66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Лед Total Look"
     },
     "19660.71": {
       "standard": "IT",
@@ -5006,7 +7334,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "19660.72": {
       "standard": "IT",
@@ -5018,7 +7349,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая"
     },
     "19660.73": {
       "standard": "IT",
@@ -5030,7 +7364,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19660.74": {
       "standard": "IT",
@@ -5042,7 +7379,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "19661.71": {
       "standard": "IT",
@@ -5057,7 +7397,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "19661.72": {
       "standard": "IT",
@@ -5072,7 +7415,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая"
     },
     "19661.73": {
       "standard": "IT",
@@ -5087,7 +7433,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19661.74": {
       "standard": "IT",
@@ -5102,7 +7451,10 @@ window.EP_VIMAR_ATTRS = {
         [
           7
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "19668.01": {
       "standard": "IT",
@@ -5114,7 +7466,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Графит матовый"
     },
     "19668.02": {
       "standard": "IT",
@@ -5126,7 +7481,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Ардезия матовая"
     },
     "19668.03": {
       "standard": "IT",
@@ -5138,7 +7496,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "19668.04": {
       "standard": "IT",
@@ -5150,7 +7511,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан Матовый"
     },
     "19668.05": {
       "standard": "IT",
@@ -5162,7 +7526,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Жемчужная матовая"
     },
     "19668.06": {
       "standard": "IT",
@@ -5174,7 +7541,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная"
     },
     "19668.07": {
       "standard": "IT",
@@ -5186,7 +7556,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "19668.08": {
       "standard": "IT",
@@ -5198,7 +7571,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сталь матовая"
     },
     "19668.09": {
       "standard": "IT",
@@ -5210,7 +7586,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Хром черный"
     },
     "19668.10": {
       "standard": "IT",
@@ -5222,7 +7601,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель черный"
     },
     "19668.11": {
       "standard": "IT",
@@ -5234,7 +7616,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Медь зачищенная щеткой"
     },
     "19668.12": {
       "standard": "IT",
@@ -5246,7 +7631,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19668.13": {
       "standard": "IT",
@@ -5258,7 +7646,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Шампань матовый"
     },
     "19668.15": {
       "standard": "IT",
@@ -5270,7 +7661,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральный алюминий"
     },
     "19668.16": {
       "standard": "IT",
@@ -5282,7 +7676,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Лава"
     },
     "19668.17": {
       "standard": "IT",
@@ -5294,7 +7691,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Алюминий",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза темная"
     },
     "19668.41": {
       "standard": "IT",
@@ -5306,7 +7706,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "19668.42": {
       "standard": "IT",
@@ -5318,7 +7721,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Вишня"
     },
     "19668.43": {
       "standard": "IT",
@@ -5330,7 +7736,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Лиственница"
     },
     "19668.61": {
       "standard": "IT",
@@ -5342,7 +7751,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серый дым"
     },
     "19668.62": {
       "standard": "IT",
@@ -5354,7 +7766,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Карамель"
     },
     "19668.63": {
       "standard": "IT",
@@ -5366,7 +7781,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex оранжевый"
     },
     "19668.64": {
       "standard": "IT",
@@ -5378,7 +7796,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex Ультрамарин"
     },
     "19668.65": {
       "standard": "IT",
@@ -5390,7 +7811,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex шалфей"
     },
     "19668.66": {
       "standard": "IT",
@@ -5402,7 +7826,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Reflex лед"
     },
     "19668.67": {
       "standard": "IT",
@@ -5414,7 +7841,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19668.71": {
       "standard": "IT",
@@ -5426,7 +7856,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "19668.72": {
       "standard": "IT",
@@ -5438,7 +7871,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая"
     },
     "19668.73": {
       "standard": "IT",
@@ -5450,7 +7886,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Слоновая кость"
     },
     "19668.74": {
       "standard": "IT",
@@ -5462,7 +7901,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "19668.75": {
       "standard": "IT",
@@ -5474,7 +7916,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Красная матовая"
     },
     "19668.76": {
       "standard": "IT",
@@ -5486,7 +7931,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Синяя матовая"
     },
     "19668.77": {
       "standard": "IT",
@@ -5498,7 +7946,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Зелёная матовая"
     },
     "19668.78": {
       "standard": "IT",
@@ -5510,7 +7961,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "19668.79": {
       "standard": "IT",
@@ -5522,7 +7976,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро матовое"
     },
     "19668.80": {
       "standard": "IT",
@@ -5534,7 +7991,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Metal"
     },
     "19668.B06": {
       "standard": "IT",
@@ -5546,7 +8006,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Полярная Total Look"
     },
     "19668.B66": {
       "standard": "IT",
@@ -5558,953 +8021,1610 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Лед Total Look"
     },
     "19671.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Медь зачищенная щеткой"
     },
     "19671.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19671.13": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Скруглённая",
+      "frameColor": "Шампань матовый"
     },
     "19671.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Графит матовый"
     },
     "19671.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Ардезия"
     },
     "19671.23": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серебро матовое"
     },
     "19671.24": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Бронза матовая"
     },
     "19671.25": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Жемчужная матовая"
     },
     "19671.26": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Полярный матовый"
     },
     "19671.27": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Золото"
     },
     "19671.28": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Хром"
     },
     "19671.29": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Никель темный"
     },
     "19671.30": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Никель матовый"
     },
     "19671.51": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Орех"
     },
     "19671.52": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Вишня"
     },
     "19671.53": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Клён"
     },
     "19671.61": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Серый Дым"
     },
     "19671.62": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Карамель"
     },
     "19671.63": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Оранжевая"
     },
     "19671.64": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Ультрамарин"
     },
     "19671.65": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Шалфейная"
     },
     "19671.66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Ледяная"
     },
     "19671.67": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Слоновая Кость"
     },
     "19671.80": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Metal"
     },
     "19671.81": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Чёрная"
     },
     "19671.82": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серая"
     },
     "19671.83": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Слоновая кость"
     },
     "19671.84": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Белая"
     },
     "19671.85": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Красная"
     },
     "19671.86": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Синяя"
     },
     "19671.87": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Зелёная"
     },
     "19671.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Золото античное"
     },
     "19671.89": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серебро"
     },
     "19671.B26": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Полярная Total Look"
     },
     "19671.B66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Лед Total Look"
     },
     "19672.11": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Медь зачищенная щеткой"
     },
     "19672.12": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19672.13": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Скруглённая",
+      "frameColor": "Шампань матовый"
     },
     "19672.21": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Графит матовый"
     },
     "19672.22": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Ардезия"
     },
     "19672.23": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серебро матовое"
     },
     "19672.24": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Бронза матовая"
     },
     "19672.25": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Жемчужная матовая"
     },
     "19672.26": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Полярный матовый"
     },
     "19672.27": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Золото"
     },
     "19672.28": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Хром"
     },
     "19672.29": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Никель темный"
     },
     "19672.30": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Никель матовый"
     },
     "19672.51": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Орех"
     },
     "19672.52": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Вишня"
     },
     "19672.53": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Клён"
     },
     "19672.61": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Серый Дым"
     },
     "19672.62": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Карамель"
     },
     "19672.63": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Оранжевая"
     },
     "19672.64": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Ультрамарин"
     },
     "19672.65": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Шалфейная"
     },
     "19672.66": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Ледяная"
     },
     "19672.67": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Слоновая Кость"
     },
     "19672.80": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Metal"
     },
     "19672.81": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Чёрная"
     },
     "19672.82": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серая"
     },
     "19672.83": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Слоновая кость"
     },
     "19672.84": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Белая"
     },
     "19672.85": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Красная"
     },
     "19672.86": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Синяя"
     },
     "19672.87": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Зелёная"
     },
     "19672.88": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Золото античное"
     },
     "19672.89": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Сребро"
     },
     "19672.AB.81": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "С антибактериальным покрытием, Чёрная"
     },
     "19672.AB.84": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "19672.B26": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Полярная Total Look"
     },
     "19672.B66": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Лед Total Look"
     },
     "19682.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Медь зачищенная щеткой"
     },
     "19682.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19682.13": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Скруглённая",
+      "frameColor": "Шампань матовый"
     },
     "19682.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Графит матовый"
     },
     "19682.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Ардезия"
     },
     "19682.23": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серебро матовое"
     },
     "19682.24": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Бронза матовая"
     },
     "19682.25": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Жемчужная матовая"
     },
     "19682.26": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Полярный матовый"
     },
     "19682.27": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Золото"
     },
     "19682.28": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Хром"
     },
     "19682.29": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Никель темный"
     },
     "19682.30": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Никель матовый"
     },
     "19682.51": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Орех"
     },
     "19682.52": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Вишня"
     },
     "19682.53": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Клён"
     },
     "19682.61": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Серый Дым"
     },
     "19682.62": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Карамель"
     },
     "19682.63": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Оранжевая"
     },
     "19682.64": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Ультрамарин"
     },
     "19682.65": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Шалфейная"
     },
     "19682.66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Ледяная"
     },
     "19682.67": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Слоновая Кость"
     },
     "19682.80": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Metal"
     },
     "19682.81": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Чёрная"
     },
     "19682.82": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серая"
     },
     "19682.83": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Слоновая кость"
     },
     "19682.84": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Белая"
     },
     "19682.85": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Красная"
     },
     "19682.86": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Синяя"
     },
     "19682.87": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Зелёная"
     },
     "19682.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Золото античное"
     },
     "19682.89": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серебро"
     },
     "19682.B26": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Полярная Total Look"
     },
     "19682.B66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Лед Total Look"
     },
     "19683.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Медь зачищенная щеткой"
     },
     "19683.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19683.13": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Скруглённая",
+      "frameColor": "Шампань матовый"
     },
     "19683.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Графит матовый"
     },
     "19683.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Ардезия"
     },
     "19683.23": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серебро матовое"
     },
     "19683.24": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Бронза матовая"
     },
     "19683.25": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Жемчужная матовая"
     },
     "19683.26": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Полярный матовый"
     },
     "19683.27": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Золото"
     },
     "19683.28": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Хром"
     },
     "19683.29": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Никель темный"
     },
     "19683.30": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Никель матовый"
     },
     "19683.51": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Орех"
     },
     "19683.52": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Вишня"
     },
     "19683.53": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Клён"
     },
     "19683.61": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Серый Дым"
     },
     "19683.62": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Карамель"
     },
     "19683.63": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Оранжевая"
     },
     "19683.64": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Ультрамарин"
     },
     "19683.65": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Шалфейная"
     },
     "19683.66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Ледяная"
     },
     "19683.67": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Слоновая Кость"
     },
     "19683.80": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Metal"
     },
     "19683.81": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Чёрная"
     },
     "19683.82": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серая"
     },
     "19683.83": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Слоновая кость"
     },
     "19683.84": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Белая"
     },
     "19683.85": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Красная"
     },
     "19683.86": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Синяя"
     },
     "19683.87": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Зелёная"
     },
     "19683.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Золото античное"
     },
     "19683.89": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серебро"
     },
     "19683.AB.81": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "С антибактериальным покрытием, Чёрная"
     },
     "19683.AB.84": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "19683.B26": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Полярная Total Look"
     },
     "19683.B66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Лед Total Look"
     },
     "19684.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Медь зачищенная щеткой"
     },
     "19684.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19684.13": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Скруглённая",
+      "frameColor": "Шампань матовый"
     },
     "19684.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Графит матовый"
     },
     "19684.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Ардезия"
     },
     "19684.23": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серебро матовое"
     },
     "19684.24": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Бронза матовая"
     },
     "19684.25": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Жемчужная матовая"
     },
     "19684.26": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Полярный матовый"
     },
     "19684.27": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Золото"
     },
     "19684.28": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Хром"
     },
     "19684.29": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Никель темный"
     },
     "19684.30": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Никель матовый"
     },
     "19684.51": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Орех"
     },
     "19684.52": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Вишня"
     },
     "19684.53": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Клён"
     },
     "19684.61": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Серый Дым"
     },
     "19684.62": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Карамель"
     },
     "19684.63": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Оранжевая"
     },
     "19684.64": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Ультрамарин"
     },
     "19684.65": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Шалфейная"
     },
     "19684.66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Ледяная"
     },
     "19684.67": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Слоновая Кость"
     },
     "19684.80": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Metal"
     },
     "19684.81": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Чёрная"
     },
     "19684.82": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серая"
     },
     "19684.83": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Слоновая кость"
     },
     "19684.84": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Белая"
     },
     "19684.85": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Красная"
     },
     "19684.86": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Синяя"
     },
     "19684.87": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Зелёная"
     },
     "19684.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Золото античное"
     },
     "19684.89": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серебро"
     },
     "19684.AB.81": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "С антибактериальным покрытием, Чёрная"
     },
     "19684.AB.84": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "19684.B26": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Полярная Total Look"
     },
     "19684.B66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Лед Total Look"
     },
     "19687.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Медь зачищенная щеткой"
     },
     "19687.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19687.13": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Алюминий",
+      "frameShape": "Скруглённая",
+      "frameColor": "Шампань матовый"
     },
     "19687.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Графит матовый"
     },
     "19687.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Ардезия"
     },
     "19687.23": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серебро матовое"
     },
     "19687.24": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Бронза матовая"
     },
     "19687.25": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Жемчужная матовая"
     },
     "19687.26": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Полярный матовый"
     },
     "19687.27": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Золото"
     },
     "19687.28": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Хром"
     },
     "19687.29": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Никель темный"
     },
     "19687.30": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Никель матовый"
     },
     "19687.51": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Орех"
     },
     "19687.52": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Вишня"
     },
     "19687.53": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Клён"
     },
     "19687.61": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Серый Дым"
     },
     "19687.62": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Карамель"
     },
     "19687.63": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Оранжевая"
     },
     "19687.64": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Ультрамарин"
     },
     "19687.65": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Шалфейная"
     },
     "19687.66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Ледяная"
     },
     "19687.67": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Слоновая Кость"
     },
     "19687.80": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Metal"
     },
     "19687.81": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Чёрная"
     },
     "19687.82": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серая"
     },
     "19687.83": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Слоновая кость"
     },
     "19687.84": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Белая"
     },
     "19687.85": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Красная"
     },
     "19687.86": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Синяя"
     },
     "19687.87": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Зелёная"
     },
     "19687.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Золото античное"
     },
     "19687.89": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серебро"
     },
     "19687.AB.81": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "С антибактериальным покрытием, Чёрная"
     },
     "19687.AB.84": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "С антибактериальным покрытием, белая"
     },
     "19687.B26": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Полярная Total Look"
     },
     "19687.B66": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Лед Total Look"
     },
     "19698.11": {
       "standard": "IT",
@@ -6516,7 +9636,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Медь зачищенная щеткой"
     },
     "19698.12": {
       "standard": "IT",
@@ -6528,7 +9651,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Латунь Зачищенная Щеткой"
     },
     "19698.13": {
       "standard": "IT",
@@ -6540,7 +9666,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Алюминий",
+      "frameShape": "Скруглённая",
+      "frameColor": "Шампань матовый"
     },
     "19698.21": {
       "standard": "IT",
@@ -6552,7 +9681,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Графит матовый"
     },
     "19698.22": {
       "standard": "IT",
@@ -6564,7 +9696,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Ардезия"
     },
     "19698.23": {
       "standard": "IT",
@@ -6576,7 +9711,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серебро матовое"
     },
     "19698.24": {
       "standard": "IT",
@@ -6588,7 +9726,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Бронза матовая"
     },
     "19698.25": {
       "standard": "IT",
@@ -6600,7 +9741,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Жемчужная матовая"
     },
     "19698.26": {
       "standard": "IT",
@@ -6612,7 +9756,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Полярный матовый"
     },
     "19698.27": {
       "standard": "IT",
@@ -6624,7 +9771,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Золото"
     },
     "19698.28": {
       "standard": "IT",
@@ -6636,7 +9786,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Хром"
     },
     "19698.29": {
       "standard": "IT",
@@ -6648,7 +9801,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Никель темный"
     },
     "19698.30": {
       "standard": "IT",
@@ -6660,7 +9816,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Никель матовый"
     },
     "19698.51": {
       "standard": "IT",
@@ -6672,7 +9831,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Орех"
     },
     "19698.52": {
       "standard": "IT",
@@ -6684,7 +9846,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Вишня"
     },
     "19698.53": {
       "standard": "IT",
@@ -6696,7 +9861,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Скруглённая",
+      "frameColor": "Клён"
     },
     "19698.61": {
       "standard": "IT",
@@ -6708,7 +9876,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Серый Дым"
     },
     "19698.62": {
       "standard": "IT",
@@ -6720,7 +9891,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Карамель"
     },
     "19698.63": {
       "standard": "IT",
@@ -6732,7 +9906,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Оранжевая"
     },
     "19698.64": {
       "standard": "IT",
@@ -6744,7 +9921,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Ультрамарин"
     },
     "19698.65": {
       "standard": "IT",
@@ -6756,7 +9936,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Шалфейная"
     },
     "19698.66": {
       "standard": "IT",
@@ -6768,7 +9951,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Ледяная"
     },
     "19698.67": {
       "standard": "IT",
@@ -6780,7 +9966,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Reflex Слоновая Кость"
     },
     "19698.80": {
       "standard": "IT",
@@ -6792,7 +9981,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Metal"
     },
     "19698.81": {
       "standard": "IT",
@@ -6804,7 +9996,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Чёрная"
     },
     "19698.82": {
       "standard": "IT",
@@ -6816,7 +10011,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серая"
     },
     "19698.83": {
       "standard": "IT",
@@ -6828,7 +10026,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Слоновая кость"
     },
     "19698.84": {
       "standard": "IT",
@@ -6840,7 +10041,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Белая"
     },
     "19698.85": {
       "standard": "IT",
@@ -6852,7 +10056,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Красная"
     },
     "19698.86": {
       "standard": "IT",
@@ -6864,7 +10071,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Синяя"
     },
     "19698.87": {
       "standard": "IT",
@@ -6876,7 +10086,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Зелёная"
     },
     "19698.88": {
       "standard": "IT",
@@ -6888,7 +10101,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Золото античное"
     },
     "19698.89": {
       "standard": "IT",
@@ -6900,7 +10116,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Технополимер",
+      "frameShape": "Скруглённая",
+      "frameColor": "Серебро"
     },
     "19698.B26": {
       "standard": "IT",
@@ -6912,7 +10131,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Полярная Total Look"
     },
     "19698.B66": {
       "standard": "IT",
@@ -6924,259 +10146,451 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Скруглённая",
+      "frameColor": "Лед Total Look"
     },
     "19953.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Графит матовый"
     },
     "19953.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сланец матовый"
     },
     "19953.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебристый"
     },
     "19953.08": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сталь брашированная"
     },
     "19953.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь брашированная"
     },
     "19953.14": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Metal"
     },
     "19953.24": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза матовая"
     },
     "19953.26": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белый Polar матовый"
     },
     "19953.31": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Пески липари"
     },
     "19953.32": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серая горлица"
     },
     "19953.33": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Почва сиены"
     },
     "19954.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Графит матовый"
     },
     "19954.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сланец матовый"
     },
     "19954.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебристый"
     },
     "19954.08": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сталь брашированная"
     },
     "19954.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь брашированная"
     },
     "19954.14": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Metal"
     },
     "19954.24": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза матовая"
     },
     "19954.26": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белый Polar матовый"
     },
     "19954.31": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Пески липари"
     },
     "19954.32": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серая горлица"
     },
     "19954.33": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Почва сиены"
     },
     "19957.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Графит матовый"
     },
     "19957.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сланец матовый"
     },
     "19957.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебристый"
     },
     "19957.08": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сталь брашированная"
     },
     "19957.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Латунь брашированная"
     },
     "19957.14": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Metal"
     },
     "19957.24": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза матовая"
     },
     "19957.26": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белый Polar матовый"
     },
     "19957.31": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Пески липари"
     },
     "19957.32": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серая горлица"
     },
     "19957.33": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Почва сиены"
     },
     "21642.01": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бриллиантовый алюминий"
     },
     "21642.02": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серый серебристый"
     },
     "21642.03": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серая лава"
     },
     "21642.04": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Светлая бронза"
     },
     "21642.05": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "21642.06": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный сапфир"
     },
     "21642.07.01": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "21642.08": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан"
     },
     "21642.17": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая полностью"
     },
     "21642.18": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная полностью"
     },
     "21642.21": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа кремовая"
     },
     "21642.22": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа табак"
     },
     "21642.31": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Итальянский орех"
     },
     "21642.32": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Выбеленный дуб"
     },
     "21642.33": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "21642.41": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Горный лед"
     },
     "21642.51": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Белый каррара"
     },
     "21642.52": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Сланец"
     },
     "21642.53": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Серый кварц"
     },
     "21642.70": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый бриллиант"
     },
     "21642.71": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Аква"
     },
     "21642.72": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серебряный лед"
     },
     "21642.73": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серый жемчуг"
     },
     "21642.74": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "21642.75": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Бронзовое зеркало"
     },
     "21642.76": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черный бриллиант"
     },
     "21642.87": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью белый бриллиант"
     },
     "21642.88": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью черный бриллиант"
     },
     "21642.G09": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото полированное"
     },
     "21642.G10": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото сатированное"
     },
     "21643.01": {
       "standard": "DE",
@@ -7186,7 +10600,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бриллиантовый алюминий"
     },
     "21643.02": {
       "standard": "DE",
@@ -7196,7 +10613,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серый серебристый"
     },
     "21643.03": {
       "standard": "DE",
@@ -7206,7 +10626,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серая лава"
     },
     "21643.04": {
       "standard": "DE",
@@ -7216,7 +10639,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Светлая бронза"
     },
     "21643.05": {
       "standard": "DE",
@@ -7226,7 +10652,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "21643.06": {
       "standard": "DE",
@@ -7236,7 +10665,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный сапфир"
     },
     "21643.07.01": {
       "standard": "DE",
@@ -7246,7 +10678,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "21643.08": {
       "standard": "DE",
@@ -7256,7 +10691,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан"
     },
     "21643.09": {
       "standard": "DE",
@@ -7266,7 +10704,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Глянцевое золото"
     },
     "21643.10": {
       "standard": "DE",
@@ -7276,7 +10717,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "21643.17": {
       "standard": "DE",
@@ -7286,7 +10730,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая полностью"
     },
     "21643.18": {
       "standard": "DE",
@@ -7296,7 +10743,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная полностью"
     },
     "21643.70": {
       "standard": "DE",
@@ -7306,7 +10756,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый бриллиант"
     },
     "21643.71": {
       "standard": "DE",
@@ -7316,7 +10769,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Аква"
     },
     "21643.72": {
       "standard": "DE",
@@ -7326,7 +10782,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серебряный лед"
     },
     "21643.73": {
       "standard": "DE",
@@ -7336,7 +10795,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серый жемчуг"
     },
     "21643.74": {
       "standard": "DE",
@@ -7346,7 +10808,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "21643.75": {
       "standard": "DE",
@@ -7356,7 +10821,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Бронзовое зеркало"
     },
     "21643.76": {
       "standard": "DE",
@@ -7366,7 +10834,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черный бриллиант"
     },
     "21643.87": {
       "standard": "DE",
@@ -7376,7 +10847,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью белый бриллиант"
     },
     "21643.88": {
       "standard": "DE",
@@ -7386,7 +10860,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью черный бриллиант"
     },
     "21643.G09": {
       "standard": "DE",
@@ -7396,7 +10873,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото полированное"
     },
     "21643.G10": {
       "standard": "DE",
@@ -7406,7 +10886,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото сатированное"
     },
     "21644.01": {
       "standard": "DE",
@@ -7417,7 +10900,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бриллиантовый алюминий"
     },
     "21644.02": {
       "standard": "DE",
@@ -7428,7 +10914,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серый серебристый"
     },
     "21644.03": {
       "standard": "DE",
@@ -7439,7 +10928,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серая лава"
     },
     "21644.04": {
       "standard": "DE",
@@ -7450,7 +10942,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Светлая бронза"
     },
     "21644.05": {
       "standard": "DE",
@@ -7461,7 +10956,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "21644.06": {
       "standard": "DE",
@@ -7472,7 +10970,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный сапфир"
     },
     "21644.07.01": {
       "standard": "DE",
@@ -7483,7 +10984,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "21644.08": {
       "standard": "DE",
@@ -7494,7 +10998,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан"
     },
     "21644.10": {
       "standard": "DE",
@@ -7505,7 +11012,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "21644.17": {
       "standard": "DE",
@@ -7516,7 +11026,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая полностью"
     },
     "21644.18": {
       "standard": "DE",
@@ -7527,7 +11040,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная полностью"
     },
     "21644.70": {
       "standard": "DE",
@@ -7538,7 +11054,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый бриллиант"
     },
     "21644.71": {
       "standard": "DE",
@@ -7549,7 +11068,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Аква"
     },
     "21644.72": {
       "standard": "DE",
@@ -7560,7 +11082,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серебряный лед"
     },
     "21644.73": {
       "standard": "DE",
@@ -7571,7 +11096,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серый жемчуг"
     },
     "21644.74": {
       "standard": "DE",
@@ -7582,7 +11110,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "21644.75": {
       "standard": "DE",
@@ -7593,7 +11124,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Бронзовое зеркало"
     },
     "21644.76": {
       "standard": "DE",
@@ -7604,7 +11138,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черный бриллиант"
     },
     "21644.87": {
       "standard": "DE",
@@ -7615,7 +11152,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью белый бриллиант"
     },
     "21644.88": {
       "standard": "DE",
@@ -7626,7 +11166,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью черный бриллиант"
     },
     "21644.G09": {
       "standard": "DE",
@@ -7637,7 +11180,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото полированное"
     },
     "21644.G10": {
       "standard": "DE",
@@ -7648,7 +11194,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото сатированное"
     },
     "21669.01": {
       "standard": "DE",
@@ -7660,7 +11209,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бриллиантовый алюминий"
     },
     "21669.02": {
       "standard": "DE",
@@ -7672,7 +11224,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серый серебристый"
     },
     "21669.03": {
       "standard": "DE",
@@ -7684,7 +11239,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серая лава"
     },
     "21669.04": {
       "standard": "DE",
@@ -7696,7 +11254,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Светлая бронза"
     },
     "21669.05": {
       "standard": "DE",
@@ -7708,7 +11269,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "21669.06": {
       "standard": "DE",
@@ -7720,7 +11284,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный сапфир"
     },
     "21669.07.01": {
       "standard": "DE",
@@ -7732,7 +11299,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "21669.08": {
       "standard": "DE",
@@ -7744,7 +11314,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан"
     },
     "21669.09": {
       "standard": "DE",
@@ -7756,7 +11329,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Глянцевое золото"
     },
     "21669.10": {
       "standard": "DE",
@@ -7768,7 +11344,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "21669.17": {
       "standard": "DE",
@@ -7780,7 +11359,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая полностью"
     },
     "21669.18": {
       "standard": "DE",
@@ -7792,7 +11374,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная полностью"
     },
     "21669.70": {
       "standard": "DE",
@@ -7804,7 +11389,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый бриллиант"
     },
     "21669.71": {
       "standard": "DE",
@@ -7816,7 +11404,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Аква"
     },
     "21669.72": {
       "standard": "DE",
@@ -7828,7 +11419,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серебряный лед"
     },
     "21669.73": {
       "standard": "DE",
@@ -7840,7 +11434,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серый жемчуг"
     },
     "21669.74": {
       "standard": "DE",
@@ -7852,7 +11449,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "21669.75": {
       "standard": "DE",
@@ -7864,7 +11464,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Бронзовое зеркало"
     },
     "21669.76": {
       "standard": "DE",
@@ -7876,7 +11479,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черный бриллиант"
     },
     "21669.87": {
       "standard": "DE",
@@ -7888,7 +11494,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью белый бриллиант"
     },
     "21669.88": {
       "standard": "DE",
@@ -7900,7 +11509,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью черный бриллиант"
     },
     "21669.G09": {
       "standard": "DE",
@@ -7912,7 +11524,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото полированное"
     },
     "21669.G10": {
       "standard": "DE",
@@ -7924,387 +11539,675 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото сатированное"
     },
     "21653.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бриллиантовый алюминий"
     },
     "21653.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серый серебристый"
     },
     "21653.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серая лава"
     },
     "21653.04": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Светлая бронза"
     },
     "21653.05": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "21653.06": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный сапфир"
     },
     "21653.07.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "21653.08": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан"
     },
     "21653.09": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Глянцевое золото"
     },
     "21653.17": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая полностью"
     },
     "21653.18": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная полностью"
     },
     "21653.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа кремовая"
     },
     "21653.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа табак"
     },
     "21653.31": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Итальянский орех"
     },
     "21653.32": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Выбеленный дуб"
     },
     "21653.33": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "21653.41": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Горный лед"
     },
     "21653.51": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Белый каррара"
     },
     "21653.52": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Сланец"
     },
     "21653.53": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Серый кварц"
     },
     "21653.70": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый бриллиант"
     },
     "21653.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Аква"
     },
     "21653.72": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серебряный лед"
     },
     "21653.73": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серый жемчуг"
     },
     "21653.74": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "21653.75": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Бронзовое зеркало"
     },
     "21653.76": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черный бриллиант"
     },
     "21653.87": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью белый бриллиант"
     },
     "21653.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью черный бриллиант"
     },
     "21653.G09": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото полированное"
     },
     "21653.G10": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото сатинированное"
     },
     "21654.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бриллиантовый алюминий"
     },
     "21654.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серый серебристый"
     },
     "21654.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серая лава"
     },
     "21654.04": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Светлая бронза"
     },
     "21654.05": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "21654.06": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный сапфир"
     },
     "21654.07.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "21654.08": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан"
     },
     "21654.09": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Глянцевое золото"
     },
     "21654.10": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "21654.17": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая полностью"
     },
     "21654.18": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная полностью"
     },
     "21654.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа кремовая"
     },
     "21654.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа табак"
     },
     "21654.31": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Итальянский орех"
     },
     "21654.32": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Выбеленный дуб"
     },
     "21654.33": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "21654.41": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Горный лед"
     },
     "21654.51": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Белый каррара"
     },
     "21654.52": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Сланец"
     },
     "21654.53": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Серый кварц"
     },
     "21654.70": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый бриллиант"
     },
     "21654.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Аква"
     },
     "21654.72": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серебряный лед"
     },
     "21654.73": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серый жемчуг"
     },
     "21654.74": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "21654.75": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Бронзовое зеркало"
     },
     "21654.76": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черный бриллиант"
     },
     "21654.87": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью белый бриллиант"
     },
     "21654.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью черный бриллиант"
     },
     "21654.G09": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото полированное"
     },
     "21654.G10": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото сатинированное"
     },
     "21657.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бриллиантовый алюминий"
     },
     "21657.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серый серебристый"
     },
     "21657.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серая лава"
     },
     "21657.04": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Светлая бронза"
     },
     "21657.05": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "21657.06": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный сапфир"
     },
     "21657.07.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "21657.08": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан"
     },
     "21657.09": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Глянцевое золото"
     },
     "21657.10": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "21657.17": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая полностью"
     },
     "21657.18": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная полностью"
     },
     "21657.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа кремовая"
     },
     "21657.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа табак"
     },
     "21657.31": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Итальянский орех"
     },
     "21657.32": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Выбеленный дуб"
     },
     "21657.33": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "21657.41": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Горный лед"
     },
     "21657.51": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Белый каррара"
     },
     "21657.52": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Сланец"
     },
     "21657.53": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Серый кварц"
     },
     "21657.70": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый бриллиант"
     },
     "21657.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Аква"
     },
     "21657.72": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серебряный лед"
     },
     "21657.73": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серый жемчуг"
     },
     "21657.74": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "21657.75": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Бронзовое зеркало"
     },
     "21657.76": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черный бриллиант"
     },
     "21657.87": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью белый бриллиант"
     },
     "21657.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью черный бриллиант"
     },
     "21657.G09": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото полированное"
     },
     "21657.G10": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото сатинированное"
     },
     "21668.01": {
       "standard": "IT",
@@ -8316,7 +12219,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бриллиантовый алюминий"
     },
     "21668.02": {
       "standard": "IT",
@@ -8328,7 +12234,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серый серебристый"
     },
     "21668.03": {
       "standard": "IT",
@@ -8340,7 +12249,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серая лава"
     },
     "21668.04": {
       "standard": "IT",
@@ -8352,7 +12264,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Светлая бронза"
     },
     "21668.05": {
       "standard": "IT",
@@ -8364,7 +12279,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "21668.06": {
       "standard": "IT",
@@ -8376,7 +12294,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный сапфир"
     },
     "21668.07.01": {
       "standard": "IT",
@@ -8388,7 +12309,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Серебро"
     },
     "21668.08": {
       "standard": "IT",
@@ -8400,7 +12324,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Титан"
     },
     "21668.09": {
       "standard": "IT",
@@ -8412,7 +12339,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Глянцевое золото"
     },
     "21668.10": {
       "standard": "IT",
@@ -8424,7 +12354,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "21668.17": {
       "standard": "IT",
@@ -8436,7 +12369,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая полностью"
     },
     "21668.18": {
       "standard": "IT",
@@ -8448,7 +12384,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная полностью"
     },
     "21668.21": {
       "standard": "IT",
@@ -8460,7 +12399,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа кремовая"
     },
     "21668.22": {
       "standard": "IT",
@@ -8472,7 +12414,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа табак"
     },
     "21668.31": {
       "standard": "IT",
@@ -8484,7 +12429,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Итальянский орех"
     },
     "21668.32": {
       "standard": "IT",
@@ -8496,7 +12444,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Выбеленный дуб"
     },
     "21668.33": {
       "standard": "IT",
@@ -8508,7 +12459,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "21668.41": {
       "standard": "IT",
@@ -8520,7 +12474,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Горный лед"
     },
     "21668.51": {
       "standard": "IT",
@@ -8532,7 +12489,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Белый каррара"
     },
     "21668.52": {
       "standard": "IT",
@@ -8544,7 +12504,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Сланец"
     },
     "21668.53": {
       "standard": "IT",
@@ -8556,7 +12519,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Серый кварц"
     },
     "21668.70": {
       "standard": "IT",
@@ -8568,7 +12534,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый бриллиант"
     },
     "21668.71": {
       "standard": "IT",
@@ -8580,7 +12549,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Аква"
     },
     "21668.72": {
       "standard": "IT",
@@ -8592,7 +12564,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серебряный лед"
     },
     "21668.73": {
       "standard": "IT",
@@ -8604,7 +12579,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серый жемчуг"
     },
     "21668.74": {
       "standard": "IT",
@@ -8616,7 +12594,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "21668.75": {
       "standard": "IT",
@@ -8628,7 +12609,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Бронзовое зеркало"
     },
     "21668.76": {
       "standard": "IT",
@@ -8640,7 +12624,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черный бриллиант"
     },
     "21668.87": {
       "standard": "IT",
@@ -8652,7 +12639,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью белый бриллиант"
     },
     "21668.88": {
       "standard": "IT",
@@ -8664,7 +12654,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Полностью черный бриллиант"
     },
     "21668.G09": {
       "standard": "IT",
@@ -8676,7 +12669,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото полированное"
     },
     "21668.G10": {
       "standard": "IT",
@@ -8688,115 +12684,199 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото сатинированное"
     },
     "22642.01": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22642.02": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Некст"
     },
     "22642.03": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22642.11": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22642.12": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "22642.13": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная сатинированая"
     },
     "22642.21": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Саванна"
     },
     "22642.22": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Степь"
     },
     "22642.23": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Черный лес"
     },
     "22642.31": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Дуб"
     },
     "22642.32": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Американский орех"
     },
     "22642.33": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Эвкалипт"
     },
     "22642.51": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Белая Калькутта"
     },
     "22642.52": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый кофе"
     },
     "22642.53": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Nero Marquina"
     },
     "22642.71": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый латте"
     },
     "22642.72": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белая конопля"
     },
     "22642.73": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черная матовая"
     },
     "22642.75": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Ледяное серебро"
     },
     "22642.76": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Блестящая бронза"
     },
     "22642.77": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "22642.81": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель"
     },
     "22642.82": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22642.83": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный хром"
     },
     "22642.86": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная медь"
     },
     "22642.87": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная античная бронза"
     },
     "22642.88": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "22643.01": {
       "standard": "DE",
@@ -8806,7 +12886,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22643.02": {
       "standard": "DE",
@@ -8816,7 +12899,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Некст"
     },
     "22643.03": {
       "standard": "DE",
@@ -8826,7 +12912,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22643.11": {
       "standard": "DE",
@@ -8836,7 +12925,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22643.12": {
       "standard": "DE",
@@ -8846,7 +12938,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "22643.13": {
       "standard": "DE",
@@ -8856,7 +12951,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная сатинированая"
     },
     "22643.71": {
       "standard": "DE",
@@ -8866,7 +12964,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый латте"
     },
     "22643.72": {
       "standard": "DE",
@@ -8876,7 +12977,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белая конопля"
     },
     "22643.73": {
       "standard": "DE",
@@ -8886,7 +12990,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черная матовая"
     },
     "22643.75": {
       "standard": "DE",
@@ -8896,7 +13003,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Ледяное серебро"
     },
     "22643.76": {
       "standard": "DE",
@@ -8906,7 +13016,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Блестящая бронза"
     },
     "22643.77": {
       "standard": "DE",
@@ -8916,7 +13029,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "22643.81": {
       "standard": "DE",
@@ -8926,7 +13042,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель"
     },
     "22643.82": {
       "standard": "DE",
@@ -8936,7 +13055,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22643.83": {
       "standard": "DE",
@@ -8946,7 +13068,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный хром"
     },
     "22643.86": {
       "standard": "DE",
@@ -8956,7 +13081,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная медь"
     },
     "22643.87": {
       "standard": "DE",
@@ -8966,7 +13094,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная античная бронза"
     },
     "22643.88": {
       "standard": "DE",
@@ -8976,7 +13107,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "22644.01": {
       "standard": "DE",
@@ -8987,7 +13121,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22644.02": {
       "standard": "DE",
@@ -8998,7 +13135,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Некст"
     },
     "22644.03": {
       "standard": "DE",
@@ -9009,7 +13149,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22644.11": {
       "standard": "DE",
@@ -9020,7 +13163,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22644.12": {
       "standard": "DE",
@@ -9031,7 +13177,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "22644.13": {
       "standard": "DE",
@@ -9042,7 +13191,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная сатинированая"
     },
     "22644.71": {
       "standard": "DE",
@@ -9053,7 +13205,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый латте"
     },
     "22644.72": {
       "standard": "DE",
@@ -9064,7 +13219,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белая конопля"
     },
     "22644.73": {
       "standard": "DE",
@@ -9075,7 +13233,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черная матовая"
     },
     "22644.75": {
       "standard": "DE",
@@ -9086,7 +13247,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Ледяное серебро"
     },
     "22644.76": {
       "standard": "DE",
@@ -9097,7 +13261,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Блестящая бронза"
     },
     "22644.77": {
       "standard": "DE",
@@ -9108,7 +13275,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "22644.81": {
       "standard": "DE",
@@ -9119,7 +13289,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель"
     },
     "22644.82": {
       "standard": "DE",
@@ -9130,7 +13303,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22644.83": {
       "standard": "DE",
@@ -9141,7 +13317,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный хром"
     },
     "22644.86": {
       "standard": "DE",
@@ -9152,7 +13331,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная медь"
     },
     "22644.87": {
       "standard": "DE",
@@ -9163,7 +13345,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная античная бронза"
     },
     "22644.88": {
       "standard": "DE",
@@ -9174,7 +13359,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "22669.01": {
       "standard": "DE",
@@ -9186,7 +13374,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22669.02": {
       "standard": "DE",
@@ -9198,7 +13389,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Некст"
     },
     "22669.03": {
       "standard": "DE",
@@ -9210,7 +13404,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22669.11": {
       "standard": "DE",
@@ -9222,7 +13419,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22669.12": {
       "standard": "DE",
@@ -9234,7 +13434,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "22669.13": {
       "standard": "DE",
@@ -9246,7 +13449,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная сатинированая"
     },
     "22669.71": {
       "standard": "DE",
@@ -9258,7 +13464,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый латте"
     },
     "22669.72": {
       "standard": "DE",
@@ -9270,7 +13479,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белая конопля"
     },
     "22669.73": {
       "standard": "DE",
@@ -9282,7 +13494,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черная матовая"
     },
     "22669.75": {
       "standard": "DE",
@@ -9294,7 +13509,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Ледяное серебро"
     },
     "22669.76": {
       "standard": "DE",
@@ -9306,7 +13524,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Блестящая бронза"
     },
     "22669.77": {
       "standard": "DE",
@@ -9318,7 +13539,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "22669.81": {
       "standard": "DE",
@@ -9330,7 +13554,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель"
     },
     "22669.82": {
       "standard": "DE",
@@ -9342,7 +13569,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22669.83": {
       "standard": "DE",
@@ -9354,7 +13584,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный хром"
     },
     "22669.86": {
       "standard": "DE",
@@ -9366,7 +13599,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная медь"
     },
     "22669.87": {
       "standard": "DE",
@@ -9378,7 +13614,10 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная античная бронза"
     },
     "22669.88": {
       "standard": "DE",
@@ -9390,343 +13629,598 @@ window.EP_VIMAR_ATTRS = {
           2,
           2
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "22653.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22653.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Некст"
     },
     "22653.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22653.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22653.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "22653.13": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная сатинированая"
     },
     "22653.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Саванна"
     },
     "22653.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Степь"
     },
     "22653.23": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Черный лес"
     },
     "22653.31": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Дуб"
     },
     "22653.32": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Американский орех"
     },
     "22653.33": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Эвкалипт"
     },
     "22653.51": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Белая Калькутта"
     },
     "22653.52": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый кофе"
     },
     "22653.53": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Nero Marquina"
     },
     "22653.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый латте"
     },
     "22653.72": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белая конопля"
     },
     "22653.73": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черная матовая"
     },
     "22653.75": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Ледяное серебро"
     },
     "22653.76": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Блестящая бронза"
     },
     "22653.77": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "22653.81": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель"
     },
     "22653.82": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22653.83": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный хром"
     },
     "22653.85": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Античное золото"
     },
     "22653.86": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная медь"
     },
     "22653.87": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная античная бронза"
     },
     "22653.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "22654.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22654.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Некст"
     },
     "22654.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22654.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22654.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "22654.13": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная сатинированая"
     },
     "22654.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Саванна"
     },
     "22654.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Степь"
     },
     "22654.23": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Черный лес"
     },
     "22654.31": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Дуб"
     },
     "22654.32": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Американский орех"
     },
     "22654.33": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Эвкалипт"
     },
     "22654.51": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Белая Калькутта"
     },
     "22654.52": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый кофе"
     },
     "22654.53": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Nero Marquina"
     },
     "22654.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый латте"
     },
     "22654.72": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белая конопля"
     },
     "22654.73": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черная матовая"
     },
     "22654.75": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Ледяное серебро"
     },
     "22654.76": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Блестящая бронза"
     },
     "22654.77": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "22654.81": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель"
     },
     "22654.82": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22654.83": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный хром"
     },
     "22654.85": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Античное золото"
     },
     "22654.86": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная медь"
     },
     "22654.87": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная античная бронза"
     },
     "22654.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "22657.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22657.02": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Некст"
     },
     "22657.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22657.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22657.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "22657.13": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная сатинированая"
     },
     "22657.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Саванна"
     },
     "22657.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Степь"
     },
     "22657.23": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Черный лес"
     },
     "22657.31": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Дуб"
     },
     "22657.32": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Американский орех"
     },
     "22657.33": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Эвкалипт"
     },
     "22657.51": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Белая Калькутта"
     },
     "22657.52": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый кофе"
     },
     "22657.53": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Nero Marquina"
     },
     "22657.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый латте"
     },
     "22657.72": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белая конопля"
     },
     "22657.73": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черная матовая"
     },
     "22657.75": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Ледяное серебро"
     },
     "22657.76": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Блестящая бронза"
     },
     "22657.77": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "22657.81": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель"
     },
     "22657.82": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22657.83": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный хром"
     },
     "22657.85": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Античное золото"
     },
     "22657.86": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная медь"
     },
     "22657.87": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная античная бронза"
     },
     "22657.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото матовое"
     },
     "22668.01": {
       "standard": "IT",
@@ -9738,7 +14232,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22668.02": {
       "standard": "IT",
@@ -9750,7 +14247,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Некст"
     },
     "22668.03": {
       "standard": "IT",
@@ -9762,7 +14262,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22668.11": {
       "standard": "IT",
@@ -9774,7 +14277,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22668.12": {
       "standard": "IT",
@@ -9786,7 +14292,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Темная бронза"
     },
     "22668.13": {
       "standard": "IT",
@@ -9798,7 +14307,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черная сатинированая"
     },
     "22668.21": {
       "standard": "IT",
@@ -9810,7 +14322,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Саванна"
     },
     "22668.22": {
       "standard": "IT",
@@ -9822,7 +14337,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Степь"
     },
     "22668.23": {
       "standard": "IT",
@@ -9834,7 +14352,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Черный лес"
     },
     "22668.31": {
       "standard": "IT",
@@ -9846,7 +14367,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Дуб"
     },
     "22668.32": {
       "standard": "IT",
@@ -9858,7 +14382,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Американский орех"
     },
     "22668.33": {
       "standard": "IT",
@@ -9870,7 +14397,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Эвкалипт"
     },
     "22668.51": {
       "standard": "IT",
@@ -9882,7 +14412,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Белая Калькутта"
     },
     "22668.52": {
       "standard": "IT",
@@ -9894,7 +14427,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый кофе"
     },
     "22668.53": {
       "standard": "IT",
@@ -9906,7 +14442,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Nero Marquina"
     },
     "22668.71": {
       "standard": "IT",
@@ -9918,7 +14457,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый латте"
     },
     "22668.72": {
       "standard": "IT",
@@ -9930,7 +14472,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белая конопля"
     },
     "22668.73": {
       "standard": "IT",
@@ -9942,7 +14487,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черная матовая"
     },
     "22668.75": {
       "standard": "IT",
@@ -9954,7 +14502,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Ледяное серебро"
     },
     "22668.76": {
       "standard": "IT",
@@ -9966,7 +14517,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Блестящая бронза"
     },
     "22668.77": {
       "standard": "IT",
@@ -9978,7 +14532,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Коричневый опал"
     },
     "22668.81": {
       "standard": "IT",
@@ -9990,7 +14547,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель"
     },
     "22668.82": {
       "standard": "IT",
@@ -10002,7 +14562,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22668.83": {
       "standard": "IT",
@@ -10014,7 +14577,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Черный хром"
     },
     "22668.85": {
       "standard": "IT",
@@ -10026,7 +14592,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Античное золото"
     },
     "22668.86": {
       "standard": "IT",
@@ -10038,7 +14607,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная медь"
     },
     "22668.87": {
       "standard": "IT",
@@ -10050,7 +14622,10 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированная античная бронза"
     },
     "22668.88": {
       "standard": "IT",
@@ -10062,499 +14637,817 @@ window.EP_VIMAR_ATTRS = {
         [
           4
         ]
-      ]
+      ],
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "21662.21": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа кремовая"
     },
     "21662.22": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа табак"
     },
     "21662.31": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Итальянский орех"
     },
     "21662.32": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Белёный дуб"
     },
     "21662.33": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "21662.41": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Горный лед"
     },
     "21662.53": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Серый кварц"
     },
     "21662.70": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый бриллиант"
     },
     "21662.71": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Аква"
     },
     "21662.73": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серый жемчуг"
     },
     "21662.76": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черный бриллиант"
     },
     "21663.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа кремовая"
     },
     "21663.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа табак"
     },
     "21663.31": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Итальянский орех"
     },
     "21663.32": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Белёный дуб"
     },
     "21663.33": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "21663.41": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Горный лед"
     },
     "21663.53": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Серый кварц"
     },
     "21663.70": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый бриллиант"
     },
     "21663.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Аква"
     },
     "21663.73": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серый жемчуг"
     },
     "21663.76": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черный бриллиант"
     },
     "21664.21": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа кремовая"
     },
     "21664.22": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Натуральная кожа",
+      "frameShape": "Классическая",
+      "frameColor": "Натуральная кожа табак"
     },
     "21664.31": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Итальянский орех"
     },
     "21664.32": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Белёный дуб"
     },
     "21664.33": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Дерево",
+      "frameShape": "Классическая",
+      "frameColor": "Венге"
     },
     "21664.41": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Горный лед"
     },
     "21664.53": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Камень",
+      "frameShape": "Классическая",
+      "frameColor": "Серый кварц"
     },
     "21664.70": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Белый бриллиант"
     },
     "21664.71": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Аква"
     },
     "21664.73": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Серый жемчуг"
     },
     "21664.76": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Стекло",
+      "frameShape": "Классическая",
+      "frameColor": "Черный бриллиант"
     },
     "22682.1.01": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22682.1.03": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22682.1.11": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22682.1.12": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Брошированная темная бронза"
     },
     "22682.1.82": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22682.1.88": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "22682.2.01": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22682.2.03": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22682.2.11": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22682.2.12": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Брошированная темная бронза"
     },
     "22682.2.82": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22682.2.88": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "22683.1.01": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22683.1.03": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22683.1.11": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22683.1.12": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Брошированная темная бронза"
     },
     "22683.1.82": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22683.1.88": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "22683.2.01": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22683.2.03": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22683.2.11": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22683.2.12": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Брошированная темная бронза"
     },
     "22683.2.82": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22683.2.88": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "22683.3.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22683.3.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22683.3.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22683.3.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Брошированная темная бронза"
     },
     "22683.3.82": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22683.3.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "22684.4.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22684.4.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22684.4.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22684.4.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Брошированная темная бронза"
     },
     "22684.4.82": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22684.4.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "22672.1.01": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белый матовый"
     },
     "22672.1.03": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22672.1.11": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22672.1.12": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза"
     },
     "22672.1.82": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22672.1.88": {
       "standard": "BOTH",
       "postCount": null,
       "principle": "1M_CENTRAL",
-      "boxModularity": 2
+      "boxModularity": 2,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "22672.2.01": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22672.2.03": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22672.2.11": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22672.2.12": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза"
     },
     "22672.2.82": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22672.2.88": {
       "standard": "BOTH",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "22673.1.01": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22673.1.03": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22673.1.11": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22673.1.12": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза"
     },
     "22673.1.82": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22673.1.88": {
       "standard": "IT",
       "postCount": null,
       "principle": "1M_CENTRAL_3",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "22673.2.01": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22673.2.03": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22673.2.11": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22673.2.12": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза"
     },
     "22673.2.82": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22673.2.88": {
       "standard": "IT",
       "postCount": null,
       "principle": "2M_CENTRAL",
-      "boxModularity": 3
+      "boxModularity": 3,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "22673.3.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белая матовая"
     },
     "22673.3.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22673.3.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22673.3.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза"
     },
     "22673.3.82": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22673.3.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     },
     "22674.4.01": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Белый матовый"
     },
     "22674.4.03": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Антрацит"
     },
     "22674.4.11": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Никель матовый"
     },
     "22674.4.12": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Бронза"
     },
     "22674.4.82": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Золото"
     },
     "22674.4.88": {
       "standard": "IT",
-      "postCount": null
+      "postCount": null,
+      "frameMaterial": "Металл",
+      "frameShape": "Классическая",
+      "frameColor": "Сатинированное золото"
     }
   },
   "supports": {

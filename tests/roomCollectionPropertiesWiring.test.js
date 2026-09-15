@@ -120,7 +120,7 @@ function renderRoom(room, opts) {
     renderAll: spies.renderAll,
     mountedRoomId: null
   };
-  const render = stand.run(["frameCollectionList", "renderProperties"], ctx);
+  const render = stand.run(["frameCollectionList", "frameFacingList", "renderProperties"], ctx);
   render();
   /* ctx возвращаем, чтобы §3–5 мог обернуть renderProperties шпионом: объявление функции при
      исполнении в vm стало свойством контекста (ctx.renderProperties), а обработчик onchange зовёт

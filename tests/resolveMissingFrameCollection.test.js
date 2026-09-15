@@ -229,8 +229,8 @@ function builderCtx(state, dom, captured) {
 }
 /* resolveMissingFrame/findByExactCode идут ПЕРВЫМИ в CUT — настоящими, а не стабом: именно их
    проводку проверяем. Остальные — как в соседних builder-стендах. */
-const BUILDER_CUT = ["findByExactCode", "resolveMissingFrame", "frameCollectionList", "builderRoomFilter",
-  "collectionFramePool", "frameOptions", "builderCapacity", "renderBuilder"];
+const BUILDER_CUT = ["findByExactCode", "resolveMissingFrame", "frameCollectionList", "frameFacingList", "builderRoomFilter",
+  "collectionFramePool", "frameFacingLabels", "frameFacingHintText", "frameOptions", "builderCapacity", "renderBuilder"];
 
 /* Открыть renderBuilder для поста БЕЗ накладки в комнате коллекции; вернуть перехваченную
    resolveMissing и число модулей в селекторе. */

@@ -504,6 +504,12 @@ function carryUserRoomFields(oldAutoRooms,newRooms){
        разметки (scheduleRoomsFromLines) стирала бы её при каждом пересчёте контуров. Отсутствие в
        переносе (t.collection==null) поля не создаёт — комната остаётся без заданной коллекции. */
     if(t.collection!=null)room.collection=t.collection;
+    /* Отделка накладки комнаты (E14: материал/форма/цвет) — тем же путём, что коллекция: перенос
+       собирает эти поля в EPRoomCarry.normUserFields, здесь их только применяем. Отсутствие в
+       переносе (==null) поля не создаёт — признак остаётся незаданным. */
+    if(t.frameMaterial!=null)room.frameMaterial=t.frameMaterial;
+    if(t.frameShape!=null)room.frameShape=t.frameShape;
+    if(t.frameColor!=null)room.frameColor=t.frameColor;
   });
 }
 function refreshRoomAfterEdit(room){
@@ -1546,6 +1552,24 @@ function renderProperties(){
     const roomColl=EPRoom.roomCollection(r,collectionList);
     const collectionOptions=`<option value=""${roomColl?"":" selected"}>Не задана — предлагать все накладки</option>`
       +collectionList.map(name=>`<option value="${esc(name)}"${name===roomColl?" selected":""}>${esc(name)}</option>`).join("");
+    /* Отделка накладки комнаты (E14): материал, форма, цвет. Тот же приём, что у коллекции: значения
+       из каталога (frameFacingList), действующее — через EPRoom.roomFrameFacing (мёртвое → «не
+       задан», r.<признак> не трогаем). Плейсхолдер/подсказку держим ПОФИЛЬДНО из-за рода слова
+       (материал «задан», форма «задана»), а не собираем строкой. Селекторы id room_<признак>Select. */
+    const facingSpecs=[
+      {prop:"frameMaterial",label:"Материал накладки",empty:"Не задан — любой материал",on:"Предлагаются накладки только этого материала",off:"Материал не задан — не сужается"},
+      {prop:"frameShape",label:"Форма накладки",empty:"Не задана — любая форма",on:"Предлагаются накладки только этой формы",off:"Форма не задана — не сужается"},
+      {prop:"frameColor",label:"Цвет накладки",empty:"Не задан — любой цвет",on:"Предлагаются накладки только этого цвета",off:"Цвет не задан — не сужается"}
+    ].map(spec=>{
+      const values=frameFacingList(spec.prop);
+      const cur=EPRoom.roomFrameFacing(r,spec.prop,values);
+      const options=`<option value=""${cur?"":" selected"}>${esc(spec.empty)}</option>`
+        +values.map(v=>`<option value="${esc(v)}"${v===cur?" selected":""}>${esc(v)}</option>`).join("");
+      return {...spec,cur,options};
+    });
+    const facingFieldsHtml=facingSpecs.map(spec=>
+      `<label class="room-facing-field">${esc(spec.label)}<select id="room_${spec.prop}Select">${spec.options}</select></label>`
+      +`<small class="prop-hint prop-collection-source${spec.cur?" own":""}">${esc(spec.cur?spec.on:spec.off)}</small>`).join("");
     props.innerHTML=`<label>Название комнаты<input id="roomName" value="${esc(r.name)}" autocomplete="off"></label>
     <label>Площадь<input id="roomArea" value="${esc(r.area||"")}" placeholder="${esc(autoArea||"Например, 18,6 м²")}" autocomplete="off"></label>
     <small class="prop-hint">${esc(areaHint)}${r.area?.trim()?" · сейчас показано ручное значение":""}</small>
@@ -1559,7 +1583,8 @@ function renderProperties(){
     <small class="prop-hint prop-scheme-source${ownScheme?" own":""}">${ownScheme?"Своя схема комнаты":`Унаследована от проекта: ${esc(projSchemeItem?projSchemeItem.label:projScheme)}`}</small>
     ${curSchemeItem&&!curSchemeItem.supported?`<small class="prop-hint prop-scheme-note">${esc(curSchemeItem.note)}</small>`:""}
     <label class="room-collection-field">Коллекция накладок<select id="roomCollectionSelect">${collectionOptions}</select></label>
-    <small class="prop-hint prop-collection-source${roomColl?" own":""}">${roomColl?"Конструктор поста в этой комнате предлагает накладки только этой коллекции":"Коллекция не задана — предлагаются все накладки каталога"}</small>`;
+    <small class="prop-hint prop-collection-source${roomColl?" own":""}">${roomColl?"Конструктор поста в этой комнате предлагает накладки только этой коллекции":"Коллекция не задана — предлагаются все накладки каталога"}</small>
+    ${facingFieldsHtml}`;
     mountedRoomId=r.id;   /* этим полям принадлежит комната r — flushRoomDraft коммитит именно в неё */
     /* Владелец подтвердил автосохранение 03.09: кнопки «Сохранить изменения» больше нет.
        Blur, Enter и любая перерисовка панели сходятся в ОДИН flushRoomDraft — второго правила
@@ -1593,6 +1618,18 @@ function renderProperties(){
       if(val)r.collection=val; else delete r.collection;
       renderProperties();persistProject();
     };
+    /* Отделка накладки (E14) применяется СРАЗУ по change — как коллекция и по той же причине НЕ
+       денежная: сужает только каталог конструктора, состав и цену существующих постов не трогает
+       (в estimate.js отделка не входит). Поэтому renderSummary/renderAll не нужны — только
+       перерисовать карточку комнаты (обновить подпись «задан/не задан») и сохранить. «Не задан»
+       (value="") СНИМАЕТ поле. Один обработчик на три селектора — правило хранения в одной точке. */
+    facingSpecs.forEach(spec=>{
+      $("room_"+spec.prop+"Select").onchange=e=>{
+        const val=e.target.value;
+        if(val)r[spec.prop]=val; else delete r[spec.prop];
+        renderProperties();persistProject();
+      };
+    });
     $("roomSchemeSelect").onchange=e=>{
       const val=e.target.value;
       if(val)r.lightingScheme=val; else delete r.lightingScheme;
@@ -2176,27 +2213,64 @@ function builderCapacity(){
 /* Названия коллекций (серий) накладок каталога — из товаров, не константой в разметке.
    Один источник и для селектора «Коллекция комнаты», и для валидации room.collection. */
 function frameCollectionList(){return EPCatalog.productCollections(byKind("frame"));}
-/* Критерий отбора накладок под помещение РЕДАКТИРУЕМОГО поста (E13). Один объект — одна точка,
-   куда заложено МЕСТО ПОД ЦВЕТ (E14): сегодня ключ один — {collection}; добавление color не
-   тронет ни эту сигнатуру, ни вызов в renderBuilder, только предикат EPCatalog.productsForRoom.
-   Комнату берём у поста на плане (editingPlacedId → roomId → комната); шаблон и НОВЫЙ пост комнаты
-   не имеют → коллекция null → критерий пуст → фильтра нет (пост «вне комнат», см. вопрос 3). */
+/* Различные значения одного признака отделки накладки (E14) — из товаров, не константой в разметке.
+   Один источник и для селекторов «Материал/Форма/Цвет накладки» в свойствах комнаты, и для валидации
+   room.<признак> (EPRoom.roomFrameFacing). field — frameMaterial|frameShape|frameColor. */
+function frameFacingList(field){return EPCatalog.productFacingValues(byKind("frame"),field);}
+/* Критерий отбора накладок под помещение РЕДАКТИРУЕМОГО поста (E13 коллекция + E14 отделка). ОДНА
+   точка сбора всех критериев комнаты — и renderBuilder, и селектор модульностей, и хинт «показано
+   из скольких» ходят через неё, второго правила отбора нет (§7.1). Комнату берём у поста на плане
+   (editingPlacedId → roomId → комната); шаблон и НОВЫЙ пост комнаты не имеют → все критерии null →
+   фильтра нет (пост «вне комнат»). Валидируем по спискам каталога: мёртвое (снятое из прайса)
+   значение → null → предикат не применяется. */
 function builderRoomFilter(){
   const placed=state.builder.editingPlacedId?state.posts.find(p=>p.id===state.builder.editingPlacedId):null;
   const room=placed?state.rooms.find(r=>r.id===placed.roomId):null;
-  return {collection:EPRoom.roomCollection(room,frameCollectionList())};
+  return {
+    collection:EPRoom.roomCollection(room,frameCollectionList()),
+    frameMaterial:EPRoom.roomFrameFacing(room,"frameMaterial",frameFacingList("frameMaterial")),
+    frameShape:EPRoom.roomFrameFacing(room,"frameShape",frameFacingList("frameShape")),
+    frameColor:EPRoom.roomFrameFacing(room,"frameColor",frameFacingList("frameColor"))
+  };
 }
-/* Накладки, ПОДХОДЯЩИЕ помещению поста по его коллекции — ЕДИНСТВЕННАЯ точка сужения каталога под
-   комнату (второго правила для механизмов НЕ заводим: они наследуют серию ВЫБРАННОЙ накладки через
-   compatibleMechanisms, а накладка уже из нужной коллекции). ⚠️ Ветка pool.length?pool:allFrames на
-   текущем коде НЕ ИСПОЛНЯЕТСЯ: критерий приходит из builderRoomFilter, где EPRoom.roomCollection уже
-   отбраковал мёртвые/мусорные имена в null (весь каталог), а валидное имя берётся из того же
-   productCollections, что и серии накладок → пул по построению непуст. Фолбэк оставлен НАМЕРЕННО как
-   страховка «пусто→всё» (как в compatibleMechanisms) на случай, если источник списка коллекций
-   когда-нибудь разойдётся с этим фильтром; врать, что он срабатывает сейчас, в комментарии нельзя. */
+/* Накладки, ПОДХОДЯЩИЕ помещению поста по его отделке (коллекция E13 + материал/форма/цвет E14) —
+   ЕДИНСТВЕННАЯ точка сужения каталога под комнату (второго правила для механизмов НЕ заводим: они
+   наследуют серию ВЫБРАННОЙ накладки через compatibleMechanisms, а накладка уже из нужной коллекции).
+   ⚠️ ПУСТОЙ ПУЛ ВОЗВРАЩАЕМ КАК ЕСТЬ, всем каталогом больше НЕ подменяем. При одной лишь коллекции пул
+   был непуст по построению (roomCollection брала имя из того же productCollections), и прежний фолбэк
+   «пусто→весь каталог» не исполнялся. С отделкой (E14) сочетание материал+цвет МОЖЕТ не иметь ни
+   одной накладки — это законный результат, и подмена его каталогом показала бы 1631 накладку вместо
+   честного «под это сочетание накладок нет». Пустоту объясняет словами renderBuilder (E14, п.6). */
 function collectionFramePool(allFrames){
-  const pool=EPCatalog.productsForRoom(allFrames,builderRoomFilter());
-  return pool.length?pool:allFrames;
+  return EPCatalog.productsForRoom(allFrames,builderRoomFilter());
+}
+/* Текст хинта «сколько накладок показано из скольких и ЧТО сузило выбор» (E14, п.5–6). Считается ОТ
+   ТОГО ЖЕ критерия и того же productsForRoom, что фильтрует renderBuilder, — второго правила отбора
+   нет (§7.1). Показываем ТОЛЬКО когда задан хотя бы один признак ОТДЕЛКИ (материал/форма/цвет):
+   пустая настройка = «не сужаем» → хинта нет (коллекция E13 своё сообщение уже несёт отдельно).
+   base — пул до отделки (одна коллекция комнаты), shown — пул после отделки. Пустое сочетание (под
+   него накладок нет) объясняем СЛОВАМИ, а не пустым списком. Значения приходят каноничными из
+   каталога → в textContent без esc (не в HTML). */
+/* Человеческие подписи активных признаков отделки комнаты — ОДИН источник формулировки «что сузило
+   выбор» для хинта и для пустого контекста поиска (§7.1: не размножать текст по потребителям).
+   filter — результат builderRoomFilter. Пустой массив, если отделка не задана. */
+function frameFacingLabels(filter){
+  const parts=[];
+  if(filter.frameMaterial)parts.push(`материал «${filter.frameMaterial}»`);
+  if(filter.frameShape)parts.push(`форма «${filter.frameShape}»`);
+  if(filter.frameColor)parts.push(`цвет «${filter.frameColor}»`);
+  return parts;
+}
+function frameFacingHintText(allFrames){
+  const f=builderRoomFilter();
+  const parts=frameFacingLabels(f);
+  if(!parts.length)return "";
+  const list=parts.join(", ");
+  const shown=EPCatalog.productsForRoom(allFrames,f).length;
+  const base=EPCatalog.productsForRoom(allFrames,{collection:f.collection}).length;
+  return shown
+    ?`Показано ${shown} из ${base} ${EPCatalog.pluralRu(base,"накладки","накладок","накладок")} · сузили: ${list}`
+    :`Под выбранную отделку (${list}) в каталоге накладок нет — измените материал, форму или цвет в свойствах комнаты.`;
 }
 
 function renderBuilder(){
@@ -2211,6 +2285,10 @@ function renderBuilder(){
   const poolFrames=collectionFramePool(allFrames);
   const matchingFrames=poolFrames.filter(frame=>frameSlotCount(frame)===count);
   const frames=matchingFrames.length?matchingFrames:poolFrames;
+  /* Хинт отделки (E14, п.5–6): «показано из скольких» и что сузило выбор — либо словами про пустое
+     сочетание. Ставим на КАЖДЫЙ render (в т.ч. в ветках frameMissing/frameUnset ниже), до ранних
+     выходов, чтобы человек всегда видел, чем сужен каталог. Пустая настройка → текст пуст. */
+  {const fh=$("builderFrameFacingHint");if(fh){const t=frameFacingHintText(allFrames);fh.textContent=t;fh.classList.toggle("is-empty",t!==""&&poolFrames.length===0);}}
   /* ⚠️ dataset.preferredFrameId ГЛАВНЕЕ ТЕКУЩЕГО ЗНАЧЕНИЯ СЕЛЕКТА, а не наоборот.
      Тут был баг «двойной клик по посту на плане сбрасывает редактирование» (заказчик, 24.08:
      «вообще редактирование на плане у меня всё сбросилось… хотя причём при наведении показывает
@@ -2320,11 +2398,19 @@ function renderBuilder(){
      resolveMissing — так renderBuilder не зовёт builderRoomFilter на каждый render зря. */
   enhancePicker(frameSelect,{
     emptyContext:()=>{
-      const collection=builderRoomFilter().collection;
-      const suffix=collection?` коллекции «${collection}»`:"";
-      return matchingFrames.length
-        ?`накладок на ${moduleWord(count)}${suffix}`
-        :(collection?`накладок${suffix}`:"загруженных накладок");
+      /* Пустой поиск обязан назвать РЕАЛЬНО искомое множество: не только коллекцию (E13), но и
+         отделку комнаты (E14) — иначе в комнате с материалом «Металл» поиск врал бы «среди накладок
+         коллекции X», хотя искали по её металлическим накладкам. Ту же формулировку «что сузило»
+         берём из frameFacingLabels, второй копии текста нет. */
+      const filter=builderRoomFilter();
+      const collection=filter.collection;
+      const collSuffix=collection?` коллекции «${collection}»`:"";
+      const facing=frameFacingLabels(filter);
+      const facingSuffix=facing.length?` с отделкой: ${facing.join(", ")}`:"";
+      const base=matchingFrames.length
+        ?`накладок на ${moduleWord(count)}${collSuffix}`
+        :(collection?`накладок${collSuffix}`:(facing.length?"накладок":"загруженных накладок"));
+      return base+facingSuffix;
     },
     resolveMissing:q=>resolveMissingFrame(q,count,frameSelect,builderRoomFilter().collection)
   });

@@ -240,7 +240,7 @@ test("productImage: заглушку no_photo не отдаём, берём на
    (Пример НАКЛАДКИ, а не механизма: productsForRoom фильтрует только накладки. Прежний пример
    арт. 02970 «Термостат поворотный 2M» — механизм, через productsForRoom он не проходит никогда;
    то же неверное обоснование уже убрано из js/catalog.js коммитом 3b80997.) */
-const { productCollections, productsForRoom } = require("../js/catalog.js");
+const { productCollections, productsForRoom, productFacingValues } = require("../js/catalog.js");
 
 const MULTI = { id: 1, series: ["Arke", "Arke Fit", "Eikon Evo", "Eikon Exe", "Plana"], name: "14931 мультиколлекционная накладка" };
 const ARKE = { id: 2, series: ["Arke"], name: "рамка Arke" };
@@ -315,4 +315,48 @@ test("productsForRoom: сравнение коллекции РЕГИСТРОЗ�
      этим фильтром, а не «штатная деградация». Фиксируем контраст 'arke' vs 'Arke'. */
   assert.equal(productsForRoom(CATALOG, { collection: "arke" }).length, 0, "иной регистр не находит ничего");
   assert.ok(productsForRoom(CATALOG, { collection: "Arke" }).length > 0, "точный регистр находит коллекцию");
+});
+
+/* --- ОТДЕЛКА НАКЛАДКИ КОМНАТЫ (E14): productFacingValues + productsForRoom по материал/форма/цвет --- */
+const FR = (id, over) => Object.assign({ id, series: ["Arke"], name: "рамка " + id }, over);
+const FACING_CATALOG = [
+  FR(1, { frameMaterial: "Металл", frameShape: "Скруглённая", frameColor: "Никель матовый" }),
+  FR(2, { frameMaterial: "Металл", frameShape: "Классическая", frameColor: "Титан матовый" }),
+  FR(3, { frameMaterial: "Технополимер", frameShape: "Классическая", frameColor: "Белая матовая" }),
+  FR(4, { series: ["Plana"], frameMaterial: "Стекло", frameShape: "Скруглённая", frameColor: "Никель матовый" }),
+];
+
+test("productFacingValues: восходящий список различных значений признака (для селектора комнаты)", () => {
+  assert.deepEqual(productFacingValues(FACING_CATALOG, "frameMaterial"), ["Металл", "Стекло", "Технополимер"]);
+  assert.deepEqual(productFacingValues(FACING_CATALOG, "frameShape"), ["Классическая", "Скруглённая"]);
+  assert.deepEqual(productFacingValues(FACING_CATALOG, "frameColor"), ["Белая матовая", "Никель матовый", "Титан матовый"]);
+  assert.deepEqual(productFacingValues([], "frameColor"), []);
+  // товар без признака в список не попадает (пустое не считается значением)
+  assert.deepEqual(productFacingValues([{ id: 9 }], "frameColor"), []);
+});
+
+test("productsForRoom: отбор по материалу накладки — равенство строк, лишний вид отсеян", () => {
+  const metal = productsForRoom(FACING_CATALOG, { frameMaterial: "Металл" });
+  assert.deepEqual(metal.map(p => p.id), [1, 2], "остаются только металлические накладки");
+});
+
+test("productsForRoom: критерии отделки И коллекция складываются В И-цепочку", () => {
+  // Металл + Скруглённая + цвет «Никель матовый» + коллекция Arke → только рамка 1 (рамка 4 — Plana)
+  const out = productsForRoom(FACING_CATALOG, {
+    collection: "Arke", frameMaterial: "Металл", frameShape: "Скруглённая", frameColor: "Никель матовый" });
+  assert.deepEqual(out.map(p => p.id), [1]);
+  // тот же цвет без коллекции даёт и Plana-рамку 4
+  const byColor = productsForRoom(FACING_CATALOG, { frameColor: "Никель матовый" });
+  assert.deepEqual(byColor.map(p => p.id), [1, 4]);
+});
+
+test("productsForRoom: невозможное сочетание отделки → ПУСТОЙ список (не весь каталог)", () => {
+  // Стекло бывает только Скруглённое (рамка 4); Стекло+Классическая не существует → []
+  const out = productsForRoom(FACING_CATALOG, { frameMaterial: "Стекло", frameShape: "Классическая" });
+  assert.deepEqual(out, [], "сочетание без накладок обязано дать пусто, а не подмену каталогом");
+});
+
+test("productsForRoom: пустой признак отделки НЕ сужает (null/отсутствие ключа игнорируются)", () => {
+  assert.deepEqual(productsForRoom(FACING_CATALOG, { frameMaterial: null, frameShape: null, frameColor: null }).map(p => p.id),
+    [1, 2, 3, 4], "все null → фильтра нет, весь список");
 });

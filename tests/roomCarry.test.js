@@ -29,7 +29,7 @@ function rect(id, x0, y0, x1, y1, extra) {
 test("имя переносится, когда контур совпал", () => {
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Кухня", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
-  assert.deepEqual(C.carry([oldR], [newR]), [{ toId: "new1", fromId: "old1", name: "Кухня", area: null, lightingScheme: null, collection: null }]);
+  assert.deepEqual(C.carry([oldR], [newR]), [{ toId: "new1", fromId: "old1", name: "Кухня", area: null, lightingScheme: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 /* ---- 2. Авто-имена НЕ переносятся (конфликт с нумерацией новых) ---- */
@@ -56,7 +56,7 @@ test("isAutoName: авто-формат распознаётся, ручные �
 test("непустая площадь переносится с trim, при авто-имени имя остаётся null", () => {
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Комната 5", area: "  18,6 м²  ", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
-  assert.deepEqual(C.carry([oldR], [newR]), [{ toId: "new1", fromId: "old1", name: null, area: "18,6 м²", lightingScheme: null, collection: null }]);
+  assert.deepEqual(C.carry([oldR], [newR]), [{ toId: "new1", fromId: "old1", name: null, area: "18,6 м²", lightingScheme: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 test("пустая (пробельная) площадь не переносится", () => {
@@ -69,7 +69,7 @@ test("пустая (пробельная) площадь не переносит
 test("имя и площадь переносятся вместе, когда оба заданы человеком", () => {
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Кухня", area: "20", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
-  assert.deepEqual(C.carry([oldR], [newR]), [{ toId: "new1", fromId: "old1", name: "Кухня", area: "20", lightingScheme: null, collection: null }]);
+  assert.deepEqual(C.carry([oldR], [newR]), [{ toId: "new1", fromId: "old1", name: "Кухня", area: "20", lightingScheme: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 /* ---- 4. Независимость от порядка входа (обе перестановки) ---- */
@@ -151,7 +151,7 @@ test("комнаты без полигона (старая и новая) не �
   const newGood = rect("new1", 0, 0, 100, 100, { name: "Комната 1" });
   let res;
   assert.doesNotThrow(() => { res = C.carry([oldNoPoly, oldGood], [newNoPoly, newGood]); });
-  assert.deepEqual(res, [{ toId: "new1", fromId: "old1", name: "Кухня", area: null, lightingScheme: null, collection: null }]);
+  assert.deepEqual(res, [{ toId: "new1", fromId: "old1", name: "Кухня", area: null, lightingScheme: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 /* ---- 10. Ручная комната (autoPolygon===false) источником не бывает ---- */
@@ -169,7 +169,7 @@ test("схема электрики комнаты переносится на �
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Комната 5", lightingScheme: "relay", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
   assert.deepEqual(C.carry([oldR], [newR]),
-    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: "relay", collection: null }]);
+    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: "relay", collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 /* Схема несётся ВМЕСТЕ с именем/площадью, а не вместо них. */
@@ -177,7 +177,7 @@ test("схема переносится вместе с ручным имене�
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Кухня", area: "18", lightingScheme: "classic", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
   assert.deepEqual(C.carry([oldR], [newR]),
-    [{ toId: "new1", fromId: "old1", name: "Кухня", area: "18", lightingScheme: "classic", collection: null }]);
+    [{ toId: "new1", fromId: "old1", name: "Кухня", area: "18", lightingScheme: "classic", collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 /* ---- 12. Отсутствие/мусор схемы не создаёт поле ------------------------------------
@@ -187,7 +187,7 @@ test("отсутствие схемы не порождает перенос п�
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Кухня", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
   assert.deepEqual(C.carry([oldR], [newR]),
-    [{ toId: "new1", fromId: "old1", name: "Кухня", area: null, lightingScheme: null, collection: null }]);
+    [{ toId: "new1", fromId: "old1", name: "Кухня", area: null, lightingScheme: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 test("пустая строка/мусор в схеме трактуются как отсутствие", () => {
@@ -207,7 +207,7 @@ test("комната только со схемой (без ручного им�
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
   /* имя авто-формата не переносится, площади нет — но схема есть, значит перенос обязан быть */
   assert.deepEqual(C.carry([oldR], [newR]),
-    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: "bell", collection: null }]);
+    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: "bell", collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 /* ---- 14. Коллекция накладок (E13) переносится как схема ------------------------------
@@ -219,14 +219,14 @@ test("комната только с коллекцией (без ручного
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Комната 5", collection: "Arke", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
   assert.deepEqual(C.carry([oldR], [newR]),
-    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: null, collection: "Arke" }]);
+    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: null, collection: "Arke", frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 test("коллекция едет вместе с именем, площадью и схемой", () => {
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Кухня", area: "18", lightingScheme: "classic", collection: "Plana", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
   assert.deepEqual(C.carry([oldR], [newR]),
-    [{ toId: "new1", fromId: "old1", name: "Кухня", area: "18", lightingScheme: "classic", collection: "Plana" }]);
+    [{ toId: "new1", fromId: "old1", name: "Кухня", area: "18", lightingScheme: "classic", collection: "Plana", frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 test("пустая/нестроковая коллекция не переносится (collection: null)", () => {
@@ -236,4 +236,32 @@ test("пустая/нестроковая коллекция не перенос
   const oJunk = rect("oj", 0, 0, 100, 100, { name: "Кухня", collection: 123, autoPolygon: true });
   const nJunk = rect("nj", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
   assert.equal(C.carry([oJunk], [nJunk])[0].collection, null);
+});
+
+/* --- ОТДЕЛКА НАКЛАДКИ КОМНАТЫ (E14): перенос при пересчёте контуров -------------------------- */
+
+test("отделка (материал/форма/цвет) переносится на совпавший контур", () => {
+  const oldR = rect("old1", 0, 0, 100, 100,
+    { name: "Комната 5", frameMaterial: "Металл", frameShape: "Скруглённая", frameColor: "Никель матовый", autoPolygon: true });
+  const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
+  assert.deepEqual(C.carry([oldR], [newR]),
+    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: null, collection: null,
+       frameMaterial: "Металл", frameShape: "Скруглённая", frameColor: "Никель матовый" }]);
+});
+
+test("комната ТОЛЬКО с отделкой (без имени/площади) всё равно переносится", () => {
+  const oldR = rect("old1", 0, 0, 100, 100, { name: "Комната 5", frameColor: "Титан матовый", autoPolygon: true });
+  const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
+  const res = C.carry([oldR], [newR]);
+  assert.equal(res.length, 1, "перенос создаётся, даже если ручное — только цвет накладки");
+  assert.equal(res[0].frameColor, "Титан матовый");
+});
+
+test("пустая/нестроковая отделка не переносится (frame*: null)", () => {
+  const oldR = rect("old1", 0, 0, 100, 100, { name: "Кухня", frameMaterial: "", frameShape: 7, frameColor: {}, autoPolygon: true });
+  const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
+  const t = C.carry([oldR], [newR])[0];
+  assert.equal(t.frameMaterial, null);
+  assert.equal(t.frameShape, null);
+  assert.equal(t.frameColor, null);
 });

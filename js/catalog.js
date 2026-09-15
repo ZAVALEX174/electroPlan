@@ -83,12 +83,22 @@ function productCollections(items) {
   return [...set].sort((a, b) => a.localeCompare(b, "ru-RU"));
 }
 
-/* Товары, подходящие помещению по его ОТДЕЛКЕ. criteria — объект-критерий; сегодня единственный
-   ключ collection (E13). ⚠️ МЕСТО ПОД ЦВЕТ (E14) ЗАЛОЖЕНО ИМЕННО ЗДЕСЬ: добавление ключа color не
-   тронет ни сигнатуру функции, ни точку вызова в конструкторе — только добавит второй предикат
-   рядом с membership по серии (и поле room.color рядом с room.collection). Пустой критерий (нет
-   коллекции у комнаты, пост вне комнат, шаблон) → фильтра нет: возвращаем КОПИЮ списка, чтобы
-   вызывающий не мутировал исходный.
+/* Различные значения ОДНОГО признака отделки накладки (E14: frameMaterial|frameShape|frameColor) —
+   восходящий список, как productCollections для серий. Из него строятся селекторы «Материал/Форма/
+   Цвет накладки» в свойствах комнаты и валидируется room.<признак>: предлагаем ровно те значения,
+   что реально есть у накладок, а не константу в разметке. Написания уже канонизированы конвертером
+   (одно на признак), поэтому здесь только сбор различных и сортировка по локали ru. */
+function productFacingValues(items, field) {
+  const set = new Set();
+  (items || []).forEach(item => { const v = item && item[field]; if (v) set.add(v); });
+  return [...set].sort((a, b) => String(a).localeCompare(String(b), "ru-RU"));
+}
+
+/* Товары, подходящие помещению по его ОТДЕЛКЕ. criteria — объект-критерий: collection (E13, серия)
+   и материал/форма/цвет накладки (E14, frameMaterial/frameShape/frameColor). Каждый ключ — предикат
+   И-цепочки, применяется, ТОЛЬКО если задан; пустой критерий целиком (нет коллекции/отделки у
+   комнаты, пост вне комнат, шаблон) → фильтра нет: возвращаем КОПИЮ списка, чтобы вызывающий не
+   мутировал исходный.
 
    ⚠️ СОВПАДЕНИЕ ПО КОЛЛЕКЦИИ — ЧЛЕНСТВО В МНОЖЕСТВЕ, А НЕ РАВЕНСТВО СТРОК. Накладка живёт в
    НЕСКОЛЬКИХ коллекциях сразу (в каталоге таких мультиколлекционных накладок 12; напр. арт. 14931 —
@@ -103,13 +113,27 @@ function productCollections(items) {
    регистр, пробелы, мёртвое — снятое из прайса — имя, не-строка) до сюда НЕ доходит: его отсекает
    РАНЬШЕ EPRoom.roomCollection, отдавая null («коллекция не задана»), а на null criteria.collection
    пуст → фильтра нет ещё выше по строке. Поэтому предиката includes достигают только валидные
-   имена из того же productCollections, и его результат по построению НЕПУСТ. Фолбэк «пусто→весь
-   каталог» у collectionFramePool (js/app.js) оставлен как страховка на случай, если источник списка
-   когда-нибудь разойдётся с этим фильтром, но на текущем коде он не исполняется. */
+   имена из того же productCollections, и его результат по построению НЕПУСТ.
+
+   ⚠️ ОТДЕЛКА (E14) СРАВНИВАЕТСЯ РАВЕНСТВОМ СТРОК — и это осознанно иначе, чем коллекция. У накладки
+   ровно ОДИН материал, ОДНА форма, ОДИН цвет (не массив, в отличие от серий), а написания уже
+   канонизированы конвертером (nomenclature.mjs facingKey/canonicalFacingMap: регистр и ё сведены),
+   поэтому и значение товара (frameMaterial/frameShape/frameColor), и значение критерия приходят из
+   ОДНОГО источника (productFacingValues) с одинаковым написанием — членство/нормализация здесь не
+   нужны. Мёртвое (снятое из прайса) значение отсекает EPRoom.roomFrameFacing → null → предикат не
+   применяется, ровно как у коллекции.
+   ⚠️ РЕЗУЛЬТАТ ОТДЕЛКИ МОЖЕТ БЫТЬ ПУСТ — и это законное состояние, а не сбой. Сочетание материал+
+   цвет, под которое накладок нет, ДОЛЖНО дать пустой пул: collectionFramePool (js/app.js) больше НЕ
+   подменяет пустой пул всем каталогом (иначе фильтр показал бы 1631 накладку вместо честного «под
+   это сочетание накладок нет»), а renderBuilder объясняет пусто словами (E14, п.6). */
 function productsForRoom(items, criteria) {
-  const collection = criteria && criteria.collection;
-  if (!collection) return (items || []).slice();
-  return (items || []).filter(item => productSeries(item).includes(collection));
+  const c = criteria || {};
+  let out = (items || []).slice();
+  if (c.collection) out = out.filter(item => productSeries(item).includes(c.collection));
+  if (c.frameMaterial) out = out.filter(item => item && item.frameMaterial === c.frameMaterial);
+  if (c.frameShape) out = out.filter(item => item && item.frameShape === c.frameShape);
+  if (c.frameColor) out = out.filter(item => item && item.frameColor === c.frameColor);
+  return out;
 }
 
 /* Механизмы, совместимые с рамкой по серии. Если у рамки серия не указана или
@@ -281,7 +305,7 @@ const productImage = (item, { detail = false } = {}) => {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { pluralRu, moduleWord, placeWord, mechanismSpan, productSeries, productCollections, productsForRoom, compatibleMechanisms, frameSlotCount, frameSlotCounts, frameSlotOptions, defaultPostName, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage };
+const api = { pluralRu, moduleWord, placeWord, mechanismSpan, productSeries, productCollections, productFacingValues, productsForRoom, compatibleMechanisms, frameSlotCount, frameSlotCounts, frameSlotOptions, defaultPostName, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage };
 if (typeof window !== "undefined") window.EPCatalog = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

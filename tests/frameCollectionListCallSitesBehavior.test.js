@@ -62,7 +62,7 @@ test("§1 селектор «Коллекция комнаты» (renderProperti
     esc: String,
     $: dom.$
   };
-  stand.run(["frameCollectionList", "renderProperties"], ctx)();
+  stand.run(["frameCollectionList", "frameFacingList", "renderProperties"], ctx)();
 
   assert.match(props.innerHTML, /<option value="Arke"/,
     "живая коллекция «Arke» в селекторе есть (рендер прошёл, список непуст)");
@@ -80,7 +80,7 @@ test("§2 builderRoomFilter не признаёт валидной коллек�
     posts: [{ id: "p1", roomId: "r1" }],
     builder: { editingPlacedId: "p1" }
   };
-  const filter = stand.run(["frameCollectionList", "builderRoomFilter"], { state, byKind, EPCatalog, EPRoom })();
+  const filter = stand.run(["frameCollectionList", "frameFacingList", "builderRoomFilter"], { state, byKind, EPCatalog, EPRoom })();
 
   assert.equal(filter.collection, null,
     "«GhostFrame» жива только у неактивной накладки → не валидна как коллекция комнаты → критерий пуст (весь каталог)");

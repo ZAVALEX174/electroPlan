@@ -125,3 +125,39 @@ test("иной регистр (правленый вручную проект) �
   assert.equal(R.roomCollection({ collection: "ARKE" }, COLLECTIONS), null);
   assert.equal(R.roomCollection({ collection: "Arke" }, COLLECTIONS), "Arke");
 });
+
+/* --- ОТДЕЛКА НАКЛАДКИ КОМНАТЫ (E14, EPRoom.roomFrameFacing) ----------------------------------
+   Правило ТО ЖЕ, что у roomCollection (нет значения-умолчания проекта): отсутствие поля / мусор /
+   мёртвое (нет в каталоге) написание → null «признак не задан, каталог не сужаем». Одна функция на
+   три признака — проверяем обобщённость (prop) и валидацию по списку каталога. */
+const MATERIALS = ["Металл", "Стекло", "Технополимер"];
+
+test("roomFrameFacing: своё валидное написание возвращается как есть (для любого prop)", () => {
+  assert.equal(R.roomFrameFacing({ frameMaterial: "Металл" }, "frameMaterial", MATERIALS), "Металл");
+  assert.equal(R.roomFrameFacing({ frameShape: "Скруглённая" }, "frameShape", ["Классическая", "Скруглённая"]), "Скруглённая");
+});
+
+test("roomFrameFacing: отсутствие поля / мусор / не-строка → null (не сужаем)", () => {
+  assert.equal(R.roomFrameFacing({}, "frameMaterial", MATERIALS), null);
+  assert.equal(R.roomFrameFacing(null, "frameMaterial", MATERIALS), null);
+  assert.equal(R.roomFrameFacing({ frameMaterial: "" }, "frameMaterial", MATERIALS), null);
+  assert.equal(R.roomFrameFacing({ frameMaterial: 42 }, "frameMaterial", MATERIALS), null);
+  assert.equal(R.roomFrameFacing({ frameMaterial: {} }, "frameMaterial", MATERIALS), null);
+});
+
+test("roomFrameFacing: мёртвое написание (нет в каталоге) → null, не сужаем по несуществующему", () => {
+  assert.equal(R.roomFrameFacing({ frameMaterial: "Дерево" }, "frameMaterial", MATERIALS), null);
+  // иной регистр тоже мёртвый — валидация регистрозависима, как у коллекции
+  assert.equal(R.roomFrameFacing({ frameMaterial: "металл" }, "frameMaterial", MATERIALS), null);
+});
+
+test("roomFrameFacing: prop действительно читается из комнаты по имени (не захардкожен)", () => {
+  // значение лежит в frameColor, спрашиваем frameMaterial → null (иначе prop игнорируется)
+  assert.equal(R.roomFrameFacing({ frameColor: "Металл" }, "frameMaterial", MATERIALS), null);
+  assert.equal(R.roomFrameFacing({ frameColor: "Никель матовый" }, "frameColor", ["Никель матовый"]), "Никель матовый");
+});
+
+test("roomFrameFacing: без списка значений — любая непустая строка валидна (симметрично roomCollection)", () => {
+  assert.equal(R.roomFrameFacing({ frameMaterial: "что угодно" }, "frameMaterial"), "что угодно");
+  assert.equal(R.roomFrameFacing({ frameMaterial: "" }, "frameMaterial"), null);
+});

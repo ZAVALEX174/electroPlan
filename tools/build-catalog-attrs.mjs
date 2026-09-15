@@ -11,7 +11,8 @@
  *
  * Формат вывода (window.EP_VIMAR_ATTRS) расширяется только необязательными ключами —
  * js/data.js подмешивает эти поля к товарам при загрузке (frames→standard/postCount
- * [+layoutRows, principle, boxModularity], supports→standard/modules/pitchMm [+principle,
+ * [+layoutRows, principle, boxModularity, frameMaterial, frameShape, frameColor],
+ * supports→standard/modules/pitchMm [+principle,
  * boxModularity], boxes→wallType/shape/modules/standards [+principle, boxModularity]).
  * У позиции без монтажного правила запись прежняя, поэтому старые автотесты формата
  * остаются в силе. Плюс раздел mounting — монтажное правило видов, у которых своего
@@ -117,6 +118,14 @@ async function main() {
   // раздел, которого не стало в номенклатуре, обязан быть виден при пересборке, а не в рантайме.
   const byGroup = tally(groups, (a) => a.group || "—");
   console.log(`  функциональные группы:  ${Object.keys(groups).length} позиций — ${JSON.stringify(byGroup)}`);
+  // Отделка накладки (E14): материал/форма/цвет каноническим написанием. Печатаем охват и число
+  // РАЗЛИЧНЫХ значений — по ним сверяется полнота проброса при пересборке (склейка написаний
+  // должна давать ожидаемое число цветов, а не разъехавшиеся дубли).
+  const distinct = (obj, key) => new Set(Object.values(obj).map((a) => a[key]).filter(Boolean));
+  const withFacing = (key) => Object.values(standards).filter((a) => a[key] != null).length;
+  console.log(`  отделка накладок:       материал у ${withFacing("frameMaterial")} (${distinct(standards, "frameMaterial").size} видов), ` +
+    `форма у ${withFacing("frameShape")} (${distinct(standards, "frameShape").size}), ` +
+    `цвет у ${withFacing("frameColor")} (${distinct(standards, "frameColor").size} после складки написаний)`);
 }
 
 main().catch((err) => {
