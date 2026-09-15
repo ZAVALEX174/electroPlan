@@ -1570,6 +1570,28 @@ function renderProperties(){
     const facingFieldsHtml=facingSpecs.map(spec=>
       `<label class="room-facing-field">${esc(spec.label)}<select id="room_${spec.prop}Select">${spec.options}</select></label>`
       +`<small class="prop-hint prop-collection-source${spec.cur?" own":""}">${esc(spec.cur?spec.on:spec.off)}</small>`).join("");
+    /* Отделка накладки — ДВА ВИДА одного и того же выбора (согласовано с владельцем 15.09): «Списком»
+       (готовые селекторы E13/E14) и «С картинками» (шаговый мастер поверх ТОГО ЖЕ отбора). Вид —
+       привычка человека (frameFacingView, EPPrefs), не свойство проекта. В виде «С картинками» на
+       месте селекторов — сводка выбранного (чтобы «что выбрано в одном виде, видно в другом») и
+       кнопка мастера. Значения сводки — те же валидированные roomColl/facingSpecs, что и у списка. */
+    const facingView=frameFacingView();
+    const collectionFieldHtml=`<label class="room-collection-field">Коллекция накладок<select id="roomCollectionSelect">${collectionOptions}</select></label>
+    <small class="prop-hint prop-collection-source${roomColl?" own":""}">${roomColl?"Конструктор поста в этой комнате предлагает накладки только этой коллекции":"Коллекция не задана — предлагаются все накладки каталога"}</small>`;
+    const facingChosen=[roomColl?`Серия: ${roomColl}`:null].concat(facingSpecs.filter(s=>s.cur).map(s=>`${s.label}: ${s.cur}`)).filter(Boolean);
+    const facingBody=facingView==="list"
+      ?collectionFieldHtml+facingFieldsHtml
+      :`<div class="room-facing-summary${facingChosen.length?" own":""}">${facingChosen.length?esc(facingChosen.join(" · ")):"Отделка не задана — предлагаются все накладки каталога"}</div>
+        <button type="button" class="btn ghost room-facing-pick-btn" id="roomFramePickerBtn">Подобрать накладку</button>`;
+    const facingBlockHtml=`<div class="room-facing-block">
+      <div class="room-facing-head"><span class="room-facing-title">Отделка накладки</span>
+        <div class="room-facing-view" role="group" aria-label="Вид выбора отделки">
+          <button type="button" id="roomFacingViewList" class="room-facing-view-btn${facingView==="list"?" active":""}" aria-pressed="${facingView==="list"}">Списком</button>
+          <button type="button" id="roomFacingViewPictures" class="room-facing-view-btn${facingView==="pictures"?" active":""}" aria-pressed="${facingView==="pictures"}">С картинками</button>
+        </div>
+      </div>
+      ${facingBody}
+    </div>`;
     props.innerHTML=`<label>Название комнаты<input id="roomName" value="${esc(r.name)}" autocomplete="off"></label>
     <label>Площадь<input id="roomArea" value="${esc(r.area||"")}" placeholder="${esc(autoArea||"Например, 18,6 м²")}" autocomplete="off"></label>
     <small class="prop-hint">${esc(areaHint)}${r.area?.trim()?" · сейчас показано ручное значение":""}</small>
@@ -1582,9 +1604,7 @@ function renderProperties(){
     <label class="room-scheme-field">Схема электрики<select id="roomSchemeSelect">${schemeOptions}</select></label>
     <small class="prop-hint prop-scheme-source${ownScheme?" own":""}">${ownScheme?"Своя схема комнаты":`Унаследована от проекта: ${esc(projSchemeItem?projSchemeItem.label:projScheme)}`}</small>
     ${curSchemeItem&&!curSchemeItem.supported?`<small class="prop-hint prop-scheme-note">${esc(curSchemeItem.note)}</small>`:""}
-    <label class="room-collection-field">Коллекция накладок<select id="roomCollectionSelect">${collectionOptions}</select></label>
-    <small class="prop-hint prop-collection-source${roomColl?" own":""}">${roomColl?"Конструктор поста в этой комнате предлагает накладки только этой коллекции":"Коллекция не задана — предлагаются все накладки каталога"}</small>
-    ${facingFieldsHtml}`;
+    ${facingBlockHtml}`;
     mountedRoomId=r.id;   /* этим полям принадлежит комната r — flushRoomDraft коммитит именно в неё */
     /* Владелец подтвердил автосохранение 03.09: кнопки «Сохранить изменения» больше нет.
        Blur, Enter и любая перерисовка панели сходятся в ОДИН flushRoomDraft — второго правила
@@ -1613,23 +1633,36 @@ function renderProperties(){
        спецификация не меняются; перерисовываем только карточку комнаты (обновить подпись
        «задана/не задана») и сохраняем. Так E13 не повторяет шесть закрытых входов «сумма
        поменялась молча»: она вообще ничего в деньгах и составе не двигает. */
-    $("roomCollectionSelect").onchange=e=>{
-      const val=e.target.value;
-      if(val)r.collection=val; else delete r.collection;
-      renderProperties();persistProject();
-    };
-    /* Отделка накладки (E14) применяется СРАЗУ по change — как коллекция и по той же причине НЕ
-       денежная: сужает только каталог конструктора, состав и цену существующих постов не трогает
-       (в estimate.js отделка не входит). Поэтому renderSummary/renderAll не нужны — только
-       перерисовать карточку комнаты (обновить подпись «задан/не задан») и сохранить. «Не задан»
-       (value="") СНИМАЕТ поле. Один обработчик на три селектора — правило хранения в одной точке. */
-    facingSpecs.forEach(spec=>{
-      $("room_"+spec.prop+"Select").onchange=e=>{
+    /* Переключатель вида отделки (списком / с картинками) — привычка человека: пишем в EPPrefs, а
+       НЕ в проект, и перерисовываем карточку (тело блока меняется), без persistProject — проект от
+       вида не зависит. Кнопка мастера открывает шаговый выбор для ЭТОЙ комнаты (r). Обе кнопки есть
+       в любом виде, поэтому вешаем их до ветки «Списком». */
+    const bindFacingView=(id,view)=>{const b=$(id);if(b)b.onclick=()=>{EPPrefs.set("frameFacingView",view);renderProperties();};};
+    bindFacingView("roomFacingViewList","list");
+    bindFacingView("roomFacingViewPictures","pictures");
+    const framePickBtn=$("roomFramePickerBtn");
+    if(framePickBtn)framePickBtn.onclick=()=>openFramePicker(r);
+    /* Селекторы коллекции и отделки существуют ТОЛЬКО в виде «Списком» — в виде «С картинками» их в
+       разметке нет, обработчики на несуществующие узлы вешать нельзя (в браузере $() вернёт null). */
+    if(facingView==="list"){
+      $("roomCollectionSelect").onchange=e=>{
         const val=e.target.value;
-        if(val)r[spec.prop]=val; else delete r[spec.prop];
+        if(val)r.collection=val; else delete r.collection;
         renderProperties();persistProject();
       };
-    });
+      /* Отделка накладки (E14) применяется СРАЗУ по change — как коллекция и по той же причине НЕ
+         денежная: сужает только каталог конструктора, состав и цену существующих постов не трогает
+         (в estimate.js отделка не входит). Поэтому renderSummary/renderAll не нужны — только
+         перерисовать карточку комнаты (обновить подпись «задан/не задан») и сохранить. «Не задан»
+         (value="") СНИМАЕТ поле. Один обработчик на три селектора — правило хранения в одной точке. */
+      facingSpecs.forEach(spec=>{
+        $("room_"+spec.prop+"Select").onchange=e=>{
+          const val=e.target.value;
+          if(val)r[spec.prop]=val; else delete r[spec.prop];
+          renderProperties();persistProject();
+        };
+      });
+    }
     $("roomSchemeSelect").onchange=e=>{
       const val=e.target.value;
       if(val)r.lightingScheme=val; else delete r.lightingScheme;
@@ -2261,6 +2294,20 @@ function frameFacingLabels(filter){
   if(filter.frameColor)parts.push(`цвет «${filter.frameColor}»`);
   return parts;
 }
+/* ОДНА формулировка «под это сочетание накладок нет» (E14) на всех потребителей: хинт конструктора
+   и шаговый мастер отделки. §7.1 п.2: текст в одной точке, второй копии не заводим — иначе виды
+   разошлись бы в объяснении одного и того же пустого пула. list — человеческие подписи «что сузило». */
+function frameFacingEmptyText(list){
+  return `Под выбранную отделку (${list}) в каталоге накладок нет — измените материал, форму или цвет в свойствах комнаты.`;
+}
+/* Подписи ВСЕХ активных признаков выбора (серия + отделка) — для крошек и пустого сообщения мастера.
+   Серию frameFacingLabels не несёт (её хинт конструктора показывает отдельно), поэтому добавляем
+   здесь, но саму отделку берём из frameFacingLabels — не второй копией. */
+function frameFacingSelectionLabels(sel){
+  const parts=[];
+  if(sel.collection)parts.push(`серия «${sel.collection}»`);
+  return parts.concat(frameFacingLabels(sel));
+}
 function frameFacingHintText(allFrames){
   const f=builderRoomFilter();
   const parts=frameFacingLabels(f);
@@ -2270,7 +2317,118 @@ function frameFacingHintText(allFrames){
   const base=EPCatalog.productsForRoom(allFrames,{collection:f.collection}).length;
   return shown
     ?`Показано ${shown} из ${base} ${EPCatalog.pluralRu(base,"накладки","накладок","накладок")} · сузили: ${list}`
-    :`Под выбранную отделку (${list}) в каталоге накладок нет — измените материал, форму или цвет в свойствах комнаты.`;
+    :frameFacingEmptyText(list);
+}
+/* Выбранный ЧЕЛОВЕКОМ вид выбора отделки (списком / с картинками). Это привычка, а НЕ свойство
+   проекта — хранится в EPPrefs (ep_prefs), чтобы чужой проект вид не переключал. Нераспознанное
+   значение откатываем на «списком»: он же поведение до появления второго вида. */
+function frameFacingView(){
+  return EPPrefs.get("frameFacingView","list")==="pictures"?"pictures":"list";
+}
+
+/* ---- Шаговый выбор отделки накладки (вид «С картинками») -------------------------------------
+   Второй ВИД поверх готового отбора E13/E14, а не второе правило (§7.1). Мастер читает те же поля
+   комнаты (collection/frameMaterial/frameShape/frameColor), пишет их же на «Применить», а «сколько
+   накладок за вариантом» считает ЧЕРЕЗ EPCatalog.productsForRoom — тот же отбор, что фильтрует
+   конструктор. Черновик выбора живёт в модульных переменных, в проект попадает только по «Применить».
+   deps подставляют каталожные функции чистому EPFramePicker (своего фильтра/списка/счётчика у него
+   нет). valuesOf различает серию (productCollections — серия у товара массив) и отделку
+   (productFacingValues — скаляр). */
+let framePickerRoomId=null,framePickerSel=null,framePickerStep=0;
+const framePickerDeps={
+  match:(frames,criteria)=>EPCatalog.productsForRoom(frames,criteria),
+  valuesOf:(pool,prop)=>prop==="collection"?EPCatalog.productCollections(pool):EPCatalog.productFacingValues(pool,prop),
+  imageOf:item=>productImage(item)
+};
+function openFramePicker(room){
+  framePickerRoomId=room.id;
+  /* Инициализация из ТЕХ ЖЕ настроек комнаты, что читает список-вид, с ТОЙ ЖЕ валидацией мёртвых
+     значений (EPRoom): убранная из прайса серия/цвет не должны прийти в мастер как выбранные. */
+  const sel={};
+  const coll=EPRoom.roomCollection(room,frameCollectionList());
+  if(coll)sel.collection=coll;
+  ["frameMaterial","frameShape","frameColor"].forEach(prop=>{
+    const v=EPRoom.roomFrameFacing(room,prop,frameFacingList(prop));
+    if(v)sel[prop]=v;
+  });
+  framePickerSel=sel;
+  /* Открываемся на первом НЕзаполненном шаге (продолжаем там, где человек остановился); всё задано —
+     на первом, чтобы можно было пересмотреть с начала. Крошки всё равно показывают выбор целиком. */
+  const firstUnset=EPFramePicker.STEPS.findIndex(s=>!sel[s.prop]);
+  framePickerStep=firstUnset>=0?firstUnset:0;
+  renderFramePicker();
+  $("framePickerModal").classList.add("open");
+  setTimeout(()=>{const b=$("framePickerBody").querySelector("button");if(b)b.focus();},0);
+}
+function renderFramePicker(){
+  const steps=EPFramePicker.STEPS,allFrames=byKind("frame");
+  /* Крошки: что уже выбрано и возврат на любой шаг (data-step). Значения каноничны из каталога, но
+     через esc — они уходят в HTML. */
+  $("framePickerCrumbs").innerHTML=steps.map((s,i)=>{
+    const val=framePickerSel[s.prop];
+    return `<button type="button" class="frame-picker-crumb${i===framePickerStep?" active":""}${val?" is-set":""}" data-step="${i}">
+      <span class="frame-picker-crumb-title">${esc(s.title)}</span>
+      <span class="frame-picker-crumb-value">${val?esc(val):"—"}</span>
+    </button>`;
+  }).join("");
+  const step=steps[framePickerStep];
+  const options=EPFramePicker.stepOptions(allFrames,framePickerSel,step.prop,framePickerDeps);
+  const body=$("framePickerBody");
+  if(options.length){
+    body.innerHTML=`<div class="frame-picker-grid">`+options.map(o=>{
+      const active=framePickerSel[step.prop]===o.value;
+      /* Плитка с фото или, у ~40% накладок без фото, достойный фолбэк (название + счётчик, значок
+         «без фото») вместо пустой дыры. Ошибку загрузки картинки ловит bindProductPictureFallbacks
+         (снимает has-image → показывает фолбэк), как у карточек каталога. */
+      const thumb=o.imageUrl
+        ?`<span class="product-picture frame-pick-thumb has-image"><img src="${esc(o.imageUrl)}" alt="${esc(o.value)}" loading="lazy" decoding="async" data-product-picture><span class="product-picture-fallback" aria-hidden="true">без фото</span></span>`
+        :`<span class="product-picture frame-pick-thumb"><span class="product-picture-fallback" aria-hidden="true">без фото</span></span>`;
+      return `<button type="button" class="frame-pick-tile${active?" active":""}" data-value="${esc(o.value)}" aria-pressed="${active}">
+        ${thumb}
+        <span class="frame-pick-name">${esc(o.value)}</span>
+        <span class="frame-pick-count">${o.count} ${EPCatalog.pluralRu(o.count,"накладка","накладки","накладок")}</span>
+      </button>`;
+    }).join("")+`</div>`;
+    bindProductPictureFallbacks(body);
+  }else{
+    /* Пусто → базовый пул (выбор без текущего шага) не даёт накладок: пустое сочетание. Объясняем
+       ТОЙ ЖЕ формулировкой E14, что и хинт конструктора (frameFacingEmptyText), плюс подсказка
+       вернуться — шаг не тупик, крошки позволяют исправить выбор. */
+    const base=Object.assign({},framePickerSel);delete base[step.prop];
+    const labels=frameFacingSelectionLabels(base);
+    body.innerHTML=`<p class="frame-picker-empty">${esc(frameFacingEmptyText(labels.join(", ")))}</p>
+      <p class="frame-picker-empty-hint">Вернитесь на предыдущий шаг и измените выбор.</p>`;
+  }
+  $("framePickerCrumbs").querySelectorAll("[data-step]").forEach(b=>b.onclick=()=>{framePickerStep=Number(b.dataset.step);renderFramePicker();});
+  body.querySelectorAll("[data-value]").forEach(b=>b.onclick=()=>pickFrameStep(b.dataset.value));
+}
+function pickFrameStep(value){
+  const steps=EPFramePicker.STEPS,step=steps[framePickerStep];
+  framePickerSel[step.prop]=value;
+  /* Каскад серия→материал→форма→цвет: выбор на шаге сбрасывает НИЖЕлежащие. Тогда каждый следующий
+     шаг выбирается из того, что реально осталось, и итоговое сочетание всегда непусто. */
+  steps.slice(framePickerStep+1).forEach(s=>{delete framePickerSel[s.prop];});
+  if(framePickerStep<steps.length-1)framePickerStep++;
+  renderFramePicker();
+}
+function applyFramePicker(){
+  /* «Применить» записывает выбор в ТЕ ЖЕ поля комнаты, что и список-вид: пустой признак СНИМАЕТ поле
+     (как «Не задан» в селекторе). Отделка не денежная (в estimate.js не входит) — persistProject
+     без renderSummary/renderAll, как у onchange списка. renderProperties обновит карточку и сводку. */
+  const room=state.rooms.find(r=>r.id===framePickerRoomId);
+  if(room){
+    EPFramePicker.STEPS.forEach(s=>{
+      const v=framePickerSel[s.prop];
+      if(v)room[s.prop]=v; else delete room[s.prop];
+    });
+    persistProject();
+  }
+  closeFramePicker();
+  renderProperties();
+}
+function closeFramePicker(){
+  $("framePickerModal").classList.remove("open");
+  framePickerRoomId=null;framePickerSel=null;framePickerStep=0;
 }
 
 function renderBuilder(){
@@ -4864,6 +5022,12 @@ $("confirmScale").onclick=()=>{
 $("cancelScale").onclick=$("closeScaleModal").onclick=()=>finishScaleInput(null);
 $("scaleModal").onclick=e=>{if(e.target===$("scaleModal"))finishScaleInput(null)};
 $("scaleLengthInput").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();$("confirmScale").click()}};
+/* Мастер отделки (вид «С картинками»). Закрытие — крестик, «Отмена», клик мимо и Esc (в глобальном
+   onkeydown), как у #scaleModal/#pdfPageModal: черновик выбора отбрасывается, в проект ничего не
+   пишется (запись только по «Применить»). */
+$("closeFramePicker").onclick=$("cancelFramePicker").onclick=closeFramePicker;
+$("applyFramePicker").onclick=applyFramePicker;
+$("framePickerModal").onclick=e=>{if(e.target===$("framePickerModal"))closeFramePicker()};
 $("clearAutoTraceBtn").onclick=()=>{state.autoWalls=[];refreshAfterRoomAssignments(()=>{drawWalls();renderRooms()}, scheduleSave);toast("Автоматические линии удалены")};
 $("traceSensitivity").oninput=e=>$("traceSensitivityValue").textContent=e.target.value+"%";
 $("saveProjectBtn").onclick=saveProject;$("pdfBtn").onclick=generateCommercialOffer;
@@ -4961,6 +5125,9 @@ document.onkeydown=e=>{
        EPConfirmRepeat страхует то же самое со стороны логики (человек может и постучать по
        клавише), но здесь дефект снимается в источнике. */
     if(e.repeat)return;
+    /* Мастер отделки — самостоятельная модалка (открыт из свойств комнаты, не поверх конструктора):
+       Esc закрывает её, отбрасывая черновик, как у остальных простых окон. */
+    if($("framePickerModal").classList.contains("open")){closeFramePicker();return}
     if($("pdfPageModal").classList.contains("open")){finishPdfPageSelection(null);return}
     /* Вопрос об охвате правки типа стены висит ПОВЕРХ конструктора, поэтому разбирается
        раньше конструктора: иначе Esc закрыл бы окно поста из-под неразрешённого промиса. */

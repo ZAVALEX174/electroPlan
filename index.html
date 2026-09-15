@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260915.1">
+  <link rel="stylesheet" href="css/styles.css?v=20260915.2">
 </head>
 <body>
 <div class="app">
@@ -464,6 +464,27 @@
   </div>
 </div>
 
+<!-- Шаговый выбор отделки накладки (вид «С картинками», E14): серия → материал → форма → цвет,
+     каждый шаг картинками со счётчиком «сколько накладок за вариантом». Открывается из свойств
+     комнаты (кнопка «Подобрать накладку»), пишет ТЕ ЖЕ настройки комнаты, что и вид «Списком».
+     Разметка — та же конвенция, что у #scaleModal/#pdfPageModal (.modal-backdrop > .modal >
+     .modal-header/.modal-footer); закрытие/Esc/фокус — как у них. Крошки и тело наполняет
+     renderFramePicker. -->
+<div class="modal-backdrop" id="framePickerModal" role="dialog" aria-modal="true" aria-labelledby="framePickerTitle">
+  <div class="modal frame-picker-modal">
+    <div class="modal-header">
+      <div><span class="eyebrow">Отделка накладки</span><h2 id="framePickerTitle">Подбор накладки</h2></div>
+      <button class="modal-close" id="closeFramePicker" type="button" aria-label="Закрыть">×</button>
+    </div>
+    <div class="frame-picker-crumbs" id="framePickerCrumbs"></div>
+    <div class="frame-picker-body" id="framePickerBody"></div>
+    <div class="modal-footer">
+      <button class="btn ghost" id="cancelFramePicker" type="button">Отмена</button>
+      <button class="btn primary" id="applyFramePicker" type="button">Применить</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
   <script src="js/catalog-vimar.js?v=20260908.1"></script>
   <script src="js/catalog-vimar-attrs.js?v=20260915.1"></script>
@@ -515,6 +536,12 @@
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-<script src="js/app.js?v=20260915.1"></script>
+<!-- Пользовательские предпочтения интерфейса (вид выбора отделки и т.п.) — один ключ ep_prefs,
+     отдельно от снимка проекта. Грузится до app.js, который через него читает выбранный вид. -->
+<script src="js/prefs.js?v=20260915.1"></script>
+<!-- Чистый модуль (ни DOM, ни state): шаги мастера отделки и счётчики «сколько за вариантом» через
+     переданный отбор каталога. Грузится до app.js, который подставляет ему EPCatalog и рисует. -->
+<script src="js/framePicker.js?v=20260915.1"></script>
+<script src="js/app.js?v=20260915.2"></script>
 </body>
 </html>

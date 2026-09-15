@@ -114,13 +114,16 @@ function renderRoom(room, opts) {
     polygonAreaPx: () => 0,
     lightingScheme: () => "classic",
     EPLightingGroups, EPRoom, EPCatalog,
+    /* Вид отделки (списком / с картинками) — привычка человека из EPPrefs. Заглушка отдаёт fallback,
+       то есть «списком»: эти тесты про селекторы вида-списка, а не про переключатель вида. */
+    EPPrefs: { get: (k, fb) => fb, set: () => {} },
     setTool: spy(),
     persistProject: spies.persistProject,
     renderSummary: spies.renderSummary,
     renderAll: spies.renderAll,
     mountedRoomId: null
   };
-  const render = stand.run(["frameCollectionList", "frameFacingList", "renderProperties"], ctx);
+  const render = stand.run(["frameCollectionList", "frameFacingList", "frameFacingView", "renderProperties"], ctx);
   render();
   /* ctx возвращаем, чтобы §3–5 мог обернуть renderProperties шпионом: объявление функции при
      исполнении в vm стало свойством контекста (ctx.renderProperties), а обработчик onchange зовёт

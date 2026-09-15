@@ -59,10 +59,12 @@ test("§1 селектор «Коллекция комнаты» (renderProperti
     getObjectsInRoom: () => [],
     roomAutoAreaText: () => "18 м²",
     flushRoomDraft: () => {},
+    /* Вид отделки из EPPrefs — заглушка отдаёт fallback «списком»: тест про содержимое селектора. */
+    EPPrefs: { get: (k, fb) => fb, set: () => {} },
     esc: String,
     $: dom.$
   };
-  stand.run(["frameCollectionList", "frameFacingList", "renderProperties"], ctx)();
+  stand.run(["frameCollectionList", "frameFacingList", "frameFacingView", "renderProperties"], ctx)();
 
   assert.match(props.innerHTML, /<option value="Arke"/,
     "живая коллекция «Arke» в селекторе есть (рендер прошёл, список непуст)");
