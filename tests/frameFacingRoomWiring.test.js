@@ -140,7 +140,7 @@ test("§B-slots: невозможное сочетание — селектор 
 });
 
 /* --- §A-hint / §B-hint: frameFacingHintText — «показано из скольких» и словами про пустое --- */
-const HINT_CUT = ["frameCollectionList", "frameFacingList", "builderRoomFilter", "frameFacingLabels", "frameFacingHintText"];
+const HINT_CUT = ["frameCollectionList", "frameFacingList", "builderRoomFilter", "frameFacingLabels", "frameFacingEmptyText", "frameFacingHintText"];
 function hintFor(room) {
   const state = {
     products: PRODUCTS,
