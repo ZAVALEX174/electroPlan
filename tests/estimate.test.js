@@ -5,6 +5,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { build, postPrice, billableLighting, lightingCounts, pricelessNote } = require("../js/estimate.js");
+const PF = require("../js/postfit.js");
+const POSTS = require("../js/posts.js");
 
 /* Оговорка о неполноте итога — ЕДИНЫЙ источник для экрана (#pricelessStatus) и печатного КП
    (offerPdf). Тест держит формулировку и условие: если кто-то сменит текст в одном документе,
@@ -198,8 +200,9 @@ test("NO_SUPPORT: в составе написано «суппорт не тр�
 
 test("supportAssumed: в составе рядом с суппортом стоит «(предположительно)»", () => {
   /* Решение владельца: артикул, подобранный нами (номенклатура называет только типоразмер —
-     09671.*, 22673.1.*, 09679.*), в расчёт ставим, но в КП помечаем. Без пометки заказчик
-     прочтёт догадку как согласованную позицию. */
+     Eikon 22673.1.*, 22683.1.*), в расчёт ставим, но в КП помечаем. Без пометки заказчик
+     прочтёт догадку как согласованную позицию. (Neve Up 09671.* и 09679.* заказчик подтвердил
+     ответом на письмо 26.08 — они больше НЕ помечаются, см. postfit.CONFIRMED_GENERIC_SUPPORT.) */
   const post = { name: "Пост", frameId: 2, mechanismIds: [1] };
   const comp = { boxCount: 1, supportCount: 1, support: { name: "Суппорт X" }, supportAssumed: true };
   const e = run({ posts: [post], postCost: () => 1, postComposition: () => comp });
@@ -222,6 +225,40 @@ test("подтверждённый суппорт печатается БЕЗ п
   assert.ok(!/предположительно/.test(e.groups[0].composition), "у подтверждённой пары пометки нет");
   const old = run({ posts: [post], postCost: () => 1, postComposition: () => ({ boxCount: 1, supportCount: 1, support: { name: "Суппорт X" } }) });
   assert.ok(!/предположительно/.test(old.groups[0].composition), "старый comp без признака — тоже без пометки");
+});
+
+test("документ (смета): пост Neve Up 09671 печатается БЕЗ «(предположительно)» — сквозной путь", () => {
+  /* Сквозная проверка правки: реальный EPPostFit.resolveSupport → postComposition → build.
+     Заказчик подтвердил суппорт Neve Up (ответ на письмо 26.08) — в НАПЕЧАТАННОМ составе поста
+     пометки быть не должно. Eikon рядом (22673.1) её сохраняет — иначе тест был бы тавтологией. */
+  const frame09671 = { id: 71, code: "09671.01", kind: "frame", name: "Накладка Neve Up 09671", standard: "IT", slotCount: 1, series: ["Neve Up"], principle: "1M_CENTRAL_3", boxModularity: 3, price: 3.12 };
+  const frame22673 = { id: 73, code: "22673.1.01", kind: "frame", name: "Накладка Eikon Vintage 22673", standard: "IT", slotCount: 1, series: ["Eikon Vintage"], principle: "1M_CENTRAL_3", boxModularity: 3, price: 5.0 };
+  const sup09613 = { id: 613, code: "09613", kind: "support", name: "Суппорт 09613", standard: "IT", moduleCount: 3, series: ["Neve Up"], price: 1.48 };
+  const sup21613 = { id: 216, code: "21613", kind: "support", name: "Суппорт 21613", standard: "IT", moduleCount: 3, series: ["Eikon Vintage"], price: 2.50 };
+  const box3 = { id: 3, code: "V71303", kind: "socket_box", name: "Коробка 3М", wallType: "solid", boxShape: "rect", boxModules: 3, boxStandards: ["IT"], price: 1.04 };
+  const mech = { id: 1, code: "M1", kind: "mechanism", name: "Механизм", price: 5, moduleSpan: 1 };
+  const cat = { 71: frame09671, 73: frame22673, 613: sup09613, 216: sup21613, 3: box3, 1: mech };
+  const productSeries = p => (p && p.series) || [];
+  const supports = [sup09613, sup21613];
+  /* deps.resolveSupport оборачивает чистый EPPostFit.resolveSupport, подкладывая пул суппортов
+     и seriesOf — ровно как app.js (postComposition их не передаёт). */
+  const deps = {
+    product: id => cat[id], frameProduct: id => cat[id], socketBox: () => box3,
+    mechanismSpan: m => (m && m.moduleSpan) || 1,
+    findBox: () => box3, fallbackBox: () => box3, supportRequired: () => true,
+    resolveSupport: o => PF.resolveSupport(Object.assign({}, o, { supports, seriesOf: productSeries }))
+  };
+  const compNeve = POSTS.postComposition({ frameId: 71, mechanismIds: [1] }, deps);
+  assert.equal(compNeve.support.code, "09613");
+  assert.equal(compNeve.supportAssumed, false, "Neve Up подтверждён — флага нет уже в составе");
+  const compEikon = POSTS.postComposition({ frameId: 73, mechanismIds: [1] }, deps);
+  assert.equal(compEikon.support.code, "21613");
+  assert.equal(compEikon.supportAssumed, true, "Eikon не подтверждён — флаг остаётся");
+
+  const eNeve = run({ posts: [{ name: "Пост Neve Up", frameId: 71, mechanismIds: [1] }], postCost: () => 1, postComposition: () => compNeve });
+  assert.ok(!/предположительно/.test(eNeve.groups[0].composition), "в напечатанном составе Neve Up пометки нет");
+  const eEikon = run({ posts: [{ name: "Пост Eikon", frameId: 73, mechanismIds: [1] }], postCost: () => 1, postComposition: () => compEikon });
+  assert.match(eEikon.groups[0].composition, /предположительно/, "у Eikon пометка на месте — тест не тавтология");
 });
 
 test("нулевые проценты дают чистое оборудование", () => {

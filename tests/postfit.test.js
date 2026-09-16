@@ -287,18 +287,69 @@ test("findBox: коробка центральной накладки — по �
 
 /* --- resolveSupport: подтверждённая пара против подобранной нами ---------------------
    Решение владельца: артикул подставляем всегда, когда можем, но там, где заказчик его не
-   называл, документы обязаны написать «(предположительно)». Подтверждёнными считаем три
-   исхода каскада: правило заказчика 602/603 по коробке, прямая пара из номенклатуры
-   (принцип + модульность коробки) и общий подбор у накладки БЕЗ монтажного правила.
-   Неподтверждённый — только четвёртый: монтажное правило у накладки ЕСТЬ, планки под него
-   в каталоге нет, и она выбрана общим правилом (09671.*, 22673.1.*, 09679.* — 36 из 1631). */
-test("resolveSupport 09671: артикул подставлен, но помечен как неподтверждённый", () => {
-  /* Ремарка номенклатуры называет только типоразмер («коробка и супорт на 3 модуля»).
-     Суппорта с принципом 1M_CENTRAL_3 в каталоге нет — 09613 наш кандидат, не заказчика
-     (вопрос отправлен 26.08, docs/письмо-заказчику-вопросы-2026-08-26.txt §1). */
+   называл, документы обязаны написать «(предположительно)». Подтверждёнными считаем исходы
+   каскада: правило заказчика 602/603 по коробке, прямая пара из номенклатуры (принцип +
+   модульность коробки), общий подбор у накладки БЕЗ монтажного правила И общий подбор,
+   результат которого заказчик подтвердил адресно (CONFIRMED_GENERIC_SUPPORT: Neve Up + 3М).
+   Неподтверждённый — монтажное правило у накладки ЕСТЬ, планки под него в каталоге нет, она
+   выбрана общим правилом, и заказчик её не называл: из 36 таких накладок это 12 Eikon
+   (22673.1.*, 22683.1.*). */
+const f09679 = { code: "09679.01", standard: "IT", slotCount: 2, series: ["Neve Up"], principle: "2_OFFSET", boxModularity: 3 };
+/* Eikon: реальные серии накладок и суппорт 21613 (3 модуля, годен всем сериям Eikon). */
+const EIKON_CENTRAL_SUP = [
+  { code: "21601.0", price: 1.80, kind: "support", standard: "BOTH", moduleCount: 1, series: ["Eikon Vintage", "Eikon Flat"], principle: "1M_CENTRAL", boxModularity: 2 },
+  { code: "21612", price: 2.90, kind: "support", standard: "IT", moduleCount: 2, series: ["Eikon Vintage", "Eikon Flat"], principle: "2M_CENTRAL", boxModularity: 3 },
+  { code: "21613", price: 2.50, kind: "support", standard: "IT", moduleCount: 3, series: ["Eikon Vintage", "Eikon Flat"] },
+];
+const f22673 = { code: "22673.1.01", standard: "IT", slotCount: 1, series: ["Eikon Vintage"], principle: "1M_CENTRAL_3", boxModularity: 3 };
+const f22683 = { code: "22683.1.01", standard: "IT", slotCount: 1, series: ["Eikon Flat"], principle: "1M_CENTRAL_3", boxModularity: 3 };
+
+test("resolveSupport 09671: Neve Up подтверждён заказчиком — суппорт 09613 БЕЗ пометки", () => {
+  /* Ответ заказчика на письмо 26.08 (HANDOFF 16.09 §1): «09613 — единственный суппорт 3 модуля
+     для этой коллекции». Пометку «(предположительно)» снимаем; артикул не меняется. */
   const r = resolveSupport({ supports: NEVE_SUP, frame: f09671, standard: "IT", frameModules: 1, box: BOX.V71303, seriesOf: p => p.series });
-  assert.equal(r.support.code, "09613", "артикул в расчёте есть — иначе поста не собрать");
-  assert.equal(r.assumed, true, "но он подобран нами, а не назван заказчиком");
+  assert.equal(r.support.code, "09613", "артикул подбора не изменился — только признак");
+  assert.equal(r.assumed, false, "заказчик подтвердил результат подбора для коллекции Neve Up");
+});
+test("resolveSupport 09679: вторая накладка Neve Up (2_OFFSET) — тоже 09613 БЕЗ пометки", () => {
+  /* Решение владельца распространяется на ОБЕ накладки Neve Up с коробкой на 3 модуля:
+     09671.* (1М центрально) и 09679.* (2М по бокам). Обе получают единственный 3М-суппорт 09613. */
+  const r = resolveSupport({ supports: NEVE_SUP, frame: f09679, standard: "IT", frameModules: 2, box: BOX.V71303, seriesOf: p => p.series });
+  assert.equal(r.support.code, "09613");
+  assert.equal(r.assumed, false, "подтверждение по КОЛЛЕКЦИИ, а не по принципу монтажа — 2_OFFSET тоже снят");
+});
+test("resolveSupport 22673.1 / 22683.1: Eikon заказчик НЕ называл — пометка ОСТАЁТСЯ", () => {
+  /* Eikon Vintage/Flat садятся на суппорт 21613 по тому же общему правилу, что и Neve Up, но
+     подтверждения заказчика по ним нет — assumed обязан остаться true. Иначе пометка снялась бы
+     у всех центральных накладок, а заказчик высказался лишь про Neve Up. */
+  const vintage = resolveSupport({ supports: EIKON_CENTRAL_SUP, frame: f22673, standard: "IT", frameModules: 1, box: BOX.V71303, seriesOf: p => p.series });
+  assert.equal(vintage.support.code, "21613", "суппорт Eikon не менялся");
+  assert.equal(vintage.assumed, true, "Eikon Vintage — заказчик суппорт не называл");
+  const flat = resolveSupport({ supports: EIKON_CENTRAL_SUP, frame: f22683, standard: "IT", frameModules: 1, box: BOX.V71303, seriesOf: p => p.series });
+  assert.equal(flat.support.code, "21613");
+  assert.equal(flat.assumed, true, "Eikon Flat — пометка тоже остаётся");
+});
+test("resolveSupport: подтверждён только НАЗВАННЫЙ артикул 09613, не любой 3М-суппорт Neve Up", () => {
+  /* Заказчик назвал КОНКРЕТНЫЙ код. Если в обещанном новом прайсе появится ВТОРОЙ 3М-суппорт
+     Neve Up и шаг 3 выберет его, пометка «(предположительно)» не должна молча сняться — этот
+     артикул заказчик не называл. Пул без 09613, с выдуманным вторым 3М-суппортом (код 09615). */
+  const SECOND_3M = [
+    { code: "09602.1", price: 2.58, kind: "support", standard: "BOTH", moduleCount: 2, series: ["Neve Up"] },
+    { code: "09615", price: 1.60, kind: "support", standard: "IT", moduleCount: 3, series: ["Neve Up"] },
+  ];
+  const r = resolveSupport({ supports: SECOND_3M, frame: f09671, standard: "IT", frameModules: 1, box: BOX.V71303, seriesOf: p => p.series });
+  assert.equal(r.support.code, "09615", "шаг 3 выбрал второй 3М-суппорт Neve Up");
+  assert.equal(r.assumed, true, "но назван был 09613 — чужой 3М-суппорт остаётся неподтверждённым");
+});
+test("resolveSupport: подтверждение Neve Up привязано к 3М-суппорту, а не к серии целиком", () => {
+  /* Заказчик подтвердил именно «единственный суппорт 3 модуля» коллекции (09613). Если бы
+     подтверждение сняли со всей серии Neve Up БЕЗ условия по модульности, оно распространилось бы
+     на любой результат подбора Neve Up, включая планки иной модульности. Проверяем на накладке
+     Neve Up с монтажным правилом, чей общий подбор даёт НЕ 3М-суппорт: пометка обязана остаться. */
+  const neve1Min2 = { code: "09661.X", standard: "IT", slotCount: 1, series: ["Neve Up"], principle: "1M_CENTRAL_3", boxModularity: 2 };
+  const r = resolveSupport({ supports: NEVE_SUP, frame: neve1Min2, standard: "IT", frameModules: 1, box: BOX.V71303, seriesOf: p => p.series });
+  assert.equal(r.support.moduleCount, 2, "подбор дал суппорт на 2 модуля (09602.1), а не 3М");
+  assert.equal(r.assumed, true, "не 3М-суппорт Neve Up заказчик не называл — пометка на месте");
 });
 test("resolveSupport 09661: правило заказчика по коробке — подтверждено, пометки быть не должно", () => {
   /* Ремарка даёт два варианта («09602.1 или 09603.1»), выделенной пары у 09661.* нет —
