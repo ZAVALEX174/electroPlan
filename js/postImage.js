@@ -100,6 +100,21 @@ const SIZES = {
    константой, чтобы менять одним числом, не трогая геометрию. */
 const IMPOST_GAP = 0.06;
 
+/* ДОСТОВЕРНОСТЬ ИЗМЕРЕННОГО ОКНА. Лицо модуля имеет ровную пропорцию span×22,5:45 (ширина:высота) —
+   1М вдвое у́же своей высоты (та же доктрина, что у faceSprite ниже). Значит на КАЖДЫЙ модуль
+   поста, разложенный в монтажном окне, должно приходиться width/height ≈ 22,5/45 = 0,5 (после
+   поправки на аспект фото). Если ИЗМЕРЕННОЕ окно зажимает модули заметно у́же — окно снято
+   детектором неверно: на «винтажных»/«flat» накладках VIMAR с овальными отверстиями детектор
+   поймал ОДНО маленькое отверстие вместо нескольких (ср. 22684 «4 на 4», где окон честно четыре),
+   и клавиши всех постов сплющиваются в невидимую полоску поверх фото. Такое окно НЕДОСТОВЕРНО —
+   уходим на честную схему-фолбэк (та же реакция, что «нет измеренного окна» в photoReady:
+   раскладывать нечего — по догадке дало бы мусор хуже схемы). Порог MIN_WINDOW_FILL·MODULE_FACE_
+   ASPECT = 0,375 лежит в чистом зазоре между зажатыми накладками (≤0,31 по каталогу) и корректно
+   снятыми (≥0,45). Проверяем ТОЛЬКО измеренные окна: геометрию splitOpening мы считаем сами — она
+   пропорциональна по построению и второго мнения не требует. */
+const MODULE_FACE_ASPECT = 22.5 / 45;   // 0,5 — ширина:высота лица одного модуля
+const MIN_WINDOW_FILL = 0.75;           // окно достоверно, если даёт модулю ≥75% его истинной ширины
+
 /* КЛАВИШИ собранной накладки (ориентир — каталожные сборки VIMAR). Три числа владелец крутит
    по картинке:
    • KEY_SEAM — тонкий ШОВ между соседними клавишами, px по размеру (реализован как зазор во
@@ -424,7 +439,10 @@ function buildHtml(spec, deps) {
 
   const modulesWide = rows.reduce((m, r) => Math.max(m, (r.posts || []).reduce((a, p) => a + capOf(p), 0)), 0) || 1;
 
-  const stage = photoReady(frame)
+  /* Режим фото — только когда есть фото+измеренное окно (photoReady) И это окно ФИЗИЧЕСКИ вмещает
+     модули (windowsHoldModules): недостоверно снятое детектором окно сплющило бы клавиши в
+     невидимую полоску (винтажные накладки), поэтому уводим накладку на честную схему-фолбэк. */
+  const stage = photoReady(frame) && windowsHoldModules(frame.opening, rows, frame.windows)
     ? photoStage(frame, rows, s, sizeKey, modulesWide, esc)
     : schemaStage(frame, rows, s, sizeKey, modulesWide, esc);
 
@@ -474,6 +492,31 @@ function postWindows(opening, rows, windows) {
     return { rects: measured, measured: true };
   }
   return { rects: splitOpening(opening, rows), measured: false };
+}
+
+/* Достоверны ли ИЗМЕРЕННЫЕ окна под клавиши: каждое физически вмещает модули своего поста. Модуль
+   в окне получает ширину W_окна/суммарный span, высоту = высота окна; после поправки на аспект фото
+   отношение ширины к высоте на один span-модуль должно держаться около MODULE_FACE_ASPECT. Если
+   детектор снял окно неверно (одно маленькое отверстие вместо нескольких на винтажной накладке) и
+   модули сплющиваются ниже MIN_WINDOW_FILL от истинной пропорции — окно недостоверно, buildHtml
+   уводит такую накладку на схему-фолбэк, где клавиши видны. splitOpening-раскладку не проверяем:
+   она пропорциональна по построению (см. константы выше). Чистая — под тесты. */
+function windowsHoldModules(opening, rows, windows) {
+  const o = normalizeOpening(opening);
+  const pw = postWindows(o, rows, windows);
+  if (!pw.measured) return true;
+  /* аспект фото — как в photoStage: измеренный из окна накладки, иначе угаданный из opening */
+  const w = (Array.isArray(windows) ? windows.find(x => x && Number(x.aspect) > 0) : null);
+  const aspect = w ? Number(w.aspect) : (o.aspect > 0 ? o.aspect : 1);
+  const posts = [];
+  (Array.isArray(rows) ? rows : []).forEach(r => ((r && r.posts) || []).forEach(p => posts.push(p)));
+  return posts.every((p, i) => {
+    const rect = pw.rects[i];
+    if (!rect) return false;
+    const span = ((p && p.cells) || []).reduce((a, c) => a + Math.max(1, Number(c && c.span) || 1), 0) || 1;
+    const perModule = (rect.width / rect.height) * (aspect > 0 ? aspect : 1) / span;
+    return perModule >= MODULE_FACE_ASPECT * MIN_WINDOW_FILL;
+  });
 }
 
 /* РЕЖИМ ФОТО: подложка — ДЕТАЛЬНАЯ фотография накладки, КЛАВИШИ (moduleKey) поверх в границах
@@ -595,7 +638,7 @@ function schemaStage(frame, rows, s, sizeKey, modulesWide, esc) {
    измеренных окон (иначе макро-снимок угла раскладывать нечем). iconSvg отдан наружу, чтобы
    взрыв-схема листа монтажника (EPExplodedView) рисовала детали ТЕМ ЖЕ каталожным глифом, что и
    клавиши сборки, — единая система иконок, без дубля разметки. */
-const api = { buildHtml, itemColor, frameColor, pickIcon, iconSvg, splitOpening, postWindows, faceSprite, useFacePhoto, photoReady };
+const api = { buildHtml, itemColor, frameColor, pickIcon, iconSvg, splitOpening, postWindows, windowsHoldModules, faceSprite, useFacePhoto, photoReady };
 if (typeof window !== "undefined") window.EPPostImage = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
