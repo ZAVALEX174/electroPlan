@@ -62,7 +62,7 @@ test("предпосылки якорей A/B держатся на текуще
 });
 
 /* --- §A/§B-filter: builderRoomFilter собирает отделку комнаты редактируемого поста --- */
-const FILTER_CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "builderRoomFilter"];
+const FILTER_CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter"];
 function filterFor(room) {
   const state = {
     products: PRODUCTS,
@@ -89,7 +89,7 @@ test("§A-dead: мёртвый (не из каталога) материал к�
 });
 
 /* --- §A-pool / §B-pool: collectionFramePool сужает по отделке и НЕ подменяет пусто каталогом --- */
-const POOL_CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "builderRoomFilter", "collectionFramePool"];
+const POOL_CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "collectionFramePool"];
 function poolFor(room) {
   const state = {
     products: PRODUCTS,
@@ -111,7 +111,7 @@ test("§B-pool: невозможное сочетание → ПУСТОЙ пу�
 });
 
 /* --- §A-slots / §B-slots: селектор модульностей считается от того же суженного пула --- */
-const SLOT_CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "builderRoomFilter", "collectionFramePool", "renderPostSlotCountSelect"];
+const SLOT_CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "collectionFramePool", "renderPostSlotCountSelect"];
 function slotOptions(room, extra) {
   const state = {
     products: PRODUCTS,
@@ -140,7 +140,7 @@ test("§B-slots: невозможное сочетание — селектор 
 });
 
 /* --- §A-hint / §B-hint: frameFacingHintText — «показано из скольких» и словами про пустое --- */
-const HINT_CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "builderRoomFilter", "frameFacingLabels", "frameFacingEmptyText", "frameFacingHintText"];
+const HINT_CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "frameFacingLabels", "frameFacingEmptyText", "frameFacingHintText"];
 function hintFor(room) {
   const state = {
     products: PRODUCTS,

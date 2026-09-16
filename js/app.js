@@ -365,10 +365,23 @@ async function init(){
 function renderTemplates(){
   const list=$("postLibrary");
   if(!state.templates.length){list.innerHTML='<div class="library-empty">Сохранённых постов пока нет</div>';return}
+  /* ГОТОВЫЕ ПОСТЫ СУЖАЕМ ПО ЦВЕТУ НАКЛАДКИ ВЫБРАННОЙ КОМНАТЫ (ОТДЕЛКА-ПОРЯДОК, п.5). Комнату берём из
+     выделения на плане (state.selected) — это «выбранная комната» из порядка работ владельца; функция
+     зовётся из renderProperties, поэтому список пересобирается при каждой смене выделения и правке цвета
+     комнаты. Цвет накладки комнаты — тем же EPRoom.roomFrameFacing и списком каталога, что весь E14;
+     совпадение цвета шаблона и комнаты решает EPPosts.templateFitsRoomColor через EPCatalog.facingColorKey
+     (§7.1: одно правило сравнения цвета на весь проект). Комната без цвета / выбрана не комната / комнат
+     нет → roomColor=null → показываем ВСЁ (работу не блокируем, п.2). */
+  const selRoom=state.selected&&state.selected.kind==="room"?state.rooms.find(r=>r.id===state.selected.id):null;
+  const roomColor=selRoom?EPRoom.roomFrameFacing(selRoom,"frameColor",frameFacingList("frameColor")):null;
+  const templates=state.templates.filter(t=>EPPosts.templateFitsRoomColor(t,roomColor,{frameProduct,facingColorKey:EPCatalog.facingColorKey}));
+  /* Отфильтровали в ноль (у комнаты цвет задан, а постов этого цвета в памяти нет) — «Сохранённых постов
+     пока нет» было бы ложью: посты есть, просто другого цвета. Говорим честно и называем цвет. */
+  if(!templates.length){list.innerHTML=`<div class="library-empty">${esc(`Готовых постов под цвет накладки комнаты («${roomColor}») в памяти нет — соберите пост для этой комнаты или выберите комнату другого цвета.`)}</div>`;return}
   /* Миниатюра — то же собранное изделие, что в конструкторе (единая EPPostImage): рамка,
      разделение на посты/импосты и модули. Раньше здесь была россыпь иконок механизмов —
      по замечанию владельца «нет получившегося полного изображения рамки и модулей». */
-  list.innerHTML=state.templates.map(t=>{
+  list.innerHTML=templates.map(t=>{
     /* Бейдж — занятость модулей рамки (тот же расчёт, что в конструкторе: занятые модули
        mechanismModulesTotal из ёмкости накладки frameSlotCount), а НЕ число механизмов.
        Раньше показывали placeWord(число механизмов) — «2 места» рядом с авто-именем «Пост на
@@ -1431,6 +1444,12 @@ function postGroupsPropHtml(post){
 }
 function renderProperties(){
   flushRoomDraft();   /* §7.1: правило «сначала закоммить черновик» в одной точке — покрывает все ~25 вызовов */
+  /* Список готовых постов сужается по цвету накладки ВЫБРАННОЙ комнаты (ОТДЕЛКА-ПОРЯДОК, п.5). Держим
+     его синхронным с выделением ОДНОЙ точкой — здесь: renderProperties и так зовётся на каждой смене
+     выделения и правке цвета комнаты (§7.1 «правило в одном месте»), рассыпать renderTemplates по всем
+     этим местам значило бы снова забыть одно из них. Стоит ДО ранних return — иначе снятие выделения
+     (пустой selected / удалённая сущность) не сбросило бы фильтр обратно на «показать всё». */
+  renderTemplates();
   if(!state.selected){props.className="empty-properties";props.innerHTML="Выберите объект на плане";return}
   const {kind,id}=state.selected;
   /* §7.1: одна проверка «выделенная сущность ещё жива» ДО входа в ветки. Пересчёт контуров
@@ -2288,14 +2307,20 @@ function builderFilterRoom(){
   const placed=state.builder.editingPlacedId?state.posts.find(p=>p.id===state.builder.editingPlacedId):null;
   return placed?state.rooms.find(r=>r.id===placed.roomId)||null:null;
 }
-function builderRoomFilter(){
-  const room=builderFilterRoom();
+/* Критерий отбора накладок под ПРОИЗВОЛЬНУЮ комнату (E13 коллекция + E14 отделка) — ОДНА точка
+   сборки (§7.1). Через неё ходят и конструктор (builderRoomFilter, комната редактируемого поста), и
+   подмена накладки при размещении готового поста (frameForRoomPlacement, комната размещения). Валидация
+   мёртвых (снятых из прайса) значений — в EPRoom: null → признак не сужает. */
+function roomCatalogFilter(room){
   return {
     collection:EPRoom.roomCollection(room,frameCollectionList()),
     frameMaterial:EPRoom.roomFrameFacing(room,"frameMaterial",frameFacingList("frameMaterial")),
     frameShape:EPRoom.roomFrameFacing(room,"frameShape",frameFacingList("frameShape")),
     frameColor:EPRoom.roomFrameFacing(room,"frameColor",frameFacingList("frameColor"))
   };
+}
+function builderRoomFilter(){
+  return roomCatalogFilter(builderFilterRoom());
 }
 /* Критерий отбора НАЧИНКИ (клавиш/розеток/механизмов) под комнату — ПРОДОЛЖЕНИЕ того же
    productsForRoom, что сужает накладки (§7.1: правило «что подходит комнате» одно). У начинки
@@ -2337,6 +2362,35 @@ function renderBuilderRoomSelect(){
    честного «под это сочетание накладок нет». Пустоту объясняет словами renderBuilder (E14, п.6). */
 function collectionFramePool(allFrames){
   return EPCatalog.productsForRoom(allFrames,builderRoomFilter());
+}
+/* Подмена накладки готового поста на накладку СЕРИИ КОМНАТЫ размещения (ОТДЕЛКА-ПОРЯДОК, п.5). Идёт
+   ЧЕРЕЗ тот же отбор, что и весь каталог под комнату (roomCatalogFilter → productsForRoom, как
+   collectionFramePool), а не через свою копию правил (§7.1). Возвращает:
+     {frameId:null}          — накладку НЕ меняем: пост лёг вне комнат ИЛИ у комнаты нет ни серии, ни
+                               отделки (иначе пул = весь каталог и мы подставили бы случайную накладку);
+     {frameId:<id>}          — нашли накладку той же модульности → пост берёт её (и цену — она из
+                               frameId во всех документах);
+     {blocked:true,message}  — комната задаёт отделку, но накладки её серии/цвета нужной модульности в
+                               каталоге нет: пост НЕ ставим с чужой накладкой, человеку говорим чего и
+                               почему не нашли (формулировка в духе E14, frameFacingEmptyText). */
+function frameForRoomPlacement(template,room){
+  if(!room)return {frameId:null};
+  const criteria=roomCatalogFilter(room);
+  const constrained=criteria.collection||criteria.frameMaterial||criteria.frameShape||criteria.frameColor;
+  if(!constrained)return {frameId:null};
+  const pool=EPCatalog.productsForRoom(byKind("frame"),criteria);
+  const frame=EPPosts.pickRoomFrame(template.frameId,pool,{frameProduct,frameSlotCount});
+  return frame?{frameId:frame.id}:{blocked:true,message:frameSwapEmptyText(template,room,criteria)};
+}
+/* ОДНА формулировка «в серию комнаты накладки нужной модульности нет» при размещении готового поста
+   (п.5). Параллельна frameFacingEmptyText/innardsEmptyText: называем комнату, что сузило выбор
+   (frameFacingSelectionLabels — серия+отделка, тот же источник, что у хинта и мастера) и модульность,
+   которой не хватило. Модульность берём у накладки шаблона (frameSlotCount); неизвестна (битая
+   накладка) → moduleWord честно скажет «— модулей». */
+function frameSwapEmptyText(template,room,criteria){
+  const mods=frameSlotCount(frameProduct(template.frameId));
+  const list=frameFacingSelectionLabels(criteria).join(", ");
+  return `В серию комнаты «${room.name}» (${list}) накладки на ${moduleWord(mods)} в каталоге нет — готовый пост не размещён. Соберите пост для этой комнаты или добавьте подходящую накладку.`;
 }
 /* Текст хинта «сколько накладок показано из скольких и ЧТО сузило выбор» (E14, п.5–6). Считается ОТ
    ТОГО ЖЕ критерия и того же productsForRoom, что фильтрует renderBuilder, — второго правила отбора
@@ -3331,6 +3385,13 @@ async function savePostBuilder(){
     const existing=state.builder.editingTemplateId;
     const prev=existing?state.templates.find(x=>x.id===existing):null;
     const template={id:existing||uid("tpl_"),...base};
+    /* ⚠️ ЦВЕТ НАКЛАДКИ, ПОД КОТОРЫЙ СОБРАН ШАБЛОН (ОТДЕЛКА-ПОРЯДОК, п.5). Запоминаем ЯВНО, а не
+       выводим потом каждый раз из frameId: после перезаливки прайса артикул может перестать
+       разрешаться, а «под какой цвет собирали» должно пережить это и перезагрузку проекта. Пишем
+       из товара по выбранной накладке; накладки без цвета в каталоге нет, но если её вдруг нет —
+       поле не выдумываем (templateFrameColor тогда попробует вывести цвет из frameId). */
+    const templateFrameColor=frameProduct(template.frameId)?.frameColor;
+    if(templateFrameColor)template.frameColor=templateFrameColor;
     const wall=builderWallType();
     /* Эффективный тип стены проекта — тот же, что показывает панель (renderProjectWallTypeSelect):
        пусто/мусор → «solid». С ним и сравниваем, что выбор человека — осознанное расхождение. */
@@ -3393,6 +3454,15 @@ function addPending(x,y){
        групп — честный пробел «группа не указана», а не молчаливое размножение чужой группы. */
     created=Object.assign({id:uid("post_"),x:x-12,y:y-12,number:EPPosts.nextPostNumber(state.posts),roomId:null},
       EPPosts.placementFields(t));
+    /* ⚠️ НАКЛАДКА МЕНЯЕТСЯ НА СЕРИЮ КОМНАТЫ РАЗМЕЩЕНИЯ (ОТДЕЛКА-ПОРЯДОК, п.5) — ДО добавления поста
+       в проект. Комнату берём ту, куда реально ложится центр поста: тот же getRoomForPoint(x,y), что
+       ниже определит roomId (created.x+12===x). Подмена честно доезжает до денег: цена накладки во
+       всех документах читается из frameId (postComposition), отдельной копии цены нет — меняем id,
+       и смета/свод/лист монтажника/КП берут новую. Замены нет (в серии комнаты накладки нужной
+       модульности не оказалось) — пост НЕ ставим с чужой накладкой, говорим человеку почему. */
+    const swap=frameForRoomPlacement(t,getRoomForPoint(x,y));
+    if(swap.blocked){toast(swap.message);return}
+    if(swap.frameId!=null)created.frameId=swap.frameId;
     state.posts.push(created);
   }
   updateObjectRoom(created);

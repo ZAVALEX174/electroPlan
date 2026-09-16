@@ -92,7 +92,7 @@ const M_NONE = { id: 23, kind: "mechanism", active: true, series: ["Test"], modu
 const PRODUCTS = [FRAME, M_WHITE, M_BLACK, M_NONE];
 const product = id => PRODUCTS.find(p => Number(p.id) === Number(id));
 
-const CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "builderRoomFilter", "builderInnardsFilter",
+const CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "builderInnardsFilter",
   "collectionFramePool", "frameFacingLabels", "frameFacingHintText", "frameFacingEmptyText", "frameOptions",
   "builderCapacity", "renderBuilder"];
 

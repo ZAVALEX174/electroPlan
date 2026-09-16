@@ -513,6 +513,51 @@ function placementFields(template) {
   return fields;
 }
 
+/* --- ГОТОВЫЙ ПОСТ ИЗ ПАМЯТИ В КОМНАТУ ПО ЦВЕТУ НАКЛАДКИ (ОТДЕЛКА-ПОРЯДОК, п.5) -----------------
+   Владелец: «готовый пост можно ставить в комнаты с тем же цветом накладки — серия не важна; при
+   постановке накладка меняется на серию комнаты». Правила совпадения и подмены — здесь, чистыми
+   функциями (§7.1: и фильтр списка, и подбор замены ходят в ОДИН отбор — productsForRoom +
+   facingColorKey, — а не в свою копию).
+
+   Цвет накладки, ПОД КОТОРЫЙ собран шаблон. Шаблон помнит его в t.frameColor (savePostBuilder кладёт
+   при сохранении — чтобы совпадение переживало перезагрузку проекта и не зависело от того, разрешается
+   ли ещё артикул после перезаливки прайса). Старые шаблоны, сохранённые до этого правила, поля не
+   несут — цвет выводим из накладки по frameId (deps.frameProduct). Накладка снята/удалена из прайса →
+   frameProduct вернёт null → цвет неизвестен (null). */
+function templateFrameColor(template, deps) {
+  const t = template || {};
+  if (typeof t.frameColor === "string" && t.frameColor) return t.frameColor;
+  const frame = deps && deps.frameProduct ? deps.frameProduct(t.frameId) : null;
+  return frame && frame.frameColor ? frame.frameColor : null;
+}
+
+/* Годится ли шаблон комнате ПО ЦВЕТУ накладки (для сужения списка готовых постов). roomColor — цвет
+   накладки комнаты; null (комната без цвета / выбрана не комната / комнат нет) → показываем ВСЁ, работу
+   не блокируем (решение владельца, п.2). Иначе сравниваем цвет шаблона с цветом комнаты ЕДИНОЙ
+   deps.facingColorKey — той же родовой складкой «Белая»↔«Белый», что весь отбор E14 (§7.1). Цвет
+   шаблона неизвестен (битый/снятый артикул без сохранённого цвета) → цвету комнаты он не равен →
+   такой шаблон под цветную комнату НЕ предлагаем (гарантия «чужой накладки не покажем»). Серию НЕ
+   проверяем — владелец на прямой вопрос ответил «только по цвету». */
+function templateFitsRoomColor(template, roomColor, deps) {
+  if (!roomColor) return true;
+  const key = deps.facingColorKey;
+  const tc = templateFrameColor(template, deps);
+  return !!tc && key(tc) === key(roomColor);
+}
+
+/* Подбор накладки СЕРИИ КОМНАТЫ той же модульности, что у шаблона (замена при размещении, п.5). pool —
+   УЖЕ суженный под комнату список накладок (EPCatalog.productsForRoom по серии+отделке комнаты, тот же
+   collectionFramePool): цвет и серию задаёт он, здесь остаётся выбрать РАЗМЕР. Модульность шаблона —
+   frameSlotCount его накладки; берём первую накладку пула той же модульности. Нет такой (или размер
+   шаблона неизвестен — битая накладка) → null: пост НЕ ставим с чужой накладкой, вызывающий объяснит
+   человеку. deps = { frameProduct(id), frameSlotCount(item) }. */
+function pickRoomFrame(templateFrameId, pool, deps) {
+  const frameProduct = deps.frameProduct, frameSlotCount = deps.frameSlotCount;
+  const wanted = frameSlotCount(frameProduct(templateFrameId));
+  if (!(wanted > 0)) return null;
+  return (pool || []).find(f => frameSlotCount(f) === wanted) || null;
+}
+
 /* Отбирает из ids столько механизмов (по порядку), сколько влезает в capacity
    модулей рамки; чужие для items и не влезающие отбрасываются.
    deps = { product(id), mechanismSpan(item) }. */
@@ -702,6 +747,7 @@ function postModuleGroups(mechanismIds, frame, deps) {
    Node — module.exports для автотестов (PLAN 7.1). */
 const api = { frameAvailability, mechanismAvailability, postCost, postComposition, boxCount, fitMechanismIds, fitMechanismIdsPreserving,
   moduleLayout, fillWord, fillSummary, nextPostNumber, ensurePostNumbers, placementFields,
+  templateFrameColor, templateFitsRoomColor, pickRoomFrame,
   frameLayout, distributePosts, maxFreeSpan, postModuleGroups,
   postWallType, postTypeKey, wallTypeTargets, postBacklight };
 if (typeof window !== "undefined") window.EPPosts = api;

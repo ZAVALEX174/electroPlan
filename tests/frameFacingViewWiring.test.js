@@ -50,6 +50,7 @@ function renderRoomView(view, room) {
     state, props, $: dom.$, esc: String,
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
     flushRoomDraft: spy(),
+    renderTemplates: () => {},   /* renderProperties синхронит библиотеку готовых постов; здесь не проверяется */
     findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
     applySelectionClasses: spy(),
     getObjectsInRoom: () => [],
