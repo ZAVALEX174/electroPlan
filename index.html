@@ -503,7 +503,7 @@
   <script src="js/catalog-vimar-attrs.js?v=20260915.2"></script>
   <script src="js/catalog-vimar-openings.js?v=20260801.2"></script>
   <script src="js/catalog-vimar-faces.js?v=20260801.2"></script>
-  <script src="js/data.js?v=20260915.2"></script>
+  <script src="js/data.js?v=20260916.1"></script>
 <script src="js/store.js?v=20260723"></script>
 <script src="js/config.js?v=20260902.1"></script>
 <!-- Подтверждение необратимой команды повтором того же действия (у окна есть и нижняя, и
@@ -513,7 +513,7 @@
 <script src="js/catalog.js?v=20260915.2"></script>
 <!-- Чистый модуль (ни DOM, ни state): подбор механизма по группе света и схеме электрики.
      Считается по ВСЕМУ проекту, результат отдаётся в состав поста, поэтому грузится до postfit/posts. -->
-<script src="js/lightingGroups.js?v=20260914.2"></script>
+<script src="js/lightingGroups.js?v=20260916.1"></script>
 <!-- Связка модуля групп света с проектом: сборка мест управления из постов, строгий подбор
      механизма по роли и серии, печатный блок для документов. Грузится ПОСЛЕ lightingGroups
      (использует его тексты пробелов) и до estimate/installSheet, которые его результат печатают. -->
@@ -521,7 +521,7 @@
 <!-- Чистый модуль (ни DOM, ни state): раскрой расчёта групп света ПО КОМНАТАМ и слияние обратно
      в один план. Грузится ПОСЛЕ lightingGroups/lightingPlan (использует их plan и форму мест) и
      до app.js, который через него считает projectLighting. -->
-<script src="js/lightingByRoom.js?v=20260913.2"></script>
+<script src="js/lightingByRoom.js?v=20260916.1"></script>
 <script src="js/postfit.js?v=20260916.4"></script>
 <script src="js/posts.js?v=20260916.3"></script>
 <script src="js/picker.js?v=20260801.1"></script>
@@ -555,6 +555,6 @@
 <!-- Чистый модуль (ни DOM, ни state): шаги мастера отделки и счётчики «сколько за вариантом» через
      переданный отбор каталога. Грузится до app.js, который подставляет ему EPCatalog и рисует. -->
 <script src="js/framePicker.js?v=20260915.1"></script>
-<script src="js/app.js?v=20260916.2"></script>
+<script src="js/app.js?v=20260916.3"></script>
 </body>
 </html>

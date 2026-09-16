@@ -441,10 +441,11 @@ test("пробел ПРОЕКТА в обвязку не идёт — та же 
      ниже — та же сборка, что делает оркестратор в app.js (buildPostSheet), чтобы правило нельзя
      было поменять с одной стороны.
      (Раньше примером пробела проекта тут был NO_GROUP; он исчез — клавиша без имени группы теперь
-     самостоятельный выключатель, а не пробел, — поэтому берём схемный пробел SCHEME_NOT_READY.) */
+     самостоятельный выключатель, а не пробел, — поэтому берём проходной пробел CROSS_LONELY:
+     незаконченная проходная это недозаполненный замысел, а не деталь поставки.) */
   const rows = [
-    lightRow({ keyIndex: 0, missing: true, code: null, missingReason: LG.GAPS.SCHEME_NOT_READY,
-      missingText: LG.GAP_TEXTS[LG.GAPS.SCHEME_NOT_READY] }),
+    lightRow({ keyIndex: 0, missing: true, code: null, missingReason: LG.GAPS.CROSS_LONELY,
+      missingText: LG.GAP_TEXTS[LG.GAPS.CROSS_LONELY] }),
     lightRow({ keyIndex: 1, moduleLabel: "2", missing: true, code: null,
       missingReason: LG.GAPS.NOT_IN_SERIES, missingText: LG.GAP_TEXTS[LG.GAPS.NOT_IN_SERIES] })
   ];
@@ -452,7 +453,7 @@ test("пробел ПРОЕКТА в обвязку не идёт — та же 
   const fittings = buildFittings(comp, box, forFittings);
   assert.deepEqual(fittings.map(f => f.code), [null, "S1", "B1", "F1"], "в обвязке один пробел, а не два");
   assert.match(fittings[0].role, /модуль 2/, "и это тот, что про поставку");
-  assert.ok(!/Звонковые кнопки/.test(fittings.map(f => f.name).join(" ")), "пробел проекта в обвязку не попал");
+  assert.ok(!/проходн/i.test(fittings.map(f => f.name).join(" ")), "пробел проекта в обвязку не попал");
 });
 
 test("вызов без третьего аргумента даёт прежнюю обвязку байт в байт", () => {

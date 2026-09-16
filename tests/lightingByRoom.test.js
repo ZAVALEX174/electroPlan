@@ -121,10 +121,17 @@ test("без своих схем и без раскроя по комнатам 
   assert.deepEqual(merged.totals, single.totals);
 });
 
-test("пустой проект — план по схеме проекта, пробел схемы сохраняется", () => {
-  const plan = planByRoomsFor([], [], "bell");   /* bell не поддержана — пробел на пустом проекте */
+test("пустой проект bell — план по схеме проекта, БЕЗ пробела схемы (bell поддержана)", () => {
+  const plan = planByRoomsFor([], [], "bell");
   assert.equal(plan.scheme, "bell");
-  assert.ok(plan.gaps.some(g => g.kind === "scheme-not-implemented"));
+  assert.equal(plan.supported, true);
+  assert.ok(!plan.gaps.some(g => g.kind === "scheme-not-implemented"), "«расчёт недоступен» больше нет");
+});
+
+test("пустой проект НЕРАСПОЗНАННОЙ схемы — пробел схемы на пустом проекте сохраняется", () => {
+  /* Пустой проект по-прежнему отдаёт причину, когда схема без правил: тут — битый идентификатор. */
+  const plan = planByRoomsFor([], [], "нет-такой");
+  assert.ok(plan.gaps.some(g => g.kind === "scheme-unknown"));
 });
 
 /* ── детерминизм ────────────────────────────────────────────────────────────────────── */
@@ -265,24 +272,39 @@ test("undefined в списке мест не роняет расчёт — че
   assert.ok(plan.gaps.some(g => g.kind === "series-unknown"), "битое место — честный пробел (нет серии)");
 });
 
-/* ── supported при смешанных схемах (одна bell-комната не должна лгать про весь проект) ── */
+/* ── смешанный проект: classic + relay + bell по комнатам ── */
 
-test("одна bell-комната не делает supported:false всему проекту", () => {
-  const rooms = [{ id: "A", lightingScheme: "classic" }, { id: "B", lightingScheme: "bell" }];
-  const posts = [post("a", "A", "Свет"), post("b", "B", "Свет")];
+test("смешанный проект (classic + relay + bell): реле считаются ТОЛЬКО у relay-комнаты", () => {
+  /* Ключевая проверка правила «считать ли реле — решает одно место». Три комнаты по своей схеме:
+     classic → выключатель, relay → кнопка + реле, bell → кнопка БЕЗ реле. Реле в проекте ровно
+     одно (от relay-комнаты); bell-комната даёт кнопку, но реле не добавляет. */
+  const rooms = [
+    { id: "A", lightingScheme: "classic" },
+    { id: "B", lightingScheme: "relay" },
+    { id: "C", lightingScheme: "bell" }
+  ];
+  const posts = [post("a", "A", "Свет"), post("b", "B", "Свет"), post("c", "C", "Свет")];
   const plan = planByRoomsFor(posts, rooms, "classic");
-  assert.equal(plan.supported, true, "classic-часть посчитана — план поддержан, totals непусты");
-  assert.ok(plan.totals.switch >= 1, "механизм classic-комнаты в totals — supported=false лгал бы");
-  assert.ok(plan.gaps.some(g => g.kind === "scheme-not-implemented"), "bell-часть не потеряна — её пробел на месте");
+  const at = byAddress(plan);
+  assert.equal(at.get("a#0").role, "switch", "classic-комната — выключатель");
+  assert.equal(at.get("b#0").role, "button", "relay-комната — кнопка");
+  assert.equal(at.get("c#0").role, "button", "bell-комната — тоже кнопка");
+  assert.equal(plan.relayTotal, 1, "реле только у relay-комнаты, bell реле не добавляет");
+  assert.equal(plan.relays.length, 1, "секция реле одна — от relay-комнаты");
+  assert.equal(plan.relays[0].count, 1, "одно реле на группу relay-комнаты");
+  assert.ok(!plan.gaps.some(g => g.kind === "scheme-not-implemented"), "все три схемы поддержаны");
+  assert.equal(plan.supported, true);
 });
 
-test("проект целиком из bell-комнат — supported:false и totals пусты (это правда)", () => {
-  const rooms = [{ id: "A", lightingScheme: "bell" }, { id: "B", lightingScheme: "bell" }];
-  const posts = [post("a", "A", "Свет"), post("b", "B", "Свет")];
-  const plan = planByRoomsFor(posts, rooms, "classic");
-  assert.equal(plan.supported, false, "ни одна партиция не поддержана");
-  assert.equal(Object.keys(plan.totals).reduce((s, k) => s + plan.totals[k], 0), 0,
-    "механизмов нет — supported=false не лжёт");
+test("переключение проекта bell ↔ relay меняет ТОЛЬКО реле, кнопки те же", () => {
+  const posts = [post("p1", null, "Холл"), post("p2", null, "Холл")];
+  const bell = planByRoomsFor(posts, [], "bell");
+  const relay = planByRoomsFor(posts, [], "relay");
+  assert.deepEqual(bell.places.map(p => p && p.role), relay.places.map(p => p && p.role), "роли-кнопки те же");
+  assert.deepEqual(bell.totals, relay.totals, "итоги по кнопкам те же");
+  assert.equal(relay.relayTotal, 1, "у relay реле есть…");
+  assert.equal(bell.relayTotal, 0, "…у bell — нет");
+  assert.deepEqual(bell.relays, []);
 });
 
 /* ── порядок партиций: как в листе монтажника — комнаты по state.rooms, «без комнаты» ПОСЛЕДНЕЙ ── */

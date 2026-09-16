@@ -892,41 +892,105 @@ test("реле: раскладка и счёт реле тоже не завис
   });
 });
 
-/* ─────────────────── звонковые кнопки и битая схема ─────────────────── */
+/* ─────────────────── звонковые кнопки ─────────────────── */
 
-test("звонковые кнопки: расчёта нет, правила не выдуманы", () => {
+test("звонковые кнопки: кнопка на каждом месте (как реле), но импульсные реле НЕ считаются", () => {
+  /* Слова заказчика (письмо 16.09 §2): «Как с реле, считаем кнопки, но сами реле не считаем».
+     То есть звонковые кнопки — это «реле без реле»: те же кнопки на местах, но ни секции реле,
+     ни пробела про артикул реле в документах нет вовсе. */
   const res = plan({ scheme: "bell", places: [place(1, "Кухня"), place(2, "Кухня")] }, deps);
-  assert.equal(res.supported, false);
+  assert.equal(res.supported, true, "схема описана — расчёт доступен");
   assert.equal(res.schemeLabel, "Звонковые кнопки");
-  assert.deepEqual(codes(res), [null, null]);
-  assert.deepEqual(roles(res), [null, null]);
-  assert.equal(res.places[0].missingReason, GAPS.SCHEME_NOT_READY);
+  assert.deepEqual(codes(res), ["20008.0", "20008.0"], "на каждом месте кнопка ХХ008.0");
+  assert.deepEqual(roles(res), [ROLES.BUTTON, ROLES.BUTTON]);
+  assert.deepEqual(res.totals, { switch: 0, changeover: 0, inverter: 0, button: 2 });
+  assert.deepEqual(res.relays, [], "реле не считаются — секции нет");
   assert.equal(res.relayTotal, 0);
-  assert.ok(res.gaps.some(g => g.kind === GAPS.SCHEME_NOT_READY));
-  /* Реестр групп при этом собирается — интерфейсу есть что показать. */
+  assert.ok(!res.gaps.some(g => g.kind === GAPS.RELAY_ARTICLE), "и пробела про артикул реле тоже нет");
+  assert.ok(!res.gaps.some(g => g.kind === GAPS.SCHEME_NOT_READY), "«расчёт недоступен» больше не ставится");
   assert.equal(res.groups[0].placeCount, 2);
 });
 
-test("нераспознанная схема ведёт себя как неописанная, но текст пробела — СВОЙ, не про звонки", () => {
-  /* Один текст на оба случая врал бы пользователю: «схема не описана заказчиком, вопрос отправлен»
-     там, где на самом деле в проект попал битый идентификатор схемы. */
-  const res = plan({ scheme: "чего-то новое", places: [place(1, "Кухня")] }, deps);
-  assert.equal(res.supported, false);
-  assert.equal(res.places[0].code, null);
-  assert.equal(res.places[0].missingReason, GAPS.SCHEME_UNKNOWN);
-  const gap = res.gaps.find(g => g.kind === GAPS.SCHEME_UNKNOWN);
-  assert.ok(gap && gap.text.length > 0);
-  assert.ok(!/звонков/i.test(gap.text), "текст пробела не должен быть про звонковые кнопки");
-  assert.ok(!res.gaps.some(g => g.kind === GAPS.SCHEME_NOT_READY));
-  const bell = plan({ scheme: "bell", places: [place(1, "Кухня")] }, deps);
-  assert.match(bell.gaps.find(g => g.kind === GAPS.SCHEME_NOT_READY).text, /Звонковые кнопки/);
+test("звонковые кнопки и реле дают ОДИНАКОВЫЕ кнопки — различие только в реле", () => {
+  /* Единственное различие схем — считаются ли реле (schemeCountsRelays). Кнопки, роли, итоги по
+     кнопкам и подобранные механизмы у bell и relay совпадают побайтово; расходятся только relays. */
+  const places = [place(1, "Холл"), place(2, "Холл"), place(3, "Кухня")];
+  const relay = plan({ scheme: "relay", places }, deps);
+  const bell = plan({ scheme: "bell", places }, deps);
+  assert.deepEqual(codes(bell), codes(relay));
+  assert.deepEqual(roles(bell), roles(relay));
+  assert.deepEqual(bell.totals, relay.totals);
+  assert.equal(relay.relayTotal, 2, "у реле — два реле…");
+  assert.equal(bell.relayTotal, 0, "…у звонковых кнопок — ни одного");
+  assert.deepEqual(bell.relays, []);
+  assert.ok(LG.schemeCountsRelays("relay") && !LG.schemeCountsRelays("bell"),
+    "решение «считать ли реле» живёт в одном месте — schemeCountsRelays");
 });
 
-test("пробел схемы — один на проект, а не по одному на клавишу", () => {
-  const res = plan({ scheme: "bell", places: [place(1, "Кухня"), place(2, "Холл"), place(3, "")] }, deps);
-  const scheme = res.gaps.filter(g => g.kind === GAPS.SCHEME_NOT_READY);
-  assert.equal(scheme.length, 1);
+test("звонковые кнопки: ручное переопределение механизма НЕ действует — как у реле", () => {
+  /* Вариант C (roleOverride) действует только в классической схеме: в «Реле» и «Звонковых
+     кнопках» механизм места всегда кнопка, переопределять нечего. Проверяем, что переключатель,
+     выставленный руками, в bell игнорируется ровно так же, как в relay. */
+  const withOverride = g => ({ postId: "p1", postNumber: 1, keyIndex: 0, series: EIKON, group: g, roleOverride: "changeover" });
+  const relay = plan({ scheme: "relay", places: [withOverride("Кухня")] }, deps);
+  const bell = plan({ scheme: "bell", places: [withOverride("Кухня")] }, deps);
+  assert.equal(relay.places[0].role, ROLES.BUTTON, "у реле рука не переопределяет кнопку");
+  assert.equal(bell.places[0].role, ROLES.BUTTON, "у звонковых кнопок — так же");
+  assert.equal(bell.places[0].code, "20008.0");
+});
+
+test("звонковые кнопки: незаконченная проходная предупреждает — как у реле", () => {
+  /* Проходные проверки (нет пары у номера) стоят ДО подбора роли и от схемы не зависят: bell
+     ведёт себя как relay. Один crossNo на один пост в проекте — второго места нет. */
+  const lone = { postId: "p1", postNumber: 1, keyIndex: 0, series: EIKON, group: "Свет", crossNo: "7" };
+  const relay = plan({ scheme: "relay", places: [lone] }, deps);
+  const bell = plan({ scheme: "bell", places: [lone] }, deps);
+  assert.equal(relay.places[0].missingReason, GAPS.CROSS_LONELY);
+  assert.equal(bell.places[0].missingReason, GAPS.CROSS_LONELY, "у bell — тот же пробел, что у relay");
+});
+
+test("звонковые кнопки: дубль проходного номера в одном посту — ошибка, как у реле", () => {
+  const dup = i => ({ postId: "p1", postNumber: 1, keyIndex: i, series: EIKON, group: "Свет", crossNo: "7" });
+  const relay = plan({ scheme: "relay", places: [dup(0), dup(1)] }, deps);
+  const bell = plan({ scheme: "bell", places: [dup(0), dup(1)] }, deps);
+  assert.ok(relay.places.every(p => p.missingReason === GAPS.CROSS_DUP_IN_POST));
+  assert.ok(bell.places.every(p => p.missingReason === GAPS.CROSS_DUP_IN_POST), "bell = relay");
+});
+
+test("звонковые кнопки: раскладка кнопок не зависит от порядка входа", () => {
+  const base = plan({ scheme: "bell", places: MIXED }, deps);
+  Object.entries(PERMUTATIONS).forEach(([name, permute]) => {
+    assert.deepEqual(fingerprint(plan({ scheme: "bell", places: permute(MIXED) }, deps)),
+      fingerprint(base), "перестановка: " + name);
+  });
+});
+
+test("схема «Звонковые кнопки» нигде не помечена «расчёт недоступен»", () => {
+  /* Мутация (г): если bell снова станет supported:false или в подпись вернётся «недоступен» —
+     этот тест краснеет. Проверяем и метаданные списка схем, и что реле у bell не считаются. */
+  const bell = LG.SCHEMES.find(s => s.id === "bell");
+  assert.ok(bell, "схема есть в списке");
+  assert.equal(bell.supported, true, "supported=true — суффикс « — расчёт недоступен» не добавится");
+  assert.equal(bell.countsRelays, false, "реле не считаются");
+  assert.ok(!/недоступ|не описан/i.test(bell.note), "пояснение — словами заказчика, без «недоступен»");
+  assert.ok(!/Звонковые кнопки/.test(LG.GAP_TEXTS[GAPS.SCHEME_NOT_READY]),
+    "текст пробела схемы больше не называет звонковые кнопки");
+});
+
+/* ─────────────────── нераспознанная схема ─────────────────── */
+
+test("нераспознанная схема: расчёта нет, свой текст пробела, один пробел на проект", () => {
+  /* Битый идентификатор схемы (не одна из штатных) — расчёта нет, пробел SCHEME_UNKNOWN, и он один
+     на проект, а не по одному на клавишу. Текст — свой, не про звонковые кнопки. */
+  const res = plan({ scheme: "чего-то новое", places: [place(1, "Кухня"), place(2, "Холл"), place(3, "")] }, deps);
+  assert.equal(res.supported, false);
+  assert.deepEqual(codes(res), [null, null, null]);
+  assert.equal(res.places[0].missingReason, GAPS.SCHEME_UNKNOWN);
+  const scheme = res.gaps.filter(g => g.kind === GAPS.SCHEME_UNKNOWN);
+  assert.equal(scheme.length, 1, "один пробел на проект");
   assert.deepEqual(scheme[0].places, [0, 1, 2]);
+  assert.ok(scheme[0].text.length > 0);
+  assert.ok(!/звонков/i.test(scheme[0].text), "текст пробела не про звонковые кнопки");
 });
 
 /* ─────────────────── пробелы каталога ─────────────────── */

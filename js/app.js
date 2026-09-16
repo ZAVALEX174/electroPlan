@@ -1556,8 +1556,8 @@ function renderProperties(){
       :`Задайте масштаб плана, чтобы получить м². Сейчас контур: ${Math.round(polygonAreaPx(r.polygon)).toLocaleString("ru-RU")} px²`;
     /* Схема электрики комнаты. ⚠️ ОТСУТСТВИЕ r.lightingScheme — это «как в проекте», а не «своя»
        (EPRoom.roomLightingScheme): ownScheme различает наличие собственной валидной схемы у
-       комнаты, curScheme — фактически действующую (свою либо проектную). Названия и пометку
-       «расчёт недоступен» берём из единого списка EPLightingGroups.SCHEMES — второй копии нет.
+       комнаты, curScheme — фактически действующую (свою либо проектную). Названия и пояснение
+       (note) схемы берём из единого списка EPLightingGroups.SCHEMES — второй копии нет.
        В отличие от типа стены поста, у комнаты есть ЯВНЫЙ возврат к наследованию — пункт «Как в
        проекте»: он снимает поле (см. обработчик), а не пишет в него значение проекта. */
     const projScheme=lightingScheme();
@@ -1628,7 +1628,7 @@ function renderProperties(){
     <div class="property-save-state" id="roomSaveState">Сохраняется автоматически при выходе из поля</div>
     <label class="room-scheme-field">Схема электрики<select id="roomSchemeSelect">${schemeOptions}</select></label>
     <small class="prop-hint prop-scheme-source${ownScheme?" own":""}">${ownScheme?"Своя схема комнаты":`Унаследована от проекта: ${esc(projSchemeItem?projSchemeItem.label:projScheme)}`}</small>
-    ${curSchemeItem&&!curSchemeItem.supported?`<small class="prop-hint prop-scheme-note">${esc(curSchemeItem.note)}</small>`:""}
+    ${curSchemeItem&&curSchemeItem.note?`<small class="prop-hint prop-scheme-note">${esc(curSchemeItem.note)}</small>`:""}
     ${facingBlockHtml}`;
     mountedRoomId=r.id;   /* этим полям принадлежит комната r — flushRoomDraft коммитит именно в неё */
     /* Владелец подтвердил автосохранение 03.09: кнопки «Сохранить изменения» больше нет.
@@ -1975,9 +1975,11 @@ function renderSummary(){
   updateStatus();
 }
 
-/* Селектор схемы электрики: список строится ИЗ EPLightingGroups.SCHEMES, включая
-   нереализованную «Звонковые кнопки» с её собственной пометкой. Второй копии названий и
-   пояснений у интерфейса нет намеренно — она разошлась бы с расчётом.
+/* Селектор схемы электрики: список строится ИЗ EPLightingGroups.SCHEMES, включая «Звонковые
+   кнопки» с их пояснением (кнопка на каждом месте, как в «Реле», но реле не считаются). Второй
+   копии названий и пояснений у интерфейса нет намеренно — она разошлась бы с расчётом. Суффикс
+   « — расчёт недоступен» остаётся под возможную будущую схему с supported=false; у всех трёх
+   штатных схем он не показывается.
    ⚠️ ОРГАН УПРАВЛЕНИЯ РОВНО ОДИН — в панели проекта. Схема электрики (как и тип стены) —
    настройка ВСЕГО проекта: её смена пересобирает механизмы групп света во всех постах разом.
    Раньше в конструкторе поста стоял ВТОРОЙ, полноценный select, писавший ту же настройку: человек

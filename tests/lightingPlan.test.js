@@ -290,13 +290,18 @@ test("схема «Реле»: кнопки на местах и реле БЕЗ
   assert.ok(plan.gaps.some(g => g.kind === LG.GAPS.RELAY_ARTICLE));
 });
 
-test("«Звонковые кнопки»: расчёта нет и правил никто не выдумывает", () => {
-  const posts = [{ id: "p1", number: 1, mechanismIds: [1], keyGroups: ["Кухня"] }];
-  const { plan } = planOf(posts, "bell");
-  assert.equal(plan.supported, false);
-  assert.equal(plan.places[0].missingReason, LG.GAPS.SCHEME_NOT_READY);
-  assert.equal(plan.totals.switch, 0);
-  assert.ok(plan.gaps.some(g => g.kind === LG.GAPS.SCHEME_NOT_READY));
+test("«Звонковые кнопки»: те же кнопки, что у «Реле», но реле НЕ считаются (реле без реле)", () => {
+  const posts = [{ id: "p1", number: 1, mechanismIds: [4, 4], keyGroups: ["Холл", "Холл"] }];
+  const relay = planOf(posts, "relay").plan;
+  const { plan, rows } = planOf(posts, "bell");
+  assert.equal(plan.supported, true);
+  assert.deepEqual(rows.get("p:p1").map(r => r.code), ["09008.0.250", "09008.0.250"], "кнопки на местах");
+  assert.deepEqual(plan.totals, relay.totals, "итоги по кнопкам совпадают с «Реле»");
+  assert.equal(relay.relayTotal, 1, "у «Реле» одно реле…");
+  assert.equal(plan.relayTotal, 0, "…у «Звонковых кнопок» — ни одного");
+  assert.deepEqual(plan.relays, []);
+  assert.ok(!plan.gaps.some(g => g.kind === LG.GAPS.RELAY_ARTICLE), "пробела про артикул реле нет");
+  assert.ok(!plan.gaps.some(g => g.kind === LG.GAPS.SCHEME_NOT_READY), "«расчёт недоступен» больше не ставится");
 });
 
 /* ── печатный блок ────────────────────────────────────────────────────────────────── */
@@ -322,6 +327,18 @@ test("блок печатает реле числом и честно говор
   const html = LP.buildHtml(plan, { esc, money });
   assert.ok(html.includes("Импульсное реле"));
   assert.ok(html.includes("артикул не определён"));
+});
+
+test("ДОКУМЕНТ «Звонковые кнопки»: кнопки есть, строки реле в блоке НЕТ", () => {
+  /* Проверка идёт до печатного блока, а не только до чистой функции: у звонковых кнопок в
+     «Группах света» стоит кнопка на каждом месте, а секции «Импульсное реле» нет вовсе. */
+  const posts = [{ id: "p1", number: 1, mechanismIds: [4, 4], keyGroups: ["Холл", "Холл"] }];
+  const { plan } = planOf(posts, "bell");
+  const html = LP.buildHtml(plan, { esc, money });
+  assert.ok(html.includes("Звонковые кнопки"), "схема названа в шапке блока");
+  assert.ok(html.includes("Кнопка"), "кнопки в блоке есть");
+  assert.ok(!html.includes("Импульсное реле"), "строки реле в документе нет");
+  assert.ok(!/недоступ/i.test(html), "и никакого «расчёт недоступен»");
 });
 
 test("проекту без единой группы и без пробелов блок не нужен вовсе", () => {
