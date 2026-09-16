@@ -547,15 +547,22 @@ function templateFitsRoomColor(template, roomColor, deps) {
 
 /* Подбор накладки СЕРИИ КОМНАТЫ той же модульности, что у шаблона (замена при размещении, п.5). pool —
    УЖЕ суженный под комнату список накладок (EPCatalog.productsForRoom по серии+отделке комнаты, тот же
-   collectionFramePool): цвет и серию задаёт он, здесь остаётся выбрать РАЗМЕР. Модульность шаблона —
-   frameSlotCount его накладки; берём первую накладку пула той же модульности. Нет такой (или размер
-   шаблона неизвестен — битая накладка) → null: пост НЕ ставим с чужой накладкой, вызывающий объяснит
-   человеку. deps = { frameProduct(id), frameSlotCount(item) }. */
+   collectionFramePool): цвет и серию задаёт он, здесь остаётся выбрать РАЗМЕР и проверить, что в накладку
+   ВСТАЮТ клавиши шаблона. Модульность шаблона — frameSlotCount его накладки; берём первую накладку пула
+   той же модульности, В КОТОРУЮ по правилу конструктора встают ВСЕ механизмы шаблона (frameFitsMechs).
+   Одной модульности мало: у комнаты той же серии клавиши совместимы, но у комнаты ДРУГОЙ серии (или у
+   комнаты, заданной лишь цветом, где пул — накладки любой серии этого цвета) чужая накладка приняла бы
+   клавиши по размеру, а конструктор выкинул бы их по серии — вышел бы несобираемый пост «Занято 0 из N».
+   Нет подходящей (в пуле нет накладки нужного размера с совместимыми клавишами, или размер шаблона
+   неизвестен — битая накладка) → null: пост НЕ ставим с чужой накладкой, вызывающий объяснит человеку.
+   deps = { frameProduct(id), frameSlotCount(item), frameFitsMechs(frame)->bool }. frameFitsMechs НЕ задан
+   (старый вызов без клавиш) → размер решает один, прежнее поведение. */
 function pickRoomFrame(templateFrameId, pool, deps) {
   const frameProduct = deps.frameProduct, frameSlotCount = deps.frameSlotCount;
+  const fitsMechs = deps.frameFitsMechs || (() => true);
   const wanted = frameSlotCount(frameProduct(templateFrameId));
   if (!(wanted > 0)) return null;
-  return (pool || []).find(f => frameSlotCount(f) === wanted) || null;
+  return (pool || []).find(f => frameSlotCount(f) === wanted && fitsMechs(f)) || null;
 }
 
 /* Отбирает из ids столько механизмов (по порядку), сколько влезает в capacity

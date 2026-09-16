@@ -2379,18 +2379,52 @@ function frameForRoomPlacement(template,room){
   const constrained=criteria.collection||criteria.frameMaterial||criteria.frameShape||criteria.frameColor;
   if(!constrained)return {frameId:null};
   const pool=EPCatalog.productsForRoom(byKind("frame"),criteria);
-  const frame=EPPosts.pickRoomFrame(template.frameId,pool,{frameProduct,frameSlotCount});
+  const frame=EPPosts.pickRoomFrame(template.frameId,pool,{frameProduct,frameSlotCount,frameFitsMechs:frameFitsTemplateMechs(template)});
   return frame?{frameId:frame.id}:{blocked:true,message:frameSwapEmptyText(template,room,criteria)};
 }
-/* ОДНА формулировка «в серию комнаты накладки нужной модульности нет» при размещении готового поста
-   (п.5). Параллельна frameFacingEmptyText/innardsEmptyText: называем комнату, что сузило выбор
-   (frameFacingSelectionLabels — серия+отделка, тот же источник, что у хинта и мастера) и модульность,
-   которой не хватило. Модульность берём у накладки шаблона (frameSlotCount); неизвестна (битая
-   накладка) → moduleWord честно скажет «— модулей». */
+/* Предикат «в накладку-кандидата встают ВСЕ клавиши шаблона» — ПРАВИЛОМ КОНСТРУКТОРА
+   (EPCatalog.compatibleMechanisms, совместимость по серии), а НЕ своим сравнением серий (§7.1): именно
+   этот набор конструктор строит в renderBuilder (mechs=compatibleMechanisms(selectedFrame,allMechanisms))
+   и по нему же окно поста показывало «Занято 0 из 3», когда серия клавиш и накладки разошлись. Кандидат
+   годится, только если КАЖДЫЙ механизм шаблона попал в совместимый набор этой накладки.
+   Механизмы шаблона резолвим через product() (active НЕ фильтрует) и добавляем в пул сравнения — снятую
+   с производства клавишу судим по серии (как keepMechs в конструкторе), а не выкидываем за отсутствие в
+   активном каталоге. Пропавший из прайса артикул (product=null) серии не имеет — проверить нечем, на нём
+   подмену не блокируем (его слот и так станет явным пробелом в конструкторе). Клавиш нет вовсе → накладке
+   всё равно, любая подходит по размеру. */
+function frameFitsTemplateMechs(template){
+  const items=(Array.isArray(template.mechanismIds)?template.mechanismIds:[]).map(id=>product(id)).filter(Boolean);
+  if(!items.length)return ()=>true;
+  const pool=byKind("mechanism").concat(items);
+  return frame=>{const compatible=compatibleMechanisms(frame,pool);return items.every(item=>compatible.includes(item));};
+}
+/* ОДНА формулировка «под комнату накладки, в которую встают клавиши поста, нет» при размещении готового
+   поста (п.5). Параллельна frameFacingEmptyText/innardsEmptyText: называем комнату, что сузило выбор
+   (frameFacingSelectionLabels — серия+отделка, тот же источник, что у хинта и мастера), модульность,
+   которой не хватило, И СЕРИЮ КЛАВИШ ПОСТА. Обе причины блокировки — нет накладки нужной модульности
+   в серии/цвете комнаты ИЛИ накладки есть, но клавиши поста в них не встают по серии (правило
+   конструктора) — сводятся к одному честному тексту: под комнату не нашлось накладки на N модулей, в
+   которую встают клавиши этого поста. Так владелец видит ОБЕ серии — комнаты (в list) и клавиш поста —
+   и понимает, почему готовый пост чужой серии сюда не встал. Модульность берём у накладки шаблона
+   (frameSlotCount); неизвестна (битая накладка) → moduleWord честно скажет «— модулей». Серии клавиш
+   нет (пустой пост / пропавшие артикулы) → упоминание клавиш опускаем. */
 function frameSwapEmptyText(template,room,criteria){
   const mods=frameSlotCount(frameProduct(template.frameId));
   const list=frameFacingSelectionLabels(criteria).join(", ");
-  return `В серию комнаты «${room.name}» (${list}) накладки на ${moduleWord(mods)} в каталоге нет — готовый пост не размещён. Соберите пост для этой комнаты или добавьте подходящую накладку.`;
+  const mechSeries=templateMechSeries(template);
+  const keys=mechSeries?`, в которую встают клавиши этого поста (серия «${mechSeries}»),`:"";
+  return `Для комнаты «${room.name}» (${list}) не нашлось накладки на ${moduleWord(mods)}${keys} — готовый пост не размещён. Соберите пост для этой комнаты или добавьте подходящую накладку.`;
+}
+/* Серии клавиш (механизмов) шаблона — через тот же productSeries, что и у накладок (§7.1, не своя
+   разборка поля series). Резолвим id через product() (active не фильтрует — снятая клавиша серию несёт),
+   собираем различные серии. Нужно тексту блокировки, чтобы назвать «серию клавиш поста». Пустой пост /
+   пропавшие артикулы → пустая строка. */
+function templateMechSeries(template){
+  const set=new Set();
+  (Array.isArray(template.mechanismIds)?template.mechanismIds:[]).forEach(id=>{
+    const item=product(id);if(item)productSeries(item).forEach(s=>set.add(s));
+  });
+  return [...set].join(", ");
 }
 /* Текст хинта «сколько накладок показано из скольких и ЧТО сузило выбор» (E14, п.5–6). Считается ОТ
    ТОГО ЖЕ критерия и того же productsForRoom, что фильтрует renderBuilder, — второго правила отбора

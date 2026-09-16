@@ -76,6 +76,26 @@ test("pickRoomFrame: из пула серии комнаты берём накл
   assert.equal(EPPosts.pickRoomFrame(999, [FB2, FB3], deps), null, "модульность шаблона неизвестна → null");
 });
 
+test("pickRoomFrame: при совпадении модульности отвергает накладку, куда клавиши НЕ встают (правило конструктора)", () => {
+  /* Клавиша серии B, две 2-модульные накладки одного цвета: FB2 (серия B — принимает) и FX2 (серия X —
+     не принимает). У FX2 серия X НЕ пустая по совместимости (в пуле есть клавиша MX серии X), поэтому
+     compatibleMechanisms не срывается в фолбэк «показать всё» и честно отвергает клавишу B. Это тот же
+     набор, что строит конструктор (compatibleMechanisms(frame, allMechs)) — не своя копия сравнения. */
+  const FX2 = { id: 400, kind: "frame", active: true, series: ["X"], frameColor: "Белая", slotCount: 2, code: "X2", name: "X рамка белая 2М" };
+  const MB = { id: 500, kind: "mechanism", active: true, series: ["B"], moduleSpan: 1, code: "MB", name: "клавиша серии B" };
+  const MX = { id: 501, kind: "mechanism", active: true, series: ["X"], moduleSpan: 1, code: "MX", name: "клавиша серии X" };
+  const allMechs = [MB, MX];
+  const lookup = id => [FB2, FB3, FX2, MB, MX].find(p => p.id === id) || product(id);
+  const fitsMB = frame => { const c = EPCatalog.compatibleMechanisms(frame, allMechs.concat([MB])); return c.includes(MB); };
+  const deps = { frameProduct: lookup, frameSlotCount: EPCatalog.frameSlotCount, frameFitsMechs: fitsMB };
+  assert.equal(EPPosts.pickRoomFrame(FB2.id, [FX2, FB2], deps), FB2,
+    "пул ставит несовместимую FX2 первой, но клавиша серии B в неё не встаёт → берём FB2; мутация «убрать && fitsMechs(f)» вернула бы FX2");
+  assert.equal(EPPosts.pickRoomFrame(FB2.id, [FX2], deps), null,
+    "в пуле только несовместимая по серии накладка → null: пост не поставим с несобираемым составом");
+  assert.equal(EPPosts.pickRoomFrame(FB2.id, [FX2, FB2], { frameProduct: lookup, frameSlotCount: EPCatalog.frameSlotCount }),
+    FX2, "контроль: без frameFitsMechs (старый вызов) решает только размер — берётся первая 2М (FX2)");
+});
+
 /* ============================ 2. СПИСОК: renderTemplates ============================ */
 
 function renderLibrary(selected) {
@@ -126,15 +146,18 @@ test("renderTemplates: белая комната, а белых постов н�
 /* ============================ 3. ПОСТАНОВКА: addPending ============================ */
 
 const SWAP_CUT = ["frameCollectionList", "frameFacingList", "frameFacingLabels", "frameFacingSelectionLabels",
-  "frameSwapEmptyText", "roomCatalogFilter", "frameForRoomPlacement", "addPending"];
+  "templateMechSeries", "frameSwapEmptyText", "roomCatalogFilter", "frameFitsTemplateMechs", "frameForRoomPlacement", "addPending"];
 
-function placeTemplate({ template, room, catalog = EPCatalog }) {
-  const state = { pending: { type: "post", templateId: template.id }, posts: [], devices: [], templates: [template], rooms: room ? [room] : [], products: PRODUCTS };
+function placeTemplate({ template, room, catalog = EPCatalog, products = PRODUCTS }) {
+  const prod = id => products.find(p => Number(p.id) === Number(id));
+  const byKindL = kind => products.filter(p => p.kind === kind && p.active);
+  const state = { pending: { type: "post", templateId: template.id }, posts: [], devices: [], templates: [template], rooms: room ? [room] : [], products };
   const toasts = [];
   const ctx = {
     state,
     EPCatalog: catalog, EPRoom, EPPosts,
-    byKind, frameProduct: product, product,
+    byKind: byKindL, frameProduct: prod, product: prod, compatibleMechanisms: EPCatalog.compatibleMechanisms,
+    productSeries: EPCatalog.productSeries,
     frameSlotCount: EPCatalog.frameSlotCount, moduleWord: EPCatalog.moduleWord,
     markCanvasUsed: () => {}, uid: p => p + "GEN",
     getRoomForPoint: () => room || null,   /* центр поста ложится в эту комнату */
@@ -299,4 +322,126 @@ test("★ СВЯЗКА (до ранних return): снятие выделени
   const emptyView = renderPropsLibrary(state, dom);
   assert.match(emptyView, /Пост белый/, "выделение снято → показываем ВСЁ (перенос renderTemplates() ПОСЛЕ раннего return краснит здесь)");
   assert.match(emptyView, /Пост чёрный/, "оба поста на месте — фильтр сброшен");
+});
+
+/* ============ 7. СОВМЕСТИМОСТЬ КЛАВИШ С ПОДМЕНЁННОЙ НАКЛАДКОЙ (ОТДЕЛКА-ПОРЯДОК, доводка 16.09) ======
+   Дефект: пост серии N (клавиши серии N) ставили в комнату серии A → накладка становилась A, клавиши
+   оставались N, и конструктор показывал «Занято 0 из 3» — несобираемый пост в смете. Правка: готовый
+   пост встаёт в комнату СВОЕЙ серии (по правилу конструктора compatibleMechanisms), в чужую — не встаёт
+   с понятным сообщением. Здесь синтетика c контролем серий; ниже (раздел 8) — тот же сценарий на РЕАЛЬНОМ
+   каталоге VIMAR. Серии заданы так, что у каждой накладки есть совместимая клавиша в каталоге → фолбэк
+   compatibleMechanisms «показать всё» не срабатывает и честно судит по серии. */
+const FN3 = { id: 700, kind: "frame", active: true, series: ["N"], frameColor: "Белая", slotCount: 3, price: 10, code: "N3", name: "N рамка белая 3М" };
+const FN3K = { id: 701, kind: "frame", active: true, series: ["N"], frameColor: "Чёрная", slotCount: 3, price: 12, code: "N3K", name: "N рамка чёрная 3М" };
+const FA3 = { id: 710, kind: "frame", active: true, series: ["A"], frameColor: "Белая", slotCount: 3, price: 20, code: "A3", name: "A рамка белая 3М" };
+const MN = { id: 720, kind: "mechanism", active: true, series: ["N"], moduleSpan: 1, price: 5, code: "MN", name: "клавиша N 1М" };
+const MA = { id: 721, kind: "mechanism", active: true, series: ["A"], moduleSpan: 1, price: 5, code: "MA", name: "клавиша A 1М" };
+const COMPAT_PRODUCTS = [FN3, FN3K, FA3, MN, MA];
+const T_N = { id: "tN", name: "Пост N", frameId: FN3.id, frameColor: "Белая", mechanismIds: [MN.id, MN.id, MN.id] };
+const ROOM_A_WHITE = { id: "rAw", name: "Гостиная", collection: "A", frameColor: "Белая" };
+const ROOM_N_BLACK = { id: "rNk", name: "Спальня", collection: "N", frameColor: "Чёрная" };
+const ROOM_ONLY_WHITE = { id: "rOw", name: "Прихожая", frameColor: "Белая" };   /* задан ТОЛЬКО цвет, серии нет */
+
+test("★ пост серии N в комнату серии A (клавиши несовместимы) → пост НЕ поставлен, в сообщении обе серии", () => {
+  const { state, toasts } = placeTemplate({ template: T_N, room: ROOM_A_WHITE, products: COMPAT_PRODUCTS });
+  assert.equal(state.posts.length, 0, "несобираемый пост (клавиши N, накладка A) в проект НЕ добавлен — мутация «при blocked всё же добавить» краснит здесь");
+  const msg = toasts.join(" | ");
+  assert.match(msg, /не размещён/, "человеку сказано, что пост не размещён");
+  assert.match(msg, /«N»/, "названа серия клавиш поста");
+  assert.match(msg, /«A»/, "названа серия комнаты");
+});
+
+test("★ пост серии N в комнату серии N другого цвета → накладка стала FN3K (серия N, 3М, цвет комнаты), клавиши на месте", () => {
+  const { state, toasts } = placeTemplate({ template: T_N, room: ROOM_N_BLACK, products: COMPAT_PRODUCTS });
+  assert.equal(state.posts.length, 1, "пост размещён — серия своя, клавиши совместимы");
+  assert.equal(state.posts[0].frameId, FN3K.id, "накладка сменилась на серию N цвета комнаты той же модульности");
+  assert.deepEqual([...state.posts[0].mechanismIds], [MN.id, MN.id, MN.id], "3 клавиши перенесены как есть");
+  const placed = state.posts[0], frame = COMPAT_PRODUCTS.find(p => p.id === placed.frameId);
+  const compat = EPCatalog.compatibleMechanisms(frame, COMPAT_PRODUCTS.filter(p => p.kind === "mechanism"));
+  assert.ok(placed.mechanismIds.every(id => compat.includes(COMPAT_PRODUCTS.find(p => p.id === id))),
+    "ВСЕ клавиши встают в новую накладку по правилу конструктора (compatibleMechanisms)");
+  assert.ok(toasts.every(m => !/не размещён/.test(m)), "ошибки размещения нет");
+});
+
+test("★ снятая с производства (active:false) клавиша СВОЕЙ серии не даёт ложной блокировки: пост ставится в комнату своей серии", () => {
+  /* Клавиша MND серии N снята с производства (active:false) → byKind('mechanism') её не видит. Судить
+     совместимость ТОЛЬКО по активному каталогу — значит выкинуть её по отсутствию, и пост своей же серии
+     перестанет ставиться (ложная блокировка). frameFitsTemplateMechs добавляет клавиши шаблона в пул
+     сравнения (.concat(items)) — снятую судим ПО СЕРИИ, как keepMechs в конструкторе. Серия N имеет
+     активную клавишу (MN), поэтому фолбэк compatibleMechanisms не срабатывает и сравнение честное. */
+  const MND = { id: 722, kind: "mechanism", active: false, series: ["N"], moduleSpan: 1, price: 5, code: "MND", name: "клавиша N снятая" };
+  const products = COMPAT_PRODUCTS.concat([MND]);
+  const template = { id: "tND", name: "Пост N со снятой клавишей", frameId: FN3.id, frameColor: "Белая", mechanismIds: [MN.id, MND.id, MN.id] };
+  const { state, toasts } = placeTemplate({ template, room: ROOM_N_BLACK, products });
+  assert.equal(state.posts.length, 1, "пост своей серии ставится, несмотря на снятую клавишу — мутация «pool без .concat(items)» краснит здесь ложной блокировкой");
+  assert.equal(state.posts[0].frameId, FN3K.id, "накладка подменена на серию N цвета комнаты той же модульности");
+  assert.deepEqual([...state.posts[0].mechanismIds], [MN.id, MND.id, MN.id], "состав (со снятой клавишей) перенесён как есть");
+  assert.ok(toasts.every(m => !/не размещён/.test(m)), "ложной ошибки размещения нет");
+});
+
+test("★ комната задана ТОЛЬКО цветом (серии нет): подмена берёт накладку СОВМЕСТИМОЙ серии, не первую белую", () => {
+  /* Пул под «только Белая» = FN3 (N) и FA3 (A) — обе 3М белые. Без проверки клавиш подмена могла бы
+     молча взять FA3 (серия A) и снова собрать несобираемый пост. Проверка обязана удержать серию N. */
+  const { state } = placeTemplate({ template: T_N, room: ROOM_ONLY_WHITE, products: COMPAT_PRODUCTS });
+  assert.equal(state.posts.length, 1, "пост размещён — в пуле есть белая накладка совместимой серии (FN3)");
+  assert.equal(state.posts[0].frameId, FN3.id, "взята FN3 (серия N), а НЕ FA3 (серия A): мутация «для ветки только-цвет всегда true» взяла бы несовместимую и краснит здесь");
+});
+
+test("комната только цветом, но совместимой накладки этого цвета нет → пост НЕ поставлен", () => {
+  /* Убираем FN3 из каталога: под «Белая» остаётся только FA3 (серия A), клавиши N в неё не встают. */
+  const products = COMPAT_PRODUCTS.filter(p => p !== FN3);
+  const { state, toasts } = placeTemplate({ template: T_N, room: ROOM_ONLY_WHITE, products });
+  assert.equal(state.posts.length, 0, "совместимой накладки нужного цвета нет → пост не ставим с чужой");
+  assert.match(toasts.join(" | "), /не размещён/, "человеку объяснено");
+});
+
+/* ============ 8. РЕАЛЬНЫЙ КАТАЛОГ VIMAR: тот самый дефектный сценарий (браузерный путь) ============
+   Пост 09673.01 (накладка Neve Up, белая, 3М) + 09001×3 (выключатели Neve Up). Каталог и обогащение —
+   те же файлы и в том же порядке, что index.html (catalog-vimar.js → attrs → data.js), поэтому у товаров
+   реальные series/frameColor/slotCount. Прогоняем НАСТОЯЩИЙ addPending. */
+const fsN = require("node:fs"), pathN = require("node:path"), vmN = require("node:vm");
+function loadRuntimeProducts() {
+  const jsDir = pathN.join(__dirname, "..", "js");
+  const win = {};
+  const context = vmN.createContext({ window: win, structuredClone });
+  for (const file of ["catalog-vimar.js", "catalog-vimar-attrs.js", "data.js"]) {
+    vmN.runInContext(fsN.readFileSync(pathN.join(jsDir, file), "utf8"), context, { filename: file });
+  }
+  return win.DataService.getProducts();
+}
+
+test("★ РЕАЛЬНЫЙ КАТАЛОГ: 09673.01 + 09001×3 → комната Arke/Белая = blocked, обе серии в сообщении; → комната Neve Up другого цвета = подмена+совместимость", async () => {
+  const products = await loadRuntimeProducts();
+  const byCode = code => products.find(p => String(p.code) === code);
+  const frameNU = byCode("09673.01"), mechNU = byCode("09001");
+  assert.ok(frameNU && mechNU, "контрольные артикулы найдены в каталоге");
+  assert.equal(frameNU.slotCount, 3, "накладка на 3 модуля");
+  assert.deepEqual(frameNU.series, ["Neve Up"]);
+  const template = { id: "tNU", name: "Пост Neve Up", frameId: frameNU.id, frameColor: frameNU.frameColor,
+    mechanismIds: [mechNU.id, mechNU.id, mechNU.id] };
+
+  /* --- в комнату Arke/Белая: клавиши Neve Up в накладку Arke по правилу конструктора не встают --- */
+  const roomArke = { id: "rArke", name: "Гостиная", collection: "Arke", frameColor: "Белая" };
+  const blocked = placeTemplate({ template, room: roomArke, products });
+  assert.equal(blocked.state.posts.length, 0, "пост Neve Up НЕ добавлен в комнату Arke (несобираемый состав)");
+  const msg = blocked.toasts.join(" | ");
+  assert.match(msg, /Neve Up/, "в сообщении серия клавиш поста (Neve Up)");
+  assert.match(msg, /Arke/, "в сообщении серия комнаты (Arke)");
+
+  /* --- в комнату Neve Up другого цвета (Слоновая кость), где есть накладка на 3 модуля --- */
+  const frameNUiv = products.find(p => p.kind === "frame" && p.active && (p.series || []).includes("Neve Up")
+    && p.slotCount === 3 && p.frameColor === "Слоновая кость");
+  assert.ok(frameNUiv, "в каталоге есть накладка Neve Up 3М цвета «Слоновая кость»");
+  const roomNU = { id: "rNU", name: "Спальня", collection: "Neve Up", frameColor: "Слоновая кость" };
+  const ok = placeTemplate({ template, room: roomNU, products });
+  assert.equal(ok.state.posts.length, 1, "пост размещён в комнату своей серии другого цвета");
+  const placed = ok.state.posts[0], newFrame = products.find(p => p.id === placed.frameId);
+  assert.notEqual(placed.frameId, frameNU.id, "накладка сменилась (на цвет комнаты)");
+  assert.equal(newFrame.frameColor, "Слоновая кость", "новая накладка — цвета комнаты");
+  assert.deepEqual(newFrame.series, ["Neve Up"], "и своей серии Neve Up");
+  assert.equal(placed.mechanismIds.length, 3, "3 механизма на месте");
+  const activeMechs = products.filter(p => p.kind === "mechanism" && p.active);
+  const compat = EPCatalog.compatibleMechanisms(newFrame, activeMechs);
+  assert.ok(placed.mechanismIds.every(id => compat.includes(products.find(p => p.id === id))),
+    "ВСЕ 3 механизма встают в новую накладку по правилу конструктора (compatibleMechanisms)");
 });
