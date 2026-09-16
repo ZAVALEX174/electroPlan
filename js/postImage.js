@@ -20,11 +20,15 @@
    ФОЛБЭК (нет imageUrl или нет face): ячейка рисуется САМА нарисованной клавишей (moduleKey) —
    тем же кодом, что и раньше; свободный модуль — по-прежнему клавиша-заглушка.
 
-   ПОДЛОЖКА. Если у накладки есть настоящая ФОТОГРАФИЯ (frame.imageUrl) — она лежит фоном, а
-   клавиши рисуются поверх неё в границах монтажного окна (геометрию окна в % фото даёт
-   EPCatalog.frameOpening). Фото накладки нет — рисуем схему-фолбэк: пластину прямоугольником
-   цвета из названия. КЛАВИШИ в обоих случаях рисуются ОДНИМ И ТЕМ ЖЕ кодом (moduleKey) — вид
-   модуля единый, отличается только подложка.
+   ПОДЛОЖКА. Режим ФОТО включается только когда есть И фотография накладки (frame.imageUrl), И хотя
+   бы одно ИЗМЕРЕННОЕ монтажное окно (frame.windows, снятое детектором с ЭТОГО же фото). Тогда фото
+   лежит фоном, а клавиши рисуются поверх него в границах измеренных окон. ПОЧЕМУ мало одного
+   imageUrl: у части баз накладок фото в каталоге VIMAR — это МАКРО-СНИМОК УГЛА изделия (крупный
+   план пластины или сплошной сенсорной панели), где сквозного окна в кадре нет вообще, и детектор
+   окон честно вернул пусто; раскладывать клавиши по такому кадру нечего — по догадке они лягут
+   поверх угла и дадут мусор хуже честной схемы. Нет измеренных окон (или нет фото) — рисуем
+   схему-фолбэк: пластину прямоугольником цвета из названия. КЛАВИШИ в обоих случаях рисуются ОДНИМ
+   И ТЕМ ЖЕ кодом (moduleKey) — вид модуля единый, отличается только подложка.
 
    ГЛАВНОЕ ОТЛИЧИЕ НЕМЕЦКОГО И ИТАЛЬЯНСКОГО РАЗМЕЩЕНИЯ:
    • Итальянский стандарт — накладка это ОДНО сплошное окно: клавиши лежат встык слева направо
@@ -95,6 +99,21 @@ const SIZES = {
    Это то место, которое владелец будет крутить по картинке — вынесено сюда именованной
    константой, чтобы менять одним числом, не трогая геометрию. */
 const IMPOST_GAP = 0.06;
+
+/* ДОСТОВЕРНОСТЬ ИЗМЕРЕННОГО ОКНА. Лицо модуля имеет ровную пропорцию span×22,5:45 (ширина:высота) —
+   1М вдвое у́же своей высоты (та же доктрина, что у faceSprite ниже). Значит на КАЖДЫЙ модуль
+   поста, разложенный в монтажном окне, должно приходиться width/height ≈ 22,5/45 = 0,5 (после
+   поправки на аспект фото). Если ИЗМЕРЕННОЕ окно зажимает модули заметно у́же — окно снято
+   детектором неверно: на «винтажных»/«flat» накладках VIMAR с овальными отверстиями детектор
+   поймал ОДНО маленькое отверстие вместо нескольких (ср. 22684 «4 на 4», где окон честно четыре),
+   и клавиши всех постов сплющиваются в невидимую полоску поверх фото. Такое окно НЕДОСТОВЕРНО —
+   уходим на честную схему-фолбэк (та же реакция, что «нет измеренного окна» в photoReady:
+   раскладывать нечего — по догадке дало бы мусор хуже схемы). Порог MIN_WINDOW_FILL·MODULE_FACE_
+   ASPECT = 0,375 лежит в чистом зазоре между зажатыми накладками (≤0,31 по каталогу) и корректно
+   снятыми (≥0,45). Проверяем ТОЛЬКО измеренные окна: геометрию splitOpening мы считаем сами — она
+   пропорциональна по построению и второго мнения не требует. */
+const MODULE_FACE_ASPECT = 22.5 / 45;   // 0,5 — ширина:высота лица одного модуля
+const MIN_WINDOW_FILL = 0.75;           // окно достоверно, если даёт модулю ≥75% его истинной ширины
 
 /* КЛАВИШИ собранной накладки (ориентир — каталожные сборки VIMAR). Три числа владелец крутит
    по картинке:
@@ -340,6 +359,14 @@ function moduleKey(c, framePal, s, sizeKey, radius, esc) {
       : "";
     return `<div data-ep="cell" style="flex:${grow} 1 0;min-width:0;display:flex;align-items:center;justify-content:center;${face}">${num}</div>`;
   }
+  /* Пробел «артикул пропал из каталога» — место занято, но чем, неизвестно: рисуем заглушку с
+     ПУНКТИРНОЙ гранью и знаком «?», чтобы читалась как потерянная позиция, а не как свободный
+     модуль (у того сплошная клавиша) и не как настоящий механизм. Пунктир + «?» переживают
+     печать (инлайн-стили, без JS). */
+  if (c.missing) {
+    const mark = `<span style="font-family:Arial,sans-serif;font-weight:700;font-size:${Math.max(9, s.numFont || 11)}px;line-height:1;color:${keyPal.ink};opacity:.55">?</span>`;
+    return `<div data-ep="cell" title="${esc(c.name || "Механизм не найден")}" style="flex:${grow} 1 0;min-width:0;display:flex;align-items:center;justify-content:center;border:1px dashed ${key.edge};border-radius:${radius}px;background:${key.fill}">${mark}</div>`;
+  }
   const icon = s.showIcons
     ? `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.55">${iconSvg(pickIcon(c), s.iconPx, keyPal.ink)}</span>`
     : "";
@@ -412,7 +439,10 @@ function buildHtml(spec, deps) {
 
   const modulesWide = rows.reduce((m, r) => Math.max(m, (r.posts || []).reduce((a, p) => a + capOf(p), 0)), 0) || 1;
 
-  const stage = frame.imageUrl
+  /* Режим фото — только когда есть фото+измеренное окно (photoReady) И это окно ФИЗИЧЕСКИ вмещает
+     модули (windowsHoldModules): недостоверно снятое детектором окно сплющило бы клавиши в
+     невидимую полоску (винтажные накладки), поэтому уводим накладку на честную схему-фолбэк. */
+  const stage = photoReady(frame) && windowsHoldModules(frame.opening, rows, frame.windows)
     ? photoStage(frame, rows, s, sizeKey, modulesWide, esc)
     : schemaStage(frame, rows, s, sizeKey, modulesWide, esc);
 
@@ -435,6 +465,18 @@ function validRect(r) {
   return ok ? rect : null;
 }
 
+/* Готова ли накладка к РЕЖИМУ ФОТО: есть И фотография-подложка (frame.imageUrl), И хотя бы одно
+   ИЗМЕРЕННОЕ окно (frame.windows — снятое детектором с ЭТОГО же фото, frameOpenings). ПОЧЕМУ мало
+   одного imageUrl: у части баз накладок фото в каталоге VIMAR — это МАКРО-СНИМОК УГЛА изделия
+   (крупный план пластины/сенсорной панели), где сквозного монтажного окна в кадре нет вообще, и
+   детектор окон вернул пусто. Раскладывать клавиши по такому кадру нечего — по догадке они лягут
+   поверх угла и дадут мусор хуже честной схемы. Нет измеренных окон → схема-фолбэк, будто фото нет.
+   splitOpening при этом НЕ отменяется: он остаётся для другого случая — окна ЕСТЬ, но их число не
+   совпало с числом постов (postWindows тогда делит измеренное окно сам). Чистая — под тесты. */
+function photoReady(frame) {
+  return !!(frame && frame.imageUrl && Array.isArray(frame.windows) && frame.windows.some(validRect));
+}
+
 /* Окна под посты в режиме ФОТО (чистая логика, покрыта тестами). Если пришли ИЗМЕРЕННЫЕ окна
    (windows — снятые детектором с фото накладки, EPCatalog.frameOpenings) и их число РОВНО совпало
    с числом постов — раскладываем пост i в окно i (порядок слева направо), без догадок об аспекте и
@@ -450,6 +492,31 @@ function postWindows(opening, rows, windows) {
     return { rects: measured, measured: true };
   }
   return { rects: splitOpening(opening, rows), measured: false };
+}
+
+/* Достоверны ли ИЗМЕРЕННЫЕ окна под клавиши: каждое физически вмещает модули своего поста. Модуль
+   в окне получает ширину W_окна/суммарный span, высоту = высота окна; после поправки на аспект фото
+   отношение ширины к высоте на один span-модуль должно держаться около MODULE_FACE_ASPECT. Если
+   детектор снял окно неверно (одно маленькое отверстие вместо нескольких на винтажной накладке) и
+   модули сплющиваются ниже MIN_WINDOW_FILL от истинной пропорции — окно недостоверно, buildHtml
+   уводит такую накладку на схему-фолбэк, где клавиши видны. splitOpening-раскладку не проверяем:
+   она пропорциональна по построению (см. константы выше). Чистая — под тесты. */
+function windowsHoldModules(opening, rows, windows) {
+  const o = normalizeOpening(opening);
+  const pw = postWindows(o, rows, windows);
+  if (!pw.measured) return true;
+  /* аспект фото — как в photoStage: измеренный из окна накладки, иначе угаданный из opening */
+  const w = (Array.isArray(windows) ? windows.find(x => x && Number(x.aspect) > 0) : null);
+  const aspect = w ? Number(w.aspect) : (o.aspect > 0 ? o.aspect : 1);
+  const posts = [];
+  (Array.isArray(rows) ? rows : []).forEach(r => ((r && r.posts) || []).forEach(p => posts.push(p)));
+  return posts.every((p, i) => {
+    const rect = pw.rects[i];
+    if (!rect) return false;
+    const span = ((p && p.cells) || []).reduce((a, c) => a + Math.max(1, Number(c && c.span) || 1), 0) || 1;
+    const perModule = (rect.width / rect.height) * (aspect > 0 ? aspect : 1) / span;
+    return perModule >= MODULE_FACE_ASPECT * MIN_WINDOW_FILL;
+  });
 }
 
 /* РЕЖИМ ФОТО: подложка — ДЕТАЛЬНАЯ фотография накладки, КЛАВИШИ (moduleKey) поверх в границах
@@ -566,8 +633,12 @@ function schemaStage(frame, rows, s, sizeKey, modulesWide, esc) {
    самостоятельная чистая логика — тестируются отдельно от отрисовки (splitOpening владелец крутит
    по картинке, postWindows выбирает измеренные окна vs фолбэк). frameColor сохранён как тонкая
    обёртка над itemColor: на нём есть тесты и роль палитры пластины. faceSprite (проценты обрезки
-   фото под ячейку) и useFacePhoto (фото или клавиша-фолбэк) — чистая логика режима фото модуля. */
-const api = { buildHtml, itemColor, frameColor, pickIcon, splitOpening, postWindows, faceSprite, useFacePhoto };
+   фото под ячейку) и useFacePhoto (фото или клавиша-фолбэк) — чистая логика режима фото модуля.
+   photoReady — гейт «фото накладки или схема-фолбэк»: фото только при наличии И картинки, И
+   измеренных окон (иначе макро-снимок угла раскладывать нечем). iconSvg отдан наружу, чтобы
+   взрыв-схема листа монтажника (EPExplodedView) рисовала детали ТЕМ ЖЕ каталожным глифом, что и
+   клавиши сборки, — единая система иконок, без дубля разметки. */
+const api = { buildHtml, itemColor, frameColor, pickIcon, iconSvg, splitOpening, postWindows, windowsHoldModules, faceSprite, useFacePhoto, photoReady };
 if (typeof window !== "undefined") window.EPPostImage = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

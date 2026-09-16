@@ -9,7 +9,13 @@
    state, ни DOM, ни window.open — открытие окна остаётся в app.js. Так документ можно
    проверить автотестом, не поднимая браузер (PLAN 7.1).
 
-   Интерфейс приложению — window.EPInstallSheet.buildHtml(data, deps). */
+   Интерфейс приложению — window.EPInstallSheet.buildHtml(data, deps),
+   buildFittings(comp, box, lighting), cardModuleOrder(moduleGroups, modules) и
+   cardFittingOrder(fittings, moduleGroups, modules): и обвязка поста, и ПОРЯДОК всех трёх блоков
+   карточки (таблица модулей, взрыв-схема, обвязка) собираются ЗДЕСЬ, а не в оркестраторе, потому
+   что это часть контракта документа (см. fittings и cardModuleOrder ниже).
+   lighting — необязательный третий аргумент: механизмы групп света, подставленные расчётом
+   (EPLightingPlan). Старый вызов с двумя аргументами работает как раньше. */
 (() => {
 "use strict";
 
@@ -26,19 +32,195 @@ const printScript = `<script>(function(){var done=false;function pr(){if(done)re
   + `img.addEventListener("load",tick);img.addEventListener("error",tick);});`
   + `if(pending===0)pr();setTimeout(pr,4000);})();<\/script>`;
 
+/* Обвязка одного поста в порядке сборки: суппорт → коробка → накладка. Чистая функция от
+   состава поста (comp = EPPosts.postComposition) и ФАКТИЧЕСКОЙ коробки (box — точная
+   comp.box либо стандартно-совместимый фолбэк comp.boxFallback; выбор между ними остаётся
+   за приложением, оно одно знает тип стены проекта).
+   Живёт здесь, а не в оркестраторе, не ради красоты: количество суппорта стояло в app.js
+   литералом «1», и по немецко-французской сборке монтажник получал по документу одну
+   планку на два поста — дефект, которого не мог поймать ни один автотест, потому что
+   app.js в тесты не грузится. Формат строк всё равно принадлежит этому документу
+   (см. fittings в описании data ниже), так что правило и проверяется рядом с ним.
+   Возвращает [{role, name, code, count}] — ровно те строки, что печатает таблица
+   «Обвязка поста». */
+function buildFittings(comp, box, lighting) {
+  const fittings = [];
+  if (!comp) return fittings;
+  /* Механизмы групп света (EPLightingPlan.rowsByPost) — ПЕРВЫМИ в обвязке: монтажник ставит их
+     в коробку раньше всего остального, они физически стоят ЗА клавишами. В таблице модулей выше
+     их нет и быть не может — модуля рамки они не занимают (там стоит клавиша), поэтому место
+     механизма в документе именно здесь, в обвязке, с указанием модуля и группы.
+     Пробел подбора печатаем СТРОКОЙ С НУЛЁМ и текстом причины из расчёта: монтажник обязан
+     увидеть, что за клавишей ничего не стоит, ДО поездки на объект. Это то же правило, по
+     которому «суппорт не требуется» пишется словами, а не пропускается. */
+  (Array.isArray(lighting) ? lighting : []).forEach(r => {
+    if (!r) return;
+    const where = `Механизм · модуль ${r.moduleLabel || "—"} · группа «${r.groupLabel || "—"}»`;
+    /* keyIndex — позиция клавиши в посте — едет ВМЕСТЕ со строкой обвязки: по нему документ
+       раскладывает эти строки в ТОМ ЖЕ порядке, что таблицу модулей и взрыв-схему
+       (cardFittingOrder ниже). Без него обвязка печаталась плоским порядком набора, и адреса
+       «1.1 · 2.1–2 · 1.2» спорили с «1.1 · 1.2 · 2.1–2» в таблице над ней. */
+    const at = { keyIndex: r.keyIndex };
+    if (r.missing) fittings.push(Object.assign(at, { role: where, name: r.missingText || "механизм не подобран", code: null, count: 0 }));
+    else fittings.push(Object.assign(at, { role: where, name: r.name, code: r.code, count: 1 }));
+  });
+  /* Подсветка клавиш: аксессуары-LED, вставленные в механизмы (comp.backlight). Одинаковые
+     артикулы сводим в count — как «N × суппорт», а не строкой на каждый LED. Пробел подбора
+     (механизм подсветку принимает, совместимой в каталоге нет) печатаем словами со счётчиком
+     механизмов и НУЛЁМ в «Кол.» — как «суппорт не требуется»: пустое место монтажник читает
+     как забытую позицию, а в заказ пробел не идёт (buildHtml печатает 0 как прочерк).
+     Формулировка «подсветка не подобрана» — та же, что в смете (estimate.js) и своде
+     поставщику (supplierSpec.js); менять только вместе. Порядок — сразу за клавишами (механизмы
+     групп света выше) и до суппорта, как в смете: LED вставлен в механизм. Строки без keyIndex —
+     cardFittingOrder оставляет их после упорядоченных по клавишам, сохраняя этот порядок. */
+  const back = comp.backlight;
+  if (back) {
+    const agg = new Map();
+    (Array.isArray(back.items) ? back.items : []).forEach(u => {
+      const acc = u && u.accessory;
+      if (!acc) return;
+      const k = String(acc.code || acc.name);
+      const cur = agg.get(k);
+      if (cur) cur.count += 1;
+      else agg.set(k, { role: "Подсветка", name: acc.name, code: acc.code || null, count: 1 });
+    });
+    agg.forEach(row => fittings.push(row));
+    const gapCount = Array.isArray(back.gaps) ? back.gaps.length : 0;
+    if (gapCount) fittings.push({ role: "Подсветка",
+      name: gapCount > 1 ? `${gapCount} × подсветка не подобрана` : "подсветка не подобрана",
+      code: null, count: 0 });
+  }
+  /* Суппорт: сколько насчитал состав (столько же, сколько коробок), а не «одна планка».
+     Изделие, которое по номенклатуре монтируется В КОРОБКУ БЕЗ ПЛАНКИ (крышки IP55,
+     принцип NO_SUPPORT), даёт строку «не требуется» с нулём — buildHtml напечатает в
+     «Кол.» прочерк. Совсем пропустить строку нельзя: пустое место в обвязке монтажник
+     читает как забытую позицию и звонит уточнять. А вот суппорт, который просто НЕ
+     ПОДОБРАЛСЯ (пробел каталога), словами не описываем — «не требуется» соврало бы. */
+  if (comp.support && comp.supportCount) {
+    /* assumed — «артикул подобран нами, заказчиком не подтверждён» (postComposition.supportAssumed):
+       монтажное правило у накладки в номенклатуре есть, а планки под него нет, и она выбрана
+       по серии и модульности. Монтажник должен видеть это ДО поездки на объект, поэтому
+       признак едет строкой обвязки и печатается рядом с артикулом. */
+    fittings.push({ role: "Суппорт", name: comp.support.name, code: comp.support.code, count: comp.supportCount,
+      assumed: !!comp.supportAssumed });
+  } else if (comp.supportNotRequired) {
+    fittings.push({ role: "Суппорт", name: "не требуется", code: null, count: 0 });
+  }
+  if (box && comp.boxCount) fittings.push({ role: "Монтажная коробка", name: box.name, code: box.code, count: comp.boxCount });
+  /* Накладка на сборку ровно одна при любом числе постов: импосты делят её изнутри,
+     но заказывается она целиком — в отличие от коробок и планок.
+     frameAvailability — единое состояние из EPPosts: исчезнувший артикул и снятая
+     позиция обязаны быть названы здесь теми же словами, что в смете, подсказке и КП.
+     Старый comp без нового поля сохраняет прежнее поведение. */
+  const frameInfo = comp.frameAvailability;
+  if (frameInfo && !frameInfo.unset) {
+    fittings.push({ role: "Накладка", name: frameInfo.displayName,
+      code: frameInfo.code || null, count: 1, frameState: frameInfo.state });
+  } else if (!frameInfo && comp.frame) {
+    fittings.push({ role: "Накладка", name: comp.frame.name, code: comp.frame.code, count: 1 });
+  }
+  return fittings;
+}
+
+/* ПОРЯДОК МОДУЛЕЙ В КАРТОЧКЕ ПОСТА — ОДНО ПРАВИЛО НА ВСЮ КАРТОЧКУ. Карточка показывает одни и те
+   же модули ТРИЖДЫ: строками таблицы, деталями взрыв-схемы и строками «Обвязка поста» (механизмы
+   групп света стоят ЗА клавишами и адресуются тем же «пост.модуль»). Монтажник читает все три
+   блока рядом.
+   Таблица немецко-французской сборки идёт ПО ПОСТАМ (moduleGroups: «Пост 1 → 1.1, 1.2», «Пост 2
+   → 2.1–2»), а взрыв-схема шла плоским порядком набора — и адреса в двух блоках расходились
+   («1.1, 2.1–2, 1.2» против «1.1, 1.2, 2.1–2»). Номера при этом были верные: расходился ПОРЯДОК,
+   а это то же самое для человека, который ищет модуль глазами.
+   ⚠️ ПРАВИЛО ПРИМЕНЯЕТСЯ КО ВСЕЙ КАРТОЧКЕ, А НЕ К ОТДЕЛЬНЫМ БЛОКАМ. Прежняя правка починила
+   таблицу и схему и забыла обвязку — та печатала механизмы групп света плоским порядком набора,
+   и адреса разошлись ровно так же, только в третьем блоке. Поэтому порядок обвязки считается
+   ЗДЕСЬ ЖЕ (cardFittingOrder) и из того же cardModuleOrder: чтобы «применили к двум блокам из
+   трёх» больше не могло случиться, третьего места, где порядок задаётся, просто нет.
+   Раскладка по постам применяется, только когда постов БОЛЬШЕ ОДНОГО: у обычной итальянской
+   накладки сборка одна, и порядок остаётся прежним плоским байт в байт.
+   Возвращает строки модулей (те же объекты, что пришли) в порядке карточки. */
+const byPosts = moduleGroups => Array.isArray(moduleGroups) && moduleGroups.length > 1;
+function cardModuleOrder(moduleGroups, modules) {
+  if (byPosts(moduleGroups)) {
+    return moduleGroups.reduce((all, g) => all.concat(Array.isArray(g.modules) ? g.modules : []), []);
+  }
+  return Array.isArray(modules) ? modules.slice() : [];
+}
+
+/* Позиция клавиши (keyIndex) → её место в порядке карточки. Читаем СТРОГО: keyIndex может не
+   прийти вовсе (старые вызовы buildFittings без него), и Number(undefined) = NaN не должен
+   становиться нулём — иначе строка без адреса уехала бы в начало обвязки. */
+const keyIndexOf = row => {
+  const k = Number(row && row.keyIndex);
+  return Number.isInteger(k) && k >= 0 ? k : null;
+};
+/* Обвязка поста в порядке карточки: строки механизмов групп света (они несут keyIndex своей
+   клавиши) идут в порядке cardModuleOrder, остальные узлы — суппорт → коробка → накладка —
+   остаются на своих местах и в своём порядке сборки.
+   Строку, чьей клавиши в раскладке по постам нет вовсе (механизм шире накладки — ушёл в
+   overflow), НЕ теряем: она встаёт после упорядоченных, как и деталь в схеме. */
+function cardFittingOrder(fittings, moduleGroups, modules) {
+  const list = Array.isArray(fittings) ? fittings : [];
+  const pos = new Map();
+  cardModuleOrder(moduleGroups, modules).forEach(m => {
+    const k = keyIndexOf(m);
+    if (k !== null && !pos.has(k)) pos.set(k, pos.size);
+  });
+  if (!pos.size) return list.slice();
+  const keyed = [], rest = [];
+  list.forEach(f => (keyIndexOf(f) === null ? rest : keyed).push(f));
+  const at = f => { const k = keyIndexOf(f); return pos.has(k) ? pos.get(k) : Infinity; };
+  keyed.sort((a, b) => at(a) - at(b));   /* сортировка устойчива: строки вне раскладки сохраняют свой порядок */
+  return keyed.concat(rest);
+}
+
 /* data = {
      title?, subtitle?,
      header?: { project?, developer?, date? },   // пустые поля не печатаются
+     planBlockHtml?: string,                     // план с бирками номеров постов (EPPlanLabels),
+                                                 // готовая секция от оркестратора — см. ниже
      posts: [ {
        number, room?, standardLabel?, german?: { postCount },
        frameName?, frameCode?, color?, height?, purpose?,
        modules: [ { label, name, code, note? } ],       // строки таблицы модулей (плоские)
        moduleGroups?: [ { post, capacity, modules:[…] } ],  // нумерация ПО ПОСТАМ (если >1 поста)
        assembledImageHtml?: string,                     // готовая картинка собранного поста (EPPostImage)
-       fittings: [ { role, name, code, count } ]        // обвязка: суппорт → коробка → накладка
-     } ]
+       explodedViewHtml?: string,                       // взрыв-схема поста (EPExplodedView) — деталь → выносная линия → артикул
+       fittings: [ { role, name, code, count, keyIndex? } ]  // обвязка: механизмы групп света →
+                                                        // подсветка клавиш → суппорт → коробка →
+                                                        // накладка. У строк
+                                                        // групп света keyIndex — позиция их
+                                                        // клавиши в посте: по нему документ сам
+                                                        // ставит их в порядок карточки
+     } ],
+     lightingHtml?: string,                      // блок «Группы света» (EPLightingPlan.buildHtml):
+                                                 // какие механизмы подставил расчёт, сколько нужно
+                                                 // импульсных реле и какие места остались без
+                                                 // подстановки. Печатается ПОСЛЕ карточек постов
+                                                 // и ПЕРЕД подвалом: это свод по проекту, а не
+                                                 // состав конкретного поста (состав уже в обвязке)
+     supplierSpecHtml?: string                   // сводная спецификация по артикулам (EPSupplierSpec),
+                                                 // готовая секция от оркестратора — см. ниже
    }
    deps = { esc(s) }.
+
+   planBlockHtml печатается СРАЗУ ПОСЛЕ шапки и ПЕРЕД карточками постов — своей страницей:
+   монтажник сначала видит, где на объекте пост № 7, и только потом читает его состав. Секцию
+   целиком собирает EPPlanLabels (координаты бирок, вписывание чертежа в лист), потому что
+   геометрию холста знает только оркестратор; сюда она приходит готовой строкой с инлайн-стилями,
+   как assembledImageHtml и explodedViewHtml. Плана в проекте нет — поле пустое, документ
+   собирается ровно как раньше.
+
+   supplierSpecHtml печатается ПОСЛЕ всех карточек постов, своей страницей: это приложение
+   для поставщика (одинаковые артикулы сведены с количествами), а не рабочий материал
+   монтажника — сначала он читает свои посты, свод идёт следом и отрывается отдельно.
+   Секцию целиком собирает EPSupplierSpec; сюда она приходит готовой строкой с инлайн-стилями,
+   как planBlockHtml.
+   Свод — ПОСЛЕДНИЙ блок документа, ниже подвала («Документ для монтажа…»). Подвал стоял
+   после свода и печатался НА ЕГО СТРАНИЦЕ: страницу отрывают и отдают поставщику, а он
+   читал адресованную монтажнику приписку про позиции модулей. Денежных формулировок здесь
+   нет, но разделение обязано быть тем же, что в КП (offerPdf.js, где на отрывной лист
+   уезжала оговорка о ценах): всё, что адресовано читателю ЭТОГО документа, остаётся на
+   его страницах.
    Возвращает строку полного HTML-документа с авто-печатью. */
 function buildHtml(data, deps) {
   const esc = deps.esc;
@@ -70,36 +252,64 @@ function buildHtml(data, deps) {
 
     const moduleTr = m =>
       `<tr><td class="mod">${esc(m.label)}</td><td>${esc(m.name)}</td><td class="code">${esc(m.code || "—")}</td><td class="note">${esc(m.note || "")}</td></tr>`;
-    /* Нумерация модулей ПО ПОСТАМ: когда постов больше одного (немецкий стандарт,
-       двухрядные), в каждом посте счёт модулей начинается заново под подзаголовком
-       «Пост N» — монтажнику важно, что это отдельные коробки. Один пост (итальянская
-       сплошная накладка) или нет moduleGroups (старые вызовы) — плоская таблица как прежде. */
-    const groups = Array.isArray(post.moduleGroups) ? post.moduleGroups : null;
-    const moduleRows = groups && groups.length > 1
+    /* Раскладка модулей ПО ПОСТАМ: когда постов больше одного (немецкий стандарт,
+       двухрядные), модули идут группами под подзаголовком «Пост N» — монтажнику важно, что
+       это отдельные коробки. Один пост (итальянская сплошная накладка) или нет moduleGroups
+       (старые вызовы) — плоская таблица как прежде.
+       ⚠️ САМИ НОМЕРА МОДУЛЕЙ ЗАДАЁТ ОРКЕСТРАТОР (app.js, buildPostSheet) — и он обязан дать
+       ОДИН адрес модуля на всю карточку: та же строка стоит в таблице, в обвязке ниже и во
+       взрыв-схеме, монтажник читает их рядом. Пока таблица нумеровала модули заново в каждом
+       посте, а обвязка — сквозняком, одна клавиша имела в одной карточке два номера. */
+    const groups = post.moduleGroups;
+    const moduleRows = byPosts(groups)
       ? groups.map(g => {
           const rows = (g.modules || []).map(moduleTr).join("") || `<tr><td colspan="4" class="empty">Пост без механизмов</td></tr>`;
           return `<tr class="post-row"><td colspan="4">Пост ${esc(g.post)}${g.capacity ? ` · до ${esc(g.capacity)} мод.` : ""}</td></tr>${rows}`;
         }).join("")
       : (post.modules || []).map(moduleTr).join("") || `<tr><td colspan="4" class="empty">Пост без механизмов</td></tr>`;
 
-    const fittingRows = (post.fittings || []).map(f =>
-      `<tr><td>${esc(f.role)}</td><td>${esc(f.name)}</td><td class="code">${esc(f.code || "—")}</td><td class="right">${Number(f.count) || 0}</td></tr>`
+    /* Кол. без количества — прочерк, а не «0»: так печатается узел, которого в поставке
+       нет по устройству изделия (суппорт «не требуется» у крышек IP55). Ноль монтажник
+       читает как ошибку расчёта, прочерк — как «нечего везти».
+       f.assumed — артикул подобран нами и заказчиком не подтверждён: печатаем пометку
+       ВПЛОТНУЮ к артикулу, иначе догадка неотличима от согласованной позиции. Формулировка
+       та же, что в смете (estimate.js) и в панели «Состав поста» (app.js) — менять только
+       вместе, разнобой в документах хуже, чем отсутствие пометки.
+       ⚠️ ПОРЯДОК СТРОК — ТОТ ЖЕ, ЧТО У ТАБЛИЦЫ ВЫШЕ И У ВЗРЫВ-СХЕМЫ (cardFittingOrder поверх
+       cardModuleOrder): механизмы групп света адресуются модулями клавиш, и печатать их
+       порядком набора, пока таблица идёт по постам, значило бы дать монтажнику третий,
+       несогласованный список адресов. */
+    const fittingRows = cardFittingOrder(post.fittings, groups, post.modules).map(f =>
+      `<tr><td>${esc(f.role)}</td><td>${esc(f.name)}</td><td class="code">${esc(f.code || "—")}${f.assumed ? " (предположительно)" : ""}</td><td class="right">${Number(f.count) > 0 ? Number(f.count) : "—"}</td></tr>`
     ).join("");
 
     /* Для немецко-французского стандарта монтажнику важно, что коробок НЕСКОЛЬКО
-       (пост = 2 модуля), а между постами — импосты; иначе он поставит одну коробку. */
+       (пост = 2 модуля), а между постами — импосты; иначе он поставит одну коробку.
+       Суппортов столько же: планка садится в каждую коробку, а прежнее примечание
+       молчало про них — и на две коробки везли одну планку. Число суппортов берём из
+       данных поста, но упоминаем только когда оно пришло (старые вызовы без
+       supportCount печатают примечание ровно как раньше). */
+    const germanSupports = post.german && Number(post.german.supportCount) > 1
+      ? ` и <b>${Number(post.german.supportCount)}</b> суппорта (по одному в каждую коробку)`
+      : "";
     const germanNote = post.german && post.german.postCount > 1
-      ? `<div class="german-note">Немецко-французский стандарт: сборка разбита на <b>${Number(post.german.postCount)}</b> поста по 2 модуля — <b>${Number(post.german.postCount)}</b> монтажные коробки, между постами устанавливаются импосты.</div>`
+      ? `<div class="german-note">Немецко-французский стандарт: сборка разбита на <b>${Number(post.german.postCount)}</b> поста по 2 модуля — <b>${Number(post.german.postCount)}</b> монтажные коробки${germanSupports}, между постами устанавливаются импосты.</div>`
       : "";
 
     /* Собранный пост картинкой (EPPostImage): показывает разделение на посты и импосты —
        та же иллюстрация, что в конструкторе/КП. Готовый HTML с инлайн-стилями (без
        экранного CSS), поэтому в печати не разваливается. */
     const illus = post.assembledImageHtml ? `<div class="post-illus">${post.assembledImageHtml}</div>` : "";
+    /* Взрыв-схема ДОПОЛНЯЕТ собранную картинку (не заменяет): по ней монтажник видит состав поста
+       с артикулом каждой детали. Готовый HTML с инлайн-стилями (EPExplodedView) — в печати цел. */
+    const exploded = post.explodedViewHtml
+      ? `<div class="exploded-title">Взрыв-схема поста</div><div class="post-exploded">${post.explodedViewHtml}</div>`
+      : "";
     return `<section class="post-card">
       <div class="post-card-head"><span class="post-badge">Пост № ${esc(post.number)}</span></div>
       <dl class="post-meta">${meta}</dl>
       ${illus}
+      ${exploded}
       ${germanNote}
       <table class="modules"><thead><tr><th>Модуль</th><th>Элемент</th><th>Артикул</th><th>Примечание</th></tr></thead>
         <tbody>${moduleRows}</tbody></table>
@@ -146,6 +356,8 @@ function buildHtml(data, deps) {
   td.mod{font-weight:bold;color:#185d96;white-space:nowrap;width:64px}
   tr.post-row td{background:#f0f7ff;color:#185d96;font-weight:bold;font-size:11px}
   .post-illus{margin:0 0 10px}
+  .exploded-title{margin:6px 0 4px;font-weight:bold;color:#185d96;font-size:12px}
+  .post-exploded{margin:0 0 10px;break-inside:avoid}
   td.code{font-family:"Courier New",monospace;color:#33465a}
   td.note{color:#687f94}td.right,th.right{text-align:right}td.empty{color:#687f94;font-style:italic}
   .fittings-title{margin:14px 0 0;font-weight:bold;color:#185d96;font-size:12px}
@@ -157,14 +369,17 @@ function buildHtml(data, deps) {
     <button onclick="window.print()">Печать / PDF</button>
   </div>
   ${headerRows ? `<div class="doc-head">${headerRows}</div>` : ""}
+  ${data.planBlockHtml || ""}
   ${body}
+  ${data.lightingHtml || ""}
   <div class="footer">Документ для монтажа. Позиции модулей указаны слева направо, как в собранной накладке.</div>
+  ${data.supplierSpecHtml || ""}
   ${printScript}</body></html>`;
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { buildHtml };
+const api = { buildHtml, buildFittings, cardModuleOrder, cardFittingOrder };
 if (typeof window !== "undefined") window.EPInstallSheet = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

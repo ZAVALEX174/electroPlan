@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260801.6">
+  <link rel="stylesheet" href="css/styles.css?v=20260916.1">
 </head>
 <body>
 <div class="app">
@@ -57,6 +57,16 @@
           <button class="text-action" id="clearAutoTraceBtn">Очистить автообрисовку</button>
           <button class="btn full" id="planVisibilityBtn" disabled style="margin-top:6px">Подложка: показана</button>
           <small class="hint-line">Показать → бледная → скрыть (клавиша B). Скрывается только чертёж — разметка и объекты остаются</small>
+          <button class="text-action" id="clearPlanBtn" hidden>Убрать план</button>
+          <!-- ⚠️ ОТДЕЛЬНАЯ КНОПКА ПОДТВЕРЖДЕНИЯ, А НЕ ПОВТОРНОЕ НАЖАТИЕ «Убрать план». Сброс подложки
+               необратим: undo в приложении нет, а persistProject внутри clearPlan сразу затирает
+               картинку в снимке — растр выбранной страницы PDF больше нигде не хранится. «Убрать план»
+               лежит вплотную к «Определить комнаты», промах стоит дорого. Подтверждать повтором того же
+               нажатия нечестно: поток срабатываний (нетерпеливые клики, зажатый Enter на кнопке в
+               фокусе) рано или поздно попадёт в разрешённое окно и удалит план за человека — любая
+               граница по времени поток лишь ЗАДЕРЖИВАЕТ. Осознанность даёт ДРУГОЙ ЖЕСТ: эта кнопка
+               появляется только после вопроса и в неё поток по «Убрать план» физически не попадает. -->
+          <button class="btn full danger" id="clearPlanConfirmBtn" hidden style="margin-top:6px">Точно убрать план?</button>
           <button class="btn full" id="detectRoomsBtn" disabled style="margin-top:8px">Определить комнаты</button>
           <small class="hint-line">Быстро, OpenCV — для чётких чертежей</small>
           <button class="btn full" id="detectRoomsMlBtn" disabled style="margin-top:8px">Определить комнаты (ML)</button>
@@ -103,13 +113,7 @@
         <button class="text-action" id="clearRoomLinesBtn" style="margin-top:7px">Очистить разметку помещений</button>
       </section>
 
-      <section>
-        <div class="section-head"><h3>Одиночные элементы</h3><span class="count-pill" id="catalogCount">0</span></div>
-        <div class="search-box"><input id="catalogSearch" placeholder="Найти элемент"></div>
-        <div class="catalog" id="catalog"></div>
-      </section>
-
-      <section>
+      <section class="library-section">
         <div class="section-head"><h3>Готовые посты</h3><button class="link-btn" id="newPostBtn">+ Создать</button></div>
         <div class="post-library" id="postLibrary"></div>
       </section>
@@ -125,6 +129,15 @@
         </div>
         <div class="status" id="status">Выберите инструмент или элемент</div>
         <button class="btn ghost small" id="renumberPostsBtn" title="Перенумеровать посты по расположению на плане (1, 2, 3…)">Перенумеровать посты</button>
+        <!-- ⚠️ ОТДЕЛЬНАЯ КНОПКА ПОДТВЕРЖДЕНИЯ, А НЕ ПОВТОРНОЕ НАЖАТИЕ ПЕРВОЙ. Перенумерация
+             пересобирает механизмы групп света, и подтверждать её повтором того же нажатия
+             оказалось нечестно: поток срабатываний (нетерпеливые клики, зажатый Enter на кнопке
+             в фокусе) рано или поздно попадал в разрешённое окно и применял команду за человека
+             — любая граница по времени поток лишь ЗАДЕРЖИВАЕТ. Кнопка появляется только когда
+             расчёт действительно меняется, стоит РЯДОМ (исходная кнопка не двигается, поток по
+             ней сюда не попадает) и живёт столько же, сколько вопрос. Модалки нет: прочитал —
+             нажал соседнюю кнопку, одно движение. -->
+        <button class="btn primary small" id="renumberConfirmBtn" hidden>Подтвердить перенумерацию</button>
         <button class="btn ghost small" id="clearBtn">Очистить холст</button>
       </div>
 
@@ -136,6 +149,7 @@
           <svg id="wallsSvg"></svg>
           <svg id="markupSvg"></svg>
           <svg id="scaleSvg"></svg>
+          <svg id="linksSvg"></svg>
           <div class="detect-legend" id="detectLegend" hidden></div>
           <div class="canvas-empty" id="canvasEmpty">
             <div class="empty-icon">⌁</div>
@@ -148,8 +162,13 @@
       </div>
 
       <div class="canvas-footer">
-        <span>Объекты отображаются компактными пиктограммами</span>
-        <span>Наведите курсор, чтобы увидеть полный состав</span>
+        <div class="canvas-footer-hints">
+          <span>Объекты отображаются компактными пиктограммами</span>
+          <span>Наведите курсор, чтобы увидеть полный состав</span>
+        </div>
+        <!-- Отдельный канал статуса: updateStatus продолжает писать подсказки инструментов в
+             #status, а предупреждение о привязке не может затереть их и само не исчезает с ними. -->
+        <div class="canvas-orphan-status" id="outsideRoomsStatus" role="status" aria-live="polite" hidden></div>
       </div>
     </section>
 
@@ -170,6 +189,18 @@
           <label>Номер КП<input id="docNumber" autocomplete="off" placeholder="№"></label>
         </div>
         <small class="hint-line">Печатаются в шапке КП и листа монтажника. Пустые поля не выводятся.</small>
+        <details class="offer-options" id="offerOptions">
+          <summary>Настройка состава КП</summary>
+          <div class="offer-presets">
+            <button class="btn ghost small" type="button" data-offer-preset="full">Полное КП</button>
+            <button class="btn ghost small" type="button" data-offer-preset="client">Для клиента</button>
+            <button class="btn ghost small" type="button" data-offer-preset="boxes">Монтажные коробки</button>
+          </div>
+          <label><input type="checkbox" id="offer-articles" data-offer-key="articles">Печатать артикулы во всех разделах КП</label>
+          <label><input type="checkbox" id="offer-prices" data-offer-key="prices">Печатать цены и итоги</label>
+          <div id="offerOptionsFields"></div>
+          <small class="hint-line">Сохраняется в проекте. Лист монтажника не меняется. Наименование в спецификации остаётся всегда; раскладка без выбранных столбцов не печатается. Коды на исходном плане, фотографиях и в тексте, введённом вручную, не редактируются.</small>
+        </details>
       </section>
 
       <section>
@@ -192,6 +223,9 @@
         <div class="grand-total">
           <span>Итого</span><strong id="grandTotal">0 ₽</strong>
         </div>
+        <!-- Итог обязан ОГОВОРИТЬ позиции без цены (артикул пропал из прайса), а не молча
+             просуммировать остальное: иначе КП уходит заказчику заниженным и без предупреждения. -->
+        <div class="price-note" id="pricelessStatus" role="status" aria-live="polite" hidden></div>
         <div class="terms-row">
           <label>Работы, %<input id="workInput" type="number" min="0" max="200" step="1" value="18"></label>
           <label>Материалы, %<input id="materialsInput" type="number" min="0" max="200" step="1" value="7"></label>
@@ -216,44 +250,168 @@
       <section>
         <div class="section-head"><h3>Спецификация</h3><span class="count-pill" id="objectCount">0</span></div>
         <div class="spec-list" id="specList"></div>
+        <!-- ⚠️ НАСТРОЙКИ ПРОЕКТА ПРАВЯТСЯ ТОЛЬКО ЗДЕСЬ. Тип стены и схема электрики лежат в
+             EP_DATA.settings и едут в terms проекта — это свойства всего объекта, а не поста.
+             Раньше органы управления обоими стояли ВНУТРИ модалки конструктора поста: человек
+             открывал ОДИН пост, переключал стену или схему — и менялся весь проект, включая
+             посты другой серии и другого состава. Теперь у поста на плане свой тип стены
+             (post.wallType), а значение проекта и схема живут здесь, в панели проекта. В окне
+             поста оба показаны ТОЛЬКО ДЛЯ ЧТЕНИЯ. -->
+        <label class="scheme-field">Тип стены проекта
+          <select id="projectWallTypeSelect" aria-describedby="projectWallTypeHint">
+            <option value="solid">Бетон, кирпич, сплошные стены</option>
+            <option value="hollow">ГКЛ и полые стены</option>
+          </select>
+        </label>
+        <small class="hint-line" id="projectWallTypeHint">Значение по умолчанию: по нему подбирается коробка у постов, которым тип стены не задавали отдельно.</small>
+        <label class="scheme-field">Схема электрики проекта
+          <select id="lightingSchemeSelect" aria-describedby="lightingSchemeHint"></select>
+        </label>
+        <small class="hint-line" id="lightingSchemeHint"></small>
+        <!-- Подсветка клавиш — настройка ПРОЕКТА (решение владельца 09.09): галочка «считать»
+             плюс цвет и напряжение. Селекторы имеют смысл только при включённой галочке —
+             их доступность ведёт ОДНА функция синхронизации (renderProjectBacklight), а не
+             копии условия по обработчикам. Варианты цвета и напряжения JS строит ИЗ КАТАЛОГА
+             (матчинг строгий: «Зелёная» с ё — иначе подсветка молча не подберётся). -->
+        <label class="scheme-field scheme-field--check">
+          <input type="checkbox" id="backlightEnabled" aria-describedby="backlightHint">
+          Считать подсветку клавиш
+        </label>
+        <label class="scheme-field">Цвет подсветки
+          <select id="backlightColorSelect" aria-describedby="backlightHint"></select>
+        </label>
+        <label class="scheme-field">Напряжение подсветки
+          <select id="backlightVoltageSelect" aria-describedby="backlightHint"></select>
+        </label>
+        <small class="hint-line" id="backlightHint">Аксессуар-LED добавляется к каждому механизму, который принимает подсветку; несовместимым (нет цвета/напряжения) — честный пробел, в цену он не идёт.</small>
+        <!-- Группы света: тот же блок, что печатается в КП и листе монтажника
+             (EPLightingPlan.buildHtml) — чтобы экран и документы не могли разойтись. -->
+        <div id="lightingSummary"></div>
       </section>
     </aside>
   </main>
 </div>
 
-<div class="modal-backdrop" id="postModal">
+<!-- Конструктор поста — ПОЛНОЭКРАННОЕ окно (E17, прямая просьба заказчика 24.08: «можно
+     это окно, которое сейчас всплывает, сделать на весь экран, и он там перестроится, чтобы
+     они были крупнее и видно их было хорошо»). Разметка та же конвенция, что у #pdfPageModal
+     и #scaleModal (.modal-backdrop > .modal > .modal-header/.modal-footer) плюс модификатор
+     .fullscreen у подложки и грид-раскладка у .post-builder-modal: шапка и футер закреплены,
+     скроллятся только колонки. role="dialog"/aria-modal здесь раньше не было — добавлены. -->
+<div class="modal-backdrop fullscreen" id="postModal" role="dialog" aria-modal="true" aria-labelledby="postModalTitle">
   <div class="modal post-builder-modal">
     <div class="modal-header">
       <div><span class="eyebrow">Конструктор</span><h2 id="postModalTitle">Новый электрический пост</h2></div>
-      <button class="modal-close" id="closePostModal">×</button>
+      <button class="modal-close" id="closePostModal" type="button" aria-label="Закрыть">&times;</button>
     </div>
 
     <div class="builder-layout">
-      <div class="builder-preview-area">
-        <div class="post-preview-large" id="postPreview"></div>
-        <div class="builder-composition" id="builderComposition"></div>
+      <!-- Левая колонка: собранный пост, параметры и выбранные модули. Скроллится сама. -->
+      <div class="builder-side">
+        <div class="builder-preview-area">
+          <div class="post-preview-large" id="postPreview"></div>
+        </div>
+
+        <!-- Порядок блоков — по частоте обращения при сборке: сначала то, что меняют на каждый
+             клик по карточке (размер рамки, накладка, заполнение, сами модули с группами света),
+             ниже — реквизиты поста и свойства проекта, которые задают один раз. -->
+        <div class="builder-form">
+          <!-- Комната, ПОД КОТОРУЮ собираем пост (ОТДЕЛКА-ПОРЯДОК, п.3): выбирается ДО сборки,
+               по ней сужаются и накладка, и начинка. Скрыто, когда комнат в проекте нет (пост «вне
+               комнат», отбор не сужаем). У поста на плане селектор отключён — комната задана
+               геометрией. renderBuilderRoomSelect наполняет и показывает/скрывает поле. -->
+          <label class="builder-room-field" id="builderRoomField" hidden>Комната поста
+            <select id="builderRoomSelect"></select>
+          </label>
+          <div class="form-row">
+            <label>Количество модулей рамки
+              <select id="postSlotCount"></select>
+            </label>
+            <label>Накладка
+              <select id="postFrameSelect"></select>
+            </label>
+          </div>
+          <!-- Хинт отделки накладки (E14): «показано N из M · сузили: …» либо словами про пустое
+               сочетание. Заполняет renderBuilder по критерию комнаты (frameFacingHintText); пусто,
+               когда отделка комнаты не задана. Это <small>, а не <label> — на него не действует
+               .builder-form label{display:block}. -->
+          <small class="builder-frame-facing-hint" id="builderFrameFacingHint"></small>
+          <div class="builder-capacity" id="builderCapacity"></div>
+          <div class="builder-slots" id="builderSlots"></div>
+          <label class="builder-name">Название поста<input id="postName" value="Пост 3 места"></label>
+          <fieldset class="wall-type-step">
+            <legend>Тип стены</legend>
+            <div class="wall-type-options" id="postWallType" role="radiogroup" aria-label="Тип стены поста">
+              <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-wall="hollow">ГКЛ и полые стены</button>
+              <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-wall="solid">Бетон, кирпич, сплошные стены</button>
+            </div>
+            <!-- Раньше здесь было «Свойство проекта», и это было правдой: кнопка меняла тип
+                 стены сразу всему проекту. Заказчик (24.08) справедливо счёл это ошибкой —
+                 блок в перегородке из ГКЛ соседствует с блоками в бетоне. Теперь у поста на
+                 плане тип стены свой, а при сохранении окно спрашивает охват правки. У ШАБЛОНА
+                 и нового поста кнопки тоже активны: выбранный тип стены сохраняется в шаблоне и
+                 переходит посту при размещении (владелец, 28.08). Общей настройки проекта эти
+                 кнопки НЕ трогают (дефект B5) — её орган в панели «Спецификация».
+                 Подпись динамическая (renderBuilderComposition). -->
+            <small class="wall-type-hint" id="postWallTypeHint"></small>
+          </fieldset>
+          <!-- Подсветка клавиш ПОСТА — переопределение проектной настройки (решение владельца
+               13.09 «пост главнее»). Три состояния: «как в проекте» (переопределения нет),
+               «своя подсветка» (цвет+напряжение из каталога) и «выключить у поста». Как и тип
+               стены, это ЧЕРНОВИК окна: правится до «Сохранить», применяется при сохранении
+               (renderPostBacklight + savePostBuilder). Орган управления показан ТОЛЬКО у поста
+               на плане; у шаблона/нового поста переопределения нет (как у группы света — один
+               шаблон в трёх комнатах это три разные подсветки), вместо него объяснение. Что
+               именно показать, решает renderPostBacklight. Цвет и напряжение JS наполняет ИЗ
+               КАТАЛОГА (backlightCatalogOptions), тем же способом, что панель «Спецификация». -->
+          <fieldset class="wall-type-step" id="postBacklightStep">
+            <legend>Подсветка клавиш поста</legend>
+            <div id="postBacklightControl" hidden>
+              <div class="wall-type-options is-triple" id="postBacklightMode" role="radiogroup" aria-label="Подсветка клавиш поста">
+                <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-backlight="project">Как в проекте</button>
+                <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-backlight="on">Своя подсветка</button>
+                <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-backlight="off">Выключить у поста</button>
+              </div>
+              <div class="form-row backlight-post-custom">
+                <label>Цвет подсветки<select id="postBacklightColor"></select></label>
+                <label>Напряжение подсветки<select id="postBacklightVoltage"></select></label>
+              </div>
+              <small class="wall-type-hint" id="postBacklightHint"></small>
+            </div>
+            <small class="wall-type-hint" id="postBacklightTemplateNote" hidden>Подсветка задаётся у поста на плане: разместите пост и настройте её там. У шаблона своей подсветки нет намеренно — один шаблон в трёх комнатах это три разные подсветки. Пост следует настройке подсветки всего проекта (панель «Спецификация»).</small>
+          </fieldset>
+          <!-- Схема электрики — свойство ПРОЕКТА (EP_DATA.settings, едет в terms), поэтому
+               здесь она ТОЛЬКО ПОКАЗАНА: группы клавишам назначают в этом окне, и схема нужна
+               под рукой, но менять настройку всего проекта из окна отдельного поста нельзя —
+               смена пересобирает механизмы групп света во ВСЕХ постах. Орган управления —
+               один, в панели проекта. Название схемы и пояснение подставляет
+               renderLightingSchemeSelect из EPLightingGroups.SCHEMES (второй копии названий у
+               интерфейса нет). -->
+          <fieldset class="wall-type-step">
+            <legend>Схема электрики проекта</legend>
+            <div class="scheme-readonly" id="lightingSchemeValueBuilder" role="status">—</div>
+            <small class="wall-type-hint" id="lightingSchemeHintBuilder"></small>
+            <small class="wall-type-hint">Настройка всего проекта — меняется в панели «Спецификация», не в окне поста.</small>
+          </fieldset>
+          <div class="builder-composition" id="builderComposition"></div>
+        </div>
       </div>
 
-      <div class="builder-form">
-        <fieldset class="wall-type-step">
-          <legend>Тип стены</legend>
-          <div class="wall-type-options" id="postWallType" role="radiogroup" aria-label="Тип стены поста">
-            <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-wall="hollow">ГКЛ и полые стены</button>
-            <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-wall="solid">Бетон, кирпич, сплошные стены</button>
-          </div>
-          <small class="wall-type-hint">Влияет на подбор монтажной коробки. Свойство проекта.</small>
-        </fieldset>
-        <label>Название поста<input id="postName" value="Пост 3 места"></label>
-        <div class="form-row">
-          <label>Количество модулей рамки
-            <select id="postSlotCount"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select>
-          </label>
-          <label>Накладка
-            <select id="postFrameSelect"></select>
-          </label>
+      <!-- Правая колонка: каталог КРУПНЫМИ карточками с фото, разделы свёрнуты по умолчанию
+           («разделы могут быть изначально не раскрыты — ты сначала раздел выбрал, он у тебя
+           раскрылся, потом в разделе нашёл элемент, чтобы не крутить много»). -->
+      <div class="builder-catalog">
+        <div class="catalog-head">
+          <div class="catalog-target" id="builderTarget" role="status"></div>
+          <!-- Галочка «ограничить цветом накладки» (решение владельца 16.09): по умолчанию СНЯТА —
+               клавиши/розетки/механизмы любого цвета; поставлена — только в цвет накладки комнаты.
+               Накладку не трогает. Свойство поста, переживает сохранение (savePostBuilder). Это НЕ
+               <label> внутри .builder-form, поэтому правило .builder-form label{display:block} на неё
+               не действует. -->
+          <label class="builder-restrict-color"><input type="checkbox" id="builderRestrictColor"> Только клавиши, розетки и механизмы в цвет накладки</label>
+          <input id="builderSearch" type="search" autocomplete="off" placeholder="Поиск по артикулу или названию" aria-label="Поиск товара в каталоге">
         </div>
-        <div class="builder-capacity" id="builderCapacity"></div>
-        <div class="builder-slots" id="builderSlots"></div>
+        <div class="catalog-sections" id="builderCatalog"></div>
       </div>
     </div>
 
@@ -299,31 +457,104 @@
   </div>
 </div>
 
+<!-- Охват правки типа стены у размещённого поста: «изменить в данном блоке или для всех
+     однотипных блоков» (дословная просьба заказчика 24.08). Разметка — та же конвенция, что
+     у #pdfPageModal и #scaleModal; окно всплывает ПОВЕРХ конструктора, поэтому у него нет
+     кнопки «Отмена» в футере: отказ — крестик, клик мимо или Esc, и тогда не сохраняется
+     ничего. Умолчание (primary и начальный фокус) — «Только в этом посте»: правка одного
+     поста обязана оставаться правкой одного поста. -->
+<div class="modal-backdrop" id="wallScopeModal" role="dialog" aria-modal="true" aria-labelledby="wallScopeModalTitle">
+  <div class="modal scale-modal">
+    <div class="modal-header">
+      <div><span class="eyebrow">Тип стены</span><h2 id="wallScopeModalTitle">Где изменить тип стены?</h2></div>
+      <button class="modal-close" id="closeWallScopeModal" type="button" aria-label="Закрыть">×</button>
+    </div>
+    <p class="scale-modal-copy" id="wallScopeCopy"></p>
+    <div class="modal-footer">
+      <button class="btn ghost" id="wallScopeAll" type="button">Во всех однотипных</button>
+      <button class="btn primary" id="wallScopeSelf" type="button">Только в этом посте</button>
+    </div>
+  </div>
+</div>
+
+<!-- Шаговый выбор отделки накладки (вид «С картинками», E14): серия → материал → форма → цвет,
+     каждый шаг картинками со счётчиком «сколько накладок за вариантом». Открывается из свойств
+     комнаты (кнопка «Подобрать накладку»), пишет ТЕ ЖЕ настройки комнаты, что и вид «Списком».
+     Разметка — та же конвенция, что у #scaleModal/#pdfPageModal (.modal-backdrop > .modal >
+     .modal-header/.modal-footer); закрытие/Esc/фокус — как у них. Крошки и тело наполняет
+     renderFramePicker. -->
+<div class="modal-backdrop" id="framePickerModal" role="dialog" aria-modal="true" aria-labelledby="framePickerTitle">
+  <div class="modal frame-picker-modal">
+    <div class="modal-header">
+      <div><span class="eyebrow">Отделка накладки</span><h2 id="framePickerTitle">Подбор накладки</h2></div>
+      <button class="modal-close" id="closeFramePicker" type="button" aria-label="Закрыть">×</button>
+    </div>
+    <div class="frame-picker-crumbs" id="framePickerCrumbs"></div>
+    <div class="frame-picker-body" id="framePickerBody"></div>
+    <div class="modal-footer">
+      <button class="btn ghost" id="cancelFramePicker" type="button">Отмена</button>
+      <button class="btn primary" id="applyFramePicker" type="button">Применить</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
-  <script src="js/catalog-vimar.js?v=20260801.2"></script>
-  <script src="js/catalog-vimar-attrs.js?v=20260801.4"></script>
-  <script src="js/catalog-vimar-openings.js?v=20260801.1"></script>
-  <script src="js/catalog-vimar-faces.js?v=20260801.1"></script>
-  <script src="js/data.js?v=20260801.6"></script>
+  <script src="js/catalog-vimar.js?v=20260908.1"></script>
+  <script src="js/catalog-vimar-attrs.js?v=20260915.2"></script>
+  <script src="js/catalog-vimar-openings.js?v=20260801.2"></script>
+  <script src="js/catalog-vimar-faces.js?v=20260801.2"></script>
+  <script src="js/data.js?v=20260915.2"></script>
 <script src="js/store.js?v=20260723"></script>
-<script src="js/config.js?v=20260801.2"></script>
-<script src="js/catalog.js?v=20260801.7"></script>
-<script src="js/postfit.js?v=20260801.1"></script>
-<script src="js/posts.js?v=20260801.4"></script>
+<script src="js/config.js?v=20260902.1"></script>
+<!-- Подтверждение необратимой команды повтором того же действия (у окна есть и нижняя, и
+     верхняя граница). Общий модуль: им пользуются и перенумерация постов, и закрытие
+     конструктора с несохранёнными правками. -->
+<script src="js/confirmRepeat.js?v=20260828.4"></script>
+<script src="js/catalog.js?v=20260915.2"></script>
+<!-- Чистый модуль (ни DOM, ни state): подбор механизма по группе света и схеме электрики.
+     Считается по ВСЕМУ проекту, результат отдаётся в состав поста, поэтому грузится до postfit/posts. -->
+<script src="js/lightingGroups.js?v=20260914.2"></script>
+<!-- Связка модуля групп света с проектом: сборка мест управления из постов, строгий подбор
+     механизма по роли и серии, печатный блок для документов. Грузится ПОСЛЕ lightingGroups
+     (использует его тексты пробелов) и до estimate/installSheet, которые его результат печатают. -->
+<script src="js/lightingPlan.js?v=20260914.2"></script>
+<!-- Чистый модуль (ни DOM, ни state): раскрой расчёта групп света ПО КОМНАТАМ и слияние обратно
+     в один план. Грузится ПОСЛЕ lightingGroups/lightingPlan (использует их plan и форму мест) и
+     до app.js, который через него считает projectLighting. -->
+<script src="js/lightingByRoom.js?v=20260913.2"></script>
+<script src="js/postfit.js?v=20260916.4"></script>
+<script src="js/posts.js?v=20260916.3"></script>
 <script src="js/picker.js?v=20260801.1"></script>
-<script src="js/estimate.js?v=20260801.1"></script>
-<script src="js/offerPdf.js?v=20260801.6"></script>
-<script src="js/installSheet.js?v=20260801.5"></script>
-<script src="js/postImage.js?v=20260801.13"></script>
+<!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
+<script src="js/catalogSections.js?v=20260828.1"></script>
+<script src="js/builderSlots.js?v=20260914.2"></script>
+<script src="js/offerOptions.js?v=20260906.4"></script>
+<script src="js/estimate.js?v=20260916.3"></script>
+<script src="js/offerPdf.js?v=20260912.1"></script>
+<script src="js/installSheet.js?v=20260911.1"></script>
+<script src="js/supplierSpec.js?v=20260911.1"></script>
+<script src="js/postImage.js?v=20260916.1"></script>
+<script src="js/explodedView.js?v=20260805.5"></script>
+<script src="js/planLabels.js?v=20260914.2"></script>
 <script src="js/rates.js?v=20260730.1"></script>
-<script src="js/geometry.js?v=20260801.1"></script>
+<script src="js/geometry.js?v=20260902.1"></script>
 <script src="js/drag.js?v=20260801.1"></script>
 <script src="js/viewport.js?v=20260730.1"></script>
 <script src="js/roomsFromLines.js?v=20260801.1"></script>
+<script src="js/roomDraft.js?v=20260828.2"></script>
+<script src="js/room.js?v=20260915.1"></script>
+<script src="js/roomCarry.js?v=20260915.1"></script>
+<script src="js/roomAssign.js?v=20260831.1"></script>
 <script src="js/planTrace.js?v=20260727.1"></script>
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
 <script src="js/planImport.js?v=20260723"></script>
-  <script src="js/app.js?v=20260801.12"></script>
+<!-- Пользовательские предпочтения интерфейса (вид выбора отделки и т.п.) — один ключ ep_prefs,
+     отдельно от снимка проекта. Грузится до app.js, который через него читает выбранный вид. -->
+<script src="js/prefs.js?v=20260915.1"></script>
+<!-- Чистый модуль (ни DOM, ни state): шаги мастера отделки и счётчики «сколько за вариантом» через
+     переданный отбор каталога. Грузится до app.js, который подставляет ему EPCatalog и рисует. -->
+<script src="js/framePicker.js?v=20260915.1"></script>
+<script src="js/app.js?v=20260916.2"></script>
 </body>
 </html>

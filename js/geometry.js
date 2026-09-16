@@ -218,11 +218,79 @@ function componentAt(map, x, y) {
   return -1;
 }
 
+/* Дискриминатор привязки к помещению (шаг A): «есть ли стена между точкой и контуром комнаты».
+   Отвечает на вопрос — можно ли из точки (cx,cy) дотянуться до НУТРА контура polygon, не пересекая
+   ни одной стены из walls (форма {a:{x,y}, b:{x,y}}, как у стен и линий разметки). Возвращает
+   {blocked, dist}: blocked=true — стена преграждает путь (кандидат отвергается); dist — расстояние
+   до ближайшей точки контура (вызывающий берёт его тай-брейком для равноудалённых комнат).
+
+   Зонд: от точки до ближайшей точки контура F и ЗАХОД ВНУТРЬ на inset (px) по внутренней нормали
+   ближайшего ребра — E = F + inset·n, где n выбрана так, что E лежит внутри контура (проверка
+   pointInPolygon). Проверяем пересечение отрезка (cx,cy)—E со стенами.
+
+   ДВА ПОДВОДНЫХ КАМНЯ segmentsIntersection (касание концами t,u∈[0;1] считается пересечением):
+   1) стену, проходящую ЧЕРЕЗ саму точку (dist(точка,стена)≈0), игнорируем — иначе объект РОВНО на
+      контуре, чей контур И ЕСТЬ эта стена, отвергался бы; а это мотивирующий случай: выключатель
+      у дверного проёма ставят центром прямо на линию контура;
+   2) зонд обязан зайти ЗА контур внутрь (inset>0), иначе для объекта за глухой стеной пересечение
+      попадает ровно в конец зонда (F на стене), и вывод повисает на семантике концов; заход внутрь
+      делает пересечение строго внутренним и результат устойчивым.
+   Свободных имён нет — вся математика через closestPointOnSegment / pointInPolygon /
+   segmentsIntersection / distancePointToSegment этого же модуля (второй реализации не заводим). */
+function roomContourProbe(cx, cy, polygon, walls, inset) {
+  if (!Number.isFinite(cx) || !Number.isFinite(cy) || !Number.isFinite(inset) || inset <= 0 ||
+      !polygon || polygon.length < 3) return { blocked: true, dist: Infinity };
+  /* Ближайшая точка контура F и ребро, на котором она лежит. В вершине ближайшими могут быть
+     сразу два ребра. Храним оба: у вогнутого угла нормаль одного ребра может не попасть внутрь,
+     а выбор «первого в массиве» снова сделал бы результат зависимым от порядка вершин. */
+  const EPS = 1e-9;
+  let bestDist = Infinity, nearest = [];
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    if (![polygon[j]?.x, polygon[j]?.y, polygon[i]?.x, polygon[i]?.y].every(Number.isFinite))
+      return { blocked: true, dist: Infinity };
+    const cp = closestPointOnSegment(cx, cy, polygon[j].x, polygon[j].y, polygon[i].x, polygon[i].y);
+    const edge = { cp, ax: polygon[j].x, ay: polygon[j].y, bx: polygon[i].x, by: polygon[i].y };
+    if (cp.dist < bestDist - EPS) { bestDist = cp.dist; nearest = [edge]; }
+    else if (Math.abs(cp.dist - bestDist) <= EPS) nearest.push(edge);
+  }
+  const ends = [];
+  for (const edge of nearest) {
+    const ex = edge.bx - edge.ax, ey = edge.by - edge.ay;
+    const nlen = Math.hypot(ex, ey);
+    if (nlen <= EPS) continue; // вырожденное ребро не задаёт нормаль
+    const nx = -ey / nlen, ny = ex / nlen;
+    /* Проверяем обе нормали явно. В обычной точке ребра внутри ровно одна; в вершине это ещё и
+       защищает вогнутые контуры. Если обе точки снаружи (слишком тонкий/битый контур), не делаем
+       вид, что зонд вошёл внутрь. */
+    for (const sign of [1, -1]) {
+      const x = edge.cp.x + nx * inset * sign, y = edge.cp.y + ny * inset * sign;
+      if (pointInPolygon(x, y, polygon)) ends.push({ x, y });
+    }
+  }
+  if (!ends.length) return { blocked: true, dist: bestDist };
+
+  const p1 = { x: cx, y: cy };
+  const SKIP = 1e-6; // стена через саму точку — не преграда (подводный камень 1); это не тюнинг, а защита от вырождения
+  /* В вершине может быть несколько корректных внутренних нормалей. Достаточно одного свободного
+     пути: вопрос функции именно «можно ли дотянуться до нутра без стены», а не «какое ребро первым». */
+  for (const p2 of ends) {
+    let blocked = false;
+    for (const w of (walls || [])) {
+      if (!w?.a || !w?.b) continue;
+      if (distancePointToSegment(cx, cy, w.a.x, w.a.y, w.b.x, w.b.y) <= SKIP) continue;
+      if (segmentsIntersection(p1, p2, w.a, w.b)) { blocked = true; break; }
+    }
+    if (!blocked) return { blocked: false, dist: bestDist };
+  }
+  return { blocked: true, dist: bestDist };
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
 const api = { polygonCentroid, polygonAreaPx, pointInPolygon, distancePointToSegment,
   closestPointOnSegment, segmentsIntersection, allIntersections, nearestEndpoint,
-  nearestIntersection, nearestSegmentPoint, snapPlanPoint, buildSpaceComponents, componentAt };
+  nearestIntersection, nearestSegmentPoint, snapPlanPoint, buildSpaceComponents, componentAt,
+  roomContourProbe };
 if (typeof window !== "undefined") window.EPGeom = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
