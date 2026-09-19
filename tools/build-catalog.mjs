@@ -68,6 +68,12 @@ const NEW_ID_BASE = 200000;   // новые артикулы — вне диап
 
 const norm = (v) => String(v ?? "").trim();
 
+// Заглушка «нет фото» из выгрузки vimar.ru (…/no_photo.png). ЕДИНСТВЕННОЕ место, где каталог
+// решает «это не фотография»: дальше поле фото просто не выводится, и все потребители видят
+// товар как «без фото». Тот же критерий, что у детекторов лица/окон (tools/detect-*.mjs) и у
+// рантайм-фильтра productImage — чтобы источник данных и читатель понимали заглушку одинаково.
+const isPlaceholderImageUrl = (u) => /no_photo/i.test(String(u || ""));
+
 async function readJson(file, fallback) {
   try {
     return JSON.parse((await fs.readFile(file, "utf8")).replace(/^﻿/, ""));
@@ -186,8 +192,16 @@ async function main() {
       compatibility: rec.series.join(", "),
     };
     if (image) {
-      product.previewImageUrl = image.preview_image_url || "";
-      product.imageUrl = image.image_url || "";
+      // Заглушка сайта «нет фото» (…/no_photo.png) — это НЕ фотография: индекс vimar.ru отдаёт её
+      // для позиций без снимка. Пишем такой URL как «фото нет» (поле не выводим вовсе), чтобы КАЖДЫЙ
+      // потребитель — и productImage, и сырой EPPostImage.photoReady накладки — вёл себя ровно как с
+      // товаром без фото: обычная заглушка программы у механизмов, нарисованная схема у накладок.
+      // Признак заглушки живёт ОДНИМ местом в источнике данных (§7.1), а не размножается по читателям.
+      // Реальные фото монтажных коробок уже победили no_photo выше через image-overrides.json.
+      const preview = isPlaceholderImageUrl(image.preview_image_url) ? "" : (image.preview_image_url || "");
+      const full = isPlaceholderImageUrl(image.image_url) ? "" : (image.image_url || "");
+      if (preview) product.previewImageUrl = preview;
+      if (full) product.imageUrl = full;
     }
     // moduleSpan механизма — только валидное (1..8), иначе рантайм выведет из названия/1
     if (rec.kind === "mechanism" && Number.isInteger(rec.moduleSize) && rec.moduleSize >= 1 && rec.moduleSize <= 8) {

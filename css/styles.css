@@ -353,7 +353,12 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .builder-room-field select:disabled{opacity:.6;cursor:not-allowed}
 #builderSearch{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text);font-size:12px}
 .catalog-sections{display:flex;flex-direction:column;gap:8px;min-height:0;overflow-y:auto;overflow-x:hidden;padding-right:4px}
-.catalog-section{border:1px solid #dbe8f3;border-radius:12px;background:#fff;overflow:hidden}
+/* flex-shrink:0 — раздел держит свою СОДЕРЖИМУЮ высоту и не сжимается под контейнер.
+   Без этого при 2+ раскрытых разделах flex-элементы ужимались до высоты .catalog-sections
+   (scrollHeight==clientHeight) — прокрутки не возникало, нижние разделы схлопывались в полоску.
+   Теперь суммарная высота разделов переполняет контейнер → включается его overflow-y:auto.
+   Свёрнутый раздел flex-grow не имеет — остаётся высотой одной шапки, не растягивается. */
+.catalog-section{flex-shrink:0;border:1px solid #dbe8f3;border-radius:12px;background:#fff;overflow:hidden}
 .catalog-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:11px 13px;border:0;background:#fff;color:var(--text);font-size:13px;font-weight:800;text-align:left;cursor:pointer}
 .catalog-section-head:hover{background:var(--blue-soft)}
 .catalog-section-head[aria-expanded="true"]{background:var(--blue-soft);color:var(--blue-dark)}
