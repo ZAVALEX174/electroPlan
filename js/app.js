@@ -112,9 +112,16 @@ const fitMechanismIds=(ids,items,capacity)=>EPPosts.fitMechanismIds(ids,items,ca
 const fitMechanismIdsPreserving=(ids,items,capacity,pinnedIndex)=>EPPosts.fitMechanismIdsPreserving(ids,items,capacity,pinnedIndex,{product,mechanismSpan});
 function productPicture(item,{className="",detail=false,label="",eager=false,style=""}={}){
   const imageUrl=productImage(item,{detail});
-  return `<span class="product-picture ${className}${imageUrl?" has-image":""}"${style?` style="${esc(style)}"`:""}>
+  /* Нет фото → рисуем значок товара (item.icon) и подпись «Нет фото», чтобы отсутствие снимка
+     читалось как «фото просто нет», а не «картинка сломалась» (владелец принял голубой квадрат
+     с крохотным значком за баг). Подпись даём ТОЛЬКО когда фото реально нет: иначе она осталась
+     бы в разметке товаров с фото (пусть и скрытая CSS) — а тест «у товара с фото надписи нет»
+     и есть страховка от этого. В тесных местах (слоты сборки, список накладок) подпись прячется
+     через CSS, значок остаётся, а title="Нет фото" даёт ту же подсказку по наведению. */
+  const noPhoto=!imageUrl;
+  return `<span class="product-picture ${className}${imageUrl?" has-image":""}"${noPhoto?` title="Нет фото"`:""}${style?` style="${esc(style)}"`:""}>
     ${imageUrl?`<img src="${esc(imageUrl)}" alt="${esc(label||item?.name||"Изображение товара")}" loading="${eager?"eager":"lazy"}" decoding="async" data-product-picture>`:""}
-    <span class="product-picture-fallback" aria-hidden="true">${esc(item?.icon||"?")}</span>
+    <span class="product-picture-fallback" aria-hidden="true"><span class="product-picture-glyph">${esc(item?.icon||"?")}</span>${noPhoto?`<span class="product-picture-nophoto">Нет фото</span>`:""}</span>
   </span>`;
 }
 function bindProductPictureFallbacks(root){

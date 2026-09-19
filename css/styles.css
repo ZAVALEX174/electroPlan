@@ -52,7 +52,14 @@ button{cursor:pointer}
 label input,label select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 10px;background:#fff;color:var(--text)}
 .product-picture{position:relative;display:grid;width:100%;height:100%;place-items:center;overflow:hidden;color:var(--blue-dark)}
 .product-picture img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain;background:#fff}
-.product-picture-fallback{display:grid;width:100%;height:100%;place-items:center}
+.product-picture-fallback{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:100%;height:100%;padding:2px;text-align:center;line-height:1.05;overflow:hidden}
+.product-picture-nophoto{font-size:10px;font-weight:700;color:var(--muted)}
+/* Крупная карточка каталога — место есть: значок покрупнее, подпись читаемая. */
+.product-card .product-picture-glyph{font-size:26px;line-height:1}
+.product-card .product-picture-nophoto{font-size:11px}
+/* Тесные миниатюры (слоты сборки, кнопка и строки списка накладок) — «Нет фото» не влезает,
+   оставляем только значок; подсказку даёт title на самой плитке. */
+.slot-body .product-picture-nophoto,.epk-thumb .product-picture-nophoto{display:none}
 .product-picture.has-image .product-picture-fallback{display:none}
 .product-picture:not(.has-image) img{display:none}
 .link-btn{border:0;background:transparent;color:var(--blue-dark);font-weight:900;font-size:11px}
