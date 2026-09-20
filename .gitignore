@@ -25,3 +25,5 @@ node_modules/
 # Личные настройки Claude Code — не для команды
 .claude/settings.local.json
 CLAUDE.local.md
+
+.claude/worktrees/
