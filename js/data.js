@@ -90,12 +90,21 @@ window.EP_DATA = {
       return out;
     };
     // Измеренные монтажные окна накладок (js/catalog-vimar-openings.js) — снятые детектором с
-    // ДЕТАЛЬНОГО фото прямоугольники в % фото. Ключ — БАЗА артикула (09673.01/09673.04 → 09673):
-    // геометрия окон у цветовых вариантов одна и та же. Итальянская несёт одно окно → mountRect,
+    // ДЕТАЛЬНОГО фото прямоугольники в % фото. Итальянская несёт одно окно → mountRect,
     // немецкая несколько → mountRects; EPCatalog.frameOpening/frameOpenings читают эти поля.
     const openings = window.EP_VIMAR_OPENINGS || {};
+    // Ключ группировки окон — «артикул БЕЗ последнего сегмента» (последний сегмент — цвет):
+    // 09673.01 → 09673; трёхсегментные варианты по числу отверстий остаются раздельными
+    // (22673.1.01 → 22673.1, а не 22673 — иначе всем достаётся геометрия первого варианта).
+    // ⚠️ ТО ЖЕ ПРАВИЛО, что openingKey в tools/detect-openings.mjs (генераторе этого файла): тул и
+    // рантайм — разные процессы, общий модуль им не импортировать (сборщика нет, PLAN 2.2). При
+    // правке меняй ОБА места; расхождение ловит tests/openingsKeyConsistency.test.js.
+    const openingKey = code => {
+      const seg = String(code || "").split(".");
+      return seg.length <= 1 ? seg[0] : seg.slice(0, -1).join(".");
+    };
     const attachOpenings = (p, out) => {
-      const o = openings[String(p.code || "").split(".")[0]];
+      const o = openings[openingKey(p.code)];
       if (!o || !Array.isArray(o.rects) || !o.rects.length) return out;
       const res = out === p ? {...p} : out;
       const rects = o.rects.map(r => ({left: r[0], top: r[1], width: r[2], height: r[3], aspect: o.aspect}));

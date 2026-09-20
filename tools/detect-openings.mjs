@@ -12,9 +12,14 @@
  *   3) оставшиеся связные компоненты белого — это окна; берём их bbox в % от размера фото;
  *   4) чистим мусор: блики по верхней/нижней кромке (короткие пятна у канта) отбрасываем.
  *
- * ГРУППИРОВКА ПО ФОРМЕ. Геометрия окон у цветовых вариантов одной накладки совпадает
+ * ГРУППИРОВКА ПО ФОРМЕ. Геометрия окон у ЦВЕТОВЫХ вариантов одной накладки совпадает
  * (09673.01/09673.04 — та же форма, разный цвет). Поэтому качаем и считаем ОДНУ фотографию на
- * БАЗУ артикула (код до точки) и применяем ко всем цветам — сотни лишних загрузок не делаем.
+ * группу и применяем ко всем цветам — сотни лишних загрузок не делаем. Ключ группы — «артикул
+ * БЕЗ ПОСЛЕДНЕГО сегмента» (последний сегмент — цвет): 09673.01 → 09673. ВАЖНО: у части накладок
+ * код ТРЁХсегментный (22673.1.01 «на 1 кнопку», 22673.2.01 «на 2», 22673.3.01 «на 3») — там
+ * второй сегмент это ВАРИАНТ (число отверстий), а не цвет, и форма у них РАЗНАЯ. «Код до первой
+ * точки» слил бы их в один ключ 22673 и раздал бы всем геометрию первого варианта — поэтому
+ * ключ отрезает только ПОСЛЕДНИЙ сегмент (см. openingKey).
  *
  * ВОСПРОИЗВОДИМОСТЬ. Тот же каталог + те же фото → тот же файл: детектор детерминирован, ключи
  * отсортированы, скачанное кэшируется в каталоге .tmp-openings (маска .tmp-* уже в .gitignore). Правки
@@ -37,23 +42,47 @@ import { Jimp } from "jimp";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(here, "..");
 
-const { values: args } = parseArgs({
-  options: {
-    out: { type: "string" },
-    cache: { type: "string" },
-    bases: { type: "string" },
-    limit: { type: "string" },
-    catalog: { type: "string" },
-  },
-});
-const OUT = args.out ? path.resolve(args.out) : path.join(projectRoot, "js/catalog-vimar-openings.js");
-const CACHE = args.cache ? path.resolve(args.cache) : path.join(projectRoot, ".tmp-openings");
-const CATALOG = args.catalog ? path.resolve(args.catalog) : path.join(projectRoot, "js/catalog-vimar.js");
-const ONLY = args.bases ? new Set(args.bases.split(",").map((s) => s.trim()).filter(Boolean)) : null;
-const LIMIT = args.limit ? Number(args.limit) : 0;
+/* Конфиг из CLI. Держим значения в let со значениями по умолчанию, а parseArgs зовём ЛЕНИВО из
+   main() (parseCliArgs), а не на верхнем уровне: так модуль можно import-нуть в автотесте, не
+   натыкаясь на parseArgs (в тесте argv — путь к тест-файлу, strict-parseArgs упал бы на нём). */
+let OUT = path.join(projectRoot, "js/catalog-vimar-openings.js");
+let CACHE = path.join(projectRoot, ".tmp-openings");
+let CATALOG = path.join(projectRoot, "js/catalog-vimar.js");
+let ONLY = null;
+let LIMIT = 0;
+
+function parseCliArgs() {
+  const { values: args } = parseArgs({
+    options: {
+      out: { type: "string" },
+      cache: { type: "string" },
+      bases: { type: "string" },
+      limit: { type: "string" },
+      catalog: { type: "string" },
+    },
+  });
+  if (args.out) OUT = path.resolve(args.out);
+  if (args.cache) CACHE = path.resolve(args.cache);
+  if (args.catalog) CATALOG = path.resolve(args.catalog);
+  if (args.bases) ONLY = new Set(args.bases.split(",").map((s) => s.trim()).filter(Boolean));
+  if (args.limit) LIMIT = Number(args.limit);
+}
 
 const isPlaceholder = (u) => /no_photo/i.test(String(u || ""));
-const baseOf = (code) => String(code || "").split(".")[0];
+
+/* КЛЮЧ ГРУППИРОВКИ ОКОН по накладке — «артикул БЕЗ последнего сегмента». Последний сегмент кода
+   VIMAR — цвет/финиш (09673.01 vs 09673.04, 22673.1.01 vs 22673.1.03), а форма окон у цветов одна,
+   поэтому цвет отбрасываем. Отрезаем ТОЛЬКО последний сегмент (а не «код до первой точки»): у
+   трёхсегментных накладок второй сегмент — это ВАРИАНТ по числу отверстий (22673.1/.2/.3), у него
+   геометрия РАЗНАЯ, и он обязан остаться в ключе. Односегментный код остаётся собой.
+   ⚠️ ТО ЖЕ ПРАВИЛО продублировано в js/data.js (attachOpenings): тул-производитель и рантайм-
+   потребитель — разные процессы, общий модуль им не импортировать (во фронте нет сборщика,
+   PLAN 2.2). Правило одно на два места: при правке меняй ОБА, расхождение ловит тест-сторож
+   tests/openingsKeyConsistency.test.js. */
+const openingKey = (code) => {
+  const seg = String(code || "").split(".");
+  return seg.length <= 1 ? seg[0] : seg.slice(0, -1).join(".");
+};
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /* Ожидаемое число окон по НАЗВАНИЮ: немецкая «(2+2+2)» → 3, итальянская без «+…» → одно окно.
@@ -74,11 +103,13 @@ function loadFrames() {
   return products.filter((p) => p.kind === "frame");
 }
 
-/* Одна база → представитель с детальным фото (первый попавшийся цвет с настоящей картинкой). */
+/* Один КЛЮЧ (openingKey) → представитель с детальным фото (первый цвет группы с настоящей
+   картинкой). Трёхсегментные варианты (22673.1/.2/.3) попадают в РАЗНЫЕ группы и качают КАЖДЫЙ
+   своё фото — иначе всем достаётся геометрия первого варианта. */
 function groupBases(frames) {
   const bases = new Map();
   for (const p of frames) {
-    const base = baseOf(p.code);
+    const base = openingKey(p.code);
     const url = p.imageUrl && !isPlaceholder(p.imageUrl) ? p.imageUrl : "";
     if (!bases.has(base)) bases.set(base, null);
     if (url && !bases.get(base)) bases.set(base, { base, code: p.code, name: p.name, url });
@@ -127,7 +158,25 @@ async function cachedImage(base, url) {
   return file;
 }
 
-/* Все связные компоненты сквозного белого (bbox в % фото). minpix отсекает точечный шум. */
+/* Отсев НЕ-окон среди связных пятен сквозного белого — ДВА условия сразу (И):
+   • ОТНОСИТЕЛЬНОЕ (главное): пятно не мельче REL_FLOOR·(самого крупного пятна кадра). Окна одной
+     накладки примерно равны по площади (у 22674 четыре овала n=106/96/96/93 — разброс ≤12 %),
+     а точечный JPEG-шум на порядок мельче (n=1 при max=106 → 0,9 %). 0,25 лежит в огромном зазоре
+     между ними, поэтому равные окна НЕ делятся произвольно (прежний единый порог оставлял «первый
+     овал, три выкинул»);
+   • АБСОЛЮТНОЕ (страховка): пятно не мельче ABS_FLOOR·(площади фото). Нужно на вырожденном кадре
+     (макро-снимок цельной пластины без сквозного окна: 21653 Eikon Evo даёт только блики-slivers,
+     самый крупный n=43), где относительный порог опустился бы до пары пикселей и пропустил бы блик
+     за окно. На нормальных кадрах абсолютный пол ниже относительного и в отбор не вмешивается.
+   ЧИСЛО. По каталогу самый мелкий РЕАЛЬНЫЙ овал — n=93 (22674, площадь 25800 → 0,36 % площади),
+   самый крупный ШУМ вырожденного кадра — n=43 (21653, площадь 34200 → 0,13 %). 0.002 лежит между
+   ними: 0.002·25800=52 < 93 (реальное окно проходит), 0.002·34200=68 > 43 (блик отсекается).
+   Прежний единый порог 0.004·площадь (=103 px на фото 200×129) резал узкие овалы винтажных
+   накладок наравне с шумом — четыре одинаковых окна разваливались на одно. */
+const ABS_FLOOR = 0.002;    // доля площади фото — нижний предел размера окна на вырожденном кадре
+const REL_FLOOR = 0.25;     // доля самого крупного пятна — равные окна не делятся произвольно
+
+/* Все связные компоненты сквозного белого (bbox в % фото). Порог отсева — см. ABS_FLOOR/REL_FLOOR. */
 function detectRaw(bmp) {
   const { width: w, height: h, data } = bmp;
   const pure = new Uint8Array(w * h);
@@ -148,8 +197,7 @@ function detectRaw(bmp) {
     if (x - 1 >= 0) push(y, x - 1);
   }
   const lab = new Int32Array(w * h);
-  const minpix = 0.004 * h * w;
-  const rects = [];
+  const comps = [];              // {n, rect} — сначала СОБИРАЕМ все пятна, порог применяем после
   let cur = 0;
   for (let y0 = 0; y0 < h; y0++) {
     for (let x0 = 0; x0 < w; x0++) {
@@ -169,16 +217,25 @@ function detectRaw(bmp) {
           if (x + 1 < w) q(y, x + 1);
           if (x - 1 >= 0) q(y, x - 1);
         }
-        if (n >= minpix) {
-          rects.push([
-            round1(xs0 / w * 100), round1(ys0 / h * 100),
-            round1((xs1 + 1 - xs0) / w * 100), round1((ys1 + 1 - ys0) / h * 100),
-          ]);
-        }
+        comps.push({ n, rect: [
+          round1(xs0 / w * 100), round1(ys0 / h * 100),
+          round1((xs1 + 1 - xs0) / w * 100), round1((ys1 + 1 - ys0) / h * 100),
+        ] });
       }
     }
   }
-  return rects;
+  return keepComponents(comps, w, h);
+}
+
+/* Отбор пятен-окон из всех связных компонентов сквозного белого (comps = [{n, rect}]). Порог =
+   max(абсолютный пол ABS_FLOOR·площадь, доля REL_FLOOR от самого крупного пятна): относительное
+   правило держит равные окна вместе (не делит их произвольно), абсолютное страхует вырожденный
+   кадр без окон. Вынесено из detectRaw отдельной ЧИСТОЙ функцией — покрыта автотестом на фикстуре
+   из реального кадра 22674 (четыре овала n=106/96/96/93 + шум n=1). */
+function keepComponents(comps, w, h) {
+  const maxN = comps.reduce((m, c) => Math.max(m, c.n), 0);
+  const floor = Math.max(ABS_FLOOR * h * w, REL_FLOOR * maxN);
+  return comps.filter((c) => c.n >= floor).map((c) => c.rect);
 }
 const round1 = (n) => Math.round(n * 10) / 10;
 const round3 = (n) => Math.round(n * 1000) / 1000;
@@ -254,6 +311,7 @@ function cleanWindows(raw) {
 }
 
 async function main() {
+  parseCliArgs();
   const frames = loadFrames();
   let bases = groupBases(frames);
   if (ONLY) bases = bases.filter((b) => ONLY.has(b.base));
@@ -287,7 +345,8 @@ async function main() {
   const banner =
     `/* Generated by tools/detect-openings.mjs — НЕ ПРАВИТЬ РУКАМИ.\n` +
     `   Монтажные окна накладок VIMAR, СНЯТЫЕ С ДЕТАЛЬНОГО ФОТО (детектор сквозных белых окон).\n` +
-    `   Ключ — БАЗА артикула (09673.01/09673.04 → 09673): геометрия у цветовых вариантов одна.\n` +
+    `   Ключ — артикул БЕЗ последнего сегмента (последний сегмент = цвет): 09673.01/09673.04 → 09673,\n` +
+    `   а трёхсегментные варианты по числу отверстий остаются раздельными (22673.1/22673.2/22673.3).\n` +
     `   rects — окна слева направо в % от фото [left,top,width,height]; aspect — ширина/высота фото.\n` +
     `   Подмешиваются к накладкам в js/data.js (mountRect/mountRects). Пересобрать: npm run build:openings. */\n`;
   await fsp.writeFile(OUT, banner + `window.EP_VIMAR_OPENINGS = ${JSON.stringify(sorted, null, 2)};\n`, "utf8");
@@ -314,7 +373,17 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("Ошибка детектора окон:", err);
-  process.exitCode = 1;
-});
+/* Запуск main() — ТОЛЬКО когда файл вызван напрямую (`node tools/detect-openings.mjs`), а не когда
+   его import-нул автотест ради чистых функций (openingKey/keepComponents/…): иначе тест дёргал бы
+   сеть и парсил свой argv через parseArgs. */
+const isDirectRun = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error("Ошибка детектора окон:", err);
+    process.exitCode = 1;
+  });
+}
+
+/* Экспорт чистых функций для автотестов (в браузер этот тул не идёт). Правило ключа openingKey и
+   отбор пятен keepComponents — под тест-сторожа новой задачи; остальные — под будущие регрессы. */
+export { openingKey, expectedWindows, detectRaw, keepComponents, cleanWindows, groupRows, pruneRow };
