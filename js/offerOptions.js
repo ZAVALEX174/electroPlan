@@ -13,7 +13,11 @@ const fields = {
   layout: [
     ["number", "№ поста", true], ["fill", "Наполнение", true],
     ["modules", "Модульность", true], ["box", "Монтажная коробка", false],
-    ["article", "Артикул накладки", false], ["illustration", "Иллюстрация", true]
+    ["article", "Артикул накладки", false], ["illustration", "Иллюстрация", true],
+    /* Столбец стоимости одного поста — «стоимость блока» из набора «Для клиента». По умолчанию
+       выключен: в полном КП цену несут спецификация и итоги, дублировать её в раскладке незачем.
+       Печать гейтится ценами (options.prices), как цена/сумма спецификации. */
+    ["price", "Стоимость блока", false]
   ],
   specification: [
     ["number", "№", true], ["composition", "Состав", true],
@@ -34,13 +38,32 @@ function normalize(value) {
   });
   return out;
 }
+/* Готовые наборы столбцов заказчика (EPG, ответы 16.09) — по РОЛЯМ. Состав каждого ровно по словам
+   заказчика, в ОДНОЙ точке рядом с полной схемой: правка состава набора не расходится по
+   потребителям (§7.1). Набор влияет только на ВИДИМОСТЬ разделов/столбцов КП, не на смету и подбор
+   (см. шапку файла). */
 function preset(name) {
-  if (name === "client") return normalize({ articles: false, sections: { supplier: false } });
+  if (name === "builder") return normalize({
+    /* Строителю — лист раскладки постов для монтажа: номер, наполнение, модульность, монтажная
+       коробка, артикул накладки, иллюстрация. Цены и прочие разделы строителю не нужны. */
+    prices: false,
+    sections: { plan: false, layout: true, specification: false, lighting: false, supplier: false },
+    layout: { number: true, fill: true, modules: true, box: true, article: true, illustration: true, price: false }
+  });
+  if (name === "client") return normalize({
+    /* Клиенту — номер, наполнение, иллюстрация и стоимость блока. Без артикулов и модульности,
+       без спецификации и свода: клиенту важны состав постов словами и цена, а не монтаж. */
+    articles: false,
+    sections: { plan: false, layout: true, specification: false, lighting: false, supplier: false },
+    layout: { number: true, fill: true, modules: false, box: false, article: false, illustration: true, price: true }
+  });
   if (name === "boxes") return normalize({
     articles: false, prices: false,
     sections: { specification: false, lighting: false, supplier: false },
-    layout: { number: true, fill: false, modules: false, box: true, article: false, illustration: false }
+    layout: { number: true, fill: false, modules: false, box: true, article: false, illustration: false, price: false }
   });
+  /* «Для дизайнера: весь список» — полный стандартный КП со всеми разделами. То же поведение раньше
+     давала кнопка «Полное КП»; отдельным набором дизайнера не плодим — designer совпадает с full. */
   return normalize();
 }
 /* Только подписи каталога, не произвольный HTML и не имена проекта/комнат.
@@ -65,7 +88,41 @@ function itemText(value, articles, code) {
   }
   return text.trim();
 }
-const api = { fields, groupLabels, normalize, preset, itemText };
+/* --- Свои наборы столбцов пользователя: РОВНО CUSTOM_SLOTS слотов ---
+   Это ПРИВЫЧКА ЧЕЛОВЕКА (как вид отделки), а не свойство проекта: в приложении они живут в EPPrefs,
+   а не в снимке проекта. Модуль хранит только чистые преобразования; чтение/запись localStorage —
+   в оркестраторе. */
+const CUSTOM_SLOTS = 3;
+/* Привести массив своих наборов из EPPrefs к ровно CUSTOM_SLOTS слотам: слот — либо {name, options}
+   с непустым названием и нормализованным составом, либо null (пусто). Данные из localStorage не
+   доверенные (чужой/старый ключ, лишние слоты, пустые имена) — лишнее и безымянное отбрасываем:
+   без названия набор не выбрать и не отличить в списке. */
+function normalizeCustomPresets(value) {
+  const arr = Array.isArray(value) ? value : [];
+  const out = [];
+  for (let i = 0; i < CUSTOM_SLOTS; i++) {
+    const slot = arr[i];
+    const name = slot && typeof slot === "object" && typeof slot.name === "string" ? slot.name.trim() : "";
+    out.push(name ? { name, options: normalize(slot.options) } : null);
+  }
+  return out;
+}
+/* Записать текущий состав options в слот index под именем name. Возвращает НОВЫЙ список (вход не
+   мутируем — снимок проекта/EPPrefs не должен меняться по ссылке). Пустое/пробельное имя или слот
+   вне диапазона — список остаётся прежним (перезаписи не происходит). */
+function saveCustomPreset(presets, index, name, options) {
+  const list = normalizeCustomPresets(presets);
+  const clean = String(name ?? "").trim();
+  if (!clean || !(index >= 0 && index < CUSTOM_SLOTS)) return list;
+  list[index] = { name: clean, options: normalize(options) };
+  return list;
+}
+/* Совпадают ли два набора по видимости разделов/столбцов — сравнением нормализованного вида (порядок
+   ключей в normalize стабилен). Нужен, чтобы подсветить активный набор: человек видит, что выбрано. */
+function sameOptions(a, b) {
+  return JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
+}
+const api = { fields, groupLabels, normalize, preset, itemText, CUSTOM_SLOTS, normalizeCustomPresets, saveCustomPreset, sameOptions };
 if (typeof window !== "undefined") window.EPOfferOptions = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

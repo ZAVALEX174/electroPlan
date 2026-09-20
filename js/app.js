@@ -4148,6 +4148,7 @@ function renderOfferOptions(){
   $("offerOptionsFields").innerHTML=Object.entries(EPOfferOptions.fields).map(([group,fields])=>
     `<fieldset><legend>${esc(EPOfferOptions.groupLabels[group]||group)}</legend>${fields.map(([key,label])=>
       `<label><input type="checkbox" id="offer-${group}-${key}" data-offer-group="${group}" data-offer-key="${key}">${esc(label)}</label>`).join("")}</fieldset>`).join("");
+  renderCustomOfferPresets();   /* кнопки своих наборов — из EPPrefs, их состав знает только приложение */
   syncOfferOptions();
 }
 function syncOfferOptions(){
@@ -4159,6 +4160,54 @@ function syncOfferOptions(){
     input.disabled=(group!=="sections"&&!o.sections[group])||(key==="article"&&!o.articles)
       ||(["price","sum"].includes(key)&&!o.prices);
   }));
+  highlightActiveOfferPreset();   /* после любого изменения — подсветить набор, совпадающий с текущим */
+}
+/* Свои наборы столбцов — ПРИВЫЧКА ЧЕЛОВЕКА (как вид отделки), поэтому хранятся в EPPrefs (ep_prefs),
+   а не в снимке проекта: чужой проект их не должен переопределять. Чистые преобразования (ровно 3
+   слота, валидация имени, сравнение наборов) — в EPOfferOptions; здесь только чтение/запись хранилища
+   и связка с DOM. */
+function customOfferPresets(){
+  return EPOfferOptions.normalizeCustomPresets(EPPrefs.get("offerPresets",[]));
+}
+/* Кнопки своих наборов: заполненный слот — «применить» + «перезаписать текущим составом»; пустой —
+   одна кнопка «＋ Свой набор N». Имя набора выводим через esc: его вводит человек. */
+function renderCustomOfferPresets(){
+  const list=customOfferPresets();
+  $("offerCustomPresets").innerHTML=list.map((slot,i)=>slot
+    ?`<span class="offer-custom"><button class="btn ghost small offer-custom-apply" type="button" data-custom-apply="${i}" title="Применить набор «${esc(slot.name)}»">${esc(slot.name)}</button>`
+      +`<button class="btn ghost small offer-custom-save" type="button" data-custom-save="${i}" title="Перезаписать «${esc(slot.name)}» текущим составом">↻</button></span>`
+    :`<button class="btn ghost small offer-custom-empty" type="button" data-custom-save="${i}" title="Сохранить текущий состав как свой набор">＋ Свой набор ${i+1}</button>`).join("");
+  highlightActiveOfferPreset();
+}
+/* Активный набор — тот, чей состав совпадает с текущим (EPOfferOptions.sameOptions). Подсвечиваем и
+   готовые кнопки, и свои: так человек видит, что выбрано сейчас. Вручную изменил галочку — ни одна
+   кнопка не активна, и это честно. Функция только оформляет: без DOM (тесты) молча выходит. */
+function highlightActiveOfferPreset(){
+  if(typeof document==="undefined")return;
+  const cur=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
+  document.querySelectorAll("[data-offer-preset]").forEach(btn=>
+    btn.classList.toggle("active",EPOfferOptions.sameOptions(cur,EPOfferOptions.preset(btn.dataset.offerPreset))));
+  const list=customOfferPresets();
+  document.querySelectorAll("[data-custom-apply]").forEach(btn=>{
+    const slot=list[Number(btn.dataset.customApply)];
+    btn.classList.toggle("active",!!slot&&EPOfferOptions.sameOptions(cur,slot.options));
+  });
+}
+/* Применить свой набор — так же, как готовый: пишем состав в проект, синхроним галочки, сохраняем. */
+function applyCustomOfferPreset(index){
+  const slot=customOfferPresets()[index];
+  if(!slot)return;
+  EP_DATA.settings.offerOptions=EPOfferOptions.normalize(slot.options);
+  syncOfferOptions();scheduleSave();
+}
+/* Сохранить текущий состав в слот index под именем, которое вводит человек. Пустое имя (отмена
+   prompt или пробелы) — набор НЕ сохраняем, слот остаётся прежним: без названия его не выбрать. */
+function saveCustomOfferPreset(index){
+  const list=customOfferPresets();
+  const name=(prompt("Название набора столбцов",list[index]?list[index].name:"")||"").trim();
+  if(!name)return;
+  EPPrefs.set("offerPresets",EPOfferOptions.saveCustomPreset(list,index,name,EP_DATA.settings.offerOptions));
+  renderCustomOfferPresets();
 }
 function applyOfferOption(input){
   const o=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
@@ -4209,6 +4258,11 @@ function buildPostLayout(options,light){
       fill,
       box:{name:(comp.box||comp.boxFallback)?.name,code:(comp.box||comp.boxFallback)?.code,count:comp.boxCount},
       frameCode:comp.frameAvailability.code,
+      /* Стоимость блока для одноимённого столбца (набор «Для клиента»): полная цена ЭТОГО поста —
+         состав плюс механизмы его групп света. Считает postTotalCost → EPEstimate.postPrice, ТА ЖЕ
+         функция, что у панели свойств и строки сметы (§7.1), поэтому раскладка и смета не разойдутся.
+         Считаем всегда; печатать ли столбец, решает выбранный набор (options.layout.price/prices). */
+      price:postTotalCost(p,lite),
       /* Иллюстрация — собранный пост (EPPostImage), а не фото одной накладки: инлайн-стили,
          поэтому одинаково рисуется в окне печати КП. */
       assembledImageHtml:assembledPostHtml(p,{size:"md",articles:options?.articles!==false},lite),
@@ -5357,6 +5411,14 @@ $("offerOptions").onchange=e=>applyOfferOption(e.target);
 document.querySelectorAll("[data-offer-preset]").forEach(btn=>{
   btn.onclick=()=>applyOfferPreset(btn.dataset.offerPreset);
 });
+/* Свои наборы рисуются из EPPrefs уже после этого биндинга — вешаем делегирование на контейнер:
+   «применить» берёт слот, «сохранить/перезаписать» кладёт в него текущий состав. */
+$("offerCustomPresets").onclick=e=>{
+  const apply=e.target.closest("[data-custom-apply]");
+  if(apply){applyCustomOfferPreset(Number(apply.dataset.customApply));return;}
+  const save=e.target.closest("[data-custom-save]");
+  if(save)saveCustomOfferPreset(Number(save.dataset.customSave));
+};
 /* Условия сделки: работы, материалы, скидка, ставка НДС и его наличие в КП. Всё это —
    настройки проекта, поэтому потребителей не перечисляем (applyProjectSettings). Строка
    с disabled остаётся здесь: это состояние самого органа ввода, а не чужое представление. */

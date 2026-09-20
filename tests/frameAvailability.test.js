@@ -136,11 +136,11 @@ test("подсказка на плане показывает единую по�
 
 function postLayoutFor(info) {
   const post = { id: "p1", number: 1, frameId: info.frameId, mechanismIds: [] };
-  const build = stand.run("buildPostLayout", {
+  const build = stand.run(["postTotalCost", "buildPostLayout"], {
     state: { posts: [post] },
     postComposition: () => compOf(info),
     product: () => null,
-    EPPosts, EPEstimate,
+    EPPosts, EPEstimate, postCost: () => 0,
     /* Предмет теста — статус накладки под картинкой, не подмена цельного изделия: механизмов у
        поста нет, effectiveMechanismIds на пустом наборе ничего не меняет. */
     lightingRowsFor: () => [], projectLighting: () => null,

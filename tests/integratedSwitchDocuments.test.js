@@ -129,10 +129,10 @@ test("раскладка КП: строка наполнения печатае�
   const comp = { modulesTotal: 1, backlight: { items: [], gaps: [] },
     box: { name: "Коробка", code: "B1" }, boxCount: 1,
     frameAvailability: { code: "F1", available: true, displayName: "Рамка" } };
-  const layout = stand.run("buildPostLayout", {
+  const layout = stand.run(["postTotalCost", "buildPostLayout"], {
     state: { posts: [{ number: 1, mechanismIds: [SW.id] }] },
     postComposition: () => comp,
-    EPPosts, EPEstimate, product,
+    EPPosts, EPEstimate, product, postCost: () => 0,
     lightingRowsFor: () => integratedRow(),
     projectLighting: () => ({}),
     assembledPostHtml: () => ""

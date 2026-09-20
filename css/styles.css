@@ -184,6 +184,11 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .offer-options legend{font-weight:800;padding:0 4px}
 .offer-options label:has(input:disabled){opacity:.5}
 .offer-presets{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 10px}
+.offer-presets-custom{margin-top:-4px}
+.offer-custom{display:inline-flex}
+.offer-custom-apply{border-top-right-radius:0;border-bottom-right-radius:0;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.offer-custom-save{border-top-left-radius:0;border-bottom-left-radius:0;border-left:none;padding-left:8px;padding-right:8px}
+.offer-presets .btn.active{color:#fff;border-color:transparent;background:linear-gradient(135deg,var(--blue),var(--blue-dark))}
 .terms-check{grid-column:1/-1;display:flex!important;align-items:center;gap:6px}
 .rate-box{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .rate-box .hint-line{margin:0}

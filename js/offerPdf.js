@@ -150,14 +150,19 @@ function compose(est, deps) {
       + (options.articles && p.box?.code ? ` [${esc(p.box.code)}]` : "")
       + (p.box?.count > 0 ? ` × ${Number(p.box.count)}` : ""),
     article: p => esc(p.frameCode || "—"),
+    /* Стоимость блока — цена ОДНОГО поста в базовой валюте каталога (её считает оркестратор той же
+       EPEstimate.postPrice, что и смета). money() пересчитывает в валюту показа так же, как суммы
+       спецификации — сами цены не переписываем. */
+    price: p => money(Number(p.price) || 0),
     illustration: p => layoutIllustration(p)
   };
   const layoutColumns = config.fields.layout.filter(([key]) =>
-    options.layout[key] && layoutRenderers[key] && (key !== "article" || options.articles));
+    options.layout[key] && layoutRenderers[key]
+      && (key !== "article" || options.articles) && (key !== "price" || options.prices));
   const layoutCell = (p, key) => layoutRenderers[key](p);
   const layoutSection = options.sections.layout && layout.length && layoutColumns.length ? `<h2 class="section-title">Раскладка постов</h2>
-  <table class="layout"><thead><tr>${layoutColumns.map(([, label]) => `<th>${esc(label)}</th>`).join("")}</tr></thead><tbody>
-  ${layout.map(p => `<tr>${layoutColumns.map(([key]) => `<td class="${key === "number" ? "pl-num" : key === "illustration" ? "pl-illus" : ""}">${layoutCell(p, key)}</td>`).join("")}</tr>`).join("")}
+  <table class="layout"><thead><tr>${layoutColumns.map(([key, label]) => `<th${key === "price" ? ' class="right"' : ""}>${esc(label)}</th>`).join("")}</tr></thead><tbody>
+  ${layout.map(p => `<tr>${layoutColumns.map(([key]) => `<td class="${key === "number" ? "pl-num" : key === "illustration" ? "pl-illus" : key === "price" ? "right" : ""}">${layoutCell(p, key)}</td>`).join("")}</tr>`).join("")}
   </tbody></table>` : "";
   /* Выключенная иллюстрация/раскладка не должна заодно прятать снятую накладку.
      По умолчанию эти же предупреждения остаются под иллюстрациями без дублирования. */

@@ -120,7 +120,7 @@ function exportStand(options) {
     toast: () => {}, EPRates: {}, window: { open: () => ({ document: { write: h => { html = h; }, close() {} } }) },
     ProjectStore: { save: v => { saved = v; } }
   };
-  const run = stand.run(["assembledPostSpec", "buildPostLayout", "buildEstimate", "supplierSpecData", "supplierSpecHtml",
+  const run = stand.run(["assembledPostSpec", "postTotalCost", "buildPostLayout", "buildEstimate", "supplierSpecData", "supplierSpecHtml",
     "ambiguityHtml", "lightingHtml", "generateCommercialOffer"], ctx);
   return { run: () => { run(); return html; }, ctx, dom, saved: () => saved };
 }
@@ -154,11 +154,11 @@ test("D10: UI → снимок проекта → восстановление �
   const { ctx, dom } = s;
   let saves = 0;
   ctx.scheduleSave = () => { saves++; };
-  stand.run(["syncOfferOptions", "applyOfferPreset"], ctx)("boxes");
+  stand.run(["syncOfferOptions", "highlightActiveOfferPreset", "applyOfferPreset"], ctx)("boxes");
   assert.equal(dom.$("offer-prices").checked, false);
   assert.equal(dom.$("offer-layout-box").checked, true);
   assert.equal(dom.$("offer-specification-price").disabled, true);
-  stand.run(["syncOfferOptions", "applyOfferOption"], ctx)({ dataset: { offerGroup: "layout", offerKey: "illustration" }, checked: true });
+  stand.run(["syncOfferOptions", "highlightActiveOfferPreset", "applyOfferOption"], ctx)({ dataset: { offerGroup: "layout", offerKey: "illustration" }, checked: true });
   assert.equal(saves, 2);
   const snap = stand.run("projectSnapshot", ctx)();
   const expected = JSON.parse(JSON.stringify(ctx.EP_DATA.settings.offerOptions));
@@ -170,7 +170,7 @@ test("D10: UI → снимок проекта → восстановление �
     EPConfig: { gridSteps: [10], gridDefault: 10 }, markCanvasUsed: () => {},
     renderLightingSchemeSelect: () => {}, renderProjectWallTypeSelect: () => {}, renderProjectBacklight: () => {} });
   // Восстановление настоящей async-функции тем же общим стендом.
-  const restore = stand.run(["syncOfferOptions", "restoreProject"], ctx);
+  const restore = stand.run(["syncOfferOptions", "highlightActiveOfferPreset", "restoreProject"], ctx);
   await restore();
   assert.deepEqual(ctx.EP_DATA.settings.offerOptions, expected);
   delete snap.offerOptions;
@@ -181,6 +181,7 @@ test("D10: UI → снимок проекта → восстановление �
 test("D10: init создаёт поля до восстановления — после перезагрузки нет обращения к null", async () => {
   const dom = stand.makeDom();
   const ctx = { $: dom.$, esc, EPOfferOptions, EP_DATA: { settings: {} }, state: {},
+    EPPrefs: { get: (k, fb) => fb, set: () => {} },   /* свои наборы КП — из EPPrefs; здесь пусто */
     DataService: { getProducts: async () => [], getSavedPosts: async () => [] },
     restoreProject: async () => {
       assert.match(dom.$("offerOptionsFields").innerHTML, /id="offer-layout-box"/,
@@ -193,5 +194,5 @@ test("D10: init создаёт поля до восстановления — п
     "renderProjectBacklight",
     "renderPostSlotCountSelect", "applyGridStyle", "syncMarkupControls", "updateZoomUi", "applyView"])
     ctx[name] = () => {};
-  await stand.run(["syncOfferOptions", "renderOfferOptions", "init"], ctx)();
+  await stand.run(["customOfferPresets", "highlightActiveOfferPreset", "renderCustomOfferPresets", "syncOfferOptions", "renderOfferOptions", "init"], ctx)();
 });

@@ -48,13 +48,13 @@ function layoutOf(back) {
   const ctx = {
     state: { posts: [{ number: 1, mechanismIds: ["m1", "m2", "m3"] }] },
     postComposition: () => comp,
-    EPPosts, EPEstimate, product: () => KEY,
+    EPPosts, EPEstimate, product: () => KEY, postCost: () => 0,
     /* Предмет теста — подсветка в наполнении, не подмена цельного изделия: групп света нет,
        lightRows пусты, effectiveMechanismIds оставляет исходные клавиши. */
     lightingRowsFor: () => [], projectLighting: () => null,
     assembledPostHtml: () => ""
   };
-  return stand.run(["buildPostLayout"], ctx)({ articles: false });
+  return stand.run(["postTotalCost", "buildPostLayout"], ctx)({ articles: false });
 }
 
 const fillOf = back => layoutOf(back)[0].fill;

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260919.2">
+  <link rel="stylesheet" href="css/styles.css?v=20260920.1">
 </head>
 <body>
 <div class="app">
@@ -192,10 +192,13 @@
         <details class="offer-options" id="offerOptions">
           <summary>Настройка состава КП</summary>
           <div class="offer-presets">
-            <button class="btn ghost small" type="button" data-offer-preset="full">Полное КП</button>
+            <button class="btn ghost small" type="button" data-offer-preset="builder">Для строителя</button>
             <button class="btn ghost small" type="button" data-offer-preset="client">Для клиента</button>
+            <button class="btn ghost small" type="button" data-offer-preset="designer">Для дизайнера</button>
             <button class="btn ghost small" type="button" data-offer-preset="boxes">Монтажные коробки</button>
           </div>
+          <div class="offer-presets offer-presets-custom" id="offerCustomPresets"></div>
+          <small class="hint-line">Свои наборы (до 3) сохраняются в браузере и доступны в любом проекте. Кнопка «↻» перезаписывает набор текущим составом. Активный набор подсвечен.</small>
           <label><input type="checkbox" id="offer-articles" data-offer-key="articles">Печатать артикулы во всех разделах КП</label>
           <label><input type="checkbox" id="offer-prices" data-offer-key="prices">Печатать цены и итоги</label>
           <div id="offerOptionsFields"></div>
@@ -528,9 +531,9 @@
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
 <script src="js/catalogSections.js?v=20260828.1"></script>
 <script src="js/builderSlots.js?v=20260914.2"></script>
-<script src="js/offerOptions.js?v=20260906.4"></script>
+<script src="js/offerOptions.js?v=20260920.1"></script>
 <script src="js/estimate.js?v=20260919.1"></script>
-<script src="js/offerPdf.js?v=20260912.1"></script>
+<script src="js/offerPdf.js?v=20260920.1"></script>
 <script src="js/installSheet.js?v=20260911.1"></script>
 <script src="js/supplierSpec.js?v=20260911.1"></script>
 <script src="js/postImage.js?v=20260916.1"></script>
@@ -555,6 +558,6 @@
 <!-- Чистый модуль (ни DOM, ни state): шаги мастера отделки и счётчики «сколько за вариантом» через
      переданный отбор каталога. Грузится до app.js, который подставляет ему EPCatalog и рисует. -->
 <script src="js/framePicker.js?v=20260915.1"></script>
-<script src="js/app.js?v=20260920.2"></script>
+<script src="js/app.js?v=20260920.3"></script>
 </body>
 </html>
