@@ -29,8 +29,14 @@ const money = n => Number(n).toFixed(2) + " €";
 const est = () => ({ groups: [{ name: "Пост 1", composition: "Розетка, белая", count: 1, unit: "компл.", sum: 42.5,
   items: [{ kind: "mechanism", name: "Розетка, белая", code: "M.01", count: 1 }] }],
   equipment: 42.5, discount: 0, materials: 5, work: 10, subtotal: 57.5, vat: 0, total: 57.5, missing: [] });
+/* itemPrices — разбивка «стоимости блока» (42.5) по изделиям, сумма ровно 42.5: так столбец
+   «Стоимость артикулов» согласован со «стоимостью блока». Настоящую разбивку с заменой цельных
+   изделий стережёт мутация (б) в integratedSwitchDocuments — здесь достаточно фикстуры. */
 const layout = () => [{ number: 1, fill: [{ word: "Розетка", count: 1 }], modules: 2, frameCode: "F.01",
-  box: { name: "Коробка", code: "B.01", count: 1 }, assembledImageHtml: "<b>СБ</b>", frameName: "Накладка", price: 42.5 }];
+  box: { name: "Коробка", code: "B.01", count: 1 }, assembledImageHtml: "<b>СБ</b>", frameName: "Накладка", price: 42.5,
+  itemPrices: [{ kind: "mechanism", name: "Розетка, белая", code: "M.01", count: 1, price: 30 },
+    { kind: "box", name: "Коробка", code: "B.01", count: 1, price: 5 },
+    { kind: "frame", name: "Накладка", code: "F.01", count: 1, price: 7.5 }] }];
 const render = options => EPOfferPdf.buildHtml(est(), { esc, money, displayCurrency: () => "EUR", options,
   postLayout: layout(), planBlockHtml: "<section>ПЛАН</section>", lightingHtml: "<section>СВЕТ</section>", supplierSpecHtml: "<section>СВОД</section>" });
 const table = (html, cls) => html.match(new RegExp(`<table class="${cls}">([\\s\\S]*?)</table>`))?.[1] || "";
@@ -62,13 +68,37 @@ test("«Для клиента»: номер, наполнение, иллюст�
   assert.doesNotMatch(html, /M\.01|F\.01|B\.01/, "артикулы состава/накладки/коробки клиенту не печатаются");
 });
 
-test("«Для дизайнера»: весь список — все разделы и итоги на месте; совпадает с полным КП", () => {
+test("«Для дизайнера»: весь список — ВСЕ столбцы раскладки (обе цены), все разделы и итоги (мутация а)", () => {
   const html = render(EPOfferOptions.preset("designer"));
+  /* «Весь список» заказчика: восемь столбцов раскладки, включая монтажную коробку, артикул и ОБЕ
+     цены — стоимость блока и стоимость артикулов. */
+  assert.deepEqual(headers(table(html, "layout")),
+    ["№ поста", "Наполнение", "Модульность", "Монтажная коробка", "Артикул накладки", "Иллюстрация", "Стоимость блока", "Стоимость артикулов"],
+    "у дизайнера все столбцы раскладки, оба денежных");
   assert.match(html, /Раскладка постов/); assert.match(html, /Спецификация и комплектация/);
   assert.match(html, /ПЛАН/); assert.match(html, /СВЕТ/); assert.match(html, /СВОД/);
-  assert.match(html, /class="totals"/); assert.match(html, /42\.50 €/);
-  /* «Для дизайнера» не плодит второй набор — это тот же полный стандартный КП, что «Полное КП». */
-  assert.ok(EPOfferOptions.sameOptions(EPOfferOptions.preset("designer"), EPOfferOptions.preset("full")));
+  assert.match(html, /class="totals"/); assert.match(html, /42\.50 €/, "стоимость блока напечатана");
+  /* Столбец «Стоимость артикулов» печатает цену КАЖДОГО изделия поста. */
+  assert.match(html, /Розетка, белая — 30\.00 €/, "цена изделия из наполнения поста");
+  assert.match(html, /Накладка — 7\.50 €/, "цена накладки поста");
+  /* Мутация (а): верни «Для дизайнера» к умолчаниям (normalize()/full) — новый столбец ВЫКЛЮЧЕН,
+     дизайнер недосчитается ровно его. Набор обязан включать его САМ, не полагаясь на умолчания. */
+  assert.equal(EPOfferOptions.preset("designer").layout.itemPrices, true, "новый столбец включён в наборе дизайнера");
+  assert.ok(!EPOfferOptions.preset("full").layout.itemPrices, "в «Полном КП» (умолчаниях) он выключен — designer их перекрывает");
+});
+
+test("столбец «Стоимость артикулов»: включён — цены изделий видны, выключен — их нет; галочка доезжает до печати (мутация в)", () => {
+  const ctx = { EP_DATA: { settings: { offerOptions: EPOfferOptions.preset("client") } },
+    EPOfferOptions, syncOfferOptions: () => {}, scheduleSave: () => {} };
+  /* Клиентский набор — с ценами (prices:true), поэтому денежный столбец разрешён; включаем его галочкой. */
+  stand.run("applyOfferOption", ctx)({ dataset: { offerGroup: "layout", offerKey: "itemPrices" }, checked: true });
+  let t = table(render(ctx.EP_DATA.settings.offerOptions), "layout");
+  assert.ok(headers(t).includes("Стоимость артикулов"), "включённая галочка добавила столбец в печать");
+  assert.match(t, /Розетка, белая — 30\.00 €/, "и он печатает цены изделий поста");
+  stand.run("applyOfferOption", ctx)({ dataset: { offerGroup: "layout", offerKey: "itemPrices" }, checked: false });
+  t = table(render(ctx.EP_DATA.settings.offerOptions), "layout");
+  assert.ok(!headers(t).includes("Стоимость артикулов"), "снятая галочка убрала столбец из печати");
+  assert.doesNotMatch(t, /Розетка, белая — 30\.00 €/, "цен изделий в печати больше нет");
 });
 
 /* ---- Свои наборы: чистая логика (ровно 3 слота, имя, перезапись) ---- */

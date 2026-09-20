@@ -20,6 +20,7 @@ const EPInstallSheet = require("../js/installSheet.js");
 const EPEstimate = require("../js/estimate.js");
 const EPLightingGroups = require("../js/lightingGroups.js");
 const EPCatalog = require("../js/catalog.js");
+const EPOfferPdf = require("../js/offerPdf.js");
 
 const JS_DIR = path.join(__dirname, "..", "js");
 const win = {};
@@ -129,15 +130,46 @@ test("раскладка КП: строка наполнения печатае�
   const comp = { modulesTotal: 1, backlight: { items: [], gaps: [] },
     box: { name: "Коробка", code: "B1" }, boxCount: 1,
     frameAvailability: { code: "F1", available: true, displayName: "Рамка" } };
-  const layout = stand.run(["postTotalCost", "buildPostLayout"], {
+  const layout = stand.run(["postTotalCost", "postPricedItems", "buildPostLayout"], {
     state: { posts: [{ number: 1, mechanismIds: [SW.id] }] },
-    postComposition: () => comp,
+    postComposition: () => comp, frameProduct: () => null,
     EPPosts, EPEstimate, product, postCost: () => 0,
     lightingRowsFor: () => integratedRow(),
-    projectLighting: () => ({}),
+    projectLighting: () => ({}), EP_DATA: { settings: {} },
     assembledPostHtml: () => ""
   })({ articles: false });
   const words = layout[0].fill.map(f => f.word);
   assert.ok(words.includes("Переключатель"), "наполнение показывает подобранную замену");
   assert.ok(!words.includes("Выключатель"), "исходного «Выключатель» (09001) в наполнении нет");
+});
+
+/* Столбец «Стоимость артикулов» КП: цена изделия берётся из ТОГО ЖЕ расчёта, что смета
+   (EPEstimate.build на одном посте), значит у цельного места печатается цена ЗАМЕНЫ 09005 (6.01 €),
+   а не исходного 09001 (4.30 €). Проверяем до НАБЛЮДАЕМОГО — по готовому HTML КП (EPOfferPdf), а не
+   по данным раскладки: buildPostLayout настоящий, postPricedItems настоящий.
+   МУТАЦИЯ (б): собери столбец мимо расчёта сметы (по post.mechanismIds без замены цельных) — в HTML
+   встанет 4.30 € вместо 6.01 €, и тест покраснеет. */
+test("раскладка КП, «Стоимость артикулов»: в HTML цена замены 09005 (6.01 €), а не исходного 09001 (4.30 €) — мутация б", () => {
+  const comp = { modulesTotal: 1, backlight: { items: [], gaps: [] },
+    box: null, boxFallback: null, boxCount: 0, support: null, supportCount: 0,
+    frameAvailability: { unset: true, frame: null, missing: false, displayName: "", code: null, available: true } };
+  const layout = stand.run(["postTotalCost", "postPricedItems", "buildPostLayout"], {
+    state: { posts: [{ number: 1, mechanismIds: [SW.id] }] },
+    postComposition: () => comp, frameProduct: () => null,
+    EPPosts, EPEstimate, product,
+    /* postCost как в приложении — по ЭФФЕКТИВНЫМ id (build подставляет замену): цена узла в
+       разбивке всё равно берётся из product(id), а не отсюда, но группировка/сумма нужны честные. */
+    postCost: p => (p.mechanismIds || []).reduce((s, id) => s + ((product(id) || {}).price || 0), 0),
+    lightingRowsFor: () => integratedRow(), projectLighting: () => ({}),
+    EP_DATA: { settings: {} }, assembledPostHtml: () => ""
+  })({ articles: true });
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const money = n => Number(n).toFixed(2) + " €";
+  const html = EPOfferPdf.buildHtml(
+    { groups: [], equipment: 0, discount: 0, materials: 0, work: 0, subtotal: 0, vat: 0, total: 0, missing: [] },
+    { esc, money, displayCurrency: () => "EUR", postLayout: layout,
+      options: { prices: true, sections: { plan: false, layout: true, specification: false, lighting: false, supplier: false },
+        layout: { number: true, fill: false, modules: false, box: false, article: false, illustration: false, price: false, itemPrices: true } } });
+  assert.match(html, /6\.01 €/, "печатается цена подобранной замены 09005");
+  assert.doesNotMatch(html, /4\.30 €/, "цены исходного цельного 09001 в разбивке нет");
 });

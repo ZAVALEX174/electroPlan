@@ -138,9 +138,12 @@ function renderItem(it) {
 
    groups[] = {name, composition, items, unit, count, sum}
    items — СТРУКТУРНЫЙ состав ОДНОЙ единицы позиции (одного комплекта-поста либо одного
-   одиночного изделия плана): [{kind, code, name, count, assumed?, notRequired?}], где
-   kind — роль узла в посте ("mechanism"|"support"|"box"|"frame") либо "device" у
-   одиночного изделия. Умножать на group.count — в группе таких единиц несколько.
+   одиночного изделия плана): [{kind, code, name, count, price, assumed?, notRequired?}], где
+   kind — роль узла в посте ("mechanism"|"support"|"box"|"frame"|"lighting"|"backlight") либо
+   "device" у одиночного изделия. price — цена ОДНОЙ штуки узла в базовой валюте каталога (0 у
+   пробела/позиции без цены); строка стоит price×count, а Σ(price×count) по items равна цене поста
+   (postPrice). Столбец «Стоимость артикулов» раскладки КП печатает именно эти цены, не собирая
+   их заново (§7.1). Умножать на group.count — в группе таких единиц несколько.
    Печатная строка composition собирается ИЗ items (renderItem), а не рядом с ними:
    кому нужны позиции сметы по полям (сверка со сводом поставщика, будущий экспорт),
    тот берёт items и не разбирает текст обратно — в именах каталога есть «, », и разбор
@@ -188,7 +191,7 @@ function build(input) {
          Своя строка items у него нужна, чтобы читателю структурного состава не пришлось
          разбирать особый случай: «в строке поста состав в items, а в строке изделия —
          в name и composition». */
-      items: [{ kind: "device", code: p ? (p.code || null) : null, name, count: 1 }]
+      items: [{ kind: "device", code: p ? (p.code || null) : null, name, count: 1, price: (p && Number(p.price)) || 0 }]
     });
   });
 
@@ -228,9 +231,9 @@ function build(input) {
        только вместе. Штатная ситуация: проект восстановлен из хранилища, прайс перезалит. */
     const mechItems = effIds.map((id) => {
       const p = product(id);
-      if (p) return { kind: "mechanism", code: p.code || null, name: p.name, count: 1 };
+      if (p) return { kind: "mechanism", code: p.code || null, name: p.name, count: 1, price: Number(p.price) || 0 };
       missing.push(id);
-      return { kind: "mechanism", code: null, name: `Механизм не найден (арт. ${id})`, count: 1 };
+      return { kind: "mechanism", code: null, name: `Механизм не найден (арт. ${id})`, count: 1, price: 0 };
     });
     /* Состояние и подпись накладки приезжают из ОДНОГО правила
        EPPosts.frameAvailability через postComposition. Поэтому снятая позиция во всех
@@ -250,7 +253,8 @@ function build(input) {
        состава остаётся без неё, как и раньше. Пробел каталога и снятая позиция получают
        готовую подпись единого состояния. */
     const frameItem = frameUnset ? null : {
-      kind: "frame", code: frame ? (frame.code || null) : null, name: frameName, count: 1
+      kind: "frame", code: frame ? (frame.code || null) : null, name: frameName, count: 1,
+      price: frame ? Number(frame.price) || 0 : 0
     };
     /* Суппорт: «не требуется» — пояснительная позиция с нулём (её печатают словами, но в
        заказ она не идёт), «подобран» — количество по supports. Пробел ПОДБОРА (планка
@@ -258,10 +262,10 @@ function build(input) {
        по адресату: поставщику пробел показывать обязательно, а в КП пустая строка
        «не подобран» соврала бы про состав (см. installSheet.buildFittings, тот же выбор). */
     const supportItem = comp && comp.supportNotRequired
-      ? { kind: "support", code: null, name: null, count: 0, notRequired: true }
+      ? { kind: "support", code: null, name: null, count: 0, notRequired: true, price: 0 }
       : (comp && comp.support && supports
         ? { kind: "support", code: comp.support.code || null, name: comp.support.name,
-            count: supports, assumed: !!comp.supportAssumed }
+            count: supports, assumed: !!comp.supportAssumed, price: Number(comp.support.price) || 0 }
         : null);
     /* Фактическая коробка поста — точная либо стандартно-совместимый фолбэк, ровно как её
        берут свод и лист монтажника. В печатной строке коробка не названа («N подрозетн.»),
@@ -270,7 +274,8 @@ function build(input) {
        в своде (supplierSpec.collect), менять только вместе. */
     const boxUnit = comp ? (comp.box || comp.boxFallback || null) : null;
     const boxItem = { kind: "box", code: boxUnit ? (boxUnit.code || null) : null,
-      name: boxUnit ? boxUnit.name : "Монтажная коробка не подобрана", count: boxes };
+      name: boxUnit ? boxUnit.name : "Монтажная коробка не подобрана", count: boxes,
+      price: boxUnit ? Number(boxUnit.price) || 0 : 0 };
     /* Механизмы групп света идут СРАЗУ ЗА клавишами: в сборке они стоят за ними физически,
        и в составе позиции читаются на своём месте. В заказ (и в цену) попадают только реально
        ПОДОБРАННЫЕ — пробел подбора позиции не даёт вовсе, ровно как пробел суппорта выше:
@@ -278,7 +283,7 @@ function build(input) {
        отдельным блоком «Группы света» (EPLightingPlan.buildHtml). */
     const lightRows = billableLighting(separateLighting(allLightRows));
     const lightItems = lightRows.map(r => ({ kind: "lighting", code: r.code || null, name: r.name,
-      count: 1, group: r.groupLabel || "", role: r.roleLabel || "" }));
+      count: 1, group: r.groupLabel || "", role: r.roleLabel || "", price: Number(r.price) || 0 }));
     /* Подсветка клавиш: аксессуары-LED, по одному подобранному на принимающий механизм
        (EPPosts.backlightPlan.items), плюс честный пробел (gaps: принимает, но совместимой нет).
        Одинаковые артикулы схлопываем в count — как «N × суппорт», чтобы состав из трёх
@@ -293,11 +298,11 @@ function build(input) {
       const code = acc.code || null, k = String(code);
       const cur = backAgg.get(k);
       if (cur) cur.count += 1;
-      else backAgg.set(k, { kind: "backlight", code, name: acc.name, count: 1 });
+      else backAgg.set(k, { kind: "backlight", code, name: acc.name, count: 1, price: Number(acc.price) || 0 });
     });
     const backItems = [...backAgg.values()];
     const gapCount = (back && back.gaps) ? back.gaps.length : 0;
-    const backGap = gapCount ? { kind: "backlight", code: null, name: "подсветка не подобрана", count: gapCount, gap: true } : null;
+    const backGap = gapCount ? { kind: "backlight", code: null, name: "подсветка не подобрана", count: gapCount, gap: true, price: 0 } : null;
     /* Порядок состава — как при сборке и как у заказчика: механизмы → подсветка → суппорт →
        коробка → накладка (раньше был обратный). */
     const items = [...mechItems, ...lightItems, ...backItems, backGap, supportItem, boxItem, frameItem].filter(Boolean);

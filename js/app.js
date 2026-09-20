@@ -4158,7 +4158,7 @@ function syncOfferOptions(){
     const input=$("offer-"+group+"-"+key);
     input.checked=o[group][key];
     input.disabled=(group!=="sections"&&!o.sections[group])||(key==="article"&&!o.articles)
-      ||(["price","sum"].includes(key)&&!o.prices);
+      ||(["price","sum","itemPrices"].includes(key)&&!o.prices);
   }));
   highlightActiveOfferPreset();   /* после любого изменения — подсветить набор, совпадающий с текущим */
 }
@@ -4223,6 +4223,21 @@ function applyOfferPreset(name){
   syncOfferOptions();scheduleSave();
 }
 
+/* Состав ОДНОГО поста С ЦЕНАМИ для столбца «Стоимость артикулов» раскладки КП. Считаем ТЕМ ЖЕ
+   EPEstimate.build на одном посте — не второй копией правила: build сам делает замену цельных
+   изделий (effectiveMechanismIds), считает суппорт×коробку по составу и добавляет механизмы групп
+   света, а цену каждого узла берёт из того же товара, что postCost/postPrice. Поэтому Σ(price×count)
+   по списку РАВНА цене поста (postTotalCost → «Стоимость блока»), и два денежных столбца не разойдутся
+   (§7.1). light — тот же расчёт групп света, что уходит в смету и картинку поста. Пустые узлы
+   (count 0: «суппорт не требуется», коробка не подобрана у пустого поста) отбрасываем — печатать
+   в разбивке нечего. */
+function postPricedItems(post,light){
+  const g=EPEstimate.build({devices:[],posts:[post],
+    product,frameProduct,postCost,postComposition,
+    lightingOf:po=>lightingRowsFor(po,light),
+    settings:EP_DATA.settings}).groups[0];
+  return g?g.items.filter(it=>it&&it.count>0):[];
+}
 /* Раскладка постов для КП (PLAN 1): по строке на пост — номер, наполнение словами с
    количеством, модульность, иллюстрация (картинка накладки). Порядок — по номеру. */
 function buildPostLayout(options,light){
@@ -4263,6 +4278,10 @@ function buildPostLayout(options,light){
          функция, что у панели свойств и строки сметы (§7.1), поэтому раскладка и смета не разойдутся.
          Считаем всегда; печатать ли столбец, решает выбранный набор (options.layout.price/prices). */
       price:postTotalCost(p,lite),
+      /* Разбивка цены поста по изделиям для столбца «Стоимость артикулов» (набор «Для дизайнера»):
+         тот же расчёт, что смета, и та же замена цельных изделий — постоянная замена лежит в build.
+         Считаем всегда; печатать ли столбец, решает набор (options.layout.itemPrices/prices). */
+      itemPrices:postPricedItems(p,lite),
       /* Иллюстрация — собранный пост (EPPostImage), а не фото одной накладки: инлайн-стили,
          поэтому одинаково рисуется в окне печати КП. */
       assembledImageHtml:assembledPostHtml(p,{size:"md",articles:options?.articles!==false},lite),

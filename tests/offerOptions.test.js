@@ -120,7 +120,7 @@ function exportStand(options) {
     toast: () => {}, EPRates: {}, window: { open: () => ({ document: { write: h => { html = h; }, close() {} } }) },
     ProjectStore: { save: v => { saved = v; } }
   };
-  const run = stand.run(["assembledPostSpec", "postTotalCost", "buildPostLayout", "buildEstimate", "supplierSpecData", "supplierSpecHtml",
+  const run = stand.run(["assembledPostSpec", "postTotalCost", "postPricedItems", "buildPostLayout", "buildEstimate", "supplierSpecData", "supplierSpecHtml",
     "ambiguityHtml", "lightingHtml", "generateCommercialOffer"], ctx);
   return { run: () => { run(); return html; }, ctx, dom, saved: () => saved };
 }

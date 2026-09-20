@@ -154,11 +154,29 @@ function compose(est, deps) {
        EPEstimate.postPrice, что и смета). money() пересчитывает в валюту показа так же, как суммы
        спецификации — сами цены не переписываем. */
     price: p => money(Number(p.price) || 0),
+    /* Стоимость артикулов — разбивка цены поста по изделиям (p.itemPrices приходит из
+       EPEstimate.build того же расчёта, что смета: замена цельных изделий уже сделана). По строке на
+       узел: «Наименование — [N × ]цена». Цена узла (item.price) — за штуку, поэтому при count>1
+       показываем и множитель, и итог строки; Σ этих строк равна «Стоимости блока». Узел без артикула
+       каталога (пробел подбора, снятая позиция) цены не имеет — печатаем «цена не определена», а не
+       ложный ноль (та же честность, что у pricelessNote). Имя — через itemText, как в наполнении:
+       без артикулов коды из подписи вычищаются. Пустой список (пост без ценимых узлов) — «—». */
+    itemPrices: p => {
+      const items = (p.itemPrices || []).filter(it => it && (Number(it.count) || 0) > 0);
+      if (!items.length) return "—";
+      return items.map(it => {
+        const name = esc(itemText(it.name, it.code));
+        if (!it.code) return `${name} — цена не определена`;
+        const unit = Number(it.price) || 0, count = Number(it.count) || 0;
+        return count > 1 ? `${name} — ${count} × ${money(unit)} = ${money(unit * count)}` : `${name} — ${money(unit)}`;
+      }).join("<br>");
+    },
     illustration: p => layoutIllustration(p)
   };
   const layoutColumns = config.fields.layout.filter(([key]) =>
     options.layout[key] && layoutRenderers[key]
-      && (key !== "article" || options.articles) && (key !== "price" || options.prices));
+      && (key !== "article" || options.articles)
+      && (!["price", "itemPrices"].includes(key) || options.prices));
   const layoutCell = (p, key) => layoutRenderers[key](p);
   const layoutSection = options.sections.layout && layout.length && layoutColumns.length ? `<h2 class="section-title">Раскладка постов</h2>
   <table class="layout"><thead><tr>${layoutColumns.map(([key, label]) => `<th${key === "price" ? ' class="right"' : ""}>${esc(label)}</th>`).join("")}</tr></thead><tbody>
