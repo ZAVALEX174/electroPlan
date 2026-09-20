@@ -26,7 +26,29 @@
    Функция отдана наружу (EPEstimate.postPrice) именно затем, чтобы приложение звало ЕЁ, а не
    повторяло формулу у каждого экрана. */
 const billableLighting = rows => (Array.isArray(rows) ? rows : []).filter(r => r && !r.missing && r.code);
-const lightingSum = rows => billableLighting(rows).reduce((sum, r) => sum + (Number(r.price) || 0), 0);
+/* ⚠️ ЦЕЛЬНОЕ ИЗДЕЛИЕ (клавиша+механизм в одном артикуле) НЕ ДАЁТ ОТДЕЛЬНОЙ ПОЗИЦИИ. Расчёт групп
+   света (EPLightingPlan) для такого места ЗАМЕНЯЕТ его артикул изделием нужной роли (09001→09005),
+   и приложение подменяет им сам механизм поста (см. effectiveMechanismIds). Класть замену ещё и
+   отдельной позицией значило бы оплатить пост дважды — исходное изделие И замену. Поэтому в
+   ОТДЕЛЬНЫЕ позиции состава и в слагаемое цены идут только строки клавиш (kind!=="integrated");
+   строки цельных изделий уходят в подмену mechanismIds. Строки без kind (старые вызовы, документы
+   без групп) считаются клавишами — поведение прежнее. */
+const separateLighting = rows => (Array.isArray(rows) ? rows : []).filter(r => r && r.kind !== "integrated");
+/* Механизмы поста «как физически встанут»: исходные id с заменой ЦЕЛЬНЫХ изделий на подобранный
+   расчётом артикул. Замена — только когда изделие реально подобрано (строка не пробел и с товаром);
+   пробел (замены нет) оставляет исходный артикул — он физически стоит, а недостачу называет блок
+   «Группы света». Модульность замены та же (строгий отбор), поэтому коробка/суппорт/раскладка от
+   подмены не меняются — меняется только цена механизма и его артикул в составе/документах. */
+function effectiveMechanismIds(mechanismIds, rows) {
+  const ids = Array.isArray(mechanismIds) ? mechanismIds.slice() : [];
+  (Array.isArray(rows) ? rows : []).forEach(r => {
+    if (!r || r.kind !== "integrated" || r.missing || !r.product || r.product.id == null) return;
+    const i = Number(r.keyIndex);
+    if (Number.isInteger(i) && i >= 0 && i < ids.length) ids[i] = r.product.id;
+  });
+  return ids;
+}
+const lightingSum = rows => billableLighting(separateLighting(rows)).reduce((sum, r) => sum + (Number(r.price) || 0), 0);
 const postPrice = (baseCost, lightRows) => (Number(baseCost) || 0) + lightingSum(lightRows);
 
 /* СКОЛЬКО МЕСТ УПРАВЛЕНИЯ НУЖНО И СКОЛЬКО МЕХАНИЗМОВ ПОДОБРАНО — один счёт на все экраны.
@@ -41,7 +63,10 @@ const postPrice = (baseCost, lightRows) => (Number(baseCost) || 0) + lightingSum
    rows — строки мест ОДНОГО поста (EPLightingPlan.rowsByPost). Возвращает
    {need, found, gaps, sum}. */
 function lightingCounts(rows) {
-  const all = Array.isArray(rows) ? rows : [];
+  /* Считаем ТОЛЬКО отдельные позиции (голые механизмы за клавишами): цельное изделие своей
+     строкой «Механизмы групп света N шт.» не идёт — оно уже подменено в mechanismIds и названо
+     самим механизмом поста. Иначе панель показала бы его дважды (в слоте и в этой строке). */
+  const all = separateLighting(Array.isArray(rows) ? rows : []);
   const billable = billableLighting(all);
   return { need: all.length, found: billable.length, gaps: all.length - billable.length,
     sum: billable.reduce((sum, r) => sum + (Number(r.price) || 0), 0) };
@@ -168,8 +193,16 @@ function build(input) {
   });
 
   posts.forEach((po) => {
+    /* Строки групп света поста считаем РАЗ и до состава: из них берём и замену цельных изделий
+       (effIds), и отдельные позиции клавиш (ниже). */
+    const allLightRows = lightingOf(po);
+    /* Эффективные механизмы — с заменой цельных изделий на подобранный расчётом артикул. Ими
+       считается и цена (postCost), и состав (mechItems), и ключ группировки постов, чтобы пост с
+       09001→09005 не слился в смете с постом, где 09001 остался 09001. Модульность замены та же,
+       поэтому comp (коробка/суппорт) от исходного и эффективного одинаков — comp считаем по po. */
+    const effIds = effectiveMechanismIds(po.mechanismIds, allLightRows);
     const comp = postComposition ? postComposition(po) : null;
-    const boxes = comp ? comp.boxCount : (po.mechanismIds || []).length;
+    const boxes = comp ? comp.boxCount : effIds.length;
     /* Суппортов столько же, сколько коробок (postComposition.supportCount): у немецко-
        французской накладки их 2–4, а печатался всегда один — состав врал вслед за ценой.
        Читаем защитно, как и boxCount: postComposition — необязательная зависимость, и
@@ -193,7 +226,7 @@ function build(input) {
        где механизма просто нет, и не знал, что позиция потерялась вместе с ценой.
        Формулировки — те же, что в своде (supplierSpec.js) и в листе монтажника; менять
        только вместе. Штатная ситуация: проект восстановлен из хранилища, прайс перезалит. */
-    const mechItems = (po.mechanismIds || []).map((id) => {
+    const mechItems = effIds.map((id) => {
       const p = product(id);
       if (p) return { kind: "mechanism", code: p.code || null, name: p.name, count: 1 };
       missing.push(id);
@@ -243,7 +276,7 @@ function build(input) {
        ПОДОБРАННЫЕ — пробел подбора позиции не даёт вовсе, ровно как пробел суппорта выше:
        пустая строка «не подобран» в КП соврала бы про состав, а причину пробела клиент видит
        отдельным блоком «Группы света» (EPLightingPlan.buildHtml). */
-    const lightRows = billableLighting(lightingOf(po));
+    const lightRows = billableLighting(separateLighting(allLightRows));
     const lightItems = lightRows.map(r => ({ kind: "lighting", code: r.code || null, name: r.name,
       count: 1, group: r.groupLabel || "", role: r.roleLabel || "" }));
     /* Подсветка клавиш: аксессуары-LED, по одному подобранному на принимающий механизм
@@ -275,7 +308,7 @@ function build(input) {
        каждый пост показан отдельно; в позиционной спецификации идентичные посты — одна
        строка с количеством. Суппорт/коробка производны от накладки+механизмов+ТИПА СТЕНЫ —
        поэтому в ключ идут накладка, мультимножество механизмов и тип стены поста. */
-    let key = "p" + po.frameId + ":" + [...(po.mechanismIds || [])].map(Number).sort((a, b) => a - b).join(",");
+    let key = "p" + po.frameId + ":" + effIds.map(Number).sort((a, b) => a - b).join(",");
     /* ⚠️ ТИП СТЕНЫ ВХОДИТ В КЛЮЧ. Раньше здесь стояло «тип стены на смету один» — он и был
        один, общий на проект. Теперь у поста может быть СВОЙ (post.wallType, см. posts.js:
        заказчик 24.08 просил менять стену «в данном блоке»), а от него зависит подрозетник:
@@ -330,8 +363,12 @@ function build(input) {
          означал бы двойной счёт. postCost про механизмы групп света не знает и знать не
          должен — он считает состав ПОСТА, а подбор идёт по всему проекту. Складывает их
          postPrice — ТА ЖЕ функция, которой цену этого поста считают панель свойств,
-         подсказка на плане и конструктор (см. её комментарий выше). */
-      price: postPrice(postCost(po), lightRows)
+         подсказка на плане и конструктор (см. её комментарий выше).
+         ⚠️ postCost считаем по ЭФФЕКТИВНЫМ механизмам: замена цельного изделия (09001→09005) —
+         это цена ЗАМЕНЫ, а не исходного, и она приходит через mechanismIds, а не отдельной
+         строкой (иначе двойная цена — изделие плюс замена). postPrice добавляет только отдельные
+         позиции клавиш (голые механизмы), цельные из allLightRows он отфильтровывает сам. */
+      price: postPrice(postCost(Object.assign({}, po, { mechanismIds: effIds })), allLightRows)
     });
   });
 
@@ -387,7 +424,7 @@ function pricelessNote(est) {
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, lightingCounts, pricelessNote, renderItem };
+const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

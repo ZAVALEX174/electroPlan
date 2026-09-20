@@ -96,7 +96,7 @@ function supplierData(comp, post) {
     product: () => null,
     lightingRowsFor: () => [],
     EPLightingGroups: { isSupplyGap: () => false },
-    EPSupplierSpec
+    EPEstimate, EPSupplierSpec
   });
   return build({ plan: { relayTotal: 0 } });
 }
@@ -171,6 +171,7 @@ function buildSheet(info) {
     EPLightingGroups: { isSupplyGap: () => false },
     EPPosts,
     EPBuilderSlots,
+    EPEstimate,
     keySlotKind: () => false,
     EPInstallSheet,
     state: { rooms: [] },

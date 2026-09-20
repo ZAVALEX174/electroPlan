@@ -212,7 +212,7 @@ test("renderBuilderSlots: снятый механизм помечен .slot-off
   const ctx = {
     state: { builder: { target: { mode: "add" }, editingPlacedId: null, slots: layout.map(l => ({ id: l.item.id, group: "" })) } },
     $: dom.$, esc: s => String(s == null ? "" : s), moduleWord: EPCatalog.moduleWord,
-    isBareMechanism: () => false, isKeyProduct: () => false,
+    isBareMechanism: () => false, isControlPlaceItem: () => false,
     productPicture: () => "", productMoney: () => "0", lightSlotHtml: () => "",
     GROUP_NAME_MAX: 40, bindProductPictureFallbacks: () => {},
     EPBuilderSlots, renderBuilder: () => {}, refreshBuilderLighting: () => {}

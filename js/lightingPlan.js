@@ -32,13 +32,24 @@ const text = v => (v === null || v === undefined) ? "" : String(v);
    deps = {
      product(id) → товар|undefined,
      seriesOf(item) → [строки],          // серии клавиши в написании каталога
-     isKey(item) → bool                  // клавиша ли это (partRole === "key")
+     controlKind(item) → "key"|"integrated"|null   // вид места управления (см. ниже);
+     isKey(item) → bool                  // УСТАРЕВШИЙ вход: клавиша ли (partRole==="key").
+                                         // Если controlKind не передан, выводится из isKey
+                                         // (только "key"|null), чтобы старые вызовы не сломались.
    }
 
-   МЕСТО ДАЁТ ТОЛЬКО КЛАВИША. Модель заказчика: «отображаем мы только кнопки, условно 19021 и
-   19022 широкую, а по факту конфигуратор уже сам считает нам механизм». Готовое изделие
-   (выключатель в сборе) механизма под собой не требует и местом управления не является —
-   иначе проект оплатил бы второй механизм за уже собранное изделие.
+   МЕСТО ДАЁТ КЛАВИША ИЛИ ЦЕЛЬНОЕ ИЗДЕЛИЕ С РОЛЬЮ УПРАВЛЕНИЯ. Их РАЗЛИЧАЕТ controlKind, и разница
+   в том, ЧТО пойдёт в смету, а НЕ в том, есть ли место (владелец, 16.09):
+     • "key" — клавиша (накладная на голый механизм). Модель заказчика: «отображаем мы только
+       кнопки… а по факту конфигуратор уже сам считает нам механизм». Голый механизм ХХ001.0/… за
+       клавишей подбирается ОТДЕЛЬНОЙ позицией (findMechanism → голый механизм);
+     • "integrated" — цельное изделие (клавиша+механизм в одном артикуле, напр. 09001). Голого
+       механизма под ним НЕТ (он внутри) — findMechanism подбирает ЗАМЕНУ самого артикула изделием
+       нужной роли той же серии и цвета (09001→09005), и приложение подменяет им сам артикул поста,
+       а НЕ добавляет вторую позицию: иначе пост оплатил бы и изделие, и замену (двойная цена).
+   Что именно подставить, решает не этот модуль — он лишь помечает место видом (controlKind →
+   place.controlKind → findMechanism.kind, см. lightingGroups.plan). Розетка, датчик, Bluetooth и
+   голый механизм местами управления не являются (controlKind → null).
 
    ⚠️ ВТОРОЙ ПРИЗНАК МЕСТА — ТОВАРА НЕТ В КАТАЛОГЕ, А ГРУППА У ПОЗИЦИИ НАЗНАЧЕНА. Это не
    послабление правила, а защита от МОЛЧАЛИВОЙ ПОТЕРИ. Пока условие было одно («товар опознан
@@ -71,7 +82,10 @@ function collect(posts, deps) {
   const d = deps || {};
   const product = d.product || (() => null);
   const seriesOf = d.seriesOf || (() => []);
-  const isKey = d.isKey || (() => false);
+  /* Вид места — ОДИН предикат приложения (§7.1). Старый isKey(bool) поддержан: из него выводится
+     только "key"|null (цельные изделия старому вызову неизвестны — поведение не меняется). */
+  const controlKind = d.controlKind
+    || (d.isKey ? (item => (d.isKey(item) ? "key" : null)) : (() => null));
   const out = [];
   (Array.isArray(posts) ? posts : []).forEach(post => {
     const p = post || {};
@@ -85,23 +99,27 @@ function collect(posts, deps) {
     const mechs = Array.isArray(p.keyMechanisms) ? p.keyMechanisms : [];
     ids.forEach((id, keyIndex) => {
       const item = product(id);
-      const key = !!isKey(item);
+      const kind = item ? controlKind(item) : null;   /* "key"|"integrated"|null */
+      const isPlace = kind !== null;
       const group = groupText(groups[keyIndex]);
       const crossNo = groupText(crosses[keyIndex]);
       /* потерянная клавиша: товара нет в каталоге, но у позиции назначена группа ИЛИ номер проходной
-         (и то, и другое — свидетельство «здесь стояла клавиша», см. шапку про lostKey). */
-      const lostKey = !key && !item && (group.trim() !== "" || crossNo.trim() !== "");
-      if (!key && !lostKey) return;
+         (и то, и другое — свидетельство «здесь стояло место управления», см. шапку про lostKey). */
+      const lostKey = !isPlace && !item && (group.trim() !== "" || crossNo.trim() !== "");
+      if (!isPlace && !lostKey) return;
       out.push({
         postId: p.id, postNumber: p.number,
         /* индекс — позицией перебора и только ей (см. шапку про indexOf) */
         keyIndex,
         keyId: item && item.id != null ? item.id : id,
         /* У потерянного товара серии нет и взять её неоткуда — пустой список, а не догадка. */
-        series: key ? seriesOf(item) : [],
+        series: isPlace ? seriesOf(item) : [],
         group, crossNo, roleOverride: groupText(mechs[keyIndex]),
-        keyUnknown: !key,
-        /* служебное для документов: имя поста и сам товар-клавиша (может быть не найден) */
+        keyUnknown: !isPlace,
+        /* Вид места (клавиша/цельное) для plan: он решает подбор голого механизма против замены
+           артикула. lostKey несёт null — до подбора он не доходит (пробел KEY_UNKNOWN раньше). */
+        controlKind: kind,
+        /* служебное для документов: имя поста и сам товар места (может быть не найден) */
         postName: p.name, key: item || null
       });
     });
@@ -178,6 +196,60 @@ function resolveMechanism(query, mechanisms, deps) {
   return { product: null, candidates, ambiguous: candidates.length > 1 };
 }
 
+/* resolveReplacement({role, source}, products, deps) → { product, candidates, ambiguous }
+
+   Подбор ЗАМЕНЫ для цельного изделия (клавиша+механизм в одном артикуле). В отличие от
+   resolveMechanism (голый механизм ЗА клавишей) здесь ищется САМ АРТИКУЛ нужной роли — им приложение
+   подменит исходное изделие в посте, второго механизма не добавляя (иначе двойная цена).
+
+   Правило заказчика: «программа сама меняет изделие на изделие нужной роли ТОЙ ЖЕ СЕРИИ И ЦВЕТА».
+   Отбор СТРОГИЙ — совпасть обязаны ВСЕ признаки, иначе в смету уйдёт не то изделие:
+     • роль управления (controlRole) = нужная (switch/changeover/inverter/button);
+     • НЕ голый механизм (partRole пуст) — замена цельная, механизм внутри;
+     • серия пересекается (seriesMatch) — чужая серия физически не собирается;
+     • модульность (spanOf) совпадает — 1М-выключатель не заменить 2М-изделием;
+     • цвет элемента (colorKeyOf, та же нормализация, что у отбора начинки) совпадает;
+     • «семья» изделия — functionalGroup И functionalSubgroup исходного (иначе осевой выключатель
+       Arke 19101.B заменился бы датчиком движения 19181.B той же роли switch — недопустимо).
+   ★ РОЛЬ УЖЕ СОВПАДАЕТ → замена НЕ НУЖНА: изделие само нужной роли (владелец: 09001 при одном
+     месте остаётся 09001). Возвращаем сам source, минуя отбор, — это и снимает ложную
+     неоднозначность, если в серии рядом стоит второе изделие той же роли.
+   Кандидатов ноль ИЛИ больше одного и разобрать нечем → product=null: подставлять первого или
+     «что-нибудь похожее» нельзя (владелец: «программа прямо говорит, чего не хватает»). Ноль —
+     честный пробел NOT_IN_SERIES у plan; больше одного — ambiguous, интерфейс покажет кандидатов. */
+function resolveReplacement(query, products, deps) {
+  const q = query || {};
+  const source = q.source;
+  const role = text(q.role);
+  if (!role || !source) return { product: null, candidates: [], ambiguous: false };
+  const d = deps || {};
+  const partOf = d.partOf || (item => item && item.partRole);
+  const roleOf = d.roleOf || (item => item && item.controlRole);
+  const seriesOf = d.seriesOf || (item => (item && item.series) || []);
+  const spanOf = d.spanOf || (() => null);
+  const colorKeyOf = d.colorKeyOf || (item => (item && item.elementColor) || null);
+  const fgOf = d.fgOf || (item => (item && item.functionalGroup) || null);
+  const fsgOf = d.fsgOf || (item => (item && item.functionalSubgroup) || null);
+  const codeOf = d.codeOf || (item => item && item.code);
+  /* Роль уже нужная — само изделие и есть замена (владелец п.4). */
+  if (roleOf(source) === role) return { product: source, candidates: [source], ambiguous: false };
+  const span = spanOf(source);
+  const colorKey = colorKeyOf(source);
+  const fg = fgOf(source), fsg = fsgOf(source);
+  const candidates = (Array.isArray(products) ? products : []).filter(item =>
+    item && item !== source
+    && !partOf(item)
+    && roleOf(item) === role
+    && text(codeOf(item)).trim() !== ""
+    && spanOf(item) === span
+    && colorKeyOf(item) === colorKey
+    && fgOf(item) === fg
+    && fsgOf(item) === fsg
+    && seriesMatch(seriesOf(source), seriesOf(item)));
+  if (candidates.length === 1) return { product: candidates[0], candidates, ambiguous: false };
+  return { product: null, candidates, ambiguous: candidates.length > 1 };
+}
+
 /* ─────────────────────── раскладка результата по постам ─────────────────────── */
 
 /* Адрес поста — ОДНО правило на весь модуль (id, если задан, иначе номер), ровно как в
@@ -212,6 +284,10 @@ function rowsByPost(plan, sources, gapTexts) {
     const s = src[i] || {};
     const row = {
       keyIndex: p.keyIndex,
+      /* Вид места из collect: "integrated" — строка НЕ идёт отдельной позицией состава (изделие
+         уже подменено в mechanismIds), "key" — голый механизм за клавишей, позиция отдельная.
+         Потерянная клавиша (controlKind=null) — тоже "key" (её механизм считался бы отдельным). */
+      kind: s.controlKind === "integrated" ? "integrated" : "key",
       keyName: (s.key && s.key.name) || "",
       keyCode: (s.key && s.key.code) || "",
       groupLabel: p.groupLabel || "",
@@ -358,7 +434,7 @@ const kitSignature = plan => JSON.stringify(planPlaces(plan).map(p => [p && p.ro
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { collect, resolveMechanism, seriesMatch, isExtraLowVoltage, addressKey, postKey, rowsByPost, buildHtml,
+const api = { collect, resolveMechanism, resolveReplacement, seriesMatch, isExtraLowVoltage, addressKey, postKey, rowsByPost, buildHtml,
   planSignature, kitSignature };
 if (typeof window !== "undefined") window.EPLightingPlan = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;

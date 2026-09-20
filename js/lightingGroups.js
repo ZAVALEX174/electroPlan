@@ -758,11 +758,14 @@ const isSupplyGap = reason => !!reason && !isProjectGap(reason);
      findMechanism({ role, series }) → товар|null                 // поиск по каталогу
      seriesOf(product) → [строки]                                 // необязательно
    }
-   Контракт findMechanism СОЗНАТЕЛЬНО УЗКИЙ — только роль и серия. Место и группа ему не
-   передаются: ответ обязан зависеть ровно от пары «роль+серия», иначе одна и та же клавиша дала
-   бы в разных постах разные механизмы, а кэш ниже (ключ — та же пара) молча выдал бы ответ для
-   первого спросившего. Понадобится подбор с оглядкой на место — расширять придётся ОДНОВРЕМЕННО
-   и аргументы, и ключ кэша.
+   Контракт findMechanism узкий — роль, серия и ВИД МЕСТА: { role, series, kind, source }. kind —
+   "key" (клавиша, нужен голый механизм) либо "integrated" (цельное изделие, нужна замена его
+   артикула); source — сам товар места (для замены по серии/цвету/семье). Место и группа по-прежнему
+   не передаются: у КЛАВИШИ ответ обязан зависеть ровно от пары «роль+серия», иначе одна клавиша
+   дала бы в разных постах разные механизмы. Поэтому вид места вошёл И в аргумент, И в ключ кэша
+   ОДНОВРЕМЕННО (см. cacheKeyOf ниже): у клавиши kind добавляет лишь константу, у цельного —
+   разделяет ответы по артикулу изделия. Расширять подбор новым признаком места можно только так —
+   меняя аргумент и ключ вместе.
    findMechanism ОБЯЗАН вернуть null, если механизма такой роли в ЭТОЙ серии нет: подстановка
    чужой серии (клавиша Plana + механизм Eikon) — это неверная смета и невозможный монтаж.
    Модуль этого не проверяет и проверить не может — он не знает каталога; ответственность на deps.
@@ -813,13 +816,22 @@ function plan(input, deps) {
      проект давал 40.52 € при одном порядке мест и 0 € при другом. Ключ, равный аргументу, — это
      то же обещание «ответ зависит ровно от пары роль+серия», только проверяемое кодом. */
   const cache = new Map();
-  const cacheKeyOf = (role, series) => JSON.stringify([role, series]);
-  const lookup = (role, series) => {
-    const key = cacheKeyOf(role, series);
+  /* Ключ включает ВИД МЕСТА и, для цельного изделия, его артикул: у клавиши и у цельного изделия
+     одной серии+роли ответы РАЗНЫЕ (клавише — голый механизм ХХ005.0, цельному — замена артикула
+     09005), и без разделителя они схлопнулись бы в один. Клавише вид добавляет только константу
+     "key" и sourceId=null → все клавиши одной пары роль+серия по-прежнему делят ответ (поведение не
+     меняется). Цельные изделия делят ответ по СВОЕМУ артикулу (sourceId): два поста с 09001 в одной
+     проходной получат один и тот же 09005. Расширение аргумента и ключа — ОДНОВРЕМЕННО, как того
+     требует контракт findMechanism (см. шапку plan). */
+  const cacheKeyOf = (role, series, kind, sourceId) => JSON.stringify([role, series, kind, sourceId]);
+  const lookup = (role, series, place) => {
+    const kind = place && place.controlKind === "integrated" ? "integrated" : "key";
+    const sourceId = kind === "integrated" ? keyIdOf(place) : null;
+    const key = cacheKeyOf(role, series, kind, sourceId);
     if (cache.has(key)) return cache.get(key);
     let result = { product: null, failed: false };
     if (d.findMechanism) {
-      try { result = { product: d.findMechanism({ role, series }) || null, failed: false }; }
+      try { result = { product: d.findMechanism({ role, series, kind, source: place && place.key }) || null, failed: false }; }
       catch (e) { result = { product: null, failed: true, error: e }; }
     }
     cache.set(key, result);
@@ -932,7 +944,7 @@ function plan(input, deps) {
     if (!series.length) { out.missingReason = read.failed ? GAPS.SERIES_FAILED : GAPS.NO_SERIES; return out; }
     out.series = series;
 
-    const found = lookup(role, series);
+    const found = lookup(role, series, place);
     if (!found.product) {
       /* Механизма такой роли в серии клавиши нет — реальный случай: у Neve Up среди голых
          механизмов нет инвертора (09013 — готовое изделие с клавишей, не механизм под отдельную

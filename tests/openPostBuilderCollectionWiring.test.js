@@ -89,22 +89,23 @@ const mechanismModulesTotal = vm.runInNewContext(
    keepsGroup). Раньше его глушили `() => null`, и заглушка возвращала «не знаю» на ЛЮБОЙ артикул:
    fromPost сохранял группу всегда, поэтому мутация «снять второй аргумент fromPost» оставалась
    зелёной — тест проверял форму, а не связь. Исполняем исходный текст, а не копию (копия молча
-   разошлась бы с продакшеном). keySlotKind замыкается на product и isKeyProduct — оба подаём
-   настоящими.
+   разошлась бы с продакшеном). keySlotKind замыкается на product и controlPlaceKind/isControlPlaceItem
+   (единое определение места управления, §7.1) — все подаём настоящими.
    ⚠️ partRole в СЫРОМ каталоге нет: его дописывает DataService из номенклатуры уже в рантайме
    (js/data.js), а стенд грузит сырой catalog-vimar.js. Поэтому одну позицию (MECH_SPAN_2) размечаем
    клавишей сами — так же, как это делает сборка, — чтобы был доступен и ответ true (клавиша, группа
    остаётся), и false (товар в каталоге, не клавиша — группа снимается), и null (товара нет —
    группа остаётся). */
-const isKeyProduct = vm.runInNewContext(stand.constSource("isKeyProduct") + "\n;isKeyProduct;", {});
 const KEY_ID = 200040; // = MECH_SPAN_2, размечаем клавишей для ветки true
 const productWithRoles = id => {
   const p = product(id);
   return p && Number(id) === KEY_ID ? Object.assign({}, p, { partRole: "key" }) : p;
 };
+/* keySlotKind замыкается на controlPlaceKind → isControlPlaceItem (единое определение места
+   управления, §7.1) и product — подаём исходный текст всех трёх, а не копию. */
 const keySlotKind = vm.runInNewContext(
-  stand.constSource("keySlotKind") + "\n;keySlotKind;",
-  { product: productWithRoles, isKeyProduct }
+  stand.constSource("controlPlaceKind") + "\n" + stand.constSource("isControlPlaceItem") + "\n" + stand.constSource("keySlotKind") + "\n;keySlotKind;",
+  { product: productWithRoles }
 );
 /* Механизмы разной модульности для сборки поста с ЗАДАННОЙ суммой модулей (разведка каталога:
    span 1/2/3). Пост несёт РЕАЛЬНЫЕ mechanismIds — второе плечо capacity обязано считать ёмкость

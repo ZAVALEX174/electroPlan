@@ -47,7 +47,7 @@ const postOf = (mechanismIds, keyGroups) => ({ mechanismIds, keyGroups });
 /* ---- postGroupsPropHtml: перечень групп в панели свойств поста ----------------------------- */
 
 function groupsHtml(post) {
-  return stand.runNamed(["isKeyProduct", "keySlotKind", "postGroupsPropHtml"], {
+  return stand.runNamed(["controlPlaceKind", "isControlPlaceItem", "keySlotKind", "postGroupsPropHtml"], {
     product,
     EPBuilderSlots,
     EPLightingGroups,
@@ -59,10 +59,10 @@ test("свойства поста: у клавиши с именем печат�
   const html = groupsHtml(postOf([KEY_A, SOCKET, KEY_B], ["Кухня", "", ""]));
   assert.match(html, /Кухня/, "заданное имя группы клавиши обязано быть названо");
   assert.match(html, /отдельный выключатель/, "клавиша без имени — самостоятельный выключатель, а не пробел");
-  /* Ровно две строки клавиш: розетка (200) в перечень групп не попадает. Подмена предиката
-     (розетка → клавиша) сделает три — тест покраснеет. */
-  assert.equal((html.match(/Клавиша \d+/g) || []).length, 2,
-    "клавиши считаются настоящим предикатом keySlotKind — не-клавиша в перечень не попадает");
+  /* Ровно две строки мест: розетка (200) в перечень групп не попадает. Подмена предиката
+     (розетка → место управления) сделает три — тест покраснеет. */
+  assert.equal((html.match(/Место \d+/g) || []).length, 2,
+    "места считаются настоящим предикатом keySlotKind — не-место в перечень не попадает");
   assert.equal(html.match(/has-group/g).length, 1, "ровно одна клавиша с заданным именем");
   assert.equal(html.match(/no-group/g).length, 1, "ровно одна клавиша без имени (отдельный выключатель)");
 });
@@ -72,10 +72,10 @@ test("свойства поста: пробельное имя — отдель�
   assert.match(html, /отдельный выключатель/, "«   » после normalizeGroup — пусто, значит отдельный выключатель");
 });
 
-test("свойства поста без клавиш: сказано, что задавать группы негде", () => {
+test("свойства поста без мест управления: сказано, что задавать группы негде", () => {
   const html = groupsHtml(postOf([SOCKET, SOCKET], ["", ""]));
-  assert.match(html, /нет клавиш/, "пост без клавиш обязан прямо сообщить, что группы задавать негде");
-  assert.doesNotMatch(html, /Клавиша \d+/, "строк клавиш быть не должно");
+  assert.match(html, /нет мест управления/, "пост без мест управления обязан прямо сообщить, что группы задавать негде");
+  assert.doesNotMatch(html, /Место \d+/, "строк мест быть не должно");
 });
 
 test("свойства поста: имя группы экранируется через esc", () => {

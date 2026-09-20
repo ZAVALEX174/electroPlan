@@ -208,7 +208,7 @@ const supplierDataFor = (posts, bl) => {
     postComposition: p => EPPosts.postComposition(p, realDeps(bl)),
     lightingRowsFor: () => [],
     EPLightingGroups: { isSupplyGap: () => false },
-    EPSupplierSpec
+    EPEstimate, EPSupplierSpec
   });
   return EPSupplierSpec.collect(build({ plan: { relayTotal: 0 } }));
 };
@@ -303,7 +303,7 @@ const explodedPartsFor = (bl, post) => {
     mechanismSpan: it => (it && it.moduleSpan) || 1,
     lightingRowsFor: () => [],
     EPLightingGroups: { isSupplyGap: () => false },
-    EPPosts, EPBuilderSlots,
+    EPPosts, EPBuilderSlots, EPEstimate,
     keySlotKind: () => false,
     EPInstallSheet,
     state: { rooms: [] },

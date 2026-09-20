@@ -1421,17 +1421,17 @@ function findSelectedEntity(kind,id){
    другого поста), у клавиши без имени — что это ОТДЕЛЬНЫЙ ВЫКЛЮЧАТЕЛЬ (см. правило resolveGroup в
    модуле групп: имя пусто = самостоятельный свет, механизм и цена считаются молча, это не пробел).
    Клавиш в посте нет вовсе → задавать негде.
-   ⚠️ Слоты и «что такое клавиша» — те же, что у конструктора (EPBuilderSlots.fromPost + keySlotKind),
-   имя нормализуем тем же normalizeGroup, которым оно печатается везде: второй копии разбора поста,
-   предиката клавиши и правила написания имени не заводим (§7.1). keySlotKind(id)===true — ровно
-   тот случай, когда конструктор рисует поле ввода группы (isKeyProduct), поэтому и здесь считаем
-   клавишами только его: «потерянная клавиша» (артикул выпал, keySlotKind===null) — забота расчёта
-   групп, а не этой подсказки. */
+   ⚠️ Слоты и «что такое место управления» — те же, что у конструктора (EPBuilderSlots.fromPost +
+   keySlotKind), имя нормализуем тем же normalizeGroup, которым оно печатается везде: второй копии
+   разбора поста, предиката места и правила написания имени не заводим (§7.1). keySlotKind(id)===true —
+   ровно тот случай, когда конструктор рисует поле ввода группы (isControlPlaceItem: клавиша ИЛИ
+   цельное изделие), поэтому и здесь считаем местами только его: «потерянное место» (артикул выпал,
+   keySlotKind===null) — забота расчёта групп, а не этой подсказки. */
 function postGroupsPropHtml(post){
   const keys=EPBuilderSlots.fromPost(post,keySlotKind).filter(s=>keySlotKind(s.id)===true);
   if(!keys.length)
     return `<div class="post-groups"><div class="post-groups-head">Группы света</div>`
-      +`<small class="prop-hint">В посте нет клавиш — группы света задавать негде.</small></div>`;
+      +`<small class="prop-hint">В посте нет мест управления — группы света задавать негде.</small></div>`;
   const rows=keys.map((s,i)=>{
     const name=EPLightingGroups.normalizeGroup(s.group);
     const cross=EPLightingGroups.normalizeGroup(s.cross);
@@ -1442,12 +1442,12 @@ function postGroupsPropHtml(post){
        выбран: «как посчитано» строки не заслуживает. */
     const main=cross?`проходная № ${esc(cross)}${name?` «${esc(name)}»`:""}`:(name?esc(name):"отдельный выключатель");
     const extra=mechLabel?`<em>механизм: ${esc(mechLabel)} (вручную)</em>`:"";
-    return `<div class="post-group-row ${cross||name?"has-group":"no-group"}"><span>Клавиша ${i+1}</span>`
+    return `<div class="post-group-row ${cross||name?"has-group":"no-group"}"><span>Место ${i+1}</span>`
       +`<b>${main}</b>${extra}</div>`;
   }).join("");
   return `<div class="post-groups"><div class="post-groups-head">Группы света</div>${rows}`
-    +`<small class="prop-hint">Проходную задаёт НОМЕР: одинаковый номер у клавиш разных постов свяжет их в одну проходную. `
-    +`Имя группы — только для документов. Без номера клавиша — обычный выключатель; номер, имя и механизм задаются в конструкторе: «Редактировать».</small></div>`;
+    +`<small class="prop-hint">Проходную задаёт НОМЕР: одинаковый номер у мест управления разных постов свяжет их в одну проходную. `
+    +`Имя группы — только для документов. Без номера место — обычный выключатель; номер, имя и механизм задаются в конструкторе: «Редактировать».</small></div>`;
 }
 function renderProperties(){
   flushRoomDraft();   /* §7.1: правило «сначала закоммить черновик» в одной точке — покрывает все ~25 вызовов */
@@ -1713,15 +1713,26 @@ function renderProperties(){
    EPLightingGroups, связка с проектом (места из постов, подбор по каталогу, печатный блок) —
    в чистом EPLightingPlan. Здесь, как и в buildEstimate, только подстановка зависимостей
    приложения: доступ к каталогу и к настройкам проекта. */
-const isKeyProduct=item=>!!item&&item.partRole==="key";
+/* ЕДИНОЕ ОПРЕДЕЛЕНИЕ «МЕСТО УПРАВЛЕНИЯ» (§7.1). Клавиша (накладка на голый механизм, partRole="key")
+   ИЛИ ЦЕЛЬНОЕ изделие с ролью управления светом — клавиша и механизм в одном артикуле (09001), у
+   него нет partRole, а controlRole одна из ролей группы света (switch/changeover/inverter/button, те
+   же строки, что EPLightingGroups.ROLES). Возвращает "key" | "integrated" | null. Голый механизм,
+   розетка, датчик движения (controlRole="sensor") и Bluetooth (controlRole="bluetooth") местами
+   управления НЕ являются: они не встают в проходную и не заменяются по числу мест (вопрос владельцу —
+   см. отчёт). Все, кому нужно «есть ли здесь место / поле группы», спрашивают ЭТУ функцию, а не
+   заводят второй предикат: и чтение поста, и миграция старых проектов, и подбор механизма — один
+   источник. Однострочная стрелка НЕ случайно: поведенческие тесты вырезают её из app.js по одной. */
+const controlPlaceKind=item=>!item?null:item.partRole==="key"?"key":(!item.partRole&&(item.controlRole==="switch"||item.controlRole==="changeover"||item.controlRole==="inverter"||item.controlRole==="button")?"integrated":null);
+const isKeyProduct=item=>controlPlaceKind(item)==="key";
+const isControlPlaceItem=item=>controlPlaceKind(item)!==null;
 const isBareMechanism=item=>!!item&&item.partRole==="bare_mechanism";
-/* Клавиша ли механизм с таким артикулом — ОДИН предикат на все правки слотов (чтение поста,
+/* Место ли управления механизм с таким артикулом — ОДИН предикат на все правки слотов (чтение поста,
    замена механизма, миграция старых проектов). Ответ ТРЁХЗНАЧНЫЙ, как того требует
-   EPBuilderSlots.keepsGroup: true — клавиша, false — товар в каталоге есть и клавишей не
-   является, null — товара в каталоге НЕТ. Третий ответ не равен второму: артикул мог выпасть из
-   прайса, и снимать по этому поводу группу нельзя — это стёрло бы настоящее место управления,
-   которое расчёт обязан показать пробелом «потерянная клавиша» (EPLightingPlan.collect). */
-const keySlotKind=id=>{const item=product(id);return item?isKeyProduct(item):null};
+   EPBuilderSlots.keepsGroup: true — место управления (клавиша ИЛИ цельное изделие), false — товар в
+   каталоге есть и местом не является, null — товара в каталоге НЕТ. Третий ответ не равен второму:
+   артикул мог выпасть из прайса, и снимать по этому поводу группу нельзя — это стёрло бы настоящее
+   место управления, которое расчёт обязан показать пробелом «потерянная клавиша» (EPLightingPlan.collect). */
+const keySlotKind=id=>{const item=product(id);return item?isControlPlaceItem(item):null};
 /* Схема электрики — свойство ПРОЕКТА (лежит рядом с типом стены в EP_DATA.settings и едет в
    terms). Нераспознанный идентификатор откатываем на классическую: она же дефолт data.js и
    она же требуемое поведение для проектов, сохранённых до появления поля. */
@@ -1739,7 +1750,7 @@ function lightingScheme(){
    пересчитывается recalculateRoomAssignments на каждый renderAll. Карту строим из ТЕХ ЖЕ posts,
    по которым собраны места, — тогда и черновик конструктора попадает в свою комнату. */
 function lightingFor(posts){
-  const places=EPLightingPlan.collect(posts,{product,seriesOf:productSeries,isKey:isKeyProduct});
+  const places=EPLightingPlan.collect(posts,{product,seriesOf:productSeries,controlKind:controlPlaceKind});
   const mechs=byKind("mechanism");
   /* ⚠️ ПОДБОР — СВОЙ (EPLightingPlan.resolveMechanism), а НЕ EPCatalog.compatibleMechanisms:
      тот при отсутствии пересечения серий возвращает ВЕСЬ список («лучше показать всё, чем
@@ -1750,9 +1761,26 @@ function lightingFor(posts){
      копим и показываем человеку — см. ambiguityHtml. findMechanism — ОДНА замыкающая функция на
      все партиции, поэтому ambiguous копится сквозь них (planByRooms отдаёт ей один и тот же deps). */
   const ambiguous=new Map();
+  /* Зависимости строгого подбора ЗАМЕНЫ цельного изделия — читалки атрибутов каталога. Цвет
+     сравниваем ТЕМ ЖЕ facingColorKey, что и отбор начинки под цвет комнаты (§7.1), модульность —
+     тем же mechanismSpan, что раскладка поста; серия/семья — как у отбора товара. */
+  const replacementDeps={
+    seriesOf:productSeries,spanOf:mechanismSpan,
+    colorKeyOf:item=>item&&item.elementColor?EPCatalog.facingColorKey(item.elementColor):null,
+    fgOf:item=>(item&&item.functionalGroup)||null,fsgOf:item=>(item&&item.functionalSubgroup)||null
+  };
   const planDeps={
     seriesOf:productSeries,
-    findMechanism:({role,series})=>{
+    /* Один подбор на две ветки: клавише — ГОЛЫЙ механизм за ней (resolveMechanism), цельному изделию —
+       ЗАМЕНА его артикула изделием нужной роли (resolveReplacement). Роль (число мест) считает общий
+       расчёт и передаёт её сюда — второй копии правила ролей нет. Неоднозначность обеих веток копим
+       единообразно (роль+серия в ключе), интерфейс покажет кандидатов человеку — см. ambiguityHtml. */
+    findMechanism:({role,series,kind,source})=>{
+      if(kind==="integrated"){
+        const rep=EPLightingPlan.resolveReplacement({role,source},mechs,replacementDeps);
+        if(rep.ambiguous)ambiguous.set("i|"+(source&&source.id)+"|"+role,{role,series:productSeries(source),candidates:rep.candidates});
+        return rep.product;
+      }
       const found=EPLightingPlan.resolveMechanism({role,series},mechs);
       if(found.ambiguous)ambiguous.set(role+"|"+series.join("|"),{role,series,candidates:found.candidates});
       return found.product;
@@ -1876,9 +1904,15 @@ function projectLighting(){
   return _lightCache.value;
 }
 /* Полная цена поста = его состав + механизмы его групп света. light передают те, у кого расчёт
-   уже на руках (конструктор, смета); остальные берут проектный (projectLighting). */
+   уже на руках (конструктор, смета); остальные берут проектный (projectLighting).
+   ⚠️ postCost — по ЭФФЕКТИВНЫМ механизмам (замена цельного изделия 09001→09005 приходит через
+   mechanismIds, а не отдельной строкой): ровно как строка сметы (EPEstimate.build), иначе панель
+   свойств и подсказка на плане показали бы цену исходного изделия, а смета — замены. Правило «что
+   подменяется» — одно (EPEstimate.effectiveMechanismIds); postPrice сам не берёт цельные в отдельные. */
 function postTotalCost(post,light){
-  return EPEstimate.postPrice(postCost(post),lightingRowsFor(post,light===undefined?projectLighting():light));
+  const rows=lightingRowsFor(post,light===undefined?projectLighting():light);
+  const effIds=EPEstimate.effectiveMechanismIds(post.mechanismIds,rows);
+  return EPEstimate.postPrice(postCost(Object.assign({},post,{mechanismIds:effIds})),rows);
 }
 /* Неоднозначный подбор: в серии клавиши на нужную роль нашлось НЕСКОЛЬКО голых механизмов, и
    разобрать их данными нечем. Молча выбрать один нельзя — это деньги и монтаж, поэтому
@@ -2956,7 +2990,7 @@ function renderBuilderSlots(layout,remaining,lightRows){
        размещение разносило одну группу по N постам — вместо N выключателей получалась проходная
        схема. Вместо поля — строка-объяснение: молча убрать ввод значило бы оставить человека
        гадать, куда он делся. */
-    const groupField=!isKeyProduct(item)?""
+    const groupField=!isControlPlaceItem(item)?""
       : state.builder.editingPlacedId
         /* maxlength — не украшение: имя группы печатается ЦЕЛИКОМ в блоке «Группы света» КП,
            листа монтажника и панели проекта, и без ограничения одно поле выдавливало соседнюю
@@ -3063,6 +3097,11 @@ function lightSlotHtml(row){
   if(!row)return"";
   if(row.missing)return `<div class="slot-light is-missing">${esc(row.missingText||"механизм не подобран")}</div>`;
   const place=row.placeCount>1?` · место ${row.placeNo} из ${row.placeCount}`:"";
+  /* Цельное изделие: расчёт МЕНЯЕТ сам артикул поста (09001→09005), отдельной цены нет — она уже в
+     механизме. Показываем «в смету пойдёт …» без цены, чтобы читатель не принял замену за вторую
+     позицию. Клавиша: голый механизм ЗА ней — отдельная позиция со своей ценой (как было). */
+  if(row.kind==="integrated")
+    return `<div class="slot-light">в смету: ${esc(row.roleLabel)} · ${esc(row.code)} · ${esc(row.name)}${esc(place)}</div>`;
   return `<div class="slot-light">${esc(row.roleLabel)} · ${esc(row.code)} · ${esc(row.name)} · ${money(row.price)}${esc(place)}</div>`;
 }
 
@@ -4322,13 +4361,18 @@ function supplierSpecData(light){
          литерал здесь: пока он лежал в оркестраторе, обвязка листа монтажника печатала то,
          что накладная поставщика молчаливо отбрасывала, — один и тот же пробел трактовался
          двумя документами об одном проекте по-разному. */
-      const lightItems=lightingRowsFor(p,light)
+      /* Цельное изделие своей строкой заказа НЕ идёт: расчёт подменил его артикул прямо в
+         mechanismIds (effIds ниже), и поставщик заказывает уже замену. Отдельными позициями
+         остаются только клавиши (голые механизмы за ними) — EPEstimate.separateLighting. */
+      const rows=lightingRowsFor(p,light);
+      const effIds=EPEstimate.effectiveMechanismIds(p.mechanismIds,rows);
+      const lightItems=EPEstimate.separateLighting(rows)
         .filter(r=>!r.missing||EPLightingGroups.isSupplyGap(r.missingReason))
         .map(r=>r.missing
           ?{code:"",name:`Механизм группы «${r.groupLabel||"—"}» не подобран`,kind:"mechanism"}
           :{code:r.code,name:r.name,unit:r.product&&r.product.unit,kind:"mechanism"});
       return {
-        mechanisms:(p.mechanismIds||[]).map(id=>item(product(id))||{code:"",name:`Механизм не найден (арт. ${id})`}).concat(lightItems),
+        mechanisms:effIds.map(id=>item(product(id))||{code:"",name:`Механизм не найден (арт. ${id})`}).concat(lightItems),
         frame:frameInfo.unset?null:(frameInfo.frame
           ?Object.assign(item(frameInfo.frame),{name:frameInfo.displayName})
           :{code:"",name:frameInfo.displayName,kind:"frame"}),
@@ -4441,7 +4485,10 @@ function buildExplodedSpec(comp,box,layout,frameSpec,lightRows,moduleLabelOf){
       photo:photo?{imageUrl:photo}:null
     });
     const row=lightByKey.get(index);
-    if(row&&!row.missing&&row.product){
+    /* Голый механизм ЗА КЛАВИШЕЙ — отдельной деталью схемы. ⚠️ ТОЛЬКО У КЛАВИШИ (row.kind!=="integrated"):
+       у цельного изделия механизм внутри, а его артикул уже стоит В САМОМ модуле (effItemOf выше), и
+       вторая деталь «· механизм» с тем же 09005 задвоила бы позицию. */
+    if(row&&!row.missing&&row.product&&row.kind!=="integrated"){
       const mechPhoto=photoOf(row.product);
       parts.push({
         role:"Модуль",pos:`${label} · механизм`,
@@ -4531,23 +4578,35 @@ function buildPostSheet(post,light){
   const lightRows=lightingRowsFor(post,light)
     .map(r=>Object.assign({},r,{moduleLabel:moduleLabelOf(r.keyIndex,layout[r.keyIndex])}));
   const lightByKey=new Map(lightRows.map(r=>[Number(r.keyIndex),r]));
-  /* Примечание клавиши: группа, номер места в ней и подставленная роль с артикулом — либо
-     причина пробела СЛОВАМИ РАСЧЁТА (EPLightingGroups.GAP_TEXTS). Монтажник читает строку
-     модуля и сразу видит, что стоит за этой клавишей. */
+  /* ⚠️ ЭФФЕКТИВНЫЙ ТОВАР СЛОТА — ОДНО ПРАВИЛО (§7.1) НА ТАБЛИЦУ МОДУЛЕЙ И ВЗРЫВ-СХЕМУ. У цельного
+     изделия расчёт МЕНЯЕТ артикул (09001→09005): монтажник и в таблице, и в схеме обязан видеть то же
+     изделие, что уходит в смету. Замена — только когда она реально подобрана (строка не пробел и с
+     товаром); иначе исходный товар слота (пробел назван в блоке «Группы света»). Для клавиши строка
+     остаётся отдельным голым механизмом ЗА ней — её товар слота не подменяется. */
+  const effItemOf=(index,fallbackItem)=>{const row=lightByKey.get(index);
+    return (row&&row.kind==="integrated"&&!row.missing&&row.product)?row.product:fallbackItem;};
+  /* Примечание места: группа, номер места в ней и подставленная роль с артикулом — либо причина
+     пробела СЛОВАМИ РАСЧЁТА (EPLightingGroups.GAP_TEXTS). У ЦЕЛЬНОГО изделия артикул замены уже
+     стоит в самой колонке модуля (moduleRow ниже подменяет его), поэтому в примечании роль/артикул
+     не повторяем — только группу и номер места. */
   const lightNote=row=>!row?""
     :row.missing?`группа «${row.groupLabel||"—"}»: ${row.missingText}`
+    :row.kind==="integrated"?`группа «${row.groupLabel}» · место ${row.placeNo} из ${row.placeCount}`
     :`группа «${row.groupLabel}» · место ${row.placeNo} из ${row.placeCount} · ${row.roleLabel} ${row.code}`;
-  /* index — позиция клавиши в post.mechanismIds, а НЕ порядок в таблице: у нумерации по
-     постам порядок другой (см. moduleGroups ниже), а адрес клавиши обязан быть один. */
-  const moduleRow=(s,index)=>({
+  /* index — позиция места в post.mechanismIds, а НЕ порядок в таблице: у нумерации по
+     постам порядок другой (см. moduleGroups ниже), а адрес места обязан быть один. Цельное
+     изделие показываем заменой (effItemOf — одно правило, см. выше). */
+  const moduleRow=(s,index)=>{
+    const eff=effItemOf(index,s.item);
+    return {
     label:moduleLabelOf(index,s),
-    name:s.item?s.item.name:`Механизм не найден (арт. ${(post.mechanismIds||[])[index]})`,
-    code:s.item?s.item.code:"",
+    name:eff?eff.name:`Механизм не найден (арт. ${(post.mechanismIds||[])[index]})`,
+    code:eff?eff.code:"",
     note:s.item?lightNote(lightByKey.get(index)):"нет в каталоге",
-    /* Позиция клавиши в посте едет ВМЕСТЕ со строкой: по ней взрыв-схема ниже собирается в том
+    /* Позиция места в посте едет ВМЕСТЕ со строкой: по ней взрыв-схема ниже собирается в том
        же порядке, в каком документ печатает строки таблицы (см. cardModuleOrder). */
     keyIndex:index
-  });
+  };};
   const modules=layout.map((s,index)=>moduleRow(s,index));
   const moduleGroups=groups.map(g=>({post:g.post,capacity:g.capacity,
     modules:g.modules.map(m=>moduleRow(m,Number(m.id)))}));
@@ -4560,8 +4619,11 @@ function buildPostSheet(post,light){
      добавляем в конец: из схемы деталь пропадать не должна, там она с плоским номером. */
   const cardOrder=EPInstallSheet.cardModuleOrder(moduleGroups,modules);
   const placed=new Set(cardOrder.map(r=>Number(r.keyIndex)));
-  const explodedLayout=cardOrder.map(r=>Object.assign({},layout[Number(r.keyIndex)],{keyIndex:Number(r.keyIndex)}))
-    .concat(layout.map((s,i)=>Object.assign({},s,{keyIndex:i})).filter(s=>!placed.has(s.keyIndex)));
+  /* Взрыв-схему собираем из ЭФФЕКТИВНЫХ товаров (effItemOf): у цельного изделия деталь схемы — та же
+     замена 09005, что в таблице модулей и смете, а не исходный 09001. Правило одно на оба блока. */
+  const effLayout=layout.map((s,i)=>Object.assign({},s,{item:effItemOf(i,s.item)}));
+  const explodedLayout=cardOrder.map(r=>Object.assign({},effLayout[Number(r.keyIndex)],{keyIndex:Number(r.keyIndex)}))
+    .concat(effLayout.map((s,i)=>Object.assign({},s,{keyIndex:i})).filter(s=>!placed.has(s.keyIndex)));
   /* Точная коробка либо стандартно-совместимый фолбэк — выбор наш: только приложение знает
      тип стены проекта. Дальше обвязку (суппорт → коробка → накладка) собирает чистая
      EPInstallSheet.buildFittings — формат её строк принадлежит документу, а не оркестратору,
@@ -4575,7 +4637,7 @@ function buildPostSheet(post,light){
      поставки. Монтажник видит их там же, где заказчик, — в блоке «Группы света» этого же
      документа и в примечании к модулю клавиши (lightNote выше, там причина остаётся). */
   const fittings=EPInstallSheet.buildFittings(comp,box,
-    lightRows.filter(r=>!r.missing||EPLightingGroups.isSupplyGap(r.missingReason)));
+    EPEstimate.separateLighting(lightRows).filter(r=>!r.missing||EPLightingGroups.isSupplyGap(r.missingReason)));
   const room=state.rooms.find(r=>r.id===post.roomId);
   /* Собранное изображение и взрыв-схему кормим ОДНИМ spec (assembledPostSpec) — в каталог за
      фото/окнами накладки ходим один раз. assembledImageHtml остаётся байт-в-байт как прежде

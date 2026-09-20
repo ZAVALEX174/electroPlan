@@ -38,10 +38,9 @@ const mechanismModulesTotal = vm.runInNewContext(
   stand.constSource("mechanismModulesTotal") + "\n;mechanismModulesTotal;",
   { mechanismSpan: EPCatalog.mechanismSpan, product }
 );
-const isKeyProduct = vm.runInNewContext(stand.constSource("isKeyProduct") + "\n;isKeyProduct;", {});
 const keySlotKind = vm.runInNewContext(
-  stand.constSource("keySlotKind") + "\n;keySlotKind;",
-  { product, isKeyProduct }
+  stand.constSource("controlPlaceKind") + "\n" + stand.constSource("isControlPlaceItem") + "\n" + stand.constSource("keySlotKind") + "\n;keySlotKind;",
+  { product }
 );
 
 const activeFrames = PRODUCTS.filter(x => x.kind === "frame" && x.active);

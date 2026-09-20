@@ -59,10 +59,10 @@ const product = id => {
    (dropOrphanKeyGroups, restoreProject, pickBuilderProduct), keySlotKind вырезается ВМЕСТЕ с ними
    через runNamed и делит их лексический контекст. Исходный текст, а не копия. */
 const keySlotKind = vm.runInNewContext(
-  stand.constSource("isKeyProduct") + "\n" + stand.constSource("keySlotKind") + "\n;keySlotKind;",
+  stand.constSource("controlPlaceKind") + "\n" + stand.constSource("isControlPlaceItem") + "\n" + stand.constSource("keySlotKind") + "\n;keySlotKind;",
   { product });
-assert.equal(keySlotKind(KEY_ID), true, "разведка предиката: 200274 (размечен) — клавиша");
-assert.equal(keySlotKind(NONKEY_ID), false, "разведка предиката: 200048 — товар в каталоге, не клавиша");
+assert.equal(keySlotKind(KEY_ID), true, "разведка предиката: 200274 (размечен) — место управления");
+assert.equal(keySlotKind(NONKEY_ID), false, "разведка предиката: 200048 — товар в каталоге, не место управления");
 assert.equal(keySlotKind(MISSING_ID), null, "разведка предиката: 999999 — товара нет → null");
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ assert.equal(keySlotKind(MISSING_ID), null, "разведка предиката
      • пропавший из каталога (null) → «Гараж» НЕ снимается (потерянная клавиша — честный пробел). */
 test("E13-mig-1: dropOrphanKeyGroups снимает группу с не-клавиши и НЕ трогает пропавший из каталога товар", () => {
   const dropOrphanKeyGroups = stand.runNamed(
-    ["isKeyProduct", "keySlotKind", "dropOrphanKeyGroups"],
+    ["controlPlaceKind", "isControlPlaceItem", "keySlotKind", "dropOrphanKeyGroups"],
     { product, EPBuilderSlots, console: { info() {} } });
   const post = { mechanismIds: [KEY_ID, NONKEY_ID, MISSING_ID], keyGroups: ["Кухня", "Спальня", "Гараж"] };
   const cleaned = dropOrphanKeyGroups([post]);
@@ -94,7 +94,7 @@ test("E13-mig-2: restoreProject чистит осиротевшие группы
   const project = { posts: [{ mechanismIds: [KEY_ID, NONKEY_ID], keyGroups: ["Кухня", "Спальня"] }] };
   const state = {};
   const restoreProject = stand.runNamed(
-    ["isKeyProduct", "keySlotKind", "dropOrphanKeyGroups", "restoreProject"],
+    ["controlPlaceKind", "isControlPlaceItem", "keySlotKind", "dropOrphanKeyGroups", "restoreProject"],
     {
       ProjectStore: { load: () => project },
       state, EPPosts, EPBuilderSlots, product,
@@ -127,7 +127,7 @@ test("E13-mig-3: pickBuilderProduct снимает группу при заме�
     }
   };
   const pickBuilderProduct = stand.runNamed(
-    ["isKeyProduct", "keySlotKind", "pickBuilderProduct"],
+    ["controlPlaceKind", "isControlPlaceItem", "keySlotKind", "pickBuilderProduct"],
     {
       state, EPBuilderSlots, EPPosts, product,
       mechanismSpan: EPCatalog.mechanismSpan,
