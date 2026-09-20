@@ -32,6 +32,7 @@ const stand = require("./helpers/appStand.js");
 const EPCatalog = require("../js/catalog.js");
 const EPPosts = require("../js/posts.js");
 const EPPostImage = require("../js/postImage.js");
+const EPEstimate = require("../js/estimate.js");
 
 /* Обогащённый рантайм-каталог: те же файлы и порядок, что в index.html (сырой каталог → атрибуты →
    окна → лица → data.js). Именно data.js подмешивает mountRect/mountRects и faceRect, на которых
@@ -54,7 +55,10 @@ async function loadRuntimeProducts() {
 function buildSpec(products, post) {
   const product = id => products.find(p => Number(p.id) === Number(id));
   const ctx = {
-    product, frameProduct: product, EPPosts,
+    product, frameProduct: product, EPPosts, EPEstimate,
+    /* Предмет теста — режим фото/схемы накладки, не подмена цельного изделия: групп света у поста
+       нет, lightRows пусты, effectiveMechanismIds оставляет исходные тумблеры Vintage. */
+    lightingRowsFor: () => [], projectLighting: () => null,
     mechanismSpan: EPCatalog.mechanismSpan,
     productImage: EPCatalog.productImage,
     moduleFace: EPCatalog.moduleFace,

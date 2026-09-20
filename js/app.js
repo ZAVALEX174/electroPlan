@@ -271,9 +271,23 @@ const postComposition=p=>EPPosts.postComposition(p,postDeps());
    стандарт (DE/FR → деление окна на посты) и окно в % (EPCatalog.frameOpening). Нет фото —
    EPPostImage сам рисует схему-фолбэк. Одна функция кормит превью конструктора, карточку
    библиотеки, подсказку на плане, раскладку КП и лист монтажника (в т.ч. печать — инлайн-стили). */
-function assembledPostSpec(post,{size="md",articles=true}={}){
+function assembledPostSpec(post,{size="md",articles=true}={},light){
   const frame=frameProduct(post.frameId);
-  const dist=EPPosts.distributePosts(post.mechanismIds||[],frame,{product,mechanismSpan});
+  /* ⚠️ ЦЕЛЬНОЕ ИЗДЕЛИЕ ПОКАЗЫВАЕМ ЗАМЕНОЙ, ТОЙ ЖЕ, ЧТО УХОДИТ В СМЕТУ. 09001 физически
+     заменяется подобранным по числу мест управления (09005), и картинка собранного поста,
+     раскладка КП и лист монтажника обязаны показывать то же изделие, что оплачено, — иначе
+     монтажник ставит одно, а в смете другое. Правило подмены ОДНО (EPEstimate.effectiveMechanismIds
+     по строкам групп света), второй копии здесь нет: строки берём тем же lightingRowsFor, что цена
+     поста (postTotalCost). Пробел (замены нет) оставляет исходный артикул — он физически стоит, а
+     недостачу называет блок «Группы света»; клавиша (partRole="key") и обычный механизм не
+     "integrated" и подмене не подлежат — effectiveMechanismIds их не трогает.
+     light передаёт тот, у кого расчёт на руках (КП, лист монтажника, конструктор с ЧЕРНОВИКОМ —
+     там расчёт включает ещё не сохранённый пост); размещённый пост на плане и подсказка берут
+     проектный (projectLighting). Модульность замены та же (строгий отбор), поэтому раскладка по
+     постам/коробкам не меняется — меняется только показанный артикул. */
+  const lightRows=lightingRowsFor(post,light===undefined?projectLighting():light);
+  const effIds=EPEstimate.effectiveMechanismIds(post.mechanismIds||[],lightRows);
+  const dist=EPPosts.distributePosts(effIds,frame,{product,mechanismSpan});
   const rowsMap=new Map();   /* группируем посты по физическому ряду накладки */
   dist.posts.forEach(p=>{
     if(!rowsMap.has(p.row))rowsMap.set(p.row,[]);
@@ -318,7 +332,7 @@ function assembledPostSpec(post,{size="md",articles=true}={}){
   }:null;
   return {size,frame:frameSpec,rows};
 }
-const assembledPostHtml=(post,opts={})=>EPPostImage.buildHtml(assembledPostSpec(post,opts),{esc});
+const assembledPostHtml=(post,opts={},light)=>EPPostImage.buildHtml(assembledPostSpec(post,opts,light),{esc});
 /* Размещённый пост опознаётся сквозным НОМЕРОМ (решение владельца 01.08): номер —
    основной идентификатор вместо имени. Номер закрепляется за постом при создании и не
    переиспользуется (удаление не сдвигает чужие номера), привести к 1..N — команда
@@ -2901,14 +2915,18 @@ function renderBuilder(){
   const mechanismIds=EPBuilderSlots.toPost(state.builder.slots).mechanismIds;
   const maxPostCap=dist.maxCapacity||capacity;
   const addMax=EPPosts.maxFreeSpan(dist);
-  /* Единое изображение собранного поста (крупно) — та же EPPostImage, что в библиотеке,
-     подсказке, КП и листе монтажника. */
-  $("postPreview").innerHTML=assembledPostHtml({frameId:selectedFrame&&selectedFrame.id,mechanismIds},{size:"lg"});
-  $("builderCapacity").innerHTML=`<div class="builder-capacity-head"><strong>Заполнение рамки</strong><span>Занято ${occupied} из ${capacity} · ${remaining?`свободно ${moduleWord(remaining)}`:"рамка заполнена"}</span></div>
-    <div class="module-meter" style="--module-count:${capacity}" aria-label="Занято ${occupied} из ${capacity} модулей">${Array.from({length:capacity},(_,index)=>`<span class="${index<occupied?"occupied":""}"></span>`).join("")}</div>`;
-  /* Расчёт групп света — по всему проекту ВМЕСТЕ с черновиком поста (см. projectPostsWithBuilder). */
+  /* Расчёт групп света — по всему проекту ВМЕСТЕ с черновиком поста (см. projectPostsWithBuilder).
+     Считаем ДО превью: собранное изображение показывает цельное изделие ЗАМЕНОЙ (09001→09005), а
+     замена берётся из этого же расчёта (assembledPostSpec ← lightRows черновика). Иначе превью
+     печатало бы исходный артикул, пока смета рядом уже показывает подмену. */
   const light=lightingFor(projectPostsWithBuilder(selectedFrame));
   const draft=builderPostDraft(selectedFrame);
+  /* Единое изображение собранного поста (крупно) — та же EPPostImage, что в библиотеке,
+     подсказке, КП и листе монтажника; черновик и его расчёт передаём явно, чтобы подмена в
+     конструкторе была честной ещё до сохранения поста. */
+  $("postPreview").innerHTML=assembledPostHtml(draft,{size:"lg"},light);
+  $("builderCapacity").innerHTML=`<div class="builder-capacity-head"><strong>Заполнение рамки</strong><span>Занято ${occupied} из ${capacity} · ${remaining?`свободно ${moduleWord(remaining)}`:"рамка заполнена"}</span></div>
+    <div class="module-meter" style="--module-count:${capacity}" aria-label="Занято ${occupied} из ${capacity} модулей">${Array.from({length:capacity},(_,index)=>`<span class="${index<occupied?"occupied":""}"></span>`).join("")}</div>`;
   /* Нумерация модулей слота (одномодульный «2», двухмодульный «2–3») — общая чистая
      функция EPPosts.moduleLayout: тот же код считает позиции для листа монтажника,
      чтобы номера в конструкторе и в документе не разошлись. */
@@ -4158,9 +4176,17 @@ function applyOfferPreset(name){
 
 /* Раскладка постов для КП (PLAN 1): по строке на пост — номер, наполнение словами с
    количеством, модульность, иллюстрация (картинка накладки). Порядок — по номеру. */
-function buildPostLayout(options){
+function buildPostLayout(options,light){
+  /* Один расчёт групп света на всю раскладку — тот же, что уходит в смету и в блок «Группы света»
+     этого КП (generateCommercialOffer передаёт его сюда). Нужен, чтобы цельное изделие и в строке
+     «N × …», и в картинке поста показывалось ЗАМЕНОЙ (09001→09005), как в смете. */
+  const lite=light===undefined?projectLighting():light;
   return state.posts.slice().sort((a,b)=>(Number(a.number)||0)-(Number(b.number)||0)).map(p=>{
     const comp=postComposition(p);
+    /* Эффективные механизмы поста: исходные id с подменой цельных изделий на подобранную замену —
+       ровно как в смете (EPEstimate.effectiveMechanismIds по строкам групп света поста). По ним и
+       считаем «N × …», иначе колонка печатала бы «выключатель» там, где смета берёт «переключатель». */
+    const effIds=EPEstimate.effectiveMechanismIds(p.mechanismIds,lightingRowsFor(p,lite));
     /* Наполнение поста словами с количеством: механизмы даёт EPPosts.fillSummary, следом —
        подсветка клавиш. LED вставлены в механизмы и уже оплачены (comp.backlight.items идёт в
        цену поста и в смету), а колонка о них молчала — как раньше молчали свод и лист монтажника.
@@ -4173,7 +4199,7 @@ function buildPostLayout(options){
        отличает её в рендере. Выключена/не подобрана → items и gaps пусты → строк подсветки нет,
        таблица байт в байт как раньше; comp без поля backlight (старый рукотворный состав вне
        приложения) — как отсутствие подсветки, тот же защитный приём, что в смете и своде. */
-    const fill=EPPosts.fillSummary(p.mechanismIds,{product});
+    const fill=EPPosts.fillSummary(effIds,{product});
     const back=comp.backlight;
     if(back&&back.items&&back.items.length)fill.push({word:"Подсветка клавиш",count:back.items.length});
     if(back&&back.gaps&&back.gaps.length)fill.push({word:back.gaps.length>1?`${back.gaps.length} × подсветка не подобрана`:"подсветка не подобрана",noCount:true});
@@ -4185,7 +4211,7 @@ function buildPostLayout(options){
       frameCode:comp.frameAvailability.code,
       /* Иллюстрация — собранный пост (EPPostImage), а не фото одной накладки: инлайн-стили,
          поэтому одинаково рисуется в окне печати КП. */
-      assembledImageHtml:assembledPostHtml(p,{size:"md",articles:options?.articles!==false}),
+      assembledImageHtml:assembledPostHtml(p,{size:"md",articles:options?.articles!==false},lite),
       frameName:comp.frameAvailability.displayName,
       /* Исправную накладку под картинкой не дублируем. Важное состояние — исчезнувший
          артикул, снятая позиция или отсутствие выбора — печатается прямо в раскладке. */
@@ -4641,8 +4667,10 @@ function buildPostSheet(post,light){
   const room=state.rooms.find(r=>r.id===post.roomId);
   /* Собранное изображение и взрыв-схему кормим ОДНИМ spec (assembledPostSpec) — в каталог за
      фото/окнами накладки ходим один раз. assembledImageHtml остаётся байт-в-байт как прежде
-     (assembledPostHtml — это та же EPPostImage.buildHtml над тем же spec). */
-  const spec=assembledPostSpec(post,{size:"md"});
+     (assembledPostHtml — это та же EPPostImage.buildHtml над тем же spec). Расчёт групп света
+     листа (light) передаём в spec, чтобы цельное изделие в картинке и взрыв-схеме показывалось
+     той же заменой (09001→09005), что уже стоит в таблице модулей и в смете. */
+  const spec=assembledPostSpec(post,{size:"md"},light);
   return {
     number:post.number,
     room:room?room.name:"",
@@ -4866,7 +4894,7 @@ function generateCommercialOffer(){
      как и раньше; их пустота (раскладка без столбцов, план без чертежа, нечего заказывать)
      видна только после сборки. */
   const deps={money,esc,displayCurrency,effectiveRate:EPRates.effectiveRate,
-    settings:EP_DATA.settings,options,header:docHeader(),postLayout:buildPostLayout(options),
+    settings:EP_DATA.settings,options,header:docHeader(),postLayout:buildPostLayout(options,light),
     /* план с бирками — отдельной страницей перед раскладкой постов: клиент сверяет номер в
        таблице с местом на чертеже. Поля КП 16 мм (см. @page в offerPdf.js). */
     planBlockHtml:options.sections.plan?planBlockHtml({maxWidthMm:178,maxHeightMm:222}):"",

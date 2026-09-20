@@ -140,7 +140,10 @@ function postLayoutFor(info) {
     state: { posts: [post] },
     postComposition: () => compOf(info),
     product: () => null,
-    EPPosts,
+    EPPosts, EPEstimate,
+    /* Предмет теста — статус накладки под картинкой, не подмена цельного изделия: механизмов у
+       поста нет, effectiveMechanismIds на пустом наборе ничего не меняет. */
+    lightingRowsFor: () => [], projectLighting: () => null,
     assembledPostHtml: () => "<post-picture>"
   });
   return build();

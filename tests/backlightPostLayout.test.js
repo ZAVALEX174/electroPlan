@@ -27,6 +27,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
 const EPPosts = require("../js/posts.js");
+const EPEstimate = require("../js/estimate.js");
 const { buildHtml } = require("../js/offerPdf.js");
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -47,7 +48,10 @@ function layoutOf(back) {
   const ctx = {
     state: { posts: [{ number: 1, mechanismIds: ["m1", "m2", "m3"] }] },
     postComposition: () => comp,
-    EPPosts, product: () => KEY,
+    EPPosts, EPEstimate, product: () => KEY,
+    /* Предмет теста — подсветка в наполнении, не подмена цельного изделия: групп света нет,
+       lightRows пусты, effectiveMechanismIds оставляет исходные клавиши. */
+    lightingRowsFor: () => [], projectLighting: () => null,
     assembledPostHtml: () => ""
   };
   return stand.run(["buildPostLayout"], ctx)({ articles: false });

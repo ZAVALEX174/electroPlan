@@ -213,6 +213,60 @@ test("подпись кэша стабильна, когда ничего зна
   assert.equal(sigOf(posts, rooms), sigOf(posts.map(p => Object.assign({}, p)), rooms.map(r => Object.assign({}, r))));
 });
 
+/* ── НАБЛЮДАЕМОЕ: проставленный «№ проходной» сразу меняет блок «Группы света» ──────────────
+   Дефект (владелец воспроизвёл в браузере): двум постам в одной комнате проставили один и тот же
+   № проходной, а блок «Группы света» продолжал показывать их отдельными выключателями — пока не
+   переключишь схему электрики туда-обратно (что сдвигало подпись кэша и вызывало пересчёт).
+   Корень — cacheSignature НЕ включал keyCrossNumbers, и projectLighting отдавал устаревший план.
+   Тест сторожит НАБЛЮДАЕМОЕ (текст блока), исполняя тот же механизм кэша, что и app.js.projectLighting:
+   ответ берётся из кэша, пока не сменилась cacheSignature. Ту же причину имеет и ручной выбор
+   механизма (keyMechanisms) — он тоже добавлен в подпись. */
+const postCross = (id, roomId, crossNo) => ({ id, number: id, roomId,
+  mechanismIds: [KEY.id], keyGroups: [""], keyCrossNumbers: [crossNo == null ? "" : String(crossNo)] });
+
+test("проставленный № проходной сразу перестраивает блок «Группы света» (кэш сбрасывается)", () => {
+  /* Зеркало app.js.projectLighting: значение живёт в кэше, ключ — cacheSignature; пересчёт ТОЛЬКО
+     при смене подписи. Если подпись слепа к crossNo, второй вызов вернёт устаревший план. */
+  let cache = { sig: null, value: null };
+  const rooms = [{ id: "A" }];
+  const projectLighting = posts => {
+    const sig = sigOf(posts, rooms, "classic");
+    if (cache.sig !== sig) cache = { sig, value: planByRoomsFor(posts, rooms, "classic") };
+    return cache.value;
+  };
+
+  /* Стартовое состояние: два поста без номера проходной → два самостоятельных выключателя. */
+  const htmlBefore = LP.buildHtml(projectLighting([postCross("p1", "A", null), postCross("p2", "A", null)]), {});
+  assert.match(htmlBefore, /Выключатель/, "исходно — два отдельных выключателя");
+  assert.doesNotMatch(htmlBefore, /Проходная № 1/, "проходной ещё нет");
+
+  /* Человек проставил обоим постам «№ проходной» = 1 и сохранил. Блок ОБЯЗАН тут же показать
+     объединённую проходную из двух переключателей — без переключения схемы и прочих действий. */
+  const htmlAfter = LP.buildHtml(projectLighting([postCross("p1", "A", "1"), postCross("p2", "A", "1")]), {});
+  assert.match(htmlAfter, /Проходная № 1/, "проставленный номер сразу склеил посты в одну проходную");
+  assert.match(htmlAfter, /Переключатель/, "два места проходной → переключатели, а не выключатели");
+  assert.doesNotMatch(htmlAfter, /клавиша 1/, "отдельных групп «Пост N · клавиша 1» больше нет");
+});
+
+test("ручной выбор механизма клавиши сразу перестраивает блок (keyMechanisms в подписи)", () => {
+  /* Тот же класс дефекта: keyMechanisms (ручная роль клавиши) меняет план, а подпись — нет.
+     Наблюдаемое: одиночный пост, роль клавиши руками переведена в «переключатель». */
+  let cache = { sig: null, value: null };
+  const rooms = [{ id: "A" }];
+  const projectLighting = posts => {
+    const sig = sigOf(posts, rooms, "classic");
+    if (cache.sig !== sig) cache = { sig, value: planByRoomsFor(posts, rooms, "classic") };
+    return cache.value;
+  };
+  const withMech = mech => [{ id: "p1", number: 1, roomId: "A", mechanismIds: [KEY.id], keyGroups: ["Свет"], keyMechanisms: [mech] }];
+
+  const htmlBefore = LP.buildHtml(projectLighting(withMech("")), {});
+  assert.match(htmlBefore, /Выключатель/, "одно место группы «Свет» → выключатель");
+
+  const htmlAfter = LP.buildHtml(projectLighting(withMech(CHANGEOVER.controlRole)), {});
+  assert.match(htmlAfter, /Переключатель/, "ручной выбор переключателя виден сразу, без стороннего действия");
+});
+
 /* ── склейка пробелов подпланов (дефект: planByRooms конкатенировал gaps вместо склейки) ── */
 
 test("одинаковые пробелы из разных комнат склеиваются в одну печатную строку", () => {

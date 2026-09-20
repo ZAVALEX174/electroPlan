@@ -35,6 +35,7 @@ const EPCatalog = require("../js/catalog.js");
 const EPPosts = require("../js/posts.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
 const EPPostImage = require("../js/postImage.js");
+const EPEstimate = require("../js/estimate.js");
 
 /* index.html читаем напрямую — единственный тест ниже сверяет ПУСТОТУ разметки #postSlotCount.
    Исходник app.js (со снятыми комментариями, чтобы `\nfunction ` из комментария не оборвал тело),
@@ -236,7 +237,10 @@ test("renderBuilder: реальные 14/21 доступны, держат ря�
 test("assembledPostSpec: реальные 14/21 доходят до превью двумя и тремя рядами", () => {
   const buildSpec = stand.run("assembledPostSpec", {
     frameProduct: id => product(id), product,
-    EPPosts,
+    EPPosts, EPEstimate,
+    /* Здесь предмет — раскладка рядов/ячеек, а не подмена цельного изделия: групп света нет,
+       поэтому lightRows пусты и effectiveMechanismIds оставляет исходные id (клавиши Plana). */
+    lightingRowsFor: () => [], projectLighting: () => null,
     mechanismSpan: EPCatalog.mechanismSpan,
     frameSlotCount: EPCatalog.frameSlotCount,
     productImage: EPCatalog.productImage,
