@@ -19,8 +19,9 @@ const stand = require("./helpers/appStand.js");
 const EPCatalog = require("../js/catalog.js");
 
 /* Настоящие esc и productPicture из app.js в одном vm-контексте; productImage — из EPCatalog
-   (в app.js он деструктурирован оттуда же). */
-const picture = stand.runNamed(["esc", "productPicture"], { productImage: EPCatalog.productImage });
+   (в app.js он деструктурирован оттуда же). Подпись «Нет фото» productPicture берёт из общей точки
+   NO_PHOTO_LABEL (§7.1) — вырезаем её настоящий текст рядом, иначе функция упадёт ReferenceError. */
+const picture = stand.runNamed(["esc", "NO_PHOTO_LABEL", "productPicture"], { productImage: EPCatalog.productImage });
 
 test("§нет-фото-синтетика: товар без фото → значок item.icon + подпись «Нет фото» + title", () => {
   const html = picture({ name: "Накладка", icon: "□" });

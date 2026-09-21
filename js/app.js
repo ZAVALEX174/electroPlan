@@ -110,19 +110,32 @@ function frameOptions(items,selectedId){
    как buildEstimate() над EPEstimate. */
 const fitMechanismIds=(ids,items,capacity)=>EPPosts.fitMechanismIds(ids,items,capacity,{product,mechanismSpan});
 const fitMechanismIdsPreserving=(ids,items,capacity,pinnedIndex)=>EPPosts.fitMechanismIdsPreserving(ids,items,capacity,pinnedIndex,{product,mechanismSpan});
+/* Единственная формулировка «фото нет» — одна на карточку каталога и на плитку мастера подбора
+   отделки (§7.1). Держим её ЗДЕСЬ, а не копией в каждой разметке: раньше карточка писала «Нет
+   фото», а мастер — «без фото», и владелец видел две разные фразы про одно и то же. */
+const NO_PHOTO_LABEL="Нет фото";
 function productPicture(item,{className="",detail=false,label="",eager=false,style=""}={}){
   const imageUrl=productImage(item,{detail});
-  /* Нет фото → рисуем значок товара (item.icon) и подпись «Нет фото», чтобы отсутствие снимка
+  /* Нет фото → рисуем значок товара (item.icon) и подпись NO_PHOTO_LABEL, чтобы отсутствие снимка
      читалось как «фото просто нет», а не «картинка сломалась» (владелец принял голубой квадрат
      с крохотным значком за баг). Подпись даём ТОЛЬКО когда фото реально нет: иначе она осталась
      бы в разметке товаров с фото (пусть и скрытая CSS) — а тест «у товара с фото надписи нет»
      и есть страховка от этого. В тесных местах (слоты сборки, список накладок) подпись прячется
-     через CSS, значок остаётся, а title="Нет фото" даёт ту же подсказку по наведению. */
+     через CSS, значок остаётся, а title даёт ту же подсказку по наведению. */
   const noPhoto=!imageUrl;
-  return `<span class="product-picture ${className}${imageUrl?" has-image":""}"${noPhoto?` title="Нет фото"`:""}${style?` style="${esc(style)}"`:""}>
+  return `<span class="product-picture ${className}${imageUrl?" has-image":""}"${noPhoto?` title="${NO_PHOTO_LABEL}"`:""}${style?` style="${esc(style)}"`:""}>
     ${imageUrl?`<img src="${esc(imageUrl)}" alt="${esc(label||item?.name||"Изображение товара")}" loading="${eager?"eager":"lazy"}" decoding="async" data-product-picture>`:""}
-    <span class="product-picture-fallback" aria-hidden="true"><span class="product-picture-glyph">${esc(item?.icon||"?")}</span>${noPhoto?`<span class="product-picture-nophoto">Нет фото</span>`:""}</span>
+    <span class="product-picture-fallback" aria-hidden="true"><span class="product-picture-glyph">${esc(item?.icon||"?")}</span>${noPhoto?`<span class="product-picture-nophoto">${NO_PHOTO_LABEL}</span>`:""}</span>
   </span>`;
+}
+/* Плитка-миниатюра мастера подбора отделки. Своя вёрстка (плитка узкая, каталожный глиф не нужен),
+   но подпись «фото нет» — общая с карточкой (NO_PHOTO_LABEL, §7.1), чтобы формулировки не разошлись.
+   Ошибку загрузки картинки ловит bindProductPictureFallbacks (снимает has-image → показывает фолбэк),
+   как у карточек каталога. */
+function framePickThumb(imageUrl,alt){
+  return imageUrl
+    ?`<span class="product-picture frame-pick-thumb has-image"><img src="${esc(imageUrl)}" alt="${esc(alt)}" loading="lazy" decoding="async" data-product-picture><span class="product-picture-fallback" aria-hidden="true">${NO_PHOTO_LABEL}</span></span>`
+    :`<span class="product-picture frame-pick-thumb"><span class="product-picture-fallback" aria-hidden="true">${NO_PHOTO_LABEL}</span></span>`;
 }
 function bindProductPictureFallbacks(root){
   root.querySelectorAll("img[data-product-picture]").forEach(img=>{
@@ -2622,12 +2635,10 @@ function renderFramePicker(){
   if(options.length){
     body.innerHTML=`<div class="frame-picker-grid">`+options.map(o=>{
       const active=framePickerSel[step.prop]===o.value;
-      /* Плитка с фото или, у ~40% накладок без фото, достойный фолбэк (название + счётчик, значок
-         «без фото») вместо пустой дыры. Ошибку загрузки картинки ловит bindProductPictureFallbacks
-         (снимает has-image → показывает фолбэк), как у карточек каталога. */
-      const thumb=o.imageUrl
-        ?`<span class="product-picture frame-pick-thumb has-image"><img src="${esc(o.imageUrl)}" alt="${esc(o.value)}" loading="lazy" decoding="async" data-product-picture><span class="product-picture-fallback" aria-hidden="true">без фото</span></span>`
-        :`<span class="product-picture frame-pick-thumb"><span class="product-picture-fallback" aria-hidden="true">без фото</span></span>`;
+      /* Плитка с фото или, у ~40% накладок без фото, достойный фолбэк (название + счётчик + общая
+         подпись «фото нет») вместо пустой дыры. Разметку и подпись даёт framePickThumb — та же
+         формулировка NO_PHOTO_LABEL, что и у карточки каталога (§7.1). */
+      const thumb=framePickThumb(o.imageUrl,o.value);
       return `<button type="button" class="frame-pick-tile${active?" active":""}" data-value="${esc(o.value)}" aria-pressed="${active}">
         ${thumb}
         <span class="frame-pick-name">${esc(o.value)}</span>
