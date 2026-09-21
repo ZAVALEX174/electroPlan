@@ -637,7 +637,7 @@ function removeWall(id){
    Чистая геометрия (полигоны, площади, флуд-фолл свободного пространства) вынесена
    в js/geometry.js (EPGeom) — см. PLAN 2.1; здесь берём её через алиасы, а привязка
    к state/DOM остаётся в этом файле. */
-const {polygonCentroid,polygonAreaPx,pointInPolygon,componentAt,roomContourProbe}=EPGeom;
+const {polygonCentroid,polygonAreaPx,pointInPolygon,componentAt,roomContourProbe,segmentsIntersection,distancePointToSegment}=EPGeom;
 /* площадь комнаты в м² — только если задан масштаб плана */
 function roomAreaM2(room){
   if(!state.pxPerMeter||!room?.polygon||room.polygon.length<3)return null;
@@ -1031,7 +1031,38 @@ function resolveRoomForPoint(cx,cy,ctx){
        незащищённая копия делала find(-1===-1), приписывая объект комнате с заблокированным seed'ом.
        Объединение выбрало защищённый вариант. Это МЕНЯЕТ привязку (а значит смету) на входах, где
        componentAt возвращает -1: снимешь guard — вернёшь баг main. Регресс — roomResolveRule.test.js. */
-    if(component>=0){const g=ctx.gridRooms.find(r=>r.componentId===component);if(g)return g}
+    if(component>=0){
+      const inComp=ctx.gridRooms.filter(r=>r.componentId===component);
+      /* Одна подпись в компоненте — она и есть ответ (поведение прежнее). НЕСКОЛЬКО подписей в одной
+         компоненте (стен между ними нет — обычный случай ручной расстановки) больше НЕ разрешаем
+         порядком в массиве: раньше find брал ПЕРВУЮ по списку, и любой объект молча уходил в первую
+         комнату — с её отделкой и в её раздел сметы. Различаем настоящим свидетельством: ближайший
+         ДОСТИЖИМЫЙ якорь (seedX/seedY). Достижимость — тем же зондом «есть ли стена между», что и во
+         второй ветви (segmentsIntersection; стену через сам объект не считаем преградой, как SKIP в
+         roomContourProbe): объект не тянем сквозь глухую стену. Ближайших поровну или все перекрыты —
+         честный null, объект остаётся «вне помещений» с меткой, а не выбор по нестабильному id/порядку. */
+      if(inComp.length===1)return inComp[0];
+      if(inComp.length>1){
+        const EPS=1e-9,SKIP=1e-6;
+        const anchorBlocked=(sx,sy)=>{
+          const p1={x:cx,y:cy},p2={x:sx,y:sy};
+          for(const w of (ctx.walls||[])){
+            if(!w?.a||!w?.b)continue;
+            if(distancePointToSegment(cx,cy,w.a.x,w.a.y,w.b.x,w.b.y)<=SKIP)continue;
+            if(segmentsIntersection(p1,p2,w.a,w.b))return true;
+          }
+          return false;
+        };
+        let near=null,bestDist=Infinity,ambiguous=false;
+        for(const room of inComp){
+          if(room.seedX==null||anchorBlocked(room.seedX,room.seedY))continue;
+          const d=Math.hypot(cx-room.seedX,cy-room.seedY);
+          if(d<bestDist-EPS){near=room;bestDist=d;ambiguous=false}
+          else if(Math.abs(d-bestDist)<=EPS){ambiguous=true}
+        }
+        if(near&&!ambiguous)return near;
+      }
+    }
   }
   return null;
 }
