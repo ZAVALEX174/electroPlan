@@ -19,6 +19,16 @@
 (() => {
 "use strict";
 
+/* Логотип в шапку рисует ОБЩИЙ EPDocLogo — то же правило, что и у КП (§7.1): размер <img> и
+   пустой случай (логотипа нет → "") живут в одном месте, этот документ решает только КУДА в
+   своей (другой) шапке поставить готовую строку. Резолвим как в offerPdf.js: в браузере namespace
+   уже загружен, в Node — через require; без модуля логотипа просто нет. */
+function docLogoApi() {
+  if (typeof window !== "undefined" && window.EPDocLogo) return window.EPDocLogo;
+  if (typeof require !== "undefined") return require("./docLogo.js");
+  return { imgHtml: () => "" };
+}
+
 /* Автопечать окна листа монтажника: печатаем НЕ по таймеру, а когда догрузятся картинки
    (иллюстрации собранных постов тянутся с vimar.ru и за прежние 400 мс могли не успеть — сборка
    уезжала в PDF недогруженной). Все <img> уже complete → печать сразу; иначе ждём load/error
@@ -201,7 +211,7 @@ function cardFittingOrder(fittings, moduleGroups, modules) {
      supplierSpecHtml?: string                   // сводная спецификация по артикулам (EPSupplierSpec),
                                                  // готовая секция от оркестратора — см. ниже
    }
-   deps = { esc(s) }.
+   deps = { esc(s), logo? }.   // logo — data-URL логотипа компании (EPPrefs); пусто → шапка как раньше
 
    planBlockHtml печатается СРАЗУ ПОСЛЕ шапки и ПЕРЕД карточками постов — своей страницей:
    монтажник сначала видит, где на объекте пост № 7, и только потом читает его состав. Секцию
@@ -226,6 +236,9 @@ function buildHtml(data, deps) {
   const esc = deps.esc;
   const posts = (data && data.posts) || [];
   const single = posts.length === 1;
+  /* Логотип компании над заголовком листа (deps.logo — тот же data-URL, что в КП). Пусто →
+     imgHtml вернёт "" и блок заголовка останется байт-в-байт как раньше. */
+  const logoImg = docLogoApi().imgHtml(deps.logo, esc);
 
   /* Шапка документа: печатаем только заполненные поля (не «Проект: —»). */
   const header = data.header || {};
@@ -365,7 +378,7 @@ function buildHtml(data, deps) {
   @media print{button{display:none}}
   </style></head><body>
   <div style="display:flex;justify-content:space-between;align-items:flex-start">
-    <div><h1>${title}</h1><div class="sub">${subtitle}</div></div>
+    <div>${logoImg}<h1>${title}</h1><div class="sub">${subtitle}</div></div>
     <button onclick="window.print()">Печать / PDF</button>
   </div>
   ${headerRows ? `<div class="doc-head">${headerRows}</div>` : ""}

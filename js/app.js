@@ -379,6 +379,7 @@ async function init(){
   const restored=await restoreProject();
   loadCachedRate();
   fillDocHeaderInputs();   /* реквизиты КП: заполнить поля (и дату «сегодня» на чистом старте) */
+  renderCompanyLogo();     /* логотип из EPPrefs (общий для всех проектов) — предпросмотр в панели */
   renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();
   renderLightingSchemeSelect();   /* селектор схемы в панели проекта: заполняем и на чистом старте */
   renderProjectWallTypeSelect();  /* тип стены проекта — там же, рядом со схемой */
@@ -4182,6 +4183,53 @@ function fillDocHeaderInputs(){
   $("docDate").value=d.date||new Date().toISOString().slice(0,10);
 }
 
+/* Логотип компании — БЛАНК ЧЕЛОВЕКА, а не свойство проекта: загрузил один раз — стоит в шапке
+   КП и листа монтажника во ВСЕХ его проектах (та же доктрина, что у offerPresets/frameFacingView).
+   Поэтому в EPPrefs (ep_prefs), а не в снимке проекта. Храним data-URL: документы открываются
+   через window.open, внешние пути туда не доедут. Разметку <img> и проверку файла держит чистый
+   EPDocLogo — здесь только DOM-часть (выбор/чтение/ужатие/предпросмотр). */
+const LOGO_PREF="companyLogo";
+/* Растровая высота логотипа при ужатии. Держим ВЫШЕ экранной (max-height:64px в EPDocLogo.imgHtml)
+   с запасом ~×2.5: печать плотнее экрана, и без запаса логотип в PDF выходил бы мыльным. Шире
+   LOGO_MAX_W не растим — в шапку такой не влезет, а вес data-URL зря вырастет. */
+const LOGO_PRINT_H=160,LOGO_MAX_W=480;
+function companyLogo(){const v=EPPrefs.get(LOGO_PREF,"");return typeof v==="string"?v:"";}
+function loadCompanyLogo(file){
+  /* Годен ли файл — решает общий чистый EPDocLogo (тип картинки, честный предел размера). Не
+     годен → говорим человеку словами и НЕ сохраняем молча битое (решение владельца п.3). */
+  const check=EPDocLogo.validateSource(file);
+  if(!check.ok){toast(check.reason);return;}
+  const reader=new FileReader();
+  reader.onerror=()=>toast("Не удалось прочитать файл логотипа");
+  reader.onload=()=>{
+    const img=new Image();
+    img.onerror=()=>toast("Не удалось разобрать картинку логотипа");
+    img.onload=()=>{
+      /* Ужимаем до печатной высоты (и ширины), сохраняя пропорции; больше исходника не растягиваем
+         (scale ≤ 1). Растр на canvas → PNG: у логотипов обычно прозрачный фон. */
+      const scale=Math.min(LOGO_PRINT_H/img.height,LOGO_MAX_W/img.width,1);
+      const w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale));
+      const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
+      canvas.getContext("2d").drawImage(img,0,0,w,h);
+      EPPrefs.set(LOGO_PREF,canvas.toDataURL("image/png"));
+      renderCompanyLogo();
+      toast("Логотип сохранён — он будет в шапке КП и листа монтажника во всех ваших проектах");
+    };
+    img.src=reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+function clearCompanyLogo(){EPPrefs.set(LOGO_PREF,"");renderCompanyLogo();}
+/* Предпросмотр загруженного логотипа и видимость кнопки «Убрать». Есть логотип → показываем его
+   и кнопку; нет — прячем оба, панель выглядит как без логотипа. src экранируем (конвенция 4). */
+function renderCompanyLogo(){
+  const logo=companyLogo(),preview=$("docLogoPreview"),removeBtn=$("docLogoRemove");
+  if(!preview)return;
+  preview.innerHTML=logo?`<img src="${esc(logo)}" alt="Логотип компании">`:"";
+  preview.hidden=!logo;
+  if(removeBtn)removeBtn.hidden=!logo;
+}
+
 /* Настройки пока только КП (D10, часть 1), отдельно от реквизитов и условий сделки.
    Переключение чекбокса не вызывает renderAll/пересчёт: меняется только будущая печать. */
 function renderOfferOptions(){
@@ -4814,7 +4862,8 @@ function openInstallSheet(data){
   if(!win){toast("Разрешите всплывающие окна для листа монтажника");return}
   const h=docHeader();
   win.document.write(EPInstallSheet.buildHtml(
-    Object.assign({header:{project:h.project,developer:h.developer,date:h.date}},data),{esc}));
+    Object.assign({header:{project:h.project,developer:h.developer,date:h.date}},data),
+    {esc,logo:companyLogo()}));
   win.document.close();
 }
 /* Лист монтажника для поста в конструкторе: если правим размещённый пост — берём его
@@ -5009,7 +5058,8 @@ function generateCommercialOffer(){
      как и раньше; их пустота (раскладка без столбцов, план без чертежа, нечего заказывать)
      видна только после сборки. */
   const deps={money,esc,displayCurrency,effectiveRate:EPRates.effectiveRate,
-    settings:EP_DATA.settings,options,header:docHeader(),postLayout:buildPostLayout(options,light),
+    settings:EP_DATA.settings,options,header:docHeader(),logo:companyLogo(),
+    postLayout:buildPostLayout(options,light),
     /* план с бирками — отдельной страницей перед раскладкой постов: клиент сверяет номер в
        таблице с местом на чертеже. Поля КП 16 мм (см. @page в offerPdf.js). */
     planBlockHtml:options.sections.plan?planBlockHtml({maxWidthMm:178,maxHeightMm:222}):"",
@@ -5468,6 +5518,11 @@ $("renumberConfirmBtn").onclick=confirmRenumberPosts;
 $("builderInstallSheet").onclick=installSheetForBuilder;
 /* реквизиты КП: правки полей сохраняются в проект (settings.docHeader) */
 Object.keys(DOC_FIELDS).forEach(id=>{$(id).oninput=applyDocHeader});
+/* Логотип компании: скрытый file-input открывается кнопкой; после выбора обнуляем value, чтобы
+   тот же файл можно было выбрать повторно (change иначе не сработает). «Убрать» чистит EPPrefs. */
+$("docLogoBtn").onclick=()=>$("docLogoInput").click();
+$("docLogoInput").onchange=e=>{const f=e.target.files&&e.target.files[0];if(f)loadCompanyLogo(f);e.target.value="";};
+$("docLogoRemove").onclick=clearCompanyLogo;
 $("offerOptions").onchange=e=>applyOfferOption(e.target);
 document.querySelectorAll("[data-offer-preset]").forEach(btn=>{
   btn.onclick=()=>applyOfferPreset(btn.dataset.offerPreset);

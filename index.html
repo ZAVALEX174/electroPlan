@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260920.1">
+  <link rel="stylesheet" href="css/styles.css?v=20260921.1">
 </head>
 <body>
 <div class="app">
@@ -188,7 +188,13 @@
           <label>Дата<input id="docDate" type="date"></label>
           <label>Номер КП<input id="docNumber" autocomplete="off" placeholder="№"></label>
         </div>
-        <small class="hint-line">Печатаются в шапке КП и листа монтажника. Пустые поля не выводятся.</small>
+        <div class="doc-logo-row">
+          <button class="btn ghost small" type="button" id="docLogoBtn">Логотип компании…</button>
+          <button class="btn ghost small" type="button" id="docLogoRemove" hidden>Убрать</button>
+          <input type="file" id="docLogoInput" accept="image/*" hidden>
+          <div class="doc-logo-preview" id="docLogoPreview" hidden></div>
+        </div>
+        <small class="hint-line">Поля печатаются в шапке КП и листа монтажника (пустые не выводятся) и сохраняются в этом проекте. Логотип — общий для всех ваших проектов.</small>
         <details class="offer-options" id="offerOptions">
           <summary>Настройка состава КП</summary>
           <div class="offer-presets">
@@ -533,8 +539,11 @@
 <script src="js/builderSlots.js?v=20260914.2"></script>
 <script src="js/offerOptions.js?v=20260920.2"></script>
 <script src="js/estimate.js?v=20260920.1"></script>
-<script src="js/offerPdf.js?v=20260920.2"></script>
-<script src="js/installSheet.js?v=20260911.1"></script>
+<!-- Логотип компании в шапке КП и листа монтажника — одно правило разметки на оба (§7.1).
+     Грузится до offerPdf/installSheet, которые через него рисуют логотип. -->
+<script src="js/docLogo.js?v=20260921.1"></script>
+<script src="js/offerPdf.js?v=20260921.1"></script>
+<script src="js/installSheet.js?v=20260921.1"></script>
 <script src="js/supplierSpec.js?v=20260911.1"></script>
 <script src="js/postImage.js?v=20260920.1"></script>
 <script src="js/explodedView.js?v=20260805.5"></script>
@@ -558,6 +567,6 @@
 <!-- Чистый модуль (ни DOM, ни state): шаги мастера отделки и счётчики «сколько за вариантом» через
      переданный отбор каталога. Грузится до app.js, который подставляет ему EPCatalog и рисует. -->
 <script src="js/framePicker.js?v=20260915.1"></script>
-<script src="js/app.js?v=20260921.2"></script>
+<script src="js/app.js?v=20260921.3"></script>
 </body>
 </html>

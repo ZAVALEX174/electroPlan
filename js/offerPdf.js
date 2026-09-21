@@ -19,6 +19,16 @@ function defaultEstimate() {
   return { pricelessNote: () => "" };
 }
 
+/* Логотип в шапку рисует ОБЩИЙ EPDocLogo — то же правило, что и у листа монтажника (§7.1):
+   размер <img> и пустой случай (логотипа нет → "") живут в одном месте, этот документ решает
+   только КУДА в своей шапке поставить готовую строку. Резолвим как EPEstimate: в браузере
+   namespace уже загружен, в Node — через require; без модуля логотипа просто нет. */
+function docLogoApi() {
+  if (typeof window !== "undefined" && window.EPDocLogo) return window.EPDocLogo;
+  if (typeof require !== "undefined") return require("./docLogo.js");
+  return { imgHtml: () => "" };
+}
+
 /* Автопечать окна КП: печатаем НЕ по таймеру, а когда догрузятся картинки (иллюстрации постов
    тянутся с vimar.ru и за прежние 500 мс могли не успеть — сборка уезжала в PDF недогруженной).
    Все <img> уже complete → печать сразу; иначе ждём load/error каждой незагруженной и печатаем на
@@ -119,6 +129,9 @@ function compose(est, deps) {
     ["Номер КП", h.number]
   ].filter(([, v]) => v != null && String(v).trim() !== "")
    .map(([k, v]) => `<b>${esc(k)}:</b> ${esc(v)}`).join("<br>");
+  /* Логотип компании над реквизитами (deps.logo — data-URL из EPPrefs, бланк человека, не свойство
+     проекта). Пусто → imgHtml вернёт "" и шапка останется байт-в-байт как раньше. */
+  const logoImg = docLogoApi().imgHtml(deps.logo, esc);
 
   /* Раздел «Раскладка постов» (PLAN 1) — перед позиционной таблицей: по строке на пост,
      наполнение словами с количеством (а не список артикулов), модульность отдельной
@@ -215,7 +228,7 @@ function compose(est, deps) {
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Коммерческое предложение</title><style>
   @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.priceless{width:340px;margin:8px 0 0 auto;color:#9b3f2b;font-size:11px;font-weight:bold;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}@media print{button{display:none}}</style></head><body>
   <h1>Коммерческое предложение</h1><div class="sub">Проект электрики и комплектация электроустановочных изделий</div>
-  <div class="meta"><div class="box">${headerRows}</div><button onclick="window.print()">Сохранить в PDF</button></div>
+  <div class="meta"><div class="box">${logoImg}${headerRows}</div><button onclick="window.print()">Сохранить в PDF</button></div>
   ${planSection}
   ${layoutSection}
   ${frameWarnings}
