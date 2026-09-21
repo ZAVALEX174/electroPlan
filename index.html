@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260921.1">
+  <link rel="stylesheet" href="css/styles.css?v=20260921.2">
 </head>
 <body>
 <div class="app">
@@ -49,12 +49,17 @@
           </div>
         </div>
         <div class="trace-panel">
+          <!-- СКРЫТО ДО ГОТОВНОСТИ (решение владельца 21.09, перед показом заказчику): распознавание
+               плана ещё не доведено. Элементы остаются в разметке — обработчики в app.js на их id
+               живые, возврат = снять hidden с обёртки. Удалять нельзя: сломаются привязки и тесты. -->
+          <div hidden>
           <button class="btn primary full" id="autoTraceBtn" disabled>Автоматически обрисовать</button>
           <label class="range-label">
             <span>Чувствительность</span><b id="traceSensitivityValue">62%</b>
             <input id="traceSensitivity" type="range" min="35" max="85" value="62">
           </label>
           <button class="text-action" id="clearAutoTraceBtn">Очистить автообрисовку</button>
+          </div>
           <button class="btn full" id="planVisibilityBtn" disabled style="margin-top:6px">Подложка: показана</button>
           <small class="hint-line">Показать → бледная → скрыть (клавиша B). Скрывается только чертёж — разметка и объекты остаются</small>
           <button class="text-action" id="clearPlanBtn" hidden>Убрать план</button>
@@ -67,6 +72,10 @@
                граница по времени поток лишь ЗАДЕРЖИВАЕТ. Осознанность даёт ДРУГОЙ ЖЕСТ: эта кнопка
                появляется только после вопроса и в неё поток по «Убрать план» физически не попадает. -->
           <button class="btn full danger" id="clearPlanConfirmBtn" hidden style="margin-top:6px">Точно убрать план?</button>
+          <!-- СКРЫТО ДО ГОТОВНОСТИ (решение владельца 21.09, перед показом заказчику): распознавание
+               плана ещё не доведено. Элементы остаются в разметке — обработчики в app.js на их id
+               живые, возврат = снять hidden с обёртки. Удалять нельзя: сломаются привязки и тесты. -->
+          <div hidden>
           <button class="btn full" id="detectRoomsBtn" disabled style="margin-top:8px">Определить комнаты</button>
           <small class="hint-line">Быстро, OpenCV — для чётких чертежей</small>
           <button class="btn full" id="detectRoomsMlBtn" disabled style="margin-top:8px">Определить комнаты (ML)</button>
@@ -74,6 +83,7 @@
           <button class="btn full" id="annotateBtn" disabled style="margin-top:8px">Распознать элементы (ML)</button>
           <small class="hint-line">Стены, двери, окна нейросетью (~100 МБ при первом запуске)</small>
           <button class="text-action" id="clearAnnotateBtn" hidden>Убрать разметку</button>
+          </div>
           <div class="scale-row">
             <button class="btn full" id="scaleBtn">Задать масштаб</button>
             <small class="hint-line" id="scaleHint">Масштаб не задан — площадь считается в пикселях</small>
@@ -194,7 +204,10 @@
           <input type="file" id="docLogoInput" accept="image/*" hidden>
           <div class="doc-logo-preview" id="docLogoPreview" hidden></div>
         </div>
-        <small class="hint-line">Поля печатаются в шапке КП и листа монтажника (пустые не выводятся) и сохраняются в этом проекте. Логотип — общий для всех ваших проектов.</small>
+        <label class="doc-terms-field">Условия сделки в подвале КП
+          <textarea id="docTerms" rows="4" autocomplete="off" placeholder="Условия оплаты, сроки поставки, претензии, срок действия цен — печатаются в конце КП"></textarea>
+        </label>
+        <small class="hint-line">Поля печатаются в шапке КП и листа монтажника (пустые не выводятся) и сохраняются в этом проекте. Логотип и условия сделки — общие для всех ваших проектов; условия печатаются в конце КП, пока не заполнены — подвала нет.</small>
         <details class="offer-options" id="offerOptions">
           <summary>Настройка состава КП</summary>
           <div class="offer-presets">
@@ -542,7 +555,7 @@
 <!-- Логотип компании в шапке КП и листа монтажника — одно правило разметки на оба (§7.1).
      Грузится до offerPdf/installSheet, которые через него рисуют логотип. -->
 <script src="js/docLogo.js?v=20260921.1"></script>
-<script src="js/offerPdf.js?v=20260921.1"></script>
+<script src="js/offerPdf.js?v=20260921.2"></script>
 <script src="js/installSheet.js?v=20260921.1"></script>
 <script src="js/supplierSpec.js?v=20260911.1"></script>
 <script src="js/postImage.js?v=20260920.1"></script>
@@ -567,6 +580,6 @@
 <!-- Чистый модуль (ни DOM, ни state): шаги мастера отделки и счётчики «сколько за вариантом» через
      переданный отбор каталога. Грузится до app.js, который подставляет ему EPCatalog и рисует. -->
 <script src="js/framePicker.js?v=20260915.1"></script>
-<script src="js/app.js?v=20260921.3"></script>
+<script src="js/app.js?v=20260921.4"></script>
 </body>
 </html>
