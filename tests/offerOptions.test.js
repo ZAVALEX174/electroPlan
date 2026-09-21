@@ -116,7 +116,7 @@ function exportStand(options) {
     projectLighting: () => light, lightingSum: () => 12345,
     mechanismSpan: p => p?.moduleCount || 0, frameSlotCount: () => 3,
     productImage: () => "", moduleFace: () => null, frameOpenings: () => [], frameOpening: () => null,
-    docHeader: () => ({}), companyLogo: () => "", planBlockHtml: () => "<section>ПЛАН</section>",
+    docHeader: () => ({}), companyLogo: () => "", companyTerms: () => "", planBlockHtml: () => "<section>ПЛАН</section>",
     toast: () => {}, EPRates: {}, window: { open: () => ({ document: { write: h => { html = h; }, close() {} } }) },
     ProjectStore: { save: v => { saved = v; } }
   };
@@ -189,7 +189,7 @@ test("D10: init создаёт поля до восстановления — п
       return null;
     }
   };
-  for (const name of ["loadCachedRate", "fillDocHeaderInputs", "renderCompanyLogo", "renderTemplates", "renderAll", "renderSummary",
+  for (const name of ["loadCachedRate", "fillDocHeaderInputs", "renderCompanyLogo", "renderCompanyTerms", "renderTemplates", "renderAll", "renderSummary",
     "updateScaleUi", "updateRateUi", "applyPlanVisibility", "renderLightingSchemeSelect", "renderProjectWallTypeSelect",
     "renderProjectBacklight",
     "renderPostSlotCountSelect", "applyGridStyle", "syncMarkupControls", "updateZoomUi", "applyView"])

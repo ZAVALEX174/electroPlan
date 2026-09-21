@@ -29,6 +29,33 @@ function docLogoApi() {
   return { imgHtml: () => "" };
 }
 
+/* Предел длины редактируемых условий сделки. «Соглашение сторон» — это несколько абзацев (условия
+   оплаты, поставка до 180 дней, претензии, срок действия цен), а не документ: 2000 символов — это
+   ~30–40 строк, с большим запасом на любые разумные условия. Больше почти наверняка не условия КП,
+   а случайная вставка; предел защищает и печать (текст не разносит вёрстку A4), и хранилище (EPPrefs
+   → LocalStorage: 2000 символов ≪ квоты, рядом с data-URL логотипа это ничто). Ограничение применяет
+   ВВОД (app.js обрезает при сохранении, textarea maxlength не даёт напечатать больше — обрезка видима,
+   не «молча»); число ЭКСПОРТИРУЕМ, чтобы у ввода и печати был ОДИН предел, а не две копии. */
+const MAX_TERMS_CHARS = 2000;
+
+/* Подвал «Условия сделки» — редактируемый человеком текст (EPPrefs.companyTerms), бланк КОМПАНИИ, а
+   не свойство проекта (как логотип/наборы столбцов): вписал один раз — стоит во всех своих КП. ОДНО
+   правило в одном месте (§7.1): ЧТО печатается в подвале условий, решает только эта функция. Живёт
+   здесь, в offerPdf, а НЕ рядом с pricelessNote в estimate: pricelessNote производна от est.missing
+   (неполнота сметы) и печатается в обоих документах, а этот текст к смете и цифрам отношения не имеет
+   и идёт ТОЛЬКО в КП (в лист монтажника не идёт — тот не коммерческий документ). Пусто → "" (никакого
+   пустого блока: без текста КП обязан выглядеть байт-в-байт как раньше — отдельный проверяемый случай).
+   Это ТЕКСТ, а не HTML: экранируем целиком (конвенция 4), затем переносы строк человека → <br>, чтобы
+   его абзацы сохранились в печати. Порядок важен — сначала esc (он не трогает \n), потом \n → <br>:
+   обратный порядок экранировал бы уже вставленные <br>. \r\n и одиночный \r приводим к \n. */
+function termsFooterHtml(terms, esc) {
+  const raw = typeof terms === "string" ? terms.trim() : "";
+  if (!raw) return "";
+  const e = typeof esc === "function" ? esc : (s => String(s));
+  const body = e(raw.replace(/\r\n?/g, "\n")).replace(/\n/g, "<br>");
+  return `<div class="terms">${body}</div>`;
+}
+
 /* Автопечать окна КП: печатаем НЕ по таймеру, а когда догрузятся картинки (иллюстрации постов
    тянутся с vimar.ru и за прежние 500 мс могли не успеть — сборка уезжала в PDF недогруженной).
    Все <img> уже complete → печать сразу; иначе ждём load/error каждой незагруженной и печатаем на
@@ -225,8 +252,16 @@ function compose(est, deps) {
   const contentFragments = [planSection, layoutSection, frameWarnings, specSection, lightingSection, supplierSection];
   const hasContent = options.prices || contentFragments.some(f => f && String(f).trim() !== "");
 
+  /* Подвал редактируемых условий сделки — из бланка компании (deps.terms, EPPrefs). НЕ зависит от
+     цен: условия оплаты и поставки печатаются и в КП без цен, поэтому считается ВНЕ ветки
+     options.prices. Стоит НИЖЕ денежных подвалов, но ВЫШЕ свода поставщика: условия относятся к
+     сделке и обязаны остаться на страницах КП, а не уехать с отрывным листом поставщика (см. коммент
+     о supplierSection выше). Пусто → "" (термин не гейтит hasContent: подвал из одних условий без
+     спецификации и цен — не повод открывать документ). */
+  const termsFooter = termsFooterHtml(deps.terms, esc);
+
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Коммерческое предложение</title><style>
-  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.priceless{width:340px;margin:8px 0 0 auto;color:#9b3f2b;font-size:11px;font-weight:bold;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}@media print{button{display:none}}</style></head><body>
+  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.priceless{width:340px;margin:8px 0 0 auto;color:#9b3f2b;font-size:11px;font-weight:bold;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}.terms{margin-top:28px;padding-top:12px;border-top:1px solid #d8e6f2;color:#4a5b6c;font-size:11px;line-height:1.45}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}@media print{button{display:none}}</style></head><body>
   <h1>Коммерческое предложение</h1><div class="sub">Проект электрики и комплектация электроустановочных изделий</div>
   <div class="meta"><div class="box">${logoImg}${headerRows}</div><button onclick="window.print()">Сохранить в PDF</button></div>
   ${planSection}
@@ -242,6 +277,7 @@ function compose(est, deps) {
   ${pricelessNote ? `<div class="priceless">${options.prices ? esc(pricelessNote) : `Позиций без товара в каталоге: ${est.missing.length}. Проверьте состав проекта перед передачей документа.`}</div>` : ""}
   ${options.prices && displayCurrency() === "RUB" ? rateFooter() : ""}
   ${options.prices ? `<div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>` : ""}
+  ${termsFooter}
   ${supplierSection}
   ${printScript}</body></html>`;
   return { html, hasContent };
@@ -255,7 +291,7 @@ function hasContent(est, deps) { return compose(est, deps).hasContent; }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { buildHtml, hasContent };
+const api = { buildHtml, hasContent, termsFooterHtml, MAX_TERMS_CHARS };
 if (typeof window !== "undefined") window.EPOfferPdf = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

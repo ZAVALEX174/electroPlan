@@ -380,6 +380,7 @@ async function init(){
   loadCachedRate();
   fillDocHeaderInputs();   /* реквизиты КП: заполнить поля (и дату «сегодня» на чистом старте) */
   renderCompanyLogo();     /* логотип из EPPrefs (общий для всех проектов) — предпросмотр в панели */
+  renderCompanyTerms();    /* условия сделки из EPPrefs (общие для всех проектов) — в поле подвала КП */
   renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();
   renderLightingSchemeSelect();   /* селектор схемы в панели проекта: заполняем и на чистом старте */
   renderProjectWallTypeSelect();  /* тип стены проекта — там же, рядом со схемой */
@@ -4230,6 +4231,24 @@ function renderCompanyLogo(){
   if(removeBtn)removeBtn.hidden=!logo;
 }
 
+/* Условия сделки в подвале КП — тоже БЛАНК ЧЕЛОВЕКА (как логотип/наборы столбцов), а не свойство
+   проекта: «Соглашение сторон» пишут один раз — оно стоит во всех его КП. Поэтому в EPPrefs (ep_prefs),
+   не в снимке проекта. Разметку подвала и предел длины держит чистый EPOfferPdf — здесь только
+   чтение/сохранение строки. Обрезаем по общему пределу (EPOfferPdf.MAX_TERMS_CHARS) — второй заслон к
+   textarea maxlength на случай вставки/программной записи мимо поля. */
+const TERMS_PREF="companyTerms";
+function companyTerms(){const v=EPPrefs.get(TERMS_PREF,"");return typeof v==="string"?v:"";}
+function saveCompanyTerms(text){
+  EPPrefs.set(TERMS_PREF,String(text==null?"":text).slice(0,EPOfferPdf.MAX_TERMS_CHARS));
+}
+/* Заполнить поле условий из EPPrefs и задать maxlength из ОДНОГО источника (EPOfferPdf): предел
+   поля и обрезка при сохранении не должны разойтись числом. */
+function renderCompanyTerms(){
+  const el=$("docTerms");if(!el)return;
+  el.maxLength=EPOfferPdf.MAX_TERMS_CHARS;
+  el.value=companyTerms();
+}
+
 /* Настройки пока только КП (D10, часть 1), отдельно от реквизитов и условий сделки.
    Переключение чекбокса не вызывает renderAll/пересчёт: меняется только будущая печать. */
 function renderOfferOptions(){
@@ -5058,7 +5077,7 @@ function generateCommercialOffer(){
      как и раньше; их пустота (раскладка без столбцов, план без чертежа, нечего заказывать)
      видна только после сборки. */
   const deps={money,esc,displayCurrency,effectiveRate:EPRates.effectiveRate,
-    settings:EP_DATA.settings,options,header:docHeader(),logo:companyLogo(),
+    settings:EP_DATA.settings,options,header:docHeader(),logo:companyLogo(),terms:companyTerms(),
     postLayout:buildPostLayout(options,light),
     /* план с бирками — отдельной страницей перед раскладкой постов: клиент сверяет номер в
        таблице с местом на чертеже. Поля КП 16 мм (см. @page в offerPdf.js). */
@@ -5523,6 +5542,9 @@ Object.keys(DOC_FIELDS).forEach(id=>{$(id).oninput=applyDocHeader});
 $("docLogoBtn").onclick=()=>$("docLogoInput").click();
 $("docLogoInput").onchange=e=>{const f=e.target.files&&e.target.files[0];if(f)loadCompanyLogo(f);e.target.value="";};
 $("docLogoRemove").onclick=clearCompanyLogo;
+/* Условия сделки в подвале КП — общий бланк компании (EPPrefs), не поле проекта: сохраняем в EPPrefs
+   на каждый ввод, обрезая по общему пределу длины. */
+$("docTerms").oninput=e=>saveCompanyTerms(e.target.value);
 $("offerOptions").onchange=e=>applyOfferOption(e.target);
 document.querySelectorAll("[data-offer-preset]").forEach(btn=>{
   btn.onclick=()=>applyOfferPreset(btn.dataset.offerPreset);

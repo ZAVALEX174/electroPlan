@@ -81,7 +81,7 @@ function guardStand(offerOptions, over) {
     projectLighting: () => ({ plan: { groups: [], gaps: [], relays: [], totals: {} } }),
     buildEstimate: () => est(),
     buildPostLayout: () => layout(),
-    docHeader: () => ({}), companyLogo: () => "",
+    docHeader: () => ({}), companyLogo: () => "", companyTerms: () => "",
     planBlockHtml: () => (over && "planBlockHtml" in over) ? over.planBlockHtml : "<section>ПЛАН</section>",
     lightingHtml: () => "<section>СВЕТ</section>", supplierSpecHtml: () => "<section>СВОД</section>",
     toast: m => toasts.push(m), $: dom.$,

@@ -179,6 +179,8 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .doc-logo-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
 .doc-logo-preview{flex-basis:100%;margin-top:4px}
 .doc-logo-preview img{max-height:48px;max-width:100%;object-fit:contain;border:1px solid var(--line);border-radius:6px;padding:4px;background:#fff}
+.doc-terms-field{display:flex;flex-direction:column;margin-top:8px;color:var(--muted);font-size:9px;font-weight:800}
+.doc-terms-field textarea{margin-top:3px;padding:7px 9px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text);font:inherit;font-weight:400;line-height:1.4;resize:vertical;min-height:64px}
 .offer-options{margin-top:12px;font-size:11px}
 .offer-options summary{cursor:pointer;font-weight:800;color:var(--text);padding:7px 0}
 .offer-options label{display:flex;align-items:flex-start;gap:6px;margin:7px 0;line-height:1.4}
