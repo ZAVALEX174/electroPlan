@@ -39,6 +39,13 @@
      отдельных под-окон по постам (splitOpening) и раскладываем клавиши каждого поста В СВОЁ
      под-окно. В схеме-фолбэке (фото нет) импост между постами, наоборот, рисуем СВОЙ.
 
+   ПОМОДУЛЬНЫЕ ОКНА (винтажные/flat накладки VIMAR — 22673/22674/22683/22684): у итальянской
+   накладки пост один, но детектор снял ОТДЕЛЬНОЕ отверстие на каждый модуль (узкий овал Vintage,
+   квадрат Flat). Когда число измеренных окон совпало с числом одномодульных ячеек (а не постов),
+   каждое окно работает как МАСКА своего модуля: механизм лежит под накладкой в истинную величину
+   (шаг модулей = расстояние между центрами окон), окно показывает лишь ту часть лица, что попала в
+   отверстие — как в собранном изделии. См. postWindows (порядок веток) и moduleWindowPhoto.
+
    КЛЮЧЕВОЕ: КП и лист монтажника уходят в ПЕЧАТЬ (отдельное окно без стилей приложения).
    Поэтому вся геометрия и цвета заданы ИНЛАЙН-СТИЛЯМИ (и инлайн-SVG для значков) прямо в
    разметке — один и тот же HTML одинаково рисуется и в приложении (innerHTML), и в окне
@@ -266,6 +273,17 @@ function iconSvg(type, px, ink) {
 const capOf = p => Math.max(1, Number(p && p.capacity) || 1);
 const round2 = n => Math.round(n * 100) / 100;
 
+/* Плоский список ЯЧЕЕК всех постов слева направо (ячейка = один механизм/свободный слот/пробел).
+   Общий хелпер для помодульной раскладки: число ячеек сверяется с числом измеренных окон, а порядок
+   обхода «ряд за рядом, пост за постом, ячейка за ячейкой» совпадает с порядком отрисовки. */
+function flatCells(rows) {
+  const cells = [];
+  (Array.isArray(rows) ? rows : []).forEach(r => ((r && r.posts) || []).forEach(p => ((p && p.cells) || []).forEach(c => cells.push(c))));
+  return cells;
+}
+/* span ячейки в модулях (1М/2М), не меньше 1 — та же оценка, что у distributePosts. */
+const spanOf = c => Math.max(1, Number(c && c.span) || 1);
+
 /* Сдвиг светлоты hex-цвета на delta (−255..255) по каждому каналу. Из цвета накладки получаем
    цвет клавиши (чуть светлее/темнее — чтобы отделялась от пластины) и её блик/тень. Не #rrggbb
    на входе → возвращаем как есть (в таблице цветов накладок только hex-заливки). */
@@ -477,21 +495,34 @@ function photoReady(frame) {
   return !!(frame && frame.imageUrl && Array.isArray(frame.windows) && frame.windows.some(validRect));
 }
 
-/* Окна под посты в режиме ФОТО (чистая логика, покрыта тестами). Если пришли ИЗМЕРЕННЫЕ окна
-   (windows — снятые детектором с фото накладки, EPCatalog.frameOpenings) и их число РОВНО совпало
-   с числом постов — раскладываем пост i в окно i (порядок слева направо), без догадок об аспекте и
-   импосте. Иначе — ФОЛБЭК splitOpening по угаданному окну: несовпадение числа окон и постов
-   рискованно (непонятно, какой пост в какое окно ставить), поэтому не рискуем и делим окно сами
-   (так же ведём себя, когда измерений нет вовсе — товар не из VIMAR или фото не разобралось).
-   Возвращаем {rects, measured}: measured — признак «легли по фото», нужен тестам и отладке. */
+/* Окна под посты/модули в режиме ФОТО (чистая логика, покрыта тестами). Если пришли ИЗМЕРЕННЫЕ окна
+   (windows — снятые детектором с фото накладки, EPCatalog.frameOpenings), сопоставляем их одним из
+   двух способов, В ЭТОМ ПОРЯДКЕ:
+   1. Число окон == числу ПОСТОВ → пост i в окно i (немецкая 2+2: одно окно = один пост из нескольких
+      модулей, импост уже на фото). Ветка идёт ПЕРВОЙ — она приоритетнее помодульной.
+   2. Иначе число окон == числу ЯЧЕЕК, и все ячейки одномодульные (1 отверстие = 1 механизм) →
+      МОДУЛЬ i в окно i (винтажные/flat накладки VIMAR: детектор снял отдельный узкий овал/квадрат на
+      каждый модуль). Требуем all-1М: 2М-механизм накрыл бы два отверстия, и сопоставление ячейка↔окно
+      1:1 сломалось бы — такой случай уводим в фолбэк, не рискуя.
+   3. Иначе — ФОЛБЭК splitOpening по угаданному окну (несовпадение рискованно — непонятно, что в какое
+      окно; так же ведём себя, когда измерений нет вовсе — товар не из VIMAR или фото не разобралось).
+   Возвращаем {rects, measured, perModule}: measured — «легли по фото», perModule — «окно на каждый
+   модуль» (photoStage режет фото модуля этими окнами как маской). Нужны тестам и отрисовке. */
 function postWindows(opening, rows, windows) {
   const posts = [];
   (Array.isArray(rows) ? rows : []).forEach(r => ((r && r.posts) || []).forEach(p => posts.push(p)));
   const measured = Array.isArray(windows) ? windows.map(validRect).filter(Boolean) : null;
   if (measured && measured.length === posts.length && posts.length >= 1) {
-    return { rects: measured, measured: true };
+    return { rects: measured, measured: true, perModule: false };
   }
-  return { rects: splitOpening(opening, rows), measured: false };
+  const cells = flatCells(rows);
+  const totalSpan = cells.reduce((a, c) => a + spanOf(c), 0);
+  /* all-1М проверяем равенством «число ячеек == суммарный span»: любой 2М поднял бы totalSpan над
+     числом ячеек, и условие не выполнится. */
+  if (measured && cells.length >= 1 && measured.length === cells.length && cells.length === totalSpan) {
+    return { rects: measured, measured: true, perModule: true };
+  }
+  return { rects: splitOpening(opening, rows), measured: false, perModule: false };
 }
 
 /* Достоверны ли ИЗМЕРЕННЫЕ окна под клавиши: каждое физически вмещает модули своего поста. Модуль
@@ -508,22 +539,75 @@ function windowsHoldModules(opening, rows, windows) {
   /* аспект фото — как в photoStage: измеренный из окна накладки, иначе угаданный из opening */
   const w = (Array.isArray(windows) ? windows.find(x => x && Number(x.aspect) > 0) : null);
   const aspect = w ? Number(w.aspect) : (o.aspect > 0 ? o.aspect : 1);
-  const posts = [];
-  (Array.isArray(rows) ? rows : []).forEach(r => ((r && r.posts) || []).forEach(p => posts.push(p)));
-  return posts.every((p, i) => {
+  /* Единица под каждым окном: помодульные окна держат ОДИН модуль (span его ячейки), окна-посты —
+     весь пост (суммарный span его ячеек). Проверяем ту же пропорцию, что и раньше. */
+  const units = pw.perModule
+    ? flatCells(rows).map(spanOf)
+    : (() => {
+        const posts = [];
+        (Array.isArray(rows) ? rows : []).forEach(r => ((r && r.posts) || []).forEach(p => posts.push(p)));
+        return posts.map(p => ((p && p.cells) || []).reduce((a, c) => a + spanOf(c), 0) || 1);
+      })();
+  return units.every((span, i) => {
     const rect = pw.rects[i];
     if (!rect) return false;
-    const span = ((p && p.cells) || []).reduce((a, c) => a + Math.max(1, Number(c && c.span) || 1), 0) || 1;
     const perModule = (rect.width / rect.height) * (aspect > 0 ? aspect : 1) / span;
     return perModule >= MODULE_FACE_ASPECT * MIN_WINDOW_FILL;
   });
 }
 
-/* РЕЖИМ ФОТО: подложка — ДЕТАЛЬНАЯ фотография накладки, КЛАВИШИ (moduleKey) поверх в границах
-   монтажных окон. Каждый пост рисуется в СВОЁМ окне (пост i → окно i слева направо): у немецкой
-   накладки окон несколько (импост уже на фото, свою полосу не рисуем), у итальянской — одно
-   сплошное, клавиши в нём встык (шов KEY_SEAM). Геометрию окон даёт postWindows: измеренные окна
-   с фото либо splitOpening-фолбэк.
+/* Шаг модулей накладки в % ширины фото — среднее расстояние между центрами соседних окон. Задаёт
+   ИСТИННУЮ ширину лица механизма под накладкой: окно (отверстие) у́же шага, механизм физически шире
+   и уходит краями под пластину. Меньше двух окон — шага нет (единственное окно даёт размер само,
+   как раньше), возвращаем 0. */
+function modulePitch(rects) {
+  const cx = (Array.isArray(rects) ? rects : [])
+    .map(r => Number(r && r.left) + Number(r && r.width) / 2)
+    .filter(Number.isFinite);
+  if (cx.length < 2) return 0;
+  return (cx[cx.length - 1] - cx[0]) / (cx.length - 1);
+}
+
+/* Один МОДУЛЬ в СВОЁ измеренное окно (помодульный режим — винтажные/flat накладки). Физика сборки:
+   механизм лежит ПОД накладкой в свою истинную величину, а окно РЕЖЕТ его как маска — наружу выходит
+   только то, что попало в отверстие (рычажок Vintage, квадратная кнопка Flat), а не растянутое на всё
+   окно фото с корпусом и монтажной рамкой.
+   • Маска — прямоугольник окна (overflow:hidden), сам виден на фоне-фото накладки как отверстие.
+   • Лицо механизма — истинной величины: ширина = шаг модулей накладки (pitch, в % ширины фото),
+     высота держит истинную пропорцию лица moduleAspect = span×MODULE_FACE_ASPECT (ширина:высота в
+     пикселях). % ширины и % высоты меряются от РАЗНЫХ сторон фото, поэтому в высоту вносим аспект
+     сцены: faceHpct = faceWpct·aspect/moduleAspect (тогда пиксельная пропорция лица = moduleAspect
+     на любом аспекте фото). Лицо центрируем в окне (центр модуля = центр отверстия), лишнее уходит
+     за overflow. Единственное окно (pitch=0) → лицо размером с само окно, как раньше.
+   • Внутри лица — <img> спрайтом faceSprite (лицо накрывает контейнер 1:1, поля кадра за overflow).
+   Фото нет → нарисованная клавиша-фолбэк заполняет ОКНО целиком (её и должно быть видно). */
+function moduleWindowPhoto(c, rect, pitch, aspect, framePal, s, sizeKey, radius, esc) {
+  const mask = `position:absolute;left:${rect.left}%;top:${rect.top}%;width:${rect.width}%;height:${rect.height}%;overflow:hidden`;
+  if (!useFacePhoto(c)) {
+    return `<div style="${mask};display:flex;align-items:stretch">`
+      + moduleKey(c, framePal, s, sizeKey, radius, esc) + `</div>`;
+  }
+  const span = spanOf(c);
+  const moduleAspect = span * MODULE_FACE_ASPECT;
+  const faceWpct = pitch > 0 ? pitch * span : Number(rect.width);
+  const faceHpct = aspect > 0 && moduleAspect > 0 ? faceWpct * aspect / moduleAspect : Number(rect.height);
+  const relW = faceWpct / Number(rect.width) * 100;    // ширина лица в % ширины окна (обычно >100)
+  const relH = faceHpct / Number(rect.height) * 100;   // высота лица в % высоты окна (обычно >100)
+  const sp = faceSprite(c.face);
+  const inner = `position:absolute;left:${(50 - relW / 2).toFixed(3)}%;top:${(50 - relH / 2).toFixed(3)}%;`
+    + `width:${relW.toFixed(3)}%;height:${relH.toFixed(3)}%;overflow:hidden`;
+  const img = `<img src="${esc(c.imageUrl)}" alt="${esc(c.name || "")}" style="position:absolute;`
+    + `width:${sp.width.toFixed(3)}%;height:${sp.height.toFixed(3)}%;left:${sp.left.toFixed(3)}%;top:${sp.top.toFixed(3)}%">`;
+  return `<div data-ep="cell" title="${esc(c.name || "")}" style="${mask}"><div style="${inner}">${img}</div></div>`;
+}
+
+/* РЕЖИМ ФОТО: подложка — ДЕТАЛЬНАЯ фотография накладки, механизмы поверх в границах монтажных окон.
+   Геометрию и способ раскладки даёт postWindows (см. там порядок веток):
+   • ОКНА-ПОСТЫ (pw.perModule=false) — пост i в окно i слева направо: у немецкой накладки окон
+     несколько (импост уже на фото, свою полосу не рисуем), у итальянской — одно сплошное, клавиши в
+     нём встык (шов KEY_SEAM). Это же ветка splitOpening-фолбэка (окна не сошлись с постами/модулями).
+   • ПОМОДУЛЬНЫЕ ОКНА (pw.perModule=true) — модуль i в окно i: фото механизма истинной величины,
+     окно режет его как маска (moduleWindowPhoto), корпус механизма спрятан под накладкой.
 
    РЕЗИНОВАЯ СЦЕНА и РЕЗЕРВ ВЫСОТЫ. Внешний блок — ширина W, но не шире контейнера (max-width:100%);
    внутренний держит аспект ПРОЦЕНТНЫМ padding-top; слой клавиш — absolute поверх в %. Так % окна
@@ -548,22 +632,38 @@ function photoStage(frame, rows, s, sizeKey, modulesWide, esc) {
   const radius = KEY_RADIUS[sizeKey] || KEY_RADIUS.md;
   const keysRow = cells => cells.map(c => moduleKey(c, pal, s, sizeKey, radius, esc)).join("");
 
-  const rects = postWindows(opening, rows, frame.windows).rects;
-  let i = 0;
-  const wins = [];
-  rows.forEach(r => (r.posts || []).forEach(p => {
-    const rect = rects[i++];
-    if (!rect) return;
-    wins.push(`<div style="position:absolute;left:${rect.left}%;top:${rect.top}%;width:${rect.width}%;height:${rect.height}%;display:flex;gap:${seam}px;align-items:stretch">`
-      + keysRow(p.cells || []) + `</div>`);
-  }));
+  const pw = postWindows(opening, rows, frame.windows);
+  const rects = pw.rects;
 
   /* Аспект сцены: измеренный из ОКНА накладки (каждое несёт aspect самого фото — точный) либо
-     угаданный из окна накладки (opening.aspect всегда задан normalizeOpening). */
+     угаданный из окна накладки (opening.aspect всегда задан normalizeOpening). Нужен и для резерва
+     высоты сцены, и для истинной величины лица в помодульном режиме. */
   const measured = Array.isArray(frame.windows)
     ? (frame.windows.find(w => w && Number(w.aspect) > 0) || null)
     : null;
   const aspect = measured ? Number(measured.aspect) : opening.aspect;
+
+  const wins = [];
+  if (pw.perModule) {
+    /* ПОМОДУЛЬНЫЕ ОКНА (винтажные/flat): окно i — отверстие модуля i слева направо. Механизм лежит
+       ПОД накладкой в истинную величину, окно режет его как маска (moduleWindowPhoto). */
+    const cells = flatCells(rows);
+    const pitch = modulePitch(rects);
+    cells.forEach((c, i) => {
+      const rect = rects[i];
+      if (rect) wins.push(moduleWindowPhoto(c, rect, pitch, aspect, pal, s, sizeKey, radius, esc));
+    });
+  } else {
+    /* ОКНА-ПОСТЫ: пост i раскладывается в окно i (немецкая 2+2 — импост уже на фото; итальянская
+       одно сплошное окно — клавиши встык). Клавиши заполняют окно как раньше. */
+    let i = 0;
+    rows.forEach(r => (r.posts || []).forEach(p => {
+      const rect = rects[i++];
+      if (!rect) return;
+      wins.push(`<div style="position:absolute;left:${rect.left}%;top:${rect.top}%;width:${rect.width}%;height:${rect.height}%;display:flex;gap:${seam}px;align-items:stretch">`
+        + keysRow(p.cells || []) + `</div>`);
+    }));
+  }
 
   /* РЕЗИНОВАЯ СЦЕНА. Внешний блок — желаемая ширина W, но НЕ ШИРЕ контейнера (max-width:100%):
      иначе фиксированная W вылезала за узкое превью/колонку печати. Внутренний держит аспект

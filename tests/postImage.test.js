@@ -162,6 +162,48 @@ test("postWindows: одиночное измеренное окно (италь�
   assert.deepEqual(res.rects, single, "весь пост — в единственном измеренном окне");
 });
 
+/* ── ПОМОДУЛЬНЫЕ ОКНА: окно на каждый модуль (винтажные/flat накладки) ───────── */
+
+/* Реальные окна 22674.4 (Vintage, 4 модуля на 4 переключателя): четыре узких овала. */
+const VINT_4 = [
+  { left: 25.5, top: 44.2, width: 4.5, height: 10.9, aspect: 1.55 },
+  { left: 40.5, top: 43.4, width: 4.5, height: 11.6, aspect: 1.55 },
+  { left: 55, top: 44.2, width: 4.5, height: 10.9, aspect: 1.55 },
+  { left: 70, top: 44.2, width: 4.5, height: 10.9, aspect: 1.55 }
+];
+const vintRows = n => [{ posts: [{ capacity: n, cells: Array.from({ length: n }, () => ({ span: 1, categoryId: 500 })) }] }];
+
+test("postWindows: окон = числу одномодульных ячеек (не постов) → помодульная раскладка", () => {
+  const res = postWindows(OPENING, vintRows(4), VINT_4);   // 1 пост, 4 ячейки, 4 окна
+  assert.equal(res.measured, true);
+  assert.equal(res.perModule, true, "число окон совпало с числом модулей, а не постов → окно на модуль");
+  /* validRect намеренно не тащит aspect в прямоугольник окна (аспект СЦЕНЫ читается отдельно —
+     photoStage берёт его из windows.find(aspect>0)); сверяем только геометрию left/top/width/height. */
+  assert.deepEqual(res.rects, VINT_4.map(({ left, top, width, height }) => ({ left, top, width, height })),
+    "модуль i → окно i слева направо");
+});
+
+test("postWindows: ветка «окон = постов» приоритетнее помодульной (порядок веток наблюдаем)", () => {
+  /* СПЕЦИАЛЬНО оба условия истинны сразу: 2 поста по ОДНОЙ одномодульной ячейке → окон=постов=2 И
+     окон=ячеек=2. Пост-ветка идёт первой, поэтому это ОКНА-ПОСТЫ, а не помодуль. Перестановка веток
+     (помодульная первой) сразу покрасит этот тест. */
+  const rows = [{ posts: [
+    { capacity: 1, cells: [{ span: 1 }] },
+    { capacity: 1, cells: [{ span: 1 }] }
+  ] }];
+  const res = postWindows(OPENING, rows, WIN_2);
+  assert.equal(res.perModule, false, "2 окна = 2 постам → окна-посты, а не помодуль");
+  assert.deepEqual(res.rects, WIN_2);
+});
+
+test("postWindows: 2М-механизм ломает 1:1 модуль↔окно → фолбэк splitOpening, не помодуль", () => {
+  const rows = [{ posts: [{ capacity: 3, cells: [{ span: 2 }, { span: 1 }] }] }];   // 2 ячейки, суммарный span 3
+  const two = VINT_4.slice(0, 2);   // 2 окна = числу ЯЧЕЕК, но модулей 3
+  const res = postWindows(OPENING, rows, two);
+  assert.equal(res.perModule, false, "2М накрыл бы два окна — 1:1 модуль↔окно не выходит");
+  assert.equal(res.measured, false, "уходим в splitOpening, не рискуя сопоставлением");
+});
+
 test("buildHtml режим фото: клавиши раскладываются по ИЗМЕРЕННЫМ окнам накладки", () => {
   const spec = {
     size: "md",
@@ -271,6 +313,57 @@ test("немецкая 2+2+2 с фото: три под-окна", () => {
   const html = buildHtml(spec, deps);
   const wins = [...html.matchAll(/position:absolute;left:[\d.]+%;top:[\d.]+%;width:[\d.]+%/g)];
   assert.equal(wins.length, 3, "три поста — три под-окна");
+});
+
+/* ── ПОМОДУЛЬНЫЙ РЕЖИМ: механизм под накладкой, окно как маска ───────────────── */
+
+/* Реальное лицо 22004.88 (1М переключатель Vintage), снятое детектором. */
+const FACE_1M = { left: 9.7, top: 10.2, width: 79.7, height: 79.7 };
+const vintageFrame = {
+  name: "Накладка Vintage, 4 модуля, белая", code: "22674.4.88", standard: "IT",
+  imageUrl: "https://cdn/vint.png", opening: { left: 22, top: 42, width: 56, height: 22, aspect: 1.55 }, windows: VINT_4
+};
+
+test("помодуль: механизм лежит под накладкой истинной величины, окно режет его маской (не растяжение)", () => {
+  const spec = {
+    size: "lg", frame: vintageFrame,
+    rows: [{ posts: [{ capacity: 4, cells: [1, 2, 3, 4].map(n => (
+      { span: 1, imageUrl: `https://cdn/m${n}.jpg`, face: FACE_1M, categoryId: 500, name: "Переключатель" }
+    )) }] }]
+  };
+  const html = buildHtml(spec, deps);
+  assert.doesNotMatch(html, /data-ep="plate"/, "винтаж с помодульными окнами — режим фото, не схема");
+  assert.ok(html.includes("https://cdn/vint.png"), "фон-фото накладки — подложка");
+  assert.equal((html.match(/data-ep="cell"/g) || []).length, 4, "четыре окна-маски по числу модулей");
+  assert.equal((html.match(/cdn\/m[1234]\.jpg/g) || []).length, 4, "фото КАЖДОГО механизма");
+  /* окно = прямоугольник с overflow:hidden (маска отверстия), не растянутое под фото */
+  assert.match(html, /left:25\.5%;top:44\.2%;width:4\.5%;height:10\.9%;overflow:hidden/, "первое окно работает маской");
+  /* внутренний слой лица ШИРЕ и ВЫШЕ окна (истинная величина) и центрирован → обрезка, не растяжение */
+  const inner = [...html.matchAll(/<div style="position:absolute;left:(-?[\d.]+)%;top:(-?[\d.]+)%;width:([\d.]+)%;height:([\d.]+)%;overflow:hidden"><img/g)];
+  assert.equal(inner.length, 4, "у каждого модуля свой слой лица истинной величины");
+  const [, l, t, w, h] = inner[0];
+  assert.ok(Number(w) > 100, "лицо шире окна — наружу торчит лишь часть в отверстии (рычажок)");
+  assert.ok(Number(h) > 100, "лицо выше окна");
+  assert.ok(Math.abs(Number(l) + Number(w) / 2 - 50) < 0.02, "лицо центрировано по горизонтали окна");
+  assert.ok(Math.abs(Number(t) + Number(h) / 2 - 50) < 0.02, "лицо центрировано по вертикали окна");
+});
+
+test("помодуль: фолбэк-клавиша (нет фото) заполняет ОКНО целиком, фото механизма не рисуется", () => {
+  const spec = {
+    size: "lg", frame: vintageFrame,
+    rows: [{ posts: [{ capacity: 4, cells: [
+      { span: 1, categoryId: 500, name: "Выключатель" },   // без imageUrl/face → клавиша-фолбэк
+      { span: 1, empty: true, num: "2" },
+      { span: 1, empty: true, num: "3" },
+      { span: 1, empty: true, num: "4" }
+    ] }] }]
+  };
+  const html = buildHtml(spec, deps);
+  const imgs = html.match(/<img/g) || [];
+  assert.equal(imgs.length, 1, "единственный <img> — фон-фото накладки; фото механизмов нет");
+  assert.equal((html.match(/data-ep="cell"/g) || []).length, 4, "четыре клавиши-модуля");
+  /* клавиша-фолбэк лежит в окне-маске flex-контейнером и заполняет его целиком (её и должно быть видно) */
+  assert.match(html, /left:25\.5%;top:44\.2%;width:4\.5%;height:10\.9%;overflow:hidden;display:flex/, "фолбэк-клавиша заполняет окно");
 });
 
 test("режим фото: клавиша рисует символ функции инлайн-SVG, без onerror-JS", () => {
