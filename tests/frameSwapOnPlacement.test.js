@@ -445,3 +445,60 @@ test("★ РЕАЛЬНЫЙ КАТАЛОГ: 09673.01 + 09001×3 → комнат�
   assert.ok(placed.mechanismIds.every(id => compat.includes(products.find(p => p.id === id))),
     "ВСЕ 3 механизма встают в новую накладку по правилу конструктора (compatibleMechanisms)");
 });
+
+/* ============ 9. МОНТАЖНЫЙ СТАНДАРТ КОМНАТЫ ЗАПУСКАЕТ ПОДМЕНУ (задача 22.09) ============
+   Владелец: «при перетаскивании готового поста в комнату стандарт — сделай его». Стандарт стал
+   настройкой помещения (roomCatalogFilter.standard) и уже сужал пул, но в комнате, где задан ТОЛЬКО
+   стандарт, подмена не запускалась (стандарта не было в гейте constrained). Теперь запускается, но
+   ТОЛЬКО когда накладка поста стандарту не годится, и сохраняет серию/цвет поста, если такая накладка
+   в нужном стандарте есть. Порядок STD_PRODUCTS специально таков, что без предпочтения own
+   pickRoomFrame(pool) взял бы накладку ЧУЖОЙ серии (SB2_DE) — так тесты ловят потерю серии/цвета. */
+const SB2_DE = { id: 803, kind: "frame", active: true, series: ["B"], frameColor: "Белая", standard: "DE", slotCount: 2, price: 20, code: "SB2DE", name: "B немецкая белая 2М" };
+const SA2_DE_BLACK = { id: 802, kind: "frame", active: true, series: ["A"], frameColor: "Чёрная", standard: "DE", slotCount: 2, price: 12, code: "SA2DEK", name: "A немецкая чёрная 2М" };
+const SA2_DE = { id: 801, kind: "frame", active: true, series: ["A"], frameColor: "Белая", standard: "DE", slotCount: 2, price: 11, code: "SA2DE", name: "A немецкая белая 2М" };
+const SA2_BOTH = { id: 804, kind: "frame", active: true, series: ["A"], frameColor: "Белая", standard: "BOTH", slotCount: 2, price: 9, code: "SA2BOTH", name: "A универсальная белая 2М" };
+const SA2_IT = { id: 800, kind: "frame", active: true, series: ["A"], frameColor: "Белая", standard: "IT", slotCount: 2, price: 10, code: "SA2IT", name: "A итальянская белая 2М" };
+const SM = { id: 810, kind: "mechanism", active: true, series: ["A", "B"], moduleSpan: 1, price: 5, code: "SM", name: "клавиша A/B 1М" };
+/* Порядок важен: чужая по серии SB2_DE и чужая по цвету SA2_DE_BLACK стоят В ПУЛЕ ПЕРЕД SA2_DE —
+   без own-предпочтения pickRoomFrame(pool) взял бы первую подходящую по модульности (SB2_DE). */
+const STD_PRODUCTS = [SB2_DE, SA2_DE_BLACK, SA2_DE, SA2_BOTH, SA2_IT, SM];
+const T_IT = { id: "tIT", name: "Пост IT", frameId: SA2_IT.id, frameColor: "Белая", mechanismIds: [SM.id, SM.id] };
+const ROOM_DE = { id: "rDE", name: "Немецкая", standard: "DE" };   /* задан ТОЛЬКО стандарт, серии/цвета нет */
+
+test("★ СТАНДАРТ: пост итальянской накладки в немецкую комнату (только стандарт) → подменился, серия и цвет сохранены", () => {
+  const { state, toasts } = placeTemplate({ template: T_IT, room: ROOM_DE, products: STD_PRODUCTS });
+  assert.equal(state.posts.length, 1, "пост размещён (в немецком стандарте есть накладка его серии и цвета)");
+  const placed = state.posts[0], newFrame = STD_PRODUCTS.find(p => p.id === placed.frameId);
+  assert.equal(placed.frameId, SA2_DE.id, "накладка стала немецкой (SA2_DE); мутация «убрать ||standardMismatch из гейта» оставит SA2_IT и краснит здесь");
+  assert.notEqual(placed.frameId, SA2_IT.id, "итальянская накладка НЕ осталась — стандарт комнаты сделан");
+  assert.equal(newFrame.standard, "DE", "новая накладка немецкого стандарта — как у комнаты");
+  assert.deepEqual(newFrame.series, ["A"], "серия поста (A) сохранена, а не сменилась на первую из пула (B); мутация «убрать own-предпочтение» вернула бы SB2DE и краснит здесь");
+  assert.equal(newFrame.frameColor, "Белая", "цвет поста (Белая) сохранён, а не сменился на первый цвет пула (Чёрная)");
+  assert.ok(toasts.every(m => !/не размещён/.test(m)), "ошибки размещения нет");
+});
+
+test("★ СТАНДАРТ: пост УЖЕ немецкой накладки в немецкую комнату → подмены НЕТ (менять нечего)", () => {
+  const T_DE = { id: "tDE", name: "Пост DE", frameId: SA2_DE.id, frameColor: "Белая", mechanismIds: [SM.id, SM.id] };
+  const { state } = placeTemplate({ template: T_DE, room: ROOM_DE, products: STD_PRODUCTS });
+  assert.equal(state.posts.length, 1, "пост размещён");
+  assert.equal(state.posts[0].frameId, SA2_DE.id, "накладка та же — стандарт совпадает, подменять не из-за чего; мутация «стандарт всегда сужает» подменила бы её и краснит здесь");
+});
+
+test("★ СТАНДАРТ: пост УНИВЕРСАЛЬНОЙ (BOTH) накладки в немецкую комнату → подмены НЕТ (годится под любой)", () => {
+  const T_BOTH = { id: "tBOTH", name: "Пост универсальный", frameId: SA2_BOTH.id, frameColor: "Белая", mechanismIds: [SM.id, SM.id] };
+  const { state } = placeTemplate({ template: T_BOTH, room: ROOM_DE, products: STD_PRODUCTS });
+  assert.equal(state.posts.length, 1, "пост размещён");
+  assert.equal(state.posts[0].frameId, SA2_BOTH.id, "универсальная накладка годится под немецкий стандарт → НЕ подменяем; мутация «стандарт всегда сужает» сменила бы её на SA2_DE и краснит здесь");
+});
+
+test("★ СТАНДАРТ: накладки поста серии/цвета в нужном стандарте НЕТ → подмена по нынешнему правилу (что есть), пост ставится", () => {
+  /* Убираем белые немецкие серии A (SA2_DE, SA2_BOTH): под немецкий остаются SB2_DE (серия B) и
+     SA2_DE_BLACK (серия A, но чёрная). own (серия A + Белая) пуст → фолбэк pickRoomFrame(pool). */
+  const products = STD_PRODUCTS.filter(p => p !== SA2_DE && p !== SA2_BOTH);
+  const { state, toasts } = placeTemplate({ template: T_IT, room: ROOM_DE, products });
+  assert.equal(state.posts.length, 1, "пост размещён — своей серии/цвета в стандарте нет, берём первую подходящую");
+  const newFrame = products.find(p => p.id === state.posts[0].frameId);
+  assert.equal(EPCatalog.productsForRoom([newFrame], { standard: "DE" }).length, 1, "новая накладка годится под немецкий стандарт комнаты");
+  assert.notEqual(state.posts[0].frameId, SA2_IT.id, "итальянская накладка не осталась");
+  assert.ok(toasts.every(m => !/не размещён/.test(m)), "ошибки размещения нет");
+});

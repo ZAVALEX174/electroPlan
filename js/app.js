@@ -2495,24 +2495,45 @@ function renderBuilderRoomSelect(){
 function collectionFramePool(allFrames){
   return EPCatalog.productsForRoom(allFrames,builderRoomFilter());
 }
-/* Подмена накладки готового поста на накладку СЕРИИ КОМНАТЫ размещения (ОТДЕЛКА-ПОРЯДОК, п.5). Идёт
-   ЧЕРЕЗ тот же отбор, что и весь каталог под комнату (roomCatalogFilter → productsForRoom, как
+/* Подмена накладки готового поста под КОМНАТУ размещения (ОТДЕЛКА-ПОРЯДОК, п.5 + монтажный стандарт).
+   Идёт ЧЕРЕЗ тот же отбор, что и весь каталог под комнату (roomCatalogFilter → productsForRoom, как
    collectionFramePool), а не через свою копию правил (§7.1). Возвращает:
-     {frameId:null}          — накладку НЕ меняем: пост лёг вне комнат ИЛИ у комнаты нет ни серии, ни
-                               отделки (иначе пул = весь каталог и мы подставили бы случайную накладку);
+     {frameId:null}          — накладку НЕ меняем: пост лёг вне комнат; у комнаты нет ни серии, ни
+                               отделки, ни стандарта (иначе пул = весь каталог и мы подставили бы
+                               случайную накладку); ЛИБО задан только стандарт, а накладка поста ему
+                               УЖЕ соответствует — менять нечего;
      {frameId:<id>}          — нашли накладку той же модульности → пост берёт её (и цену — она из
                                frameId во всех документах);
-     {blocked:true,message}  — комната задаёт отделку, но накладки её серии/цвета нужной модульности в
-                               каталоге нет: пост НЕ ставим с чужой накладкой, человеку говорим чего и
-                               почему не нашли (формулировка в духе E14, frameFacingEmptyText). */
+     {blocked:true,message}  — комната сузила отбор, но накладки нужной серии/цвета/стандарта той же
+                               модульности в каталоге нет: пост НЕ ставим с чужой накладкой, человеку
+                               говорим чего и почему не нашли (формулировка в духе E14, frameSwapEmptyText).
+
+   ⚠️ МОНТАЖНЫЙ СТАНДАРТ сужает пул наравне с серией и отделкой (он в criteria), НО САМ ПО СЕБЕ
+   запускает подмену ТОЛЬКО когда накладка поста стандарту НЕ годится: под годную (в т.ч.
+   универсальную BOTH) менять нечего, поведение прежнее. «Годится ли накладка под стандарт» решает
+   ТОТ ЖЕ productsForRoom (§7.1) — накладка проходит его фильтр по стандарту ⇒ годится; второго
+   сравнения стандартов в коде нет. Накладка поста не резолвится (пропала из прайса) — судить нечем,
+   на одном стандарте подмену не запускаем (серия/отделка, если заданы, запустят её и дадут блокировку).
+
+   ⚠️ ПОДМЕНА МЕНЯЕТ ТОЛЬКО ТО, ЧЕГО ТРЕБУЕТ КОМНАТА. Сначала ищем накладку ТОЙ ЖЕ серии и цвета, что
+   у поста (комната их не сузила — незачем терять белый Neve Up ради первой попавшейся из пула в нужном
+   стандарте), и лишь если такой нет — берём любую подходящую по нынешнему правилу. Обе выборки идут
+   через ОДИН pickRoomFrame (второй копии подбора нет); предпочтение выражаем ТЕМ ЖЕ productsForRoom,
+   доузив пул серией и цветом поста. Комната, задавшая свою серию/цвет, вытеснит из own накладки поста →
+   own пуст → фолбэк на общий pool, то есть требование комнаты побеждает. */
 function frameForRoomPlacement(template,room){
   if(!room)return {frameId:null};
   const criteria=roomCatalogFilter(room);
-  const constrained=criteria.collection||criteria.frameMaterial||criteria.frameShape||criteria.frameColor;
+  const frame=frameProduct(template.frameId);
+  const standardMismatch=!!(criteria.standard&&frame&&!EPCatalog.productsForRoom([frame],{standard:criteria.standard}).length);
+  const constrained=criteria.collection||criteria.frameMaterial||criteria.frameShape||criteria.frameColor||standardMismatch;
   if(!constrained)return {frameId:null};
   const pool=EPCatalog.productsForRoom(byKind("frame"),criteria);
-  const frame=EPPosts.pickRoomFrame(template.frameId,pool,{frameProduct,frameSlotCount,frameFitsMechs:frameFitsTemplateMechs(template)});
-  return frame?{frameId:frame.id}:{blocked:true,message:frameSwapEmptyText(template,room,criteria)};
+  const deps={frameProduct,frameSlotCount,frameFitsMechs:frameFitsTemplateMechs(template)};
+  /* own — пул, доуженный до серии и цвета накладки поста: сохраняем то, чего комната не сужала */
+  const own=EPCatalog.productsForRoom(pool,{collection:productSeries(frame)[0],frameColor:EPPosts.templateFrameColor(template,{frameProduct})});
+  const swap=EPPosts.pickRoomFrame(template.frameId,own,deps)||EPPosts.pickRoomFrame(template.frameId,pool,deps);
+  return swap?{frameId:swap.id}:{blocked:true,message:frameSwapEmptyText(template,room,criteria)};
 }
 /* Предикат «в накладку-кандидата встают ВСЕ клавиши шаблона» — ПРАВИЛОМ КОНСТРУКТОРА
    (EPCatalog.compatibleMechanisms, совместимость по серии), а НЕ своим сравнением серий (§7.1): именно
