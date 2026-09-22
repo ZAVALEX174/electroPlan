@@ -26,13 +26,45 @@ const FRAMES = [
 
 const DEPS = {
   match: (frames, criteria) => EPCatalog.productsForRoom(frames, criteria),
-  valuesOf: (pool, prop) => prop === "collection" ? EPCatalog.productCollections(pool) : EPCatalog.productFacingValues(pool, prop),
+  valuesOf: (pool, prop) => prop === "standard" ? EPCatalog.productStandards(pool) : prop === "collection" ? EPCatalog.productCollections(pool) : EPCatalog.productFacingValues(pool, prop),
   imageOf: item => EPCatalog.productImage(item)
 };
 
-test("STEPS: порядок серия→материал→форма→цвет, prop = имя поля комнаты", () => {
+test("STEPS: стандарт ПЕРВЫМ, далее серия→материал→форма→цвет, prop = имя поля комнаты", () => {
+  /* Стандарт стоит первым намеренно (встреча 24.08 §4.1: конфигуратор сразу отсекает неподходящие
+     рамки). Мутация «стандарт уехал не на первое место» обязана краснеть здесь. */
   assert.deepEqual(EPFramePicker.STEPS.map(s => s.prop),
-    ["collection", "frameMaterial", "frameShape", "frameColor"]);
+    ["standard", "collection", "frameMaterial", "frameShape", "frameColor"]);
+  assert.equal(EPFramePicker.STEPS[0].prop, "standard", "монтажный стандарт — первый шаг");
+});
+
+test("шаг стандарта: варианты — итальянский/немецкий, счётчик универсальной накладки идёт В ОБА", () => {
+  /* Каталог: одна IT-накладка, одна DE, одна универсальная (BOTH). productStandards раскрывает BOTH
+     в оба варианта, а productsForRoom считает «за вариантом» = свои + универсальные. Мутация «стандарт
+     не сужает пул» (снять предикат c.standard) обрушила бы оба счётчика до 3. */
+  const STD = [
+    { id: 1, kind: "frame", series: ["Arke"], standard: "IT",   frameColor: "Белый" },
+    { id: 2, kind: "frame", series: ["Arke"], standard: "DE",   frameColor: "Чёрный" },
+    { id: 3, kind: "frame", series: ["Arke"], standard: "BOTH", frameColor: "Серый" }
+  ];
+  const opts = EPFramePicker.stepOptions(STD, {}, "standard", DEPS);
+  assert.deepEqual(opts.map(o => o.value), ["DE", "IT"], "варианты — только IT/DE; BOTH сам вариантом не приходит");
+  assert.equal(opts.find(o => o.value === "IT").count, 2, "за «итальянским» — IT-накладка + универсальная");
+  assert.equal(opts.find(o => o.value === "DE").count, 2, "за «немецким» — DE-накладка + универсальная");
+});
+
+test("выбор стандарта СУЖАЕТ следующий шаг (серии): под немецкий видны только серии с DE/универсальными", () => {
+  /* Серия «Plana» держит только IT-накладку, «Arke» — универсальную. Выбрав «DE», на шаге серии
+     человек видит лишь «Arke» (в ней есть годная под немецкий универсальная), а «Plana» отсеяна —
+     ровно то сужение, которого требует §4.1. */
+  const STD = [
+    { id: 1, kind: "frame", series: ["Plana"], standard: "IT",   frameColor: "Белый" },
+    { id: 2, kind: "frame", series: ["Arke"],  standard: "BOTH", frameColor: "Серый" }
+  ];
+  const collsAll = EPFramePicker.stepOptions(STD, {}, "collection", DEPS).map(o => o.value);
+  assert.deepEqual(collsAll, ["Arke", "Plana"], "без стандарта видны обе серии");
+  const collsDE = EPFramePicker.stepOptions(STD, { standard: "DE" }, "collection", DEPS).map(o => o.value);
+  assert.deepEqual(collsDE, ["Arke"], "под немецкий остаётся только серия с универсальной накладкой");
 });
 
 test("шаг серии: значения из каталога, счётчик = productsForRoom, фото первого с фото", () => {

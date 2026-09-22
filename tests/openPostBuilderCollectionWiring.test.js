@@ -144,7 +144,7 @@ assert.notEqual(FRAME_3.id, FRAME_FIRST.id, "предпосылка: 3-моду�
 /* Вырезаем ВМЕСТЕ по зависимостям: frameCollectionList → builderRoomFilter → collectionFramePool →
    renderPostSlotCountSelect → openPostBuilder (последняя и возвращается). Всё в цепочке сужения —
    настоящее; стабим только постороннее для селектора. */
-const CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "collectionFramePool", "renderPostSlotCountSelect", "renderBuilderRoomSelect", "openPostBuilder"];
+const CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "collectionFramePool", "renderPostSlotCountSelect", "renderBuilderRoomSelect", "openPostBuilder"];
 /* builderSignature (function) режем ВМЕСТЕ с openPostBuilder, а не стабим: снимок «как было при
    открытии» обязан быть НАСТОЯЩИМ, иначе мутация «снять снимок ДО renderBuilder» осталась бы зелёной
    (стаб `() => ""` игнорирует момент снятия). builderWallType отдельно НЕ режем: он const-стрелкой

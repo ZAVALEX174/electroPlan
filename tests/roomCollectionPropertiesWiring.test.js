@@ -124,7 +124,7 @@ function renderRoom(room, opts) {
     renderAll: spies.renderAll,
     mountedRoomId: null
   };
-  const render = stand.run(["frameCollectionList", "frameFacingList", "frameFacingView", "renderProperties"], ctx);
+  const render = stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "frameFacingView", "renderProperties"], ctx);
   render();
   /* ctx возвращаем, чтобы §3–5 мог обернуть renderProperties шпионом: объявление функции при
      исполнении в vm стало свойством контекста (ctx.renderProperties), а обработчик onchange зовёт
@@ -154,7 +154,10 @@ function collectionFieldLabel(props) {
    own — стоит ли класс-модификатор own (визуально помечает «коллекция задана»); text — что читает
    заказчик. Разбираем оба поля отдельно: мутации метят и класс, и текст независимо. */
 function collectionHint(props) {
-  const m = props.innerHTML.match(/<small class="prop-hint prop-collection-source([^"]*)">([^<]*)<\/small>/);
+  /* Класс prop-collection-source общий у нескольких полей отделки (стандарт, коллекция, материал/
+     форма/цвет) — якоримся на СЕЛЕКТОР КОЛЛЕКЦИИ и берём первую подпись после него, а не «первую в
+     разметке» (иначе поймали бы подпись стандарта, который в списке-виде идёт первым). */
+  const m = props.innerHTML.match(/id="roomCollectionSelect"[\s\S]*?<small class="prop-hint prop-collection-source([^"]*)">([^<]*)<\/small>/);
   assert.ok(m, "подпись .prop-collection-source должна присутствовать под селектором коллекции");
   return { own: /\bown\b/.test(m[1]), text: m[2] };
 }

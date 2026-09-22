@@ -56,6 +56,15 @@ test("§valuesOf-серия: серию читаем productCollections (мас�
     "материал — productFacingValues по скалярному полю");
 });
 
+test("§valuesOf-стандарт: стандарт читаем productStandards (BOTH→оба), а не как скаляр productFacingValues", () => {
+  /* Если бы ветка standard отсутствовала и valuesOf упал в productFacingValues, вернулись бы СЫРЫЕ
+     коды ["BOTH","DE","IT"] — универсальный «BOTH» попал бы в выбор как отдельный вариант. Реальный
+     deps обязан звать productStandards: BOTH раскрывается в IT+DE, а сам вариантом не приходит. */
+  const STD = [{ standard: "IT" }, { standard: "DE" }, { standard: "BOTH" }];
+  assert.deepEqual(DEPS.valuesOf(STD, "standard"), ["DE", "IT"],
+    "варианты — только IT/DE через productStandards; сырой productFacingValues дал бы и BOTH");
+});
+
 test("§imageOf-заглушка: фото через productImage — заглушка no_photo отбрасывается", () => {
   assert.equal(DEPS.imageOf(FRAMES[0]), "white.jpg", "настоящее фото берётся");
   assert.equal(DEPS.imageOf(FRAMES[1]), "", "фото нет → пусто");

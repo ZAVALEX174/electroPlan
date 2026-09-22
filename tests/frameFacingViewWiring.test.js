@@ -65,7 +65,7 @@ function renderRoomView(view, room) {
     persistProject: spy(), renderSummary: spy(), renderAll: spy(),
     mountedRoomId: null
   };
-  stand.run(["frameCollectionList", "frameFacingList", "frameFacingView", "renderProperties"], ctx)();
+  stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "frameFacingView", "renderProperties"], ctx)();
   return props.innerHTML;
 }
 

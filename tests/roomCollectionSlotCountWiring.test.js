@@ -79,7 +79,7 @@ function slotCtx(state, dom) {
     EPCatalog, EPRoom
   };
 }
-const SLOT_CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "builderInnardsFilter", "collectionFramePool", "renderPostSlotCountSelect"];
+const SLOT_CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "builderInnardsFilter", "collectionFramePool", "renderPostSlotCountSelect"];
 
 /* Отрисовать селектор модульностей так, как это делает openPostBuilder: пост стоит в комнате
    (editingPlacedId→roomId→комната), extra — фактическая ёмкость открываемого поста. */
@@ -156,7 +156,7 @@ function builderCtx(state, dom, captured) {
     builderCtx: {}
   };
 }
-const BUILDER_CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "builderInnardsFilter", "collectionFramePool", "frameFacingLabels", "frameFacingHintText", "frameOptions", "builderCapacity", "renderBuilder"];
+const BUILDER_CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "builderInnardsFilter", "collectionFramePool", "frameFacingLabels", "frameFacingHintText", "frameOptions", "builderCapacity", "renderBuilder"];
 
 /* Вызвать renderBuilder для поста БЕЗ накладки (frameUnset) в заданной комнате при заданном числе
    модулей в селекторе, вернуть результат ВЫЗОВА перехваченного emptyContext(). */

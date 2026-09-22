@@ -360,3 +360,100 @@ test("productsForRoom: пустой признак отделки НЕ сужа�
   assert.deepEqual(productsForRoom(FACING_CATALOG, { frameMaterial: null, frameShape: null, frameColor: null }).map(p => p.id),
     [1, 2, 3, 4], "все null → фильтра нет, весь список");
 });
+
+/* --- МОНТАЖНЫЙ СТАНДАРТ КОМНАТЫ (встреча 24.08 §4.1): productStandards + standardLabel +
+   предикат standard в productsForRoom ---------------------------------------------------
+   Смысл значений поля standard накладки: "IT" — итальянский, "DE" — немецкий, "BOTH" —
+   универсальная (садится и туда, и туда). Человек выбирает физический стандарт коробки (IT|DE);
+   универсальная накладка годна под ЛЮБОЙ выбор. Ошибка «standard===выбор» молча срезала бы из
+   немецкой выборки все серии без DE-накладок — здесь это и фиксируем числами и на синтетике. */
+const { productStandards, standardLabel } = require("../js/catalog.js");
+
+const STD_CATALOG = [
+  { id: 1, series: ["Arke"],  standard: "IT",   name: "итальянская Arke" },
+  { id: 2, series: ["Arke"],  standard: "DE",   name: "немецкая Arke" },
+  { id: 3, series: ["Arke"],  standard: "BOTH", name: "универсальная Arke" },
+  { id: 4, series: ["Plana"], standard: "IT",   name: "итальянская Plana" },
+  { id: 5, series: ["Plana"], standard: "BOTH", name: "универсальная Plana" }
+];
+
+test("productStandards: варианты выбора — итальянский/немецкий; BOTH раскрывается в ОБА, но сам вариантом не приходит", () => {
+  assert.deepEqual(productStandards(STD_CATALOG), ["DE", "IT"], "IT + DE присутствуют; BOTH сам вариантом не становится");
+  // каталог совсем без DE-накладок, но с универсальной — «немецкий» всё равно предлагается (BOTH годна)
+  assert.deepEqual(productStandards([{ standard: "IT" }, { standard: "BOTH" }]), ["DE", "IT"]);
+  // только IT — «немецкий» не предлагаем (годной под него накладки нет)
+  assert.deepEqual(productStandards([{ standard: "IT" }]), ["IT"]);
+  assert.deepEqual(productStandards([]), []);
+  assert.deepEqual(productStandards([{ id: 9 }]), [], "накладка без поля standard в список не добавляет ничего");
+});
+
+test("standardLabel: код → человеческое слово; ЕДИНСТВЕННЫЙ перевод (незнакомое — как есть)", () => {
+  assert.equal(standardLabel("IT"), "итальянский");
+  assert.equal(standardLabel("DE"), "немецкий");
+  assert.equal(standardLabel("BOTH"), "BOTH", "универсальный не выбирается — до подписи не доходит, код возвращаем как есть");
+  assert.equal(standardLabel(undefined), "", "нет значения → пустая строка, а не «undefined»");
+});
+
+test("productsForRoom: выбор стандарта пропускает свои накладки И УНИВЕРСАЛЬНЫЕ (BOTH годна под оба)", () => {
+  const it = productsForRoom(STD_CATALOG, { standard: "IT" });
+  assert.deepEqual(it.map(p => p.id), [1, 3, 4, 5], "итальянский: IT-накладки + все универсальные");
+  const de = productsForRoom(STD_CATALOG, { standard: "DE" });
+  assert.deepEqual(de.map(p => p.id), [2, 3, 5], "немецкий: DE-накладка + все универсальные (итальянских НЕТ)");
+});
+
+test("productsForRoom: РАВЕНСТВО standard===выбор было бы неверно — универсальная (BOTH) выпала бы из обеих выборок", () => {
+  // якорь против регресса «item.standard === c.standard»: универсальная накладка обязана быть в IT И в DE
+  const universal = STD_CATALOG.find(p => p.standard === "BOTH");
+  assert.ok(productsForRoom([universal], { standard: "IT" }).length === 1, "универсальная проходит под итальянский");
+  assert.ok(productsForRoom([universal], { standard: "DE" }).length === 1, "универсальная проходит и под немецкий");
+});
+
+test("productsForRoom: стандарт НЕ задан → фильтра нет (старый проект без room.standard — выдача как раньше)", () => {
+  assert.deepEqual(productsForRoom(STD_CATALOG, { standard: null }).map(p => p.id), [1, 2, 3, 4, 5]);
+  assert.deepEqual(productsForRoom(STD_CATALOG, {}).map(p => p.id), [1, 2, 3, 4, 5], "пустой критерий — весь список");
+});
+
+test("productsForRoom: стандарт складывается В И-цепочку с коллекцией/отделкой", () => {
+  // немецкий + серия Plana → только универсальная Plana (id 5): итальянская Plana (id 4) отсеяна стандартом
+  assert.deepEqual(productsForRoom(STD_CATALOG, { standard: "DE", collection: "Plana" }).map(p => p.id), [5]);
+});
+
+/* --- РЕАЛЬНЫЙ каталог VIMAR: числа выбора стандарта (замерено продакшн-функциями) ---
+   Если перезалить прайс — тест упадёт осмысленно, а не молча пропустит смену состава. Обогащение
+   стандартом делает data.js (catalog-vimar.js → catalog-vimar-attrs.js → data.js), как в браузере. */
+test("реальный каталог: IT → 1350 из 1631, DE → 560, стандарта нет → 1631; все 9 коллекций сохраняются", async () => {
+  const win = {};
+  const ctx = vm.createContext({ window: win, structuredClone });
+  const jsDir = path.join(__dirname, "..", "js");
+  for (const f of ["catalog-vimar.js", "catalog-vimar-attrs.js", "data.js"]) {
+    vm.runInContext(fs.readFileSync(path.join(jsDir, f), "utf8"), ctx, { filename: f });
+  }
+  const frames = (await win.DataService.getProducts()).filter(p => p.kind === "frame" && p.active);
+  assert.equal(frames.length, 1631, "активных накладок всего");
+  // распределение по стандарту: у каждой накладки ровно одно из трёх значений
+  const byStd = frames.reduce((m, f) => (m[f.standard] = (m[f.standard] || 0) + 1, m), {});
+  assert.deepEqual(byStd, { IT: 1071, DE: 281, BOTH: 279 }, "IT 1071 + DE 281 + BOTH 279 = 1631; все накладки со стандартом");
+
+  const itPool = productsForRoom(frames, { standard: "IT" });
+  const dePool = productsForRoom(frames, { standard: "DE" });
+  assert.equal(itPool.length, 1350, "итальянский: 1071 IT + 279 универсальных");
+  assert.equal(dePool.length, 560, "немецкий: 281 DE + 279 универсальных");
+  assert.equal(productsForRoom(frames, {}).length, 1631, "стандарт не выбран — весь каталог");
+
+  // ни одна коллекция не исчезает: 9 при любом выборе (BOTH удерживает серии без своих DE-накладок)
+  const all = productCollections(frames);
+  assert.equal(all.length, 9);
+  assert.equal(productCollections(itPool).length, 9, "итальянский — все 9 серий на месте");
+  assert.equal(productCollections(dePool).length, 9, "немецкий — все 9 серий на месте (иначе BOTH срезали бы 4 серии)");
+
+  // именно эти 4 серии не имеют своих DE-накладок и держатся В немецкой выборке ТОЛЬКО на универсальных
+  const deOnlyByEquality = productCollections(frames.filter(f => f.standard === "DE"));
+  for (const coll of ["Arke Fit", "Eikon Flat", "Eikon Tactil", "Eikon Vintage"]) {
+    assert.ok(!deOnlyByEquality.includes(coll), `${coll}: своих DE-накладок нет`);
+    assert.ok(productCollections(dePool).includes(coll), `${coll}: держится под немецкий на универсальных накладках`);
+  }
+
+  // селектор стандарта каталога — ровно два человеческих варианта
+  assert.deepEqual(productStandards(frames), ["DE", "IT"]);
+  assert.deepEqual(productStandards(frames).map(standardLabel), ["немецкий", "итальянский"]);
+});

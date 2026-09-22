@@ -145,7 +145,7 @@ test("renderTemplates: белая комната, а белых постов н�
 
 /* ============================ 3. ПОСТАНОВКА: addPending ============================ */
 
-const SWAP_CUT = ["frameCollectionList", "frameFacingList", "frameFacingLabels", "frameFacingSelectionLabels",
+const SWAP_CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "frameFacingLabels", "frameFacingSelectionLabels",
   "templateMechSeries", "frameSwapEmptyText", "roomCatalogFilter", "frameFitsTemplateMechs", "frameForRoomPlacement", "addPending"];
 
 function placeTemplate({ template, room, catalog = EPCatalog, products = PRODUCTS }) {
@@ -291,7 +291,7 @@ function renderPropsLibrary(state, dom) {
     setTool: () => {}, persistProject: () => {}, renderSummary: () => {}, renderAll: () => {},
     mountedRoomId: null
   };
-  stand.run(["frameCollectionList", "frameFacingList", "frameFacingView", "renderTemplates", "renderProperties"], ctx)();
+  stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "frameFacingView", "renderTemplates", "renderProperties"], ctx)();
   return dom.$("postLibrary").innerHTML;
 }
 

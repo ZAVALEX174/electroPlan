@@ -1635,6 +1635,15 @@ function renderProperties(){
     const schemeLabel=item=>`${item.label}${item.supported?"":" — расчёт недоступен"}`;
     const schemeOptions=`<option value=""${ownScheme?"":" selected"}>Как в проекте${projSchemeItem?` (${esc(projSchemeItem.label)})`:""}</option>`
       +EPLightingGroups.SCHEMES.map(item=>`<option value="${esc(item.id)}"${item.id===ownScheme?" selected":""}>${esc(schemeLabel(item))}</option>`).join("");
+    /* Монтажный стандарт комнаты — ПЕРВЫЙ критерий отделки (встреча 24.08 §4.1: «первое, что должны
+       мы выбрать»): выбор стандарта сразу отсекает неподходящие серии и накладки. Тот же приём, что у
+       коллекции: значения из каталога (frameStandardList), действующее — через EPRoom.roomFrameFacing
+       (мёртвое → «не задан», r.standard не трогаем). Подпись человеку — словом (EPCatalog.standardLabel),
+       а не кодом IT/DE. */
+    const standardList=frameStandardList();
+    const roomStd=EPRoom.roomFrameFacing(r,"standard",standardList);
+    const standardOptions=`<option value=""${roomStd?"":" selected"}>Не задан — накладки любого стандарта</option>`
+      +standardList.map(code=>`<option value="${esc(code)}"${code===roomStd?" selected":""}>${esc(EPCatalog.standardLabel(code))}</option>`).join("");
     /* Коллекция накладок комнаты (E13). ⚠️ В ОТЛИЧИЕ ОТ СХЕМЫ у коллекции НЕТ значения-умолчания
        проекта: «не задана» — это не «как в проекте», а «фильтра нет, предлагать все накладки».
        roomColl — действующая коллекция (EPRoom.roomCollection валидирует по списку каталога:
@@ -1668,11 +1677,13 @@ function renderProperties(){
        месте селекторов — сводка выбранного (чтобы «что выбрано в одном виде, видно в другом») и
        кнопка мастера. Значения сводки — те же валидированные roomColl/facingSpecs, что и у списка. */
     const facingView=frameFacingView();
+    const standardFieldHtml=`<label class="room-standard-field">Стандарт монтажа<select id="roomStandardSelect">${standardOptions}</select></label>
+    <small class="prop-hint prop-collection-source${roomStd?" own":""}">${roomStd?"Конструктор поста в этой комнате предлагает накладки только этого монтажного стандарта":"Стандарт не задан — предлагаются накладки любого стандарта"}</small>`;
     const collectionFieldHtml=`<label class="room-collection-field">Коллекция накладок<select id="roomCollectionSelect">${collectionOptions}</select></label>
     <small class="prop-hint prop-collection-source${roomColl?" own":""}">${roomColl?"Конструктор поста в этой комнате предлагает накладки только этой коллекции":"Коллекция не задана — предлагаются все накладки каталога"}</small>`;
-    const facingChosen=[roomColl?`Серия: ${roomColl}`:null].concat(facingSpecs.filter(s=>s.cur).map(s=>`${s.label}: ${s.cur}`)).filter(Boolean);
+    const facingChosen=[roomStd?`Стандарт: ${EPCatalog.standardLabel(roomStd)}`:null,roomColl?`Серия: ${roomColl}`:null].concat(facingSpecs.filter(s=>s.cur).map(s=>`${s.label}: ${s.cur}`)).filter(Boolean);
     const facingBody=facingView==="list"
-      ?collectionFieldHtml+facingFieldsHtml
+      ?standardFieldHtml+collectionFieldHtml+facingFieldsHtml
       :`<div class="room-facing-summary${facingChosen.length?" own":""}">${facingChosen.length?esc(facingChosen.join(" · ")):"Отделка не задана — предлагаются все накладки каталога"}</div>
         <button type="button" class="btn ghost room-facing-pick-btn" id="roomFramePickerBtn">Подобрать накладку</button>`;
     const facingBlockHtml=`<div class="room-facing-block">
@@ -1737,6 +1748,15 @@ function renderProperties(){
     /* Селекторы коллекции и отделки существуют ТОЛЬКО в виде «Списком» — в виде «С картинками» их в
        разметке нет, обработчики на несуществующие узлы вешать нельзя (в браузере $() вернёт null). */
     if(facingView==="list"){
+      /* Стандарт монтажа применяется СРАЗУ по change — как коллекция и по той же причине НЕ денежный:
+         сужает только каталог конструктора, состав и цену существующих постов не трогает (в estimate.js
+         стандарт не входит). Поэтому renderSummary/renderAll не нужны — только перерисовать карточку
+         (обновить подпись «задан/не задан» и сводку) и сохранить. «Не задан» (value="") СНИМАЕТ поле. */
+      $("roomStandardSelect").onchange=e=>{
+        const val=e.target.value;
+        if(val)r.standard=val; else delete r.standard;
+        renderProperties();persistProject();
+      };
       $("roomCollectionSelect").onchange=e=>{
         const val=e.target.value;
         if(val)r.collection=val; else delete r.collection;
@@ -2391,6 +2411,11 @@ function frameCollectionList(){return EPCatalog.productCollections(byKind("frame
    Один источник и для селекторов «Материал/Форма/Цвет накладки» в свойствах комнаты, и для валидации
    room.<признак> (EPRoom.roomFrameFacing). field — frameMaterial|frameShape|frameColor. */
 function frameFacingList(field){return EPCatalog.productFacingValues(byKind("frame"),field);}
+/* Селектируемые монтажные стандарты каталога (итальянский/немецкий) — из товаров, не константой в
+   разметке. Один источник и для селектора «Стандарт монтажа» в свойствах комнаты, и для шага мастера,
+   и для валидации room.standard (EPRoom.roomFrameFacing). Универсальные накладки (standard="BOTH")
+   вариантом не приходят — раскрытие BOTH→{IT,DE} держит EPCatalog.productStandards. */
+function frameStandardList(){return EPCatalog.productStandards(byKind("frame"));}
 /* Критерий отбора накладок под помещение РЕДАКТИРУЕМОГО поста (E13 коллекция + E14 отделка). ОДНА
    точка сбора всех критериев комнаты — и renderBuilder, и селектор модульностей, и хинт «показано
    из скольких» ходят через неё, второго правила отбора нет (§7.1). Комнату берём у поста на плане
@@ -2416,6 +2441,10 @@ function builderFilterRoom(){
    мёртвых (снятых из прайса) значений — в EPRoom: null → признак не сужает. */
 function roomCatalogFilter(room){
   return {
+    /* Монтажный стандарт — такой же критерий комнаты, как коллекция и отделка, и сужает пул ТЕМ ЖЕ
+       productsForRoom (§7.1). Валидируется как отделка: мёртвое/отсутствующее значение → null → не
+       сужает (старый проект без room.standard открывается как раньше — весь каталог). */
+    standard:EPRoom.roomFrameFacing(room,"standard",frameStandardList()),
     collection:EPRoom.roomCollection(room,frameCollectionList()),
     frameMaterial:EPRoom.roomFrameFacing(room,"frameMaterial",frameFacingList("frameMaterial")),
     frameShape:EPRoom.roomFrameFacing(room,"frameShape",frameFacingList("frameShape")),
@@ -2565,6 +2594,7 @@ function innardsEmptyText(color){
    здесь, но саму отделку берём из frameFacingLabels — не второй копией. */
 function frameFacingSelectionLabels(sel){
   const parts=[];
+  if(sel.standard)parts.push(`стандарт «${EPCatalog.standardLabel(sel.standard)}»`);
   if(sel.collection)parts.push(`серия «${sel.collection}»`);
   return parts.concat(frameFacingLabels(sel));
 }
@@ -2592,19 +2622,26 @@ function frameFacingView(){
    накладок за вариантом» считает ЧЕРЕЗ EPCatalog.productsForRoom — тот же отбор, что фильтрует
    конструктор. Черновик выбора живёт в модульных переменных, в проект попадает только по «Применить».
    deps подставляют каталожные функции чистому EPFramePicker (своего фильтра/списка/счётчика у него
-   нет). valuesOf различает серию (productCollections — серия у товара массив) и отделку
-   (productFacingValues — скаляр). */
+   нет). valuesOf различает стандарт (productStandards — BOTH раскрывается в оба варианта), серию
+   (productCollections — серия у товара массив) и отделку (productFacingValues — скаляр). */
 let framePickerRoomId=null,framePickerSel=null,framePickerStep=0;
 const framePickerDeps={
   match:(frames,criteria)=>EPCatalog.productsForRoom(frames,criteria),
-  valuesOf:(pool,prop)=>prop==="collection"?EPCatalog.productCollections(pool):EPCatalog.productFacingValues(pool,prop),
+  valuesOf:(pool,prop)=>prop==="standard"?EPCatalog.productStandards(pool):prop==="collection"?EPCatalog.productCollections(pool):EPCatalog.productFacingValues(pool,prop),
   imageOf:item=>productImage(item)
 };
+/* Подпись значения шага ЧЕЛОВЕКУ: стандарт показываем словом (EPCatalog.standardLabel — единственный
+   перевод "IT"/"DE" в «итальянский»/«немецкий»), остальные признаки уже человеческие (серия, материал,
+   форма, цвет каноничны из каталога). Хранимое значение (data-value, room.<prop>) остаётся кодом —
+   переводим только на экран. */
+function frameStepValueLabel(prop,value){return prop==="standard"?EPCatalog.standardLabel(value):value;}
 function openFramePicker(room){
   framePickerRoomId=room.id;
   /* Инициализация из ТЕХ ЖЕ настроек комнаты, что читает список-вид, с ТОЙ ЖЕ валидацией мёртвых
      значений (EPRoom): убранная из прайса серия/цвет не должны прийти в мастер как выбранные. */
   const sel={};
+  const std=EPRoom.roomFrameFacing(room,"standard",frameStandardList());
+  if(std)sel.standard=std;
   const coll=EPRoom.roomCollection(room,frameCollectionList());
   if(coll)sel.collection=coll;
   ["frameMaterial","frameShape","frameColor"].forEach(prop=>{
@@ -2628,7 +2665,7 @@ function renderFramePicker(){
     const val=framePickerSel[s.prop];
     return `<button type="button" class="frame-picker-crumb${i===framePickerStep?" active":""}${val?" is-set":""}" data-step="${i}">
       <span class="frame-picker-crumb-title">${esc(s.title)}</span>
-      <span class="frame-picker-crumb-value">${val?esc(val):"—"}</span>
+      <span class="frame-picker-crumb-value">${val?esc(frameStepValueLabel(s.prop,val)):"—"}</span>
     </button>`;
   }).join("");
   const step=steps[framePickerStep];
@@ -2643,7 +2680,7 @@ function renderFramePicker(){
       const thumb=framePickThumb(o.imageUrl,o.value);
       return `<button type="button" class="frame-pick-tile${active?" active":""}" data-value="${esc(o.value)}" aria-pressed="${active}">
         ${thumb}
-        <span class="frame-pick-name">${esc(o.value)}</span>
+        <span class="frame-pick-name">${esc(frameStepValueLabel(step.prop,o.value))}</span>
         <span class="frame-pick-count">${o.count} ${EPCatalog.pluralRu(o.count,"накладка","накладки","накладок")}</span>
       </button>`;
     }).join("")+`</div>`;

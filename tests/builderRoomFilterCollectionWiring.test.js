@@ -40,7 +40,7 @@ function makeCtx(state) {
     EPRoom, EPCatalog
   };
 }
-const CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter"];
+const CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter"];
 
 /* Проект из ДВУХ комнат разных коллекций; редактируется пост, стоящий в комнате editRoomId. */
 function filterFor(editRoomId) {

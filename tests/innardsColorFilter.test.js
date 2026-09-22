@@ -92,7 +92,7 @@ const M_NONE = { id: 23, kind: "mechanism", active: true, series: ["Test"], modu
 const PRODUCTS = [FRAME, M_WHITE, M_BLACK, M_NONE];
 const product = id => PRODUCTS.find(p => Number(p.id) === Number(id));
 
-const CUT = ["frameCollectionList", "frameFacingList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "builderInnardsFilter",
+const CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "builderInnardsFilter",
   "collectionFramePool", "frameFacingLabels", "frameFacingHintText", "frameFacingEmptyText", "frameOptions",
   "builderCapacity", "renderBuilder"];
 
@@ -186,7 +186,7 @@ test("builderInnardsFilter: галочка вкл → {elementColor: цвет н
     const builder = { editingPlacedId: "p1", roomId };
     if (restrict !== undefined) builder.restrictInnardsColor = restrict;
     const state = { products: PRODUCTS, posts: [{ id: "p1", roomId: "r1", frameId: FRAME.id }], rooms: [ROOM], builder };
-    return stand.run(["frameCollectionList", "frameFacingList", "builderFilterRoom", "builderInnardsFilter"],
+    return stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "builderInnardsFilter"],
       { state, byKind: k => state.products.filter(x => x.kind === k && x.active), EPCatalog, EPRoom })();
   };
   // объект приходит из vm-realm — deepStrictEqual сверял бы прототип между realm'ами, проверяем поля вручную.

@@ -94,6 +94,31 @@ function productFacingValues(items, field) {
   return [...set].sort((a, b) => String(a).localeCompare(String(b), "ru-RU"));
 }
 
+/* Селектируемые монтажные стандарты каталога — те, между которыми выбирает человек (встреча 24.08
+   §4.1: «первое, что должны мы выбрать»). У накладки поле standard: "IT" | "DE" | "BOTH". "BOTH" —
+   НЕ отдельный вариант выбора, а признак «садится под оба»: универсальная накладка ДОБАВЛЯЕТ в выбор
+   и итальянский, и немецкий, но сама вариантом не становится (коробку человек ставит итальянскую
+   ИЛИ немецкую, «универсальную» коробку не заказывают). Отсюда правило раскрытия: IT-накладка даёт
+   вариант "IT", DE — "DE", BOTH — оба. Восходящий список различных, как productCollections: селектор
+   «Стандарт монтажа» и шаг мастера строятся ИЗ него, а не из константы в разметке. По построению у
+   каждого возвращённого стандарта в пуле есть хотя бы одна накладка (иначе он бы не попал в set). */
+function productStandards(items) {
+  const set = new Set();
+  (items || []).forEach(item => {
+    const s = item && item.standard;
+    if (s === "BOTH") { set.add("IT"); set.add("DE"); }
+    else if (s) set.add(s);
+  });
+  return [...set].sort((a, b) => a.localeCompare(b, "ru-RU"));
+}
+
+/* Человеческое имя монтажного стандарта — ЕДИНСТВЕННОЕ место перевода кода в слово (§7.1, требование
+   блока: в интерфейсе человек видит «итальянский»/«немецкий», а не "IT"/"DE"). "BOTH" словарём не
+   покрыт намеренно: он не выбирается (см. productStandards), поэтому до подписи не доходит; незнакомый
+   код возвращаем как есть, а не прячем пустой строкой. */
+const STANDARD_LABELS = { IT: "итальянский", DE: "немецкий" };
+function standardLabel(value) { return STANDARD_LABELS[value] || String(value == null ? "" : value); }
+
 /* Единый ключ сравнения ЦВЕТА между накладкой и начинкой (ОТДЕЛКА-ПОРЯДОК, п.4). Написания
    регистра/ё конвертер уже свёл (facingKey), но цвет накладки («Цвет накладки») и цвет начинки
    («Цвет элемента») — РАЗНЫЕ словари, различающиеся РОДОМ прилагательного: накладка «Белая» /
@@ -147,6 +172,18 @@ function facingColorKey(raw) {
 function productsForRoom(items, criteria) {
   const c = criteria || {};
   let out = (items || []).slice();
+  /* ⚠️ МОНТАЖНЫЙ СТАНДАРТ — «универсальная» накладка (standard==="BOTH") ГОДИТСЯ ПОД ЛЮБОЙ ВЫБОР.
+     У накладки поле standard ровно одно из трёх: "IT" (итальянский), "DE" (немецкий), "BOTH" (садится
+     и в итальянскую, и в немецкую коробку). Критерий c.standard приходит ТОЛЬКО как "IT" или "DE" —
+     человек выбирает физический стандарт коробки, «универсальную» коробку не заказывают (см.
+     productStandards). Поэтому предикат пропускает накладки ВЫБРАННОГО стандарта И универсальные:
+     равенство standard===c.standard выкинуло бы из немецкой выборки 4 ЦЕЛЫЕ серии (Arke Fit, Eikon
+     Flat, Eikon Tactil, Eikon Vintage — у них DE-накладок нет, но универсальные есть), молча срезав
+     треть каталога. Замер по каталогу: c.standard="IT" → 1350 из 1631, "DE" → 560 из 1631; коллекций
+     во всех трёх выборках (нет фильтра / IT / DE) по 9 — ни одна серия целиком не исчезает.
+     Это ЕДИНСТВЕННОЕ место правила «подходит ли накладка под стандарт» (§7.1): и мастер, и вид-список,
+     и подбор при размещении ходят сюда, второй копии проверки нет. */
+  if (c.standard) out = out.filter(item => item && (item.standard === c.standard || item.standard === "BOTH"));
   if (c.collection) out = out.filter(item => productSeries(item).includes(c.collection));
   if (c.frameMaterial) out = out.filter(item => item && item.frameMaterial === c.frameMaterial);
   if (c.frameShape) out = out.filter(item => item && item.frameShape === c.frameShape);
@@ -330,7 +367,7 @@ const productImage = (item, { detail = false } = {}) => {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { pluralRu, moduleWord, placeWord, mechanismSpan, productSeries, productCollections, productFacingValues, productsForRoom, facingColorKey, compatibleMechanisms, frameSlotCount, frameSlotCounts, frameSlotOptions, defaultPostName, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage };
+const api = { pluralRu, moduleWord, placeWord, mechanismSpan, productSeries, productCollections, productFacingValues, productStandards, standardLabel, productsForRoom, facingColorKey, compatibleMechanisms, frameSlotCount, frameSlotCounts, frameSlotOptions, defaultPostName, frameOpening, frameOpenings, moduleFace, productImage, isPlaceholderImage };
 if (typeof window !== "undefined") window.EPCatalog = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

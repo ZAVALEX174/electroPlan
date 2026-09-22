@@ -139,6 +139,8 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 /* Коллекция накладок комнаты (E13) — отдельное поле ниже схемы, тем же приёмом: отбивка сверху,
    а «коллекция задана» подсвечено акцентом (как «своя схема»), чтобы фильтр каталога было видно. */
 .room-collection-field{margin-top:12px}
+/* Стандарт монтажа комнаты — первый критерий отделки, те же отступы, что у коллекции. */
+.room-standard-field{margin-top:12px}
 /* Поля отделки накладки комнаты (E14) — те же отступы, что у коллекции. */
 .room-facing-field{margin-top:12px}
 .prop-collection-source.own{color:var(--blue-dark);font-weight:700}
@@ -152,7 +154,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .room-facing-view{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
 .room-facing-view-btn{padding:4px 8px;border:0;background:#fff;color:var(--blue-dark);font-size:9px;font-weight:800;cursor:pointer}
 .room-facing-view-btn.active{background:var(--blue-soft);color:var(--blue-dark);box-shadow:inset 0 0 0 1px var(--blue)}
-.room-facing-block .room-collection-field,.room-facing-block .room-facing-field{margin-top:10px}
+.room-facing-block .room-standard-field,.room-facing-block .room-collection-field,.room-facing-block .room-facing-field{margin-top:10px}
 /* Сводка выбранного в виде «С картинками» — чтобы «что выбрано в одном виде, видно в другом» без
    открытия мастера. .own — отделка задана (акцент, как «своя схема»); пусто — приглушённо. */
 .room-facing-summary{margin:2px 0 8px;color:var(--muted);font-size:10px;line-height:1.4}
