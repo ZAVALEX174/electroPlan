@@ -19,13 +19,14 @@
 (() => {
 "use strict";
 
-/* Логотип в шапку рисует ОБЩИЙ EPDocLogo — то же правило, что и у КП (§7.1): размер <img> и
+/* Логотип в шапку рисует ОБЩИЙ EPDocImages — то же правило, что и у КП (§7.1): размер <img> и
    пустой случай (логотипа нет → "") живут в одном месте, этот документ решает только КУДА в
-   своей (другой) шапке поставить готовую строку. Резолвим как в offerPdf.js: в браузере namespace
-   уже загружен, в Node — через require; без модуля логотипа просто нет. */
+   своей (другой) шапке поставить готовую строку. В лист монтажника идёт ТОЛЬКО логотип: подпись и
+   печать — коммерческая часть, они остаются в КП (как и подвал условий). Резолвим как в offerPdf.js:
+   в браузере namespace уже загружен, в Node — через require; без модуля логотипа просто нет. */
 function docLogoApi() {
-  if (typeof window !== "undefined" && window.EPDocLogo) return window.EPDocLogo;
-  if (typeof require !== "undefined") return require("./docLogo.js");
+  if (typeof window !== "undefined" && window.EPDocImages) return window.EPDocImages;
+  if (typeof require !== "undefined") return require("./docImages.js");
   return { imgHtml: () => "" };
 }
 

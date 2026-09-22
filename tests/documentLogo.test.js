@@ -1,8 +1,8 @@
 /* Логотип компании в шапке КП и листа монтажника (запрос заказчика: свой логотип в документах).
    Проверяем ОДНО правило разметки логотипа на оба документа (§7.1): элемент рисует общий
-   EPDocLogo, а КП и лист монтажника только ставят готовую строку в свою (разную) шапку.
+   EPDocImages, а КП и лист монтажника только ставят готовую строку в свою (разную) шапку.
    Модули чистые — браузер не поднимаем. Call-site загрузки (валидация файла) проверяем
-   ПОВЕДЕНЧЕСКИ: исполняем настоящий loadCompanyLogo из app.js на DOM-шиме (общий стенд).
+   ПОВЕДЕНЧЕСКИ: исполняем настоящий loadDocImage из app.js на DOM-шиме (общий стенд).
 
    МУТАЦИОННАЯ ТАБЛИЦА (в отчёте):
      (а) логотип НЕ вставлен в лист монтажника (только в КП)   → красит «лист монтажника печатает логотип…»
@@ -10,13 +10,13 @@
      (б) при пустом логотипе в шапку лезет пустой <img>        → красит «без логотипа шапка КП…» и
                                                                   «…шапка листа монтажника не меняется» (identical + нет alt);
      (в) снята проверка типа/размера файла                     → красит unit-тесты validateSource и
-                                                                  «loadCompanyLogo НЕ сохраняет негодный файл…».
+                                                                  «loadDocImage НЕ сохраняет негодный файл…».
    Запуск: node --test tests/ */
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
-const EPDocLogo = require("../js/docLogo.js");
+const EPDocImages = require("../js/docImages.js");
 const { buildHtml: offerHtml } = require("../js/offerPdf.js");
 const { buildHtml: installHtml } = require("../js/installSheet.js");
 
@@ -27,31 +27,31 @@ const LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC
 /* Единственный <img> логотипа в документе (постов/иллюстраций в тестовых данных нет). */
 const logoImgOf = html => (html.match(/<img[^>]*alt="Логотип компании"[^>]*>/) || [null])[0];
 
-/* ---- EPDocLogo: чистое правило (годность файла + разметка элемента) ---- */
+/* ---- EPDocImages: чистое правило (годность файла + разметка элемента) ---- */
 test("validateSource: не картинка — отказ со словами, картинка — ok", () => {
-  const bad = EPDocLogo.validateSource({ type: "application/pdf", size: 1000 });
+  const bad = EPDocImages.validateSource({ type: "application/pdf", size: 1000 });
   assert.equal(bad.ok, false, "pdf — не картинка");
   assert.match(bad.reason, /картинк/i, "человеку сказано, что нужна картинка");
-  assert.equal(EPDocLogo.validateSource({ type: "image/png", size: 1000 }).ok, true, "png принят");
-  assert.equal(EPDocLogo.validateSource({ type: "image/svg+xml", size: 1000 }).ok, true, "svg принят");
+  assert.equal(EPDocImages.validateSource({ type: "image/png", size: 1000 }).ok, true, "png принят");
+  assert.equal(EPDocImages.validateSource({ type: "image/svg+xml", size: 1000 }).ok, true, "svg принят");
 });
 
 test("validateSource: файл крупнее предела — отказ со словами", () => {
-  const big = EPDocLogo.validateSource({ type: "image/png", size: EPDocLogo.MAX_SOURCE_BYTES + 1 });
+  const big = EPDocImages.validateSource({ type: "image/png", size: EPDocImages.MAX_SOURCE_BYTES + 1 });
   assert.equal(big.ok, false, "за пределом размера — отказ");
   assert.match(big.reason, /большой|МБ/, "причина названа словами");
-  assert.equal(EPDocLogo.validateSource({ type: "image/png", size: EPDocLogo.MAX_SOURCE_BYTES }).ok, true, "ровно на пределе — ok");
+  assert.equal(EPDocImages.validateSource({ type: "image/png", size: EPDocImages.MAX_SOURCE_BYTES }).ok, true, "ровно на пределе — ok");
 });
 
 test("imgHtml: пусто/не data-URL картинки → '' (никакого пустого <img>)", () => {
-  assert.equal(EPDocLogo.imgHtml("", esc), "", "пусто → пустая строка");
-  assert.equal(EPDocLogo.imgHtml(undefined, esc), "", "не строка → пустая строка");
-  assert.equal(EPDocLogo.imgHtml("http://site/logo.png", esc), "", "внешний путь не принимаем");
-  assert.equal(EPDocLogo.imgHtml("data:text/html,<b>", esc), "", "не картинка не принимается");
+  assert.equal(EPDocImages.imgHtml("", esc), "", "пусто → пустая строка");
+  assert.equal(EPDocImages.imgHtml(undefined, esc), "", "не строка → пустая строка");
+  assert.equal(EPDocImages.imgHtml("http://site/logo.png", esc), "", "внешний путь не принимаем");
+  assert.equal(EPDocImages.imgHtml("data:text/html,<b>", esc), "", "не картинка не принимается");
 });
 
 test("imgHtml: data-URL картинки → <img> с этим src и инлайн-размером", () => {
-  const img = EPDocLogo.imgHtml(LOGO, esc);
+  const img = EPDocImages.imgHtml(LOGO, esc);
   assert.match(img, /^<img /, "это тег img");
   assert.ok(img.includes(LOGO), "src — переданный data-URL");
   assert.match(img, /max-height:\d+px/, "печатный размер задан ИНЛАЙН (в окне печати JS/классов чужого <style> нет)");
@@ -115,10 +115,10 @@ test("оба документа рисуют ОДИН и тот же <img> ло�
   const kp = logoImgOf(offerHtml(est, Object.assign({}, kpDeps, { logo: LOGO })));
   const sheet = logoImgOf(installHtml(sheetData, { esc, logo: LOGO }));
   assert.ok(kp && sheet, "логотип есть в обоих документах");
-  assert.equal(kp, sheet, "разметка логотипа в КП и листе монтажника побайтно одна — общий EPDocLogo");
+  assert.equal(kp, sheet, "разметка логотипа в КП и листе монтажника побайтно одна — общий EPDocImages");
 });
 
-/* ---- Call-site загрузки (app.js loadCompanyLogo): негодный файл не сохраняется ---- */
+/* ---- Call-site загрузки (app.js loadDocImage): негодный файл не сохраняется ---- */
 function makeLoaderCtx() {
   const toast = (() => { const f = m => { f.msg = m; f.calls++; }; f.calls = 0; return f; })();
   const set = (() => { const f = (k, v) => { f.last = [k, v]; f.calls++; }; f.calls = 0; return f; })();
@@ -130,26 +130,28 @@ function makeLoaderCtx() {
   function Image() { const self = this; Object.defineProperty(self, "src", { set() { self.width = 200; self.height = 100; if (self.onload) self.onload(); } }); }
   const document = { createElement: () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => "data:image/png;base64,OUT" }) };
   return {
-    ctx: { EPDocLogo, toast, EPPrefs: { set, get: () => "" }, FileReader, Image, document,
-      renderCompanyLogo: () => {}, LOGO_PREF: "companyLogo", LOGO_PRINT_H: 160, LOGO_MAX_W: 480 },
+    ctx: { EPDocImages, toast, EPPrefs: { set, get: () => "" }, FileReader, Image, document,
+      renderDocImage: () => {}, DOC_IMAGE_PRINT_H: 160, DOC_IMAGE_MAX_W: 480,
+      DOC_IMAGES: { logo: { pref: "companyLogo", subject: "логотипа", alt: "Логотип компании",
+        preview: "docLogoPreview", remove: "docLogoRemove", saved: "Логотип сохранён" } } },
     toast, set, readCalls
   };
 }
 
-test("loadCompanyLogo НЕ сохраняет негодный файл и говорит человеку словами", () => {
+test("loadDocImage НЕ сохраняет негодный файл и говорит человеку словами", () => {
   const { ctx, toast, set, readCalls } = makeLoaderCtx();
-  const load = stand.run(["loadCompanyLogo"], ctx);
-  load({ type: "application/pdf", size: 1000 });   // не картинка
+  const load = stand.run(["loadDocImage"], ctx);
+  load({ type: "application/pdf", size: 1000 }, "logo");   // не картинка
   assert.equal(set.calls, 0, "битый файл в EPPrefs не сохранён");
   assert.equal(readCalls.length, 0, "до чтения файла дело не дошло — отказали раньше");
   assert.equal(toast.calls, 1, "человеку показано сообщение");
   assert.match(toast.msg, /картинк/i, "сообщение объясняет, что не так");
 });
 
-test("loadCompanyLogo сохраняет годную картинку data-URL'ом в EPPrefs", () => {
+test("loadDocImage сохраняет годную картинку data-URL'ом в EPPrefs", () => {
   const { ctx, set } = makeLoaderCtx();
-  const load = stand.run(["loadCompanyLogo"], ctx);
-  load({ type: "image/png", size: 1000 });
+  const load = stand.run(["loadDocImage"], ctx);
+  load({ type: "image/png", size: 1000 }, "logo");
   assert.equal(set.calls, 1, "логотип сохранён один раз");
   assert.equal(set.last[0], "companyLogo", "ключ EPPrefs — логотип компании (общий для проектов)");
   assert.match(set.last[1], /^data:image\/png/, "сохранён ужатый растр data-URL'ом");

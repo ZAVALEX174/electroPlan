@@ -379,7 +379,7 @@ async function init(){
   const restored=await restoreProject();
   loadCachedRate();
   fillDocHeaderInputs();   /* реквизиты КП: заполнить поля (и дату «сегодня» на чистом старте) */
-  renderCompanyLogo();     /* логотип из EPPrefs (общий для всех проектов) — предпросмотр в панели */
+  renderDocImage("logo");renderDocImage("signature");renderDocImage("stamp"); /* картинки бланка из EPPrefs (общие для всех проектов) — предпросмотр в панели */
   renderCompanyTerms();    /* условия сделки из EPPrefs (общие для всех проектов) — в поле подвала КП */
   renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();
   renderLightingSchemeSelect();   /* селектор схемы в панели проекта: заполняем и на чистом старте */
@@ -4184,51 +4184,67 @@ function fillDocHeaderInputs(){
   $("docDate").value=d.date||new Date().toISOString().slice(0,10);
 }
 
-/* Логотип компании — БЛАНК ЧЕЛОВЕКА, а не свойство проекта: загрузил один раз — стоит в шапке
-   КП и листа монтажника во ВСЕХ его проектах (та же доктрина, что у offerPresets/frameFacingView).
-   Поэтому в EPPrefs (ep_prefs), а не в снимке проекта. Храним data-URL: документы открываются
-   через window.open, внешние пути туда не доедут. Разметку <img> и проверку файла держит чистый
-   EPDocLogo — здесь только DOM-часть (выбор/чтение/ужатие/предпросмотр). */
-const LOGO_PREF="companyLogo";
-/* Растровая высота логотипа при ужатии. Держим ВЫШЕ экранной (max-height:64px в EPDocLogo.imgHtml)
-   с запасом ~×2.5: печать плотнее экрана, и без запаса логотип в PDF выходил бы мыльным. Шире
-   LOGO_MAX_W не растим — в шапку такой не влезет, а вес data-URL зря вырастет. */
-const LOGO_PRINT_H=160,LOGO_MAX_W=480;
-function companyLogo(){const v=EPPrefs.get(LOGO_PREF,"");return typeof v==="string"?v:"";}
-function loadCompanyLogo(file){
-  /* Годен ли файл — решает общий чистый EPDocLogo (тип картинки, честный предел размера). Не
-     годен → говорим человеку словами и НЕ сохраняем молча битое (решение владельца п.3). */
-  const check=EPDocLogo.validateSource(file);
+/* Картинки бланка компании — БЛАНК ЧЕЛОВЕКА, а не свойство проекта: загрузил один раз — стоят во
+   ВСЕХ его проектах (та же доктрина, что у offerPresets/frameFacingView). Поэтому в EPPrefs
+   (ep_prefs), а не в снимке проекта. Храним data-URL: документы открываются через window.open,
+   внешние пути туда не доедут. Логотип идёт в шапку КП и листа монтажника; подпись и печать — в
+   конец КП (в лист монтажника не идут: не коммерческий документ). Разметку <img> и проверку файла
+   держит чистый EPDocImages — здесь только DOM-часть (выбор/чтение/ужатие/предпросмотр).
+   Всё три картинки грузятся-показываются ОДНОЙ функцией с параметром kind (§7.1): выбор, проверка
+   файла, чтение, ужатие и запись — в одном месте, а не три копии. Различия картинок (ключ EPPrefs,
+   слово в сообщениях, узлы предпросмотра) — данными в DOC_IMAGES. */
+const DOC_IMAGES={
+  logo:{pref:"companyLogo",subject:"логотипа",alt:"Логотип компании",preview:"docLogoPreview",remove:"docLogoRemove",
+        saved:"Логотип сохранён — он будет в шапке КП и листа монтажника во всех ваших проектах"},
+  signature:{pref:"companySignature",subject:"подписи",alt:"Подпись",preview:"docSignaturePreview",remove:"docSignatureRemove",
+        saved:"Подпись сохранена — она будет в конце ваших коммерческих предложений"},
+  stamp:{pref:"companyStamp",subject:"печати",alt:"Печать",preview:"docStampPreview",remove:"docStampRemove",
+        saved:"Печать сохранена — она будет в конце ваших коммерческих предложений"}
+};
+/* Растровая высота/ширина картинки при ужатии. Держим ВЫШЕ экранной (max-height в EPDocImages.imgHtml)
+   с запасом: печать плотнее экрана, и без запаса картинка в PDF выходила бы мыльной. Шире DOC_IMAGE_MAX_W
+   не растим — вес data-URL зря вырастет. Общие на все три картинки: печатная плотность у них одна. */
+const DOC_IMAGE_PRINT_H=160,DOC_IMAGE_MAX_W=480;
+function docImage(kind){const v=EPPrefs.get(DOC_IMAGES[kind].pref,"");return typeof v==="string"?v:"";}
+function companyLogo(){return docImage("logo");}
+function companySignature(){return docImage("signature");}
+function companyStamp(){return docImage("stamp");}
+function loadDocImage(file,kind){
+  const cfg=DOC_IMAGES[kind];
+  /* Годен ли файл — решает общий чистый EPDocImages (тип картинки, честный предел размера) ТЕМ ЖЕ
+     правилом для всех трёх картинок (§7.1). subject — какая это картинка, для сообщения человеку.
+     Не годен → говорим словами и НЕ сохраняем молча битое (решение владельца п.3). */
+  const check=EPDocImages.validateSource(file,cfg.subject);
   if(!check.ok){toast(check.reason);return;}
   const reader=new FileReader();
-  reader.onerror=()=>toast("Не удалось прочитать файл логотипа");
+  reader.onerror=()=>toast("Не удалось прочитать файл: "+cfg.subject);
   reader.onload=()=>{
     const img=new Image();
-    img.onerror=()=>toast("Не удалось разобрать картинку логотипа");
+    img.onerror=()=>toast("Не удалось разобрать картинку: "+cfg.subject);
     img.onload=()=>{
       /* Ужимаем до печатной высоты (и ширины), сохраняя пропорции; больше исходника не растягиваем
-         (scale ≤ 1). Растр на canvas → PNG: у логотипов обычно прозрачный фон. */
-      const scale=Math.min(LOGO_PRINT_H/img.height,LOGO_MAX_W/img.width,1);
+         (scale ≤ 1). Растр на canvas → PNG: у логотипов/подписей обычно прозрачный фон. */
+      const scale=Math.min(DOC_IMAGE_PRINT_H/img.height,DOC_IMAGE_MAX_W/img.width,1);
       const w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale));
       const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
       canvas.getContext("2d").drawImage(img,0,0,w,h);
-      EPPrefs.set(LOGO_PREF,canvas.toDataURL("image/png"));
-      renderCompanyLogo();
-      toast("Логотип сохранён — он будет в шапке КП и листа монтажника во всех ваших проектах");
+      EPPrefs.set(cfg.pref,canvas.toDataURL("image/png"));
+      renderDocImage(kind);
+      toast(cfg.saved);
     };
     img.src=reader.result;
   };
   reader.readAsDataURL(file);
 }
-function clearCompanyLogo(){EPPrefs.set(LOGO_PREF,"");renderCompanyLogo();}
-/* Предпросмотр загруженного логотипа и видимость кнопки «Убрать». Есть логотип → показываем его
-   и кнопку; нет — прячем оба, панель выглядит как без логотипа. src экранируем (конвенция 4). */
-function renderCompanyLogo(){
-  const logo=companyLogo(),preview=$("docLogoPreview"),removeBtn=$("docLogoRemove");
+function clearDocImage(kind){EPPrefs.set(DOC_IMAGES[kind].pref,"");renderDocImage(kind);}
+/* Предпросмотр загруженной картинки и видимость кнопки «Убрать». Есть картинка → показываем её и
+   кнопку; нет — прячем оба, панель выглядит как без картинки. src экранируем (конвенция 4). */
+function renderDocImage(kind){
+  const cfg=DOC_IMAGES[kind],src=docImage(kind),preview=$(cfg.preview),removeBtn=$(cfg.remove);
   if(!preview)return;
-  preview.innerHTML=logo?`<img src="${esc(logo)}" alt="Логотип компании">`:"";
-  preview.hidden=!logo;
-  if(removeBtn)removeBtn.hidden=!logo;
+  preview.innerHTML=src?`<img src="${esc(src)}" alt="${esc(cfg.alt)}">`:"";
+  preview.hidden=!src;
+  if(removeBtn)removeBtn.hidden=!src;
 }
 
 /* Условия сделки в подвале КП — тоже БЛАНК ЧЕЛОВЕКА (как логотип/наборы столбцов), а не свойство
@@ -5078,6 +5094,10 @@ function generateCommercialOffer(){
      видна только после сборки. */
   const deps={money,esc,displayCurrency,effectiveRate:EPRates.effectiveRate,
     settings:EP_DATA.settings,options,header:docHeader(),logo:companyLogo(),terms:companyTerms(),
+    /* Подпись и печать — бланк компании (EPPrefs), в конец КП после условий и перед сводом. В лист
+       монтажника не передаём: он не коммерческий документ. Тарифный гейт (кто это видит) подключится
+       потом здесь — какие картинки вообще передать; сама механика печати про тарифы не знает. */
+    signature:companySignature(),stamp:companyStamp(),
     postLayout:buildPostLayout(options,light),
     /* план с бирками — отдельной страницей перед раскладкой постов: клиент сверяет номер в
        таблице с местом на чертеже. Поля КП 16 мм (см. @page в offerPdf.js). */
@@ -5537,11 +5557,16 @@ $("renumberConfirmBtn").onclick=confirmRenumberPosts;
 $("builderInstallSheet").onclick=installSheetForBuilder;
 /* реквизиты КП: правки полей сохраняются в проект (settings.docHeader) */
 Object.keys(DOC_FIELDS).forEach(id=>{$(id).oninput=applyDocHeader});
-/* Логотип компании: скрытый file-input открывается кнопкой; после выбора обнуляем value, чтобы
-   тот же файл можно было выбрать повторно (change иначе не сработает). «Убрать» чистит EPPrefs. */
-$("docLogoBtn").onclick=()=>$("docLogoInput").click();
-$("docLogoInput").onchange=e=>{const f=e.target.files&&e.target.files[0];if(f)loadCompanyLogo(f);e.target.value="";};
-$("docLogoRemove").onclick=clearCompanyLogo;
+/* Картинки бланка (логотип/подпись/печать): скрытый file-input открывается кнопкой; после выбора
+   обнуляем value, чтобы тот же файл можно было выбрать повторно (change иначе не сработает).
+   «Убрать» чистит EPPrefs. Все три — ОДИН загрузчик loadDocImage(file, kind), различие в kind. */
+[["docLogoBtn","docLogoInput","docLogoRemove","logo"],
+ ["docSignatureBtn","docSignatureInput","docSignatureRemove","signature"],
+ ["docStampBtn","docStampInput","docStampRemove","stamp"]].forEach(([btn,input,remove,kind])=>{
+  $(btn).onclick=()=>$(input).click();
+  $(input).onchange=e=>{const f=e.target.files&&e.target.files[0];if(f)loadDocImage(f,kind);e.target.value="";};
+  $(remove).onclick=()=>clearDocImage(kind);
+});
 /* Условия сделки в подвале КП — общий бланк компании (EPPrefs), не поле проекта: сохраняем в EPPrefs
    на каждый ввод, обрезая по общему пределу длины. */
 $("docTerms").oninput=e=>saveCompanyTerms(e.target.value);

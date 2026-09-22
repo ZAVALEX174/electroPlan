@@ -19,13 +19,14 @@ function defaultEstimate() {
   return { pricelessNote: () => "" };
 }
 
-/* Логотип в шапку рисует ОБЩИЙ EPDocLogo — то же правило, что и у листа монтажника (§7.1):
-   размер <img> и пустой случай (логотипа нет → "") живут в одном месте, этот документ решает
-   только КУДА в своей шапке поставить готовую строку. Резолвим как EPEstimate: в браузере
-   namespace уже загружен, в Node — через require; без модуля логотипа просто нет. */
-function docLogoApi() {
-  if (typeof window !== "undefined" && window.EPDocLogo) return window.EPDocLogo;
-  if (typeof require !== "undefined") return require("./docLogo.js");
+/* Картинки бланка (логотип в шапке, подпись/печать в конце КП) рисует ОБЩИЙ EPDocImages — то же
+   правило разметки и тот же пустой случай ("" при отсутствии), что и у листа монтажника (§7.1):
+   безопасный <img> из data-URL живёт в одном месте, этот документ решает только КУДА и с какой
+   геометрией поставить готовую строку. Резолвим как EPEstimate: в браузере namespace уже загружен,
+   в Node — через require; без модуля картинок просто нет. */
+function docImagesApi() {
+  if (typeof window !== "undefined" && window.EPDocImages) return window.EPDocImages;
+  if (typeof require !== "undefined") return require("./docImages.js");
   return { imgHtml: () => "" };
 }
 
@@ -54,6 +55,31 @@ function termsFooterHtml(terms, esc) {
   const e = typeof esc === "function" ? esc : (s => String(s));
   const body = e(raw.replace(/\r\n?/g, "\n")).replace(/\n/g, "<br>");
   return `<div class="terms">${body}</div>`;
+}
+
+/* Блок подписи и печати в КОНЦЕ КП (итоги встречи 24.08 §1.3: подпись и печать — опция бланка).
+   Картинки — бланк КОМПАНИИ (EPPrefs.companySignature/companyStamp), приходят data-URL'ами; сам
+   безопасный <img> рисует ОБЩИЙ EPDocImages (§7.1: тот же guard data-URL и экранирование, что у
+   логотипа), здесь — только КОМПоновка блока и его место в документе.
+   Печатаем ТЕ картинки, что загружены: у логотипа отдельной галочки «печатать» нет, и человек
+   управляет тем же жестом — загрузил или убрал (решение владельца п.3, одна доктрина на три
+   картинки). Ничего не загружено → "" (блока нет совсем, документ прежний — отдельный проверяемый
+   случай). Загружена одна → печатается она одна, без пустой ячейки под вторую.
+   Фамилия (developer, поле «Разработчик» реквизитов) стоит ПОД подписью и только если подпись есть:
+   без подписи подписывать нечего. Это ТЕКСТ — экранируем (конвенция 4).
+   Гейт по уровню подписки НЕ здесь: механика «загружено → печатается» не знает про тарифы, тариф
+   подключится потом одним условием у ВЫЗОВА (какие картинки вообще передать). */
+function signatureBlockHtml(signature, stamp, developer, esc, docImages) {
+  const e = typeof esc === "function" ? esc : (s => String(s));
+  const api = docImages || docImagesApi();
+  const sig = api.imgHtml(signature, e, { alt: "Подпись", maxHeight: 70, maxWidth: 260, margin: 0 });
+  const seal = api.imgHtml(stamp, e, { alt: "Печать", maxHeight: 110, maxWidth: 150, margin: 0 });
+  if (!sig && !seal) return "";
+  const name = typeof developer === "string" && developer.trim()
+    ? `<div class="sign-name">${e(developer.trim())}</div>` : "";
+  const sigCell = sig ? `<div class="sign-col">${sig}${name}</div>` : "";
+  const sealCell = seal ? `<div class="sign-col">${seal}</div>` : "";
+  return `<div class="signature">${sigCell}${sealCell}</div>`;
 }
 
 /* Автопечать окна КП: печатаем НЕ по таймеру, а когда догрузятся картинки (иллюстрации постов
@@ -158,7 +184,7 @@ function compose(est, deps) {
    .map(([k, v]) => `<b>${esc(k)}:</b> ${esc(v)}`).join("<br>");
   /* Логотип компании над реквизитами (deps.logo — data-URL из EPPrefs, бланк человека, не свойство
      проекта). Пусто → imgHtml вернёт "" и шапка останется байт-в-байт как раньше. */
-  const logoImg = docLogoApi().imgHtml(deps.logo, esc);
+  const logoImg = docImagesApi().imgHtml(deps.logo, esc);
 
   /* Раздел «Раскладка постов» (PLAN 1) — перед позиционной таблицей: по строке на пост,
      наполнение словами с количеством (а не список артикулов), модульность отдельной
@@ -260,8 +286,15 @@ function compose(est, deps) {
      спецификации и цен — не повод открывать документ). */
   const termsFooter = termsFooterHtml(deps.terms, esc);
 
+  /* Подпись и печать — из бланка компании (deps.signature/deps.stamp, EPPrefs). Стоят ПОСЛЕ подвала
+     условий, но ПЕРЕД сводом поставщика (решение владельца п.4): свод отрывают и отдают поставщику,
+     а подпись должна остаться при КП — та же причина, по которой там же стоят условия. Ничего не
+     загружено → "" и документ прежний. Как и условия, hasContent не гейтит: КП из одной подписи без
+     спецификации и цен открывать незачем. Фамилия — из шапки (developer). */
+  const signatureBlock = signatureBlockHtml(deps.signature, deps.stamp, (deps.header || {}).developer, esc);
+
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Коммерческое предложение</title><style>
-  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.priceless{width:340px;margin:8px 0 0 auto;color:#9b3f2b;font-size:11px;font-weight:bold;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}.terms{margin-top:28px;padding-top:12px;border-top:1px solid #d8e6f2;color:#4a5b6c;font-size:11px;line-height:1.45}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}@media print{button{display:none}}</style></head><body>
+  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.priceless{width:340px;margin:8px 0 0 auto;color:#9b3f2b;font-size:11px;font-weight:bold;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}.terms{margin-top:28px;padding-top:12px;border-top:1px solid #d8e6f2;color:#4a5b6c;font-size:11px;line-height:1.45}.signature{display:flex;gap:48px;align-items:flex-end;margin-top:34px;page-break-inside:avoid}.sign-col{text-align:center}.sign-name{margin-top:6px;font-size:11px;color:#4a5b6c}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}@media print{button{display:none}}</style></head><body>
   <h1>Коммерческое предложение</h1><div class="sub">Проект электрики и комплектация электроустановочных изделий</div>
   <div class="meta"><div class="box">${logoImg}${headerRows}</div><button onclick="window.print()">Сохранить в PDF</button></div>
   ${planSection}
@@ -278,6 +311,7 @@ function compose(est, deps) {
   ${options.prices && displayCurrency() === "RUB" ? rateFooter() : ""}
   ${options.prices ? `<div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>` : ""}
   ${termsFooter}
+  ${signatureBlock}
   ${supplierSection}
   ${printScript}</body></html>`;
   return { html, hasContent };
@@ -291,7 +325,7 @@ function hasContent(est, deps) { return compose(est, deps).hasContent; }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { buildHtml, hasContent, termsFooterHtml, MAX_TERMS_CHARS };
+const api = { buildHtml, hasContent, termsFooterHtml, signatureBlockHtml, MAX_TERMS_CHARS };
 if (typeof window !== "undefined") window.EPOfferPdf = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
