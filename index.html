@@ -233,7 +233,14 @@
           <label><input type="checkbox" id="offer-articles" data-offer-key="articles">Печатать артикулы во всех разделах КП</label>
           <label><input type="checkbox" id="offer-prices" data-offer-key="prices">Печатать цены и итоги</label>
           <div id="offerOptionsFields"></div>
-          <small class="hint-line">Сохраняется в проекте. Лист монтажника не меняется. Наименование в спецификации остаётся всегда; раскладка без выбранных столбцов не печатается. Коды на исходном плане, фотографиях и в тексте, введённом вручную, не редактируются.</small>
+          <small class="hint-line">Сохраняется в проекте. Выбранные столбцы и разделы лист монтажника не меняют — на него влияет только «Вид поста» ниже. Наименование в спецификации остаётся всегда; раскладка без выбранных столбцов не печатается. Коды на исходном плане, фотографиях и в тексте, введённом вручную, не редактируются.</small>
+          <label class="offer-assembly">Вид поста в листе монтажника
+            <select id="offer-assemblyView" data-offer-key="assemblyView">
+              <option value="exploded">Взрыв-схема</option>
+              <option value="assembled">Общая сборка</option>
+            </select>
+          </label>
+          <small class="hint-line">«Взрыв-схема» — пост разложен по деталям с артикулами (по умолчанию). «Общая сборка» — собранная накладка с клавишами, как в раскладке КП.</small>
         </details>
       </section>
 
@@ -571,13 +578,13 @@
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
 <script src="js/catalogSections.js?v=20260828.1"></script>
 <script src="js/builderSlots.js?v=20260914.2"></script>
-<script src="js/offerOptions.js?v=20260920.2"></script>
+<script src="js/offerOptions.js?v=20260924.4"></script>
 <script src="js/estimate.js?v=20260924.1"></script>
 <!-- Картинки бланка компании (логотип, подпись, печать) — одно правило «годен ли файл» и разметка
      <img> на все документы (§7.1). Грузится до offerPdf/installSheet, которые через него рисуют. -->
 <script src="js/docImages.js?v=20260922.1"></script>
 <script src="js/offerPdf.js?v=20260924.1"></script>
-<script src="js/installSheet.js?v=20260922.1"></script>
+<script src="js/installSheet.js?v=20260924.4"></script>
 <script src="js/supplierSpec.js?v=20260911.1"></script>
 <script src="js/postImage.js?v=20260920.1"></script>
 <script src="js/explodedView.js?v=20260805.5"></script>
@@ -604,6 +611,6 @@
 <!-- Автонумерация КП (EPG-ГГГГ-NNNN): формат и счётчик по году в одном чистом модуле. Грузится
      до app.js, который зовёт его при сборке КП, если «Номер КП» пуст. -->
 <script src="js/offerNumber.js?v=20260924.1"></script>
-<script src="js/app.js?v=20260924.3"></script>
+<script src="js/app.js?v=20260924.4"></script>
 </body>
 </html>

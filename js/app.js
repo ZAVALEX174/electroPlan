@@ -4517,6 +4517,7 @@ function renderOfferOptions(){
 function syncOfferOptions(){
   const o=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
   ["articles","prices"].forEach(key=>{$("offer-"+key).checked=o[key]});
+  $("offer-assemblyView").value=o.assemblyView;   /* вид поста в листе монтажника (Б2) */
   Object.entries(EPOfferOptions.fields).forEach(([group,fields])=>fields.forEach(([key])=>{
     const input=$("offer-"+group+"-"+key);
     input.checked=o[group][key];
@@ -4577,6 +4578,7 @@ function applyOfferOption(input){
   const {offerGroup:group,offerKey:key}=input.dataset;
   if(group&&EPOfferOptions.fields[group]?.some(([k])=>k===key))o[group][key]=input.checked;
   else if(key==="articles"||key==="prices")o[key]=input.checked;
+  else if(key==="assemblyView")o.assemblyView=input.value;   /* select, не чекбокс: берём value (normalize сведёт чужое к взрыв-схеме) */
   else return;
   EP_DATA.settings.offerOptions=o;
   syncOfferOptions();scheduleSave();
@@ -5134,8 +5136,11 @@ function openInstallSheet(data){
   const win=window.open("","_blank");
   if(!win){toast("Разрешите всплывающие окна для листа монтажника");return}
   const h=docHeader();
+  /* Вид поста берём из настроек КП (EP_DATA.settings.offerOptions) в ОДНОМ месте — так его получают
+     оба пути листа: и кнопка «Лист монтажника» на проект, и лист из конструктора поста (§7.1). */
   win.document.write(EPInstallSheet.buildHtml(
-    Object.assign({header:{project:h.project,developer:h.developer,date:h.date}},data),
+    Object.assign({header:{project:h.project,developer:h.developer,date:h.date},
+      assemblyView:EPOfferOptions.normalize(EP_DATA.settings.offerOptions).assemblyView},data),
     {esc,logo:companyLogo()}));
   win.document.close();
 }

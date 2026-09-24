@@ -209,8 +209,11 @@ function cardFittingOrder(fittings, moduleGroups, modules) {
                                                  // подстановки. Печатается ПОСЛЕ карточек постов
                                                  // и ПЕРЕД подвалом: это свод по проекту, а не
                                                  // состав конкретного поста (состав уже в обвязке)
-     supplierSpecHtml?: string                   // сводная спецификация по артикулам (EPSupplierSpec),
+     supplierSpecHtml?: string,                  // сводная спецификация по артикулам (EPSupplierSpec),
                                                  // готовая секция от оркестратора — см. ниже
+     assemblyView?: "exploded" | "assembled"     // вид поста (Б2): "assembled" — только собранная
+                                                 // накладка с клавишами; иначе (умолчание) —
+                                                 // собранная картинка + взрыв-схема, как раньше
    }
    deps = { esc(s), logo? }.   // logo — data-URL логотипа компании (EPPrefs); пусто → шапка как раньше
 
@@ -237,6 +240,13 @@ function buildHtml(data, deps) {
   const esc = deps.esc;
   const posts = (data && data.posts) || [];
   const single = posts.length === 1;
+  /* ВЫБОР ВИДА ПОСТА — ОДНА ТОЧКА НА ВЕСЬ ДОКУМЕНТ (Б2). «Общая сборка» (assemblyView==="assembled")
+     показывает только собранную накладку с клавишами (assembledImageHtml, EPPostImage); «взрыв-схема»
+     (умолчание) оставляет прежнее поведение — собранная картинка ПЛЮС разложенная по деталям схема.
+     Значение сюда кладёт оркестратор из настроек КП; всё, кроме "assembled", читается как взрыв-схема,
+     поэтому старый вызов без поля печатает лист байт-в-байт как раньше. Решение принимается ЗДЕСЬ, а
+     не в renderPost для каждого поста, чтобы у выбора не было краёв: все посты одного листа одинаковы. */
+  const showExploded = !data || data.assemblyView !== "assembled";
   /* Логотип компании над заголовком листа (deps.logo — тот же data-URL, что в КП). Пусто →
      imgHtml вернёт "" и блок заголовка останется байт-в-байт как раньше. */
   const logoImg = docLogoApi().imgHtml(deps.logo, esc);
@@ -315,8 +325,10 @@ function buildHtml(data, deps) {
        экранного CSS), поэтому в печати не разваливается. */
     const illus = post.assembledImageHtml ? `<div class="post-illus">${post.assembledImageHtml}</div>` : "";
     /* Взрыв-схема ДОПОЛНЯЕТ собранную картинку (не заменяет): по ней монтажник видит состав поста
-       с артикулом каждой детали. Готовый HTML с инлайн-стилями (EPExplodedView) — в печати цел. */
-    const exploded = post.explodedViewHtml
+       с артикулом каждой детали. Готовый HTML с инлайн-стилями (EPExplodedView) — в печати цел.
+       В режиме «общая сборка» (showExploded=false) её не печатаем: остаётся только собранная накладка
+       с клавишами выше. Решение про весь лист — showExploded, см. buildHtml. */
+    const exploded = showExploded && post.explodedViewHtml
       ? `<div class="exploded-title">Взрыв-схема поста</div><div class="post-exploded">${post.explodedViewHtml}</div>`
       : "";
     return `<section class="post-card">

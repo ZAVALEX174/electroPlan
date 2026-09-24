@@ -39,7 +39,13 @@ const groupLabels = { sections: "Разделы", layout: "Столбцы рас
 function normalize(value) {
   const v = value && typeof value === "object" ? value : {};
   const bool = (x, fallback) => typeof x === "boolean" ? x : fallback;
-  const out = { articles: bool(v.articles, true), prices: bool(v.prices, true) };
+  /* Вид поста в листе монтажника (Б2, слова заказчика «общая сборка» / «взрыв-схема»): флаг
+     ПРЕДСТАВЛЕНИЯ документа, как articles/prices, — не смета и не подбор. По умолчанию "exploded"
+     (взрыв-схема): существующие проекты и наборы, где вид не задан, печатают лист как раньше.
+     Любое чужое значение сводим к умолчанию — буква из старого/чужого снимка не должна сломать
+     выбор. Единственная точка, где значение приводится к каноническому виду. */
+  const out = { articles: bool(v.articles, true), prices: bool(v.prices, true),
+    assemblyView: v.assemblyView === "assembled" ? "assembled" : "exploded" };
   Object.entries(fields).forEach(([group, rows]) => {
     out[group] = Object.fromEntries(rows.map(([key, , fallback]) => [key, bool(v[group]?.[key], fallback)]));
   });
