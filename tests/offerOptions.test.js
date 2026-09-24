@@ -8,6 +8,7 @@ const EPSupplierSpec = require("../js/supplierSpec.js");
 const EPLightingPlan = require("../js/lightingPlan.js");
 const EPPosts = require("../js/posts.js");
 const EPPostImage = require("../js/postImage.js");
+const EPOfferNumber = require("../js/offerNumber.js");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const deps = { esc, money: n => n + " €", displayCurrency: () => "EUR" };
 const est = { groups: [{ name: "Пост 7", composition: "Розетка, белая", count: 2, unit: "компл.", sum: 20,
@@ -119,6 +120,9 @@ function exportStand(options) {
     docHeader: () => ({}), companyLogo: () => "", companyTerms: () => "", companySignature: () => "", companyStamp: () => "",
     planBlockHtml: () => "<section>ПЛАН</section>",
     toast: () => {}, EPRates: {}, window: { open: () => ({ document: { write: h => { html = h; }, close() {} } }) },
+    /* Автономер КП (А4): generateCommercialOffer присваивает номер перед сборкой документа —
+       даём настоящий EPOfferNumber и in-memory EPPrefs, иначе функция падает на них. */
+    EPOfferNumber, EPPrefs: { get: (k, d) => d, set: () => {} }, scheduleSave: () => {}, JSON,
     ProjectStore: { save: v => { saved = v; } }
   };
   const run = stand.run(["assembledPostSpec", "postTotalCost", "postPricedItems", "buildPostLayout", "buildEstimate", "supplierSpecData", "supplierSpecHtml",

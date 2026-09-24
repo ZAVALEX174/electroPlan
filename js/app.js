@@ -5322,6 +5322,19 @@ function confirmRenumberPosts(){
    Сверху добавляем реквизиты (docHeader) и раскладку постов (buildPostLayout). */
 function generateCommercialOffer(){
   const options=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
+  /* Автономер КП (§1.3 «EPG-2026-0001»): при первой печати проекта с пустым «Номер КП» выдаём
+     следующий номер и закрепляем за проектом; правило формата/счётчика живёт в EPOfferNumber
+     (§7.1). Счётчик — бланк компании (EPPrefs), один на все проекты; год берётся из даты КП.
+     Ручной номер не трогаем и счётчик им не двигаем — это решает assign() по пустоте current. */
+  const dh=EP_DATA.settings.docHeader=EP_DATA.settings.docHeader||{};
+  const counters=EPPrefs.get("offerCounters",{});
+  const num=EPOfferNumber.assign(counters,{current:dh.number,date:dh.date});
+  if(num.number!==(dh.number||"")){
+    dh.number=num.number;
+    if($("docNumber"))$("docNumber").value=num.number;
+    scheduleSave(); /* номер закрепляем в снимке проекта — переживёт перезагрузку */
+  }
+  if(JSON.stringify(num.counters)!==JSON.stringify(counters))EPPrefs.set("offerCounters",num.counters);
   /* ОДИН расчёт групп света на весь документ: он же уходит в смету (цены механизмов), он же в
      блок «Группы света» и он же в свод поставщика — двум проходам разойтись негде. */
   const light=projectLighting();

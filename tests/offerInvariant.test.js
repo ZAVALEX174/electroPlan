@@ -17,6 +17,7 @@ const stand = require("./helpers/appStand.js");
 const EPOfferOptions = require("../js/offerOptions.js");
 const EPOfferPdf = require("../js/offerPdf.js");
 const EPSupplierSpec = require("../js/supplierSpec.js");
+const EPOfferNumber = require("../js/offerNumber.js");
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const money = n => Number(n).toFixed(2) + " €";
@@ -84,7 +85,11 @@ function guardStand(offerOptions, over) {
     docHeader: () => ({}), companyLogo: () => "", companyTerms: () => "", companySignature: () => "", companyStamp: () => "",
     planBlockHtml: () => (over && "planBlockHtml" in over) ? over.planBlockHtml : "<section>ПЛАН</section>",
     lightingHtml: () => "<section>СВЕТ</section>", supplierSpecHtml: () => "<section>СВОД</section>",
-    toast: m => toasts.push(m), $: dom.$,
+    toast: m => toasts.push(m), $: dom.$, JSON,
+    /* Автономер КП (А4): generateCommercialOffer теперь присваивает номер до стража пустого КП.
+       Даём настоящий EPOfferNumber и in-memory EPPrefs — на страж это не влияет, но без них
+       функция падает на неопределённых зависимостях. */
+    EPOfferNumber, EPPrefs: { get: (k, d) => d, set: () => {} }, scheduleSave: () => {},
     window: { open: () => { opened++; return { document: { write() {}, close() {} } }; } } };
   stand.run("generateCommercialOffer", ctx)();
   return { opened, toasts };
