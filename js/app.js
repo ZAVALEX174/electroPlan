@@ -210,6 +210,10 @@ function resolveMissingFrame(query,currentCount,frameSelect,collection){
     note:target?moduleWord(target):"число модулей не указано",
     actionLabel:target?`Переключить на ${moduleWord(target)}`:null,
     onAction:target?()=>{
+      /* Человек ВЫБРАЛ накладку (кнопкой «Переключить» в пустом поиске) — это ручной выбор: снимаем
+         frameAuto ДО changePostSlotCount, иначе applyAutoDefaultFrame внутри перетёр бы выбранную
+         накладку авто-умолчанием комнаты (§7.1, «первое действие человека снимает флаг»). */
+      state.builder.frameAuto=false;
       $("postSlotCount").value=String(target);
       frameSelect.dataset.preferredFrameId=String(item.id);   /* renderBuilder выберет именно её */
       changePostSlotCount();
@@ -2238,6 +2242,89 @@ function renderPostSlotCountSelect(extra){
     .map(n=>`<option value="${n}">${n}</option>`).join("");
 }
 
+/* «Обычная» накладка — без специального принципа сборки (principle в catalog-vimar-attrs.js):
+   переходные «на N модулей центрально/по бокам для коробки на M» и защитные крышки IP несут
+   непустой principle (1M_CENTRAL, 2M_CENTRAL, 1M_CENTRAL_3, 2_OFFSET, «NO_SUPPORT, AQUAPLATE»),
+   у рядовой накладки поле пусто. По умолчанию НОВОМУ посту такие изделия не навязываем — человек
+   выберет их из списка сам; признак берём ИЗ ДАННЫХ каталога (principle), а не из названия. */
+function ordinaryFrame(frame){return !!frame&&!frame.principle;}
+/* Ближайшая к 3 модулям накладка списка: историческое умолчание нового поста — 3-модульная; нет
+   её в пуле — берём НАИБЛИЖАЙШУЮ по числу модулей (а не первую в каталоге, п.4). Равная близость →
+   меньшая модульность (детерминированно). Накладки без известной модульности — в конец. */
+function nearestToThreeFrame(list){
+  const withCount=list.filter(frame=>frameSlotCount(frame)!=null);
+  if(!withCount.length)return list[0]||null;
+  return withCount.slice().sort((a,b)=>
+    Math.abs(frameSlotCount(a)-3)-Math.abs(frameSlotCount(b)-3)||frameSlotCount(a)-frameSlotCount(b))[0];
+}
+/* Накладка по умолчанию ИЗ ГОТОВОГО ПУЛА: обычные (ordinaryFrame) предпочитаем спец-изделиям, и
+   лишь если обычных в пуле нет — берём любую. count задан (человек выбрал число модулей в
+   селекторе) → ровно эта модульность; не задан (открытие/смена комнаты) → ближайшая к 3. */
+function pickDefaultFrame(pool,count){
+  const ordinary=pool.filter(ordinaryFrame);
+  const base=ordinary.length?ordinary:pool;
+  if(count!=null)return base.find(frame=>frameSlotCount(frame)===count)||pool.find(frame=>frameSlotCount(frame)===count)||null;
+  return nearestToThreeFrame(base);
+}
+/* «Предпочесть своё»: сначала выбираем накладку из пула, ДОУЖЕННОГО признаками образца (то, чего
+   комната не сузила, терять незачем), и лишь если такой нет — из всего пула. ЕДИНЫЙ приём (§7.1)
+   для defaultFrameForRoom (пере-подбор нетронутого поста сохраняет серию/цвет/стандарт текущей
+   накладки) и frameForRoomPlacement (сохраняет серию/цвет поста). Критерии образца у них разные —
+   их задаёт вызывающий; общий тут порядок «своё → пул». pick — как выбрать из подпула. */
+function preferOwnFrame(pool,ownCriteria,pick){
+  return pick(EPCatalog.productsForRoom(pool,ownCriteria))||pick(pool);
+}
+/* Признаки текущей накладки, которые пере-подбор нетронутого поста сохраняет при смене числа
+   модулей: серия, цвет и монтажный стандарт (только IT/DE — «универсальную» BOTH отбор не сужает).
+   productsForRoom по стандарту "IT"/"DE" пропускает и BOTH-накладки, поэтому доужение по стандарту
+   образца не теряет универсальные. */
+function ownFrameCriteria(frame){
+  return {
+    collection:productSeries(frame)[0],
+    frameColor:frame.frameColor||null,
+    standard:frame.standard==="IT"||frame.standard==="DE"?frame.standard:null
+  };
+}
+/* Накладка по умолчанию НОВОГО поста — ИЗ ПУЛА ЕГО КОМНАТЫ (тот же EPCatalog.productsForRoom +
+   roomCatalogFilter, что сужает список накладок в конструкторе; §7.1 — второй копии правил нет).
+   count задан — ровно эта модульность, иначе ближайшая к 3 (pickDefaultFrame). sample — текущая
+   накладка: при смене ЧИСЛА МОДУЛЕЙ у нетронутого поста сохраняем её серию/цвет/стандарт
+   (preferOwnFrame), чтобы 3→4 у белой итальянской Neve Up дало 09674.01 (IT), а не 09664.01 (DE).
+   Открытие и смена комнаты образца не передают — там подбор «с чистого листа». Комнаты нет →
+   roomCatalogFilter(null) даёт пустой критерий → пул = весь каталог → прежнее умолчание. Пул ПУСТ
+   (сочетания стандарт/серия/цвет в каталоге нет) → null: чужую накладку НЕ подставляем — пост
+   откроется без накладки (frameUnset), renderBuilder объяснит словами, чего не хватает. */
+function defaultFrameForRoom(room,count,sample){
+  const pool=EPCatalog.productsForRoom(byKind("frame"),roomCatalogFilter(room));
+  const pick=p=>pickDefaultFrame(p,count);
+  return sample?preferOwnFrame(pool,ownFrameCriteria(sample),pick):pick(pool);
+}
+/* Проставить НОВОМУ посту накладку по умолчанию из пула ЕГО комнаты — ЕДИНАЯ точка для мест, где новый
+   пост получает накладку, не спросив комнату: смена «Комнаты поста» и смена числа модулей (открытие
+   нового поста зовёт defaultFrameForRoom напрямую — ему нужен объект накладки для ёмкости/имени). §7.1 —
+   чтобы у правила не было краёв. Работает ТОЛЬКО пока накладка АВТОМАТИЧЕСКАЯ (state.builder.frameAuto):
+   первое действие человека (ручной выбор накладки любым путём — поле, «переключить» в пустом поиске; ИЛИ
+   добавление механизма в рамку) снимает флаг навсегда для этого открытия, и дальше конструктор ведёт
+   себя как раньше. Пост на плане и шаблон сюда не заходят — у них frameAuto=false, своя накладка. sample
+   — текущая накладка для сохранения её серии/цвета/стандарта при смене числа модулей (см.
+   defaultFrameForRoom); открытие/смена комнаты его не передают. Накладку отдаём renderBuilder через
+   dataset.preferredFrameId (он главнее остатка value), поэтому саму отрисовку не трогаем. Возвращает
+   выбранную накладку или null (пустой пул) — вызывающему для пересчёта ёмкости. */
+function applyAutoDefaultFrame(count,sample){
+  if(!state.builder.frameAuto)return null;
+  const frame=defaultFrameForRoom(builderFilterRoom(),count,sample);
+  $("postFrameSelect").dataset.preferredFrameId=String(frame?frame.id:"");
+  return frame;
+}
+/* Признак «имя поста человек не менял» (то же автоимя, что ставит defaultPostName) — ОДНА точка
+   правила (§7.1), чтобы синхронизация имени при открытии, смене комнаты и смене числа модулей не
+   разошлась копиями регэкспа. */
+function isAutoPostName(name){return /^Пост (?:на )?\d+ (?:мест|место|места|модул)/i.test(String(name==null?"":name).trim());}
+/* Автоимя поста следует за модульностью выбранной накладки: если человек имя не менял, переписываем
+   его под mods. Ручное имя не трогаем. */
+function syncAutoPostName(mods){
+  if(isAutoPostName($("postName").value))$("postName").value=defaultPostName(mods);
+}
 function openPostBuilder({templateId=null,placedId=null}={}){
   /* ВЗВЕДЁННОЕ «Разместить» СНИМАЕМ. Человек нажал «Разместить» у шаблона, передумал и пошёл
      редактировать — двойным кликом по посту на плане, кнопкой «✎» у шаблона или «Новый пост».
@@ -2247,6 +2334,10 @@ function openPostBuilder({templateId=null,placedId=null}={}){
      путей открытия. */
   if(state.pending){state.pending=null;canvas.classList.remove("placing");updateStatus()}
   state.builder.editingTemplateId=templateId;state.builder.editingPlacedId=placedId;
+  /* «Накладка автоматическая» — только у НОВОГО поста (ни placedId, ни templateId): её выбрал за человека
+     defaultFrameForRoom из пула комнаты, и смена комнаты/числа модулей вправе её пере-подобрать. У поста
+     на плане и шаблона накладка своя (frameAuto=false) — applyAutoDefaultFrame их не трогает. */
+  state.builder.frameAuto=!placedId&&!templateId;
   /* Каждое открытие начинается с чистого выбора: цель «добавить», пустой поиск и ВСЕ разделы
      каталога свёрнуты — «разделы могут быть изначально не раскрыты» (заказчик, 24.08). */
   state.builder.target={mode:"add"};state.builder.query="";state.builder.openSections=new Set();
@@ -2254,12 +2345,29 @@ function openPostBuilder({templateId=null,placedId=null}={}){
   if(placedId){src=state.posts.find(x=>x.id===placedId);$("postModalTitle").textContent="Редактирование поста на плане"}
   else if(templateId){src=state.templates.find(x=>x.id===templateId);$("postModalTitle").textContent="Редактирование шаблона поста"}
   else{
-    const defaultFrame=byKind("frame").find(frame=>frameSlotCount(frame)===3)||byKind("frame")[0];
-    src={name:defaultPostName(3),frameId:defaultFrame?.id,mechanismIds:[]};
+    /* НОВЫЙ ПОСТ: накладку по умолчанию берём ИЗ ПУЛА КОМНАТЫ, в которой его открыли (defaultFrameForRoom),
+       а НЕ из начала всего каталога. Комната нового поста — первая комната проекта (та же, что назначается
+       state.builder.roomId ниже, «выбираем комнату, для которой собираем пост»). Пул под комнату пуст →
+       накладки нет (frameId null): пост откроется с честным объяснением, чем сузили, вместо чужой белой
+       Neve Up (09673.01) из начала каталога. Комнат в проекте нет → пул = весь каталог → прежний дефолт. */
+    const defaultFrame=defaultFrameForRoom(state.rooms[0]||null);
+    /* Имя и число модулей нового поста — ПО ВЫБРАННОЙ НАКЛАДКЕ, а не жёстко 3 (п.1): в немецкой
+       комнате дефолт 2-модульный, имя «Пост на 3 модуля» разошлось бы с накладкой. Пул пуст
+       (накладки нет) → 3 как прежнее умолчание имени; накладки всё равно нет (frameUnset). */
+    const defaultMods=defaultFrame?frameSlotCount(defaultFrame):3;
+    src={name:defaultPostName(defaultMods),frameId:defaultFrame?defaultFrame.id:null,mechanismIds:[]};
     $("postModalTitle").textContent="Новый электрический пост";
   }
   const sourceMechanismIds=Array.isArray(src.mechanismIds)?src.mechanismIds:[];
   const capacity=frameSlotCount(frameProduct(src.frameId))||Math.max(1,Math.min(21,mechanismModulesTotal(sourceMechanismIds)||3));
+  /* ⚠️ КОМНАТА ИЗВЕСТНА ДО СБОРКИ СЕЛЕКТОРА (ОТДЕЛКА-ПОРЯДОК, п.3; п.1). Пост на плане уже стоит в
+     комнате — берём её (roomId поста). НОВЫЙ пост/шаблон комнаты не имеет: подставляем ПЕРВУЮ комнату
+     проекта, чтобы отбор был активен сразу («выбираем комнату, для которой будем составлять пост»);
+     человек меняет её селектором «Комната». Комнат нет → null: отбор не сужаем, поведение прежнее.
+     roomId задаём ДО renderPostSlotCountSelect — тот строит модульности из пула ИМЕННО этой комнаты
+     (collectionFramePool→builderFilterRoom→roomId); иначе в немецкой комнате предложил бы 3/7/14/21,
+     которых в её пуле нет. */
+  state.builder.roomId=placedId?(src.roomId??null):(state.rooms[0]?state.rooms[0].id:null);
   /* Наполняем селектор ДО присвоения value: варианты — модульности каталога плюс фактическая
      ёмкость этого поста. Иначе пост с исчезнувшей модульностью не нашёл бы своей опции и
      показал бы чужое значение (см. frameSlotOptions). Многорядные 14/21 теперь входят в
@@ -2289,12 +2397,6 @@ function openPostBuilder({templateId=null,placedId=null}={}){
   state.builder.backlight=(src.backlight&&typeof src.backlight==="object")
     ?{enabled:!!src.backlight.enabled,color:src.backlight.color||null,voltage:src.backlight.voltage||null}
     :null;
-  /* ⚠️ КОМНАТА ИЗВЕСТНА ДО СБОРКИ (ОТДЕЛКА-ПОРЯДОК, п.3). Пост на плане уже стоит в комнате —
-     берём её (roomId поста). НОВЫЙ пост/шаблон комнаты не имеет: подставляем ПЕРВУЮ комнату проекта,
-     чтобы отбор был активен сразу («выбираем комнату, для которой будем составлять пост»); человек
-     меняет её селектором «Комната». Комнат в проекте нет → null: отбор не сужаем, поведение прежнее
-     (собираем без ограничений), а не блокируем работу. */
-  state.builder.roomId=placedId?(src.roomId??null):(state.rooms[0]?state.rooms[0].id:null);
   /* Галочка «ограничить цветом накладки» — свойство поста, переживает сохранение. По умолчанию
      ВЫКЛЮЧЕНА (начинка любого цвета). Старый пост без поля читается как «ограничение выключено»
      (!!undefined === false) — новый дефолт, не включённое ограничение. */
@@ -2530,9 +2632,11 @@ function frameForRoomPlacement(template,room){
   if(!constrained)return {frameId:null};
   const pool=EPCatalog.productsForRoom(byKind("frame"),criteria);
   const deps={frameProduct,frameSlotCount,frameFitsMechs:frameFitsTemplateMechs(template)};
-  /* own — пул, доуженный до серии и цвета накладки поста: сохраняем то, чего комната не сужала */
-  const own=EPCatalog.productsForRoom(pool,{collection:productSeries(frame)[0],frameColor:EPPosts.templateFrameColor(template,{frameProduct})});
-  const swap=EPPosts.pickRoomFrame(template.frameId,own,deps)||EPPosts.pickRoomFrame(template.frameId,pool,deps);
+  /* own — доужение до серии и цвета накладки поста: сохраняем то, чего комната не сужала. Через ОБЩИЙ
+     preferOwnFrame (§7.1, тот же приём «своё → пул», что у defaultFrameForRoom); стандарт в own НЕ
+     включаем — подмена и запускается из-за смены стандарта комнатой, его сохранять незачем. */
+  const ownCriteria={collection:productSeries(frame)[0],frameColor:EPPosts.templateFrameColor(template,{frameProduct})};
+  const swap=preferOwnFrame(pool,ownCriteria,p=>EPPosts.pickRoomFrame(template.frameId,p,deps));
   return swap?{frameId:swap.id}:{blocked:true,message:frameSwapEmptyText(template,room,criteria)};
 }
 /* Предикат «в накладку-кандидата встают ВСЕ клавиши шаблона» — ПРАВИЛОМ КОНСТРУКТОРА
@@ -2600,7 +2704,10 @@ function frameFacingLabels(filter){
    и шаговый мастер отделки. §7.1 п.2: текст в одной точке, второй копии не заводим — иначе виды
    разошлись бы в объяснении одного и того же пустого пула. list — человеческие подписи «что сузило». */
 function frameFacingEmptyText(list){
-  return `Под выбранную отделку (${list}) в каталоге накладок нет — измените материал, форму или цвет в свойствах комнаты.`;
+  /* list — ВСЕ заданные условия комнаты (стандарт/серия/отделка), поэтому формулировка общая:
+     «условия», а не «отделка». Анализа «какой именно критерий виноват» не даём (п.5) — честно
+     перечисляем всё, чем сузили, и направляем в свойства комнаты. */
+  return `Под выбранные условия (${list}) в каталоге накладок нет — измените отбор в свойствах комнаты.`;
 }
 /* ОДНА формулировка «под цвет комнаты начинки того же цвета нет» (ОТДЕЛКА-ПОРЯДОК, п.5). Параллельна
    frameFacingEmptyText, но про НАЧИНКУ и с выходом через галочку: у большинства декоративных цветов
@@ -2621,14 +2728,21 @@ function frameFacingSelectionLabels(sel){
 }
 function frameFacingHintText(allFrames){
   const f=builderRoomFilter();
+  const pool=EPCatalog.productsForRoom(allFrames,f);
+  if(!pool.length){
+    /* Пул ПУСТ — честно перечисляем ВСЁ, чем сузили (стандарт+серия+отделка через
+       frameFacingSelectionLabels), а не только отделку: комната DE+Arke+«Бронза матовая» пуста из-за
+       СТАНДАРТА (накладка есть, но итальянская), и совет «менять цвет» увёл бы не туда (п.5). Одна
+       формулировка (frameFacingEmptyText) на хинт и мастер отделки (§7.1). */
+    const all=frameFacingSelectionLabels(f);
+    return all.length?frameFacingEmptyText(all.join(", ")):"";
+  }
+  /* Непустой пул: «показано из скольких» — про ОТДЕЛКУ (E14). Отделка не задана → хинта нет
+     (коллекция E13 своё сообщение несёт отдельно). */
   const parts=frameFacingLabels(f);
   if(!parts.length)return "";
-  const list=parts.join(", ");
-  const shown=EPCatalog.productsForRoom(allFrames,f).length;
   const base=EPCatalog.productsForRoom(allFrames,{collection:f.collection}).length;
-  return shown
-    ?`Показано ${shown} из ${base} ${EPCatalog.pluralRu(base,"накладки","накладок","накладок")} · сузили: ${list}`
-    :frameFacingEmptyText(list);
+  return `Показано ${pool.length} из ${base} ${EPCatalog.pluralRu(base,"накладки","накладок","накладок")} · сузили: ${parts.join(", ")}`;
 }
 /* Выбранный ЧЕЛОВЕКОМ вид выбора отделки (списком / с картинками). Это привычка, а НЕ свойство
    проекта — хранится в EPPrefs (ep_prefs), чтобы чужой проект вид не переключал. Нераспознанное
@@ -2821,8 +2935,10 @@ function renderBuilder(){
      границы (шаблон с frameId:null → в поле появлялась первая накладка каталога, «Сохранить»
      писало её id). Пустой requestedFrameId ловим И на первом render (dataset=""), И на повторном
      (value="", dataset уже снят) — состояние обязано пережить перерисовку до выбора человеком.
-     НОВЫЙ пост сюда не попадает: openPostBuilder даёт ему накладку по умолчанию (defaultFrame),
-     так что requestedFrameId у него непустой — блокировка «создания с нуля» исключена. */
+     НОВЫЙ пост сюда попадает ТОЛЬКО когда под его комнату накладок нет вовсе (defaultFrameForRoom дал
+     null: сочетания стандарт/серия/цвет в каталоге не существует) — это ЗАКОННОЕ «чего не хватает»,
+     ради него задача и заведена: честный frameUnset вместо чужой накладки из начала каталога. При
+     непустом пуле у нового поста накладка по умолчанию есть, и «создание с нуля» по-прежнему исключено. */
   const frameUnset=requestedFrameInfo.unset;
   /* ⚠️ ЧЕТВЁРТОЕ СОСТОЯНИЕ — НАКЛАДКА СНЯТА С ПРОИЗВОДСТВА (active:false), но остаётся выбранной.
      Решение владельца 02.09: проект мог быть сделан до снятия позиции, изделие физически
@@ -2832,9 +2948,9 @@ function renderBuilder(){
      производства» (в опции поля через frameOptions и приглушённым баннером в составе), чтобы
      человек видел, почему эта накладка не предлагается новым постам — её нет в byKind("frame").
      requestedFrame здесь заведомо разрешён в товар, поэтому с frameMissing/frameUnset это
-     состояние не пересекается. Новым постам она не грозит: openPostBuilder берёт defaultFrame из
-     byKind("frame") (active), а в списке выбора неактивных нет — они попадают в frameList только
-     как УЖЕ стоящая в посте накладка. */
+     состояние не пересекается. Новым постам она не грозит: defaultFrameForRoom берёт накладку из
+     EPCatalog.productsForRoom(byKind("frame"),…) (active), а в списке выбора неактивных нет — они
+     попадают в frameList только как УЖЕ стоящая в посте накладка. */
   const frameDiscontinued=requestedFrameInfo.discontinued;
   const frameList=requestedFrame&&!frames.some(frame=>Number(frame.id)===Number(requestedFrame.id))
     ?[requestedFrame,...frames]:frames;
@@ -2853,9 +2969,15 @@ function renderBuilder(){
       +frameOptions(frameList,null);
     frameSelect.value="";
   }else{
+    /* Список пуст по ДВУМ разным причинам, и человеку они говорят разное: каталог накладок вообще не
+       загружен (byKind("frame") пуст — прайс не подключён) ЛИБО под ЭТУ комнату накладок нет (пул сузила
+       комната, п.5). Второе — «Рамки не загружены» врало бы: каталог на месте, просто ничего не подходит
+       под стандарт/серию/цвет комнаты; направляем в свойства комнаты. */
     frameSelect.innerHTML=frameList.length
       ?frameOptions(frameList,selectedFrameId)
-      :'<option value="">Рамки не загружены</option>';
+      :(allFrames.length
+        ?'<option value="">Под эту комнату накладок нет — измените отбор в свойствах комнаты</option>'
+        :'<option value="">Рамки не загружены</option>');
     frameSelect.value=selectedFrameId==null?"":String(selectedFrameId);
   }
   delete frameSelect.dataset.preferredFrameId;
@@ -2912,14 +3034,20 @@ function renderBuilder(){
     $("builderCapacity").innerHTML="";
     /* remaining=0 → строки «+ свободно N» в слотах не будет: добавлять некуда, пока накладки нет. */
     renderBuilderSlots(layout,0,lightingRowsFor(draft,light));
-    /* ДВЕ РАЗНЫЕ причины — как их различает смета, так и человеку они говорят разное:
-       frameMissing — артикул рамки ЗАДАН, но пропал из каталога (перезалит прайс), это сбой
-       данных; frameUnset — накладки нет вовсе (пост восстановлен из хранилища без рамки), человек
-       ещё не сделал выбор. Обе печатаются РОВНО одной строкой (одна причина на экране), тем же
-       путём через composition-хост, но текстом отличаются. */
+    /* ТРИ РАЗНЫЕ причины — как их различает смета, так и человеку они говорят разное:
+       frameMissing — артикул рамки ЗАДАН, но пропал из каталога (перезалит прайс), это сбой данных;
+       пустой пул комнаты — накладок ПОД ЭТУ КОМНАТУ нет вовсе (стандарт/серия/цвет ничего не оставили),
+       и совет «выберите накладку в поле» был бы ложью — выбирать не из чего, идти надо в свойства
+       комнаты (п.5); frameUnset при непустом пуле — накладку человек просто ещё не выбрал. Все три —
+       РОВНО одной строкой (одна причина на экране), тем же путём через composition-хост. Для пустого
+       пула перечисляем ВСЁ, чем сузили (frameFacingSelectionLabels — стандарт+серия+отделка), одной
+       формулировкой frameFacingEmptyText (§7.1, та же, что у хинта и мастера). */
+    const roomFilterLabels=frameUnset&&!poolFrames.length&&allFrames.length?frameFacingSelectionLabels(builderRoomFilter()):null;
     const frameErrorHtml=frameMissing
       ?`<div class="builder-error" role="alert"><strong>Накладка поста недоступна</strong><span>Артикул рамки этого поста пропал из каталога — вероятно, перезалит прайс. Чтобы не подставить чужую накладку и не потерять механизмы, сохранение заблокировано: выберите накладку в поле «Накладка» вручную.</span></div>`
-      :`<div class="builder-error" role="alert"><strong>Накладка поста не выбрана</strong><span>У этого поста нет накладки. Чтобы собрать и сохранить пост, выберите накладку в поле «Накладка» — без неё не определить ни ёмкость рамки, ни совместимые механизмы. Механизмы поста сохранены.</span></div>`;
+      :roomFilterLabels!==null
+        ?`<div class="builder-error" role="alert"><strong>Под эту комнату накладок нет</strong><span>${esc(roomFilterLabels.length?frameFacingEmptyText(roomFilterLabels.join(", ")):"Под выбранную комнату в каталоге накладок нет.")} Смените отбор в свойствах комнаты или откройте пост в другой комнате. Механизмы поста сохранены.</span></div>`
+        :`<div class="builder-error" role="alert"><strong>Накладка поста не выбрана</strong><span>У этого поста нет накладки. Чтобы собрать и сохранить пост, выберите накладку в поле «Накладка» — без неё не определить ни ёмкость рамки, ни совместимые механизмы. Механизмы поста сохранены.</span></div>`;
     /* frameMissing:true — внутренний флаг «накладка непригодна» (артикула нет ИЛИ не выбрана):
        по нему renderBuilderCatalog не фильтрует каталог и не обещает свободное место. */
     builderCtx={mechs:[],keepMechs:[],addMax:0,maxPostCap:0,remaining:0,frame:null,errorHtml:frameErrorHtml,frameMissing:true};
@@ -3328,6 +3456,10 @@ function emptyCatalogHtml(){
    фальшблоком, там группе стоять не на чем (см. EPBuilderSlots.replaceAt). Признак клавиши
    даёт каталог, поэтому предикат подставляет оркестратор. */
 function pickBuilderProduct(id){
+  /* Человек НАПОЛНИЛ рамку (добавил/заменил механизм) — пост больше не «нетронут»: снимаем frameAuto,
+     чтобы последующая смена комнаты/числа модулей не пере-подбирала накладку под другую серию и не
+     выкидывала уже добавленные механизмы (§7.1, «первое действие человека снимает флаг»). */
+  state.builder.frameAuto=false;
   /* Ёмкость — ТОЙ ЖЕ функцией builderCapacity, что и в renderBuilder: от настоящей накладки, а
      не от значения селектора. Раньше здесь был второй источник (count = селектор), и при накладке
      шире селектора (09668.01/8М, селектор «5») выбор карточки фитил состав до 5 — три механизма
@@ -3480,8 +3612,30 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
     <div class="composition-row total"><span>Стоимость поста</span><b>${money(postTotalCost(post,light))}</b></div>${note}${lightBlock}`;
 }
 function changePostSlotCount(){
-  const currentName=$("postName").value.trim();
-  if(/^Пост (?:на )?\d+ (?:мест|место|места|модул)/i.test(currentName))$("postName").value=defaultPostName(Number($("postSlotCount").value));
+  const count=Number($("postSlotCount").value);
+  syncAutoPostName(count);   /* автоимя следует за числом модулей (isAutoPostName — одна точка, §7.1) */
+  /* НОВЫЙ пост с автоматической накладкой: под новое число модулей берём накладку ТОЙ ЖЕ серии, цвета и
+     стандарта, что текущая (applyAutoDefaultFrame с образцом — та же одна точка правила, §7.1), а не
+     оставляем модульность открытия приклеенной сверху списка через requestedFrame. 3→4 у белой
+     итальянской Neve Up даёт 09674.01 (IT), а не 09664.01 (DE). Ручной выбор человека (frameAuto=false)
+     и пост на плане/шаблон не трогаются — applyAutoDefaultFrame на них no-op. */
+  applyAutoDefaultFrame(count,frameProduct($("postFrameSelect").value));
+  renderBuilder();
+}
+/* Смена «Комнаты поста» в конструкторе (ОТДЕЛКА-ПОРЯДОК, п.3) — вынесено ФУНКЦИЕЙ, чтобы связку можно
+   было проверить поведенчески (§7.2 «связки дают почти все дефекты»). Под новую комнату меняются пул
+   накладок, цветовой отбор начинки и селектор модульностей (тот же collectionFramePool). У нетронутого
+   поста накладку по умолчанию берём РОВНО как при открытии — БЕЗ образца и БЕЗ текущего числа модулей
+   (applyAutoDefaultFrame(null,null), ближайшая к 3): смена комнаты даёт то же, что открытие сразу в этой
+   комнате (п.2). Ручной выбор/шаблон/пост на плане — applyAutoDefaultFrame no-op. Ёмкость и автоимя —
+   у новой накладки; пул пуст → прежняя ёмкость, имя не трогаем. */
+function changeBuilderRoom(roomId){
+  state.builder.roomId=roomId;
+  const auto=applyAutoDefaultFrame(null,null);
+  const capacity=auto?frameSlotCount(auto):builderCapacity();
+  renderPostSlotCountSelect(capacity);
+  $("postSlotCount").value=String(capacity);
+  if(auto)syncAutoPostName(frameSlotCount(auto));   /* автоимя следует за модульностью накладки новой комнаты (п.1) */
   renderBuilder();
 }
 /* «Изменить в данном блоке или для всех однотипных блоков» — дословная просьба заказчика
@@ -5306,18 +5460,13 @@ $("clearPlanConfirmBtn").onclick=confirmClearPlan;
 });
 $("newPostBtn").onclick=()=>openPostBuilder();
 $("closePostModal").onclick=$("cancelPost").onclick=closePostBuilder;
-$("savePost").onclick=savePostBuilder;$("postSlotCount").onchange=changePostSlotCount;$("postFrameSelect").onchange=renderBuilder;
-/* Смена комнаты поста (ОТДЕЛКА-ПОРЯДОК, п.3): под новую комнату меняются и пул накладок, и цветовой
-   отбор начинки, и селектор модульностей (он считается от того же пула, collectionFramePool).
-   Перенаполняем модульности, сохранив текущую ёмкость (extra), чтобы её опция не пропала, затем
-   пересобираем конструктор. */
-$("builderRoomSelect").onchange=e=>{
-  state.builder.roomId=e.target.value||null;
-  const capacity=builderCapacity();
-  renderPostSlotCountSelect(capacity);
-  $("postSlotCount").value=String(capacity);
-  renderBuilder();
-};
+$("savePost").onclick=savePostBuilder;$("postSlotCount").onchange=changePostSlotCount;
+/* Человек выбрал накладку руками (через EPPicker — он ставит value и шлёт change) → накладка больше НЕ
+   автоматическая: смена комнаты/числа модулей её не перетрёт (applyAutoDefaultFrame, §7.1, требование
+   «ручной выбор, годный для комнаты, не перетирать»). */
+$("postFrameSelect").onchange=()=>{state.builder.frameAuto=false;renderBuilder()};
+/* Смена «Комнаты поста» — вся логика в changeBuilderRoom (вынесена, чтобы связку проверял тест). */
+$("builderRoomSelect").onchange=e=>changeBuilderRoom(e.target.value||null);
 /* Галочка «ограничить цветом накладки» (решение владельца 16.09): меняет только цветовой отбор
    начинки — накладка и раскладка те же, достаточно перерисовать конструктор (renderBuilder
    пересчитает catalogMechs). */

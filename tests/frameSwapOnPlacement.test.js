@@ -146,7 +146,7 @@ test("renderTemplates: белая комната, а белых постов н�
 /* ============================ 3. ПОСТАНОВКА: addPending ============================ */
 
 const SWAP_CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "frameFacingLabels", "frameFacingSelectionLabels",
-  "templateMechSeries", "frameSwapEmptyText", "roomCatalogFilter", "frameFitsTemplateMechs", "frameForRoomPlacement", "addPending"];
+  "templateMechSeries", "frameSwapEmptyText", "roomCatalogFilter", "frameFitsTemplateMechs", "preferOwnFrame", "frameForRoomPlacement", "addPending"];
 
 function placeTemplate({ template, room, catalog = EPCatalog, products = PRODUCTS }) {
   const prod = id => products.find(p => Number(p.id) === Number(id));

@@ -125,6 +125,9 @@ const ALL_OPTS = EPCatalog.frameSlotOptions(activeFrames);
 const ET_POOL = activeFrames.filter(f => seriesOf(f).includes("Eikon Tactil"));
 const ET_OPTS = EPCatalog.frameSlotOptions(ET_POOL);
 const ET_FRAME_2 = ET_POOL.find(f => EPCatalog.frameSlotCount(f) === 2);
+/* 3-модульная накладка ИМЕННО из пула Eikon Tactil — та, что defaultFrameForRoom обязан дать новому
+   посту, открытому в комнате этой коллекции. Считаем ТЕМ ЖЕ productsForRoom, что сужает список (§7.1). */
+const ET_FRAME_3 = EPCatalog.productsForRoom(activeFrames, { collection: "Eikon Tactil" }).find(f => EPCatalog.frameSlotCount(f) === 3);
 /* Накладка на 8 модулей ЛЮБОЙ серии — её ёмкости (8) нет у Eikon Tactil [2,3,4] и она не равна
    дефолтной «3». С таким постом открываем комнату Eikon Tactil в open-3: реальная ёмкость 8 обязана
    попасть в селектор отдельным вариантом, иначе сохранённый пост показал бы чужое значение. */
@@ -140,11 +143,13 @@ assert.ok(FRAME_8, "разведка: в каталоге есть наклад�
 assert.ok(!ET_OPTS.includes(8), "предпосылка: «8» не входит в модульности Eikon Tactil — потому и годится для open-3");
 assert.ok(FRAME_3, "разведка: в каталоге есть 3-модульная накладка — дефолт нового поста");
 assert.notEqual(FRAME_3.id, FRAME_FIRST.id, "предпосылка: 3-модульная накладка НЕ первая в каталоге — иначе мутация byKind[0] была бы неотличима");
+assert.ok(ET_FRAME_3, "разведка: у Eikon Tactil есть 3-модульная накладка — дефолт нового поста в этой комнате");
+assert.notEqual(ET_FRAME_3.id, FRAME_3.id, "предпосылка: 3-модульная накладка Eikon Tactil ≠ первой 3-модульной всего каталога (Neve Up) — иначе выбор из пула комнаты был бы неотличим от выбора из всего каталога");
 
 /* Вырезаем ВМЕСТЕ по зависимостям: frameCollectionList → builderRoomFilter → collectionFramePool →
    renderPostSlotCountSelect → openPostBuilder (последняя и возвращается). Всё в цепочке сужения —
    настоящее; стабим только постороннее для селектора. */
-const CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "collectionFramePool", "renderPostSlotCountSelect", "renderBuilderRoomSelect", "openPostBuilder"];
+const CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "collectionFramePool", "ordinaryFrame", "nearestToThreeFrame", "pickDefaultFrame", "defaultFrameForRoom", "renderPostSlotCountSelect", "renderBuilderRoomSelect", "openPostBuilder"];
 /* builderSignature (function) режем ВМЕСТЕ с openPostBuilder, а не стабим: снимок «как было при
    открытии» обязан быть НАСТОЯЩИМ, иначе мутация «снять снимок ДО renderBuilder» осталась бы зелёной
    (стаб `() => ""` игнорирует момент снятия). builderWallType отдельно НЕ режем: он const-стрелкой
@@ -390,13 +395,20 @@ test("E13-open-12: тип стены открываемого объекта —
     "у поста со своим типом стены (hollow) конструктор открывается в НЁМ, а не в проектном solid");
 });
 
-test("E13-open-13: новый пост берёт 3-модульную накладку и имя «на 3 модуля», а не первую в каталоге", () => {
-  /* Путь «Новый пост»: дефолтная накладка — 3-модульная (byKind(frame).find(===3)||[0]), имя —
-     defaultPostName(3). Мутация byKind[0] взяла бы первую (1-модульную) накладку каталога; мутация
-     defaultPostName(3)→(1) дала бы «на 1 модуль». Оба — отдельными assert'ами. */
+test("E13-open-13: новый пост в комнате берёт 3-модульную накладку ИЗ ПУЛА КОМНАТЫ и имя «на 3 модуля»", () => {
+  /* Путь «Новый пост», открытый в комнате Eikon Tactil: дефолтная накладка — 3-модульная ИЗ ПУЛА ЭТОЙ
+     КОМНАТЫ (defaultFrameForRoom → productsForRoom по коллекции комнаты, предпочтение 3 модулей), а НЕ
+     первая 3-модульная всего каталога (Neve Up) и НЕ первая накладка каталога. Имя — defaultPostName(3).
+     Мутация «брать накладку из byKind("frame") без комнаты» вернула бы FRAME_3 (Neve Up) и красит первый
+     assert; мутация defaultPostName(3)→(1) дала бы «на 1 модуль». */
   const { dom } = openPost({ collection: "Eikon Tactil", frameId: ET_FRAME_2.id, open: {} });
-  assert.equal(dom.$("postFrameSelect").dataset.preferredFrameId, String(FRAME_3.id),
-    "дефолтная накладка нового поста — 3-модульная, а не первая в каталоге (byKind[0])");
+  const chosen = dom.$("postFrameSelect").dataset.preferredFrameId;
+  assert.equal(chosen, String(ET_FRAME_3.id),
+    "дефолтная накладка нового поста — 3-модульная ИЗ пула комнаты (Eikon Tactil), а не первая 3-модульная всего каталога");
+  assert.notEqual(chosen, String(FRAME_3.id),
+    "накладка НЕ из начала каталога (Neve Up 3М) — комната поста учтена (дефект 23.09: открывалась чужая накладка)");
+  assert.equal(EPCatalog.productsForRoom([product(chosen)], { collection: "Eikon Tactil" }).length, 1,
+    "выбранная накладка проходит productsForRoom комнаты — годна её коллекции (проверяем отбором, а не сравнением строки)");
   assert.equal(dom.$("postName").value, "Пост на 3 модуля",
     "имя нового поста — defaultPostName(3), а не (1) и не константа");
 });

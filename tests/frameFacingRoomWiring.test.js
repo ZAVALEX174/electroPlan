@@ -140,7 +140,7 @@ test("§B-slots: невозможное сочетание — селектор 
 });
 
 /* --- §A-hint / §B-hint: frameFacingHintText — «показано из скольких» и словами про пустое --- */
-const HINT_CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "frameFacingLabels", "frameFacingEmptyText", "frameFacingHintText"];
+const HINT_CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "frameFacingLabels", "frameFacingSelectionLabels", "frameFacingEmptyText", "frameFacingHintText"];
 function hintFor(room) {
   const state = {
     products: PRODUCTS,
@@ -157,9 +157,14 @@ test("§A-hint: «Показано 12 из 237 накладок · сузили:
   assert.equal(t, "Показано 12 из 237 накладок · сузили: материал «Влагозащищенный технополимер»");
 });
 
-test("§B-hint: невозможное сочетание объяснено СЛОВАМИ, а не пустым списком", () => {
+test("§B-hint: невозможное сочетание объяснено СЛОВАМИ, называя ВСЕ условия (серию тоже), а не пустым списком", () => {
   const t = hintFor({ collection: "Eikon Tactil", frameMaterial: "Металл" });
-  assert.match(t, /^Под выбранную отделку \(материал «Металл»\) в каталоге накладок нет/);
+  /* п.5: пустой пул честно перечисляет ВСЁ, чем сузили, — и серию (Eikon Tactil), и материал (Металл),
+     а не только отделку. Совет «менять цвет» из старого текста увёл бы не туда, если виновата серия. */
+  assert.match(t, /^Под выбранные условия \(/);
+  assert.match(t, /серия «Eikon Tactil»/, "названа серия комнаты (frameFacingSelectionLabels), а не только отделка");
+  assert.match(t, /материал «Металл»/, "назван материал отделки");
+  assert.match(t, /в каталоге накладок нет/);
 });
 
 test("§hint-none: отделка не задана → хинт пуст (пустая настройка = не сужаем)", () => {
