@@ -263,6 +263,12 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .empty-properties{padding:14px;border:1px dashed var(--line-strong);border-radius:12px;color:var(--muted);font-size:11px;text-align:center}
 .property-actions{display:flex;gap:7px;margin-top:10px}.property-actions button{flex:1}
 .price-card{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:11px}.price-card span{color:var(--muted)}.price-card strong{font-size:12px}.grand-total{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:13px;border-radius:12px;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue-dark))}.grand-total strong{font-size:18px}
+/* Атрибут hidden обязан прятать строку итога. UA-стиль [hidden]{display:none} проигрывает
+   авторскому .price-card{display:flex} (равная специфичность, но авторский слой важнее UA),
+   поэтому #discountRow/#vatRow/#vatIncludedRow оставались видимыми при hidden=true (пустые
+   «0,00 €» и дубль «в т.ч. НДС»). Узкий селектор .price-card[hidden] (специфичность строго выше
+   .price-card) возвращает скрытие ровно этим строкам, не трогая глобальный [hidden]. */
+.price-card[hidden]{display:none}
 .spec-list{display:flex;flex-direction:column;gap:6px}.spec-item{display:grid;grid-template-columns:1fr auto;gap:5px;padding:8px;border-radius:10px;background:var(--panel-soft);font-size:10px}.spec-item strong{font-size:11px}.spec-item span{color:var(--muted)}
 .modal-backdrop{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(11,40,68,.58);backdrop-filter:blur(5px)}.modal-backdrop.open{display:flex}
 .modal{width:min(880px,100%);max-height:92vh;overflow-y:auto;overflow-x:hidden;padding:21px;border:1px solid #acd0ef;border-radius:21px;background:#fff;box-shadow:0 30px 100px rgba(0,45,86,.3)}

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20260922.2">
+  <link rel="stylesheet" href="css/styles.css?v=20260924.1">
 </head>
 <body>
 <div class="app">
@@ -252,10 +252,15 @@
           <span>Скидка</span><strong id="discountTotal">0</strong>
         </div>
         <div class="price-card" id="vatRow" hidden>
-          <span>НДС</span><strong id="vatTotal">0</strong>
+          <span id="vatRowLabel">НДС</span><strong id="vatTotal">0</strong>
         </div>
         <div class="grand-total">
           <span>Итого</span><strong id="grandTotal">0 ₽</strong>
+        </div>
+        <!-- «в т.ч. НДС» — режим «Выделить в стоимости»: НДС уже сидит в «Итого», поэтому строка
+             стоит ПОД ним, а не в столбце слагаемых (там видимая сумма не сошлась бы). -->
+        <div class="price-card" id="vatIncludedRow" hidden>
+          <span id="vatIncludedLabel">в т.ч. НДС</span><strong id="vatIncludedTotal">0</strong>
         </div>
         <!-- Итог обязан ОГОВОРИТЬ позиции без цены (артикул пропал из прайса), а не молча
              просуммировать остальное: иначе КП уходит заказчику заниженным и без предупреждения. -->
@@ -265,8 +270,12 @@
           <label>Материалы, %<input id="materialsInput" type="number" min="0" max="200" step="1" value="7"></label>
           <label>Скидка, %<input id="discountInput" type="number" min="0" max="100" step="1" value="0"></label>
           <label title="Надбавка к курсу ЦБ РФ. К курсу, введённому вручную, не применяется">Надбавка к курсу, %<input id="surchargeInput" type="number" min="0" max="100" step="1" value="3"></label>
+          <label>НДС<select id="vatMode">
+            <option value="none">Не учитывать</option>
+            <option value="included">Выделить в стоимости</option>
+            <option value="surcharge" selected>Начислить сверху</option>
+          </select></label>
           <label>НДС, %<input id="vatInput" type="number" min="0" max="30" step="1" value="20"></label>
-          <label class="terms-check"><input id="vatEnabled" type="checkbox" checked>Включать НДС в КП</label>
           <label>Валюта
             <select id="currencySelect">
               <option value="EUR">Евро (прайс)</option>
@@ -563,11 +572,11 @@
 <script src="js/catalogSections.js?v=20260828.1"></script>
 <script src="js/builderSlots.js?v=20260914.2"></script>
 <script src="js/offerOptions.js?v=20260920.2"></script>
-<script src="js/estimate.js?v=20260920.1"></script>
+<script src="js/estimate.js?v=20260924.1"></script>
 <!-- Картинки бланка компании (логотип, подпись, печать) — одно правило «годен ли файл» и разметка
      <img> на все документы (§7.1). Грузится до offerPdf/installSheet, которые через него рисуют. -->
 <script src="js/docImages.js?v=20260922.1"></script>
-<script src="js/offerPdf.js?v=20260922.1"></script>
+<script src="js/offerPdf.js?v=20260924.1"></script>
 <script src="js/installSheet.js?v=20260922.1"></script>
 <script src="js/supplierSpec.js?v=20260911.1"></script>
 <script src="js/postImage.js?v=20260920.1"></script>
@@ -592,6 +601,6 @@
 <!-- Чистый модуль (ни DOM, ни state): шаги мастера отделки и счётчики «сколько за вариантом» через
      переданный отбор каталога. Грузится до app.js, который подставляет ему EPCatalog и рисует. -->
 <script src="js/framePicker.js?v=20260922.1"></script>
-<script src="js/app.js?v=20260923.2"></script>
+<script src="js/app.js?v=20260924.2"></script>
 </body>
 </html>

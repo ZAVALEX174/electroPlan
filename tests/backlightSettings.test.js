@@ -11,6 +11,7 @@ const stand = require("./helpers/appStand.js");
 const EPPosts = require("../js/posts.js");
 const EPPostFit = require("../js/postfit.js");
 const EPOfferOptions = require("../js/offerOptions.js");
+const EPEstimate = require("../js/estimate.js");
 
 /* Каталог аксессуаров-подсветок: два цвета и два напряжения — селекторы обязаны предложить
    ровно их, строками из каталога (матчинг строгий, «Зелёная» с ё). */
@@ -64,7 +65,7 @@ test("projectSnapshot: backlight едет в terms (иначе настройк�
     rateSurchargePercent: 3, wallType: "solid", lightingScheme: "classic",
     backlight: { enabled: true, color: "Красная", voltage: "120V" },
     displayCurrency: "EUR", eurRate: null, rateDate: null, rateSource: null, docHeader: {}, offerOptions: undefined };
-  const ctx = { $: dom.$, state, EP_DATA: { settings }, EPOfferOptions };
+  const ctx = { $: dom.$, state, EP_DATA: { settings }, EPOfferOptions, EPEstimate };
   const snap = stand.run("projectSnapshot", ctx)();
   assert.deepEqual(snap.terms.backlight, { enabled: true, color: "Красная", voltage: "120V" });
 });
@@ -76,7 +77,7 @@ function restoreStand(snapshot, startBacklight) {
   const state = {};
   const settings = { backlight: startBacklight };
   const noop = () => {};
-  const ctx = { $: dom.$, esc: String, byKind, EPPostFit, EPPosts, EPOfferOptions, state,
+  const ctx = { $: dom.$, esc: String, byKind, EPPostFit, EPPosts, EPOfferOptions, EPEstimate, state,
     EP_DATA: { settings },
     ProjectStore: { load: () => snapshot },
     EPConfig: { gridSteps: [10], gridDefault: 10, viewMinScale: 0.1, viewMaxScale: 10 },

@@ -2073,8 +2073,19 @@ function renderSummary(){
   /* скидка и НДС показываются, только когда заданы — чтобы не мозолить нулями */
   $("discountRow").hidden=!est.discount;
   $("discountTotal").textContent="−"+money(est.discount)+` (${est.discountPercent}%)`;
-  $("vatRow").hidden=!est.vat;
+  /* Строка НДС в панели стоит там же, где в КП (§7.1, одинаково в панели и в документе):
+     «Начислить сверху» — НДС это слагаемое, идёт ДО «Итого» (#vatRow), и столбец сходится в сумму;
+     «Выделить в стоимости» — НДС уже внутри итога, поэтому «в т.ч. НДС» идёт ПОД «Итого»
+     (#vatIncludedRow): в столбце слагаемых он ломал бы видимую сумму (equipment+work+…≠итог).
+     Подпись (est.vatLabel) и сумма — из расчёта; видима всегда ровно одна строка (est.vatIncluded),
+     обе гейтятся по est.vat, «Не учитывать» прячет обе. */
+  const vatOnTop=est.vat&&!est.vatIncluded, vatInside=est.vat&&est.vatIncluded;
+  $("vatRow").hidden=!vatOnTop;
+  $("vatRowLabel").textContent=est.vatLabel;
   $("vatTotal").textContent=money(est.vat)+` (${est.vatPercent}%)`;
+  $("vatIncludedRow").hidden=!vatInside;
+  $("vatIncludedLabel").textContent=est.vatLabel;
+  $("vatIncludedTotal").textContent=money(est.vat)+` (${est.vatPercent}%)`;
   $("objectCount").textContent=state.devices.length+state.posts.length;
   $("specList").innerHTML=est.groups.length
     ?est.groups.map(g=>`<div class="spec-item"><div><strong>${esc(g.name)}</strong><span>${g.count} ${esc(g.unit)}</span></div><b>${money(g.sum)}</b></div>`).join("")
@@ -4241,8 +4252,13 @@ function projectSnapshot(){
     docHeader:EP_DATA.settings.docHeader||{},
     offerOptions:EPOfferOptions.normalize(EP_DATA.settings.offerOptions),
     /* условия сделки и валюта — часть проекта, а не глобальная настройка приложения */
-    terms:(({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,wallType,lightingScheme,backlight,displayCurrency,eurRate,rateDate,rateSource})=>
-      ({workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled,rateSurchargePercent,wallType,lightingScheme,backlight,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
+    /* vatMode пишем ЧЕРЕЗ vatModeOf, а не сырым полем: у старого проекта (или свежего дефолта
+       data.js) поля vatMode ещё нет, сырой пик дал бы undefined, JSON бы его выбросил — и в
+       сохранении не осталось бы НИ vatMode, НИ vatEnabled, а следующее открытие откатило бы
+       режим на дефолт (денежный дефект). Снапшот обязан записать эффективный режим единым
+       источником, чтобы «открыть → сохранить → открыть» не меняло итог. */
+    terms:(({workPercent,materialsPercent,discountPercent,vatPercent,rateSurchargePercent,wallType,lightingScheme,backlight,displayCurrency,eurRate,rateDate,rateSource})=>
+      ({workPercent,materialsPercent,discountPercent,vatPercent,vatMode:EPEstimate.vatModeOf(EP_DATA.settings),rateSurchargePercent,wallType,lightingScheme,backlight,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
 }
 /* План может не влезть в LocalStorage (лимит ~5 МБ). Тогда сохраняем всё остальное,
    пометив, что чертёж придётся загрузить заново, — это лучше полной потери работы. */
@@ -4332,7 +4348,17 @@ async function restoreProject(){
     $("discountInput").value=EP_DATA.settings.discountPercent??0;
     $("vatInput").value=EP_DATA.settings.vatPercent??20;
     $("surchargeInput").value=EP_DATA.settings.rateSurchargePercent??0;
-    $("vatEnabled").checked=EP_DATA.settings.vatEnabled!==false;
+    /* Режим НДС восстанавливаем через EPEstimate.vatModeOf — ОДНО правило чтения настроек,
+       оно же мигрирует старый проект (галочка vatEnabled → режим), см. §7.1 п.4. Поле «НДС, %»
+       гасим на «Не учитывать», как и в applyTerms, — та же защита от противоречия на экране.
+       ⚠️ МИГРИРОВАННЫЙ РЕЖИМ ОСЕДАЕТ В settings, а не только в селекторе: иначе следующее
+       автосохранение (projectSnapshot) не нашло бы vatMode, потеряло бы его, и при повторном
+       открытии проект откатился бы на дефолт data.js — старый КП с «не учитывать» задним числом
+       дорожал бы на НДС. Пишем эффективный режим один раз, единым источником (vatModeOf). */
+    const vatMode=EPEstimate.vatModeOf(EP_DATA.settings);
+    EP_DATA.settings.vatMode=vatMode;
+    $("vatMode").value=vatMode;
+    $("vatInput").disabled=vatMode==="none";
     $("currencySelect").value=EP_DATA.settings.displayCurrency||"EUR";
     /* Схема электрики: проект, сохранённый до её появления, поля не несёт — Object.assign выше
        его не трогает, и остаётся дефолт data.js («Классическая»). Это и есть требуемое
@@ -5797,12 +5823,15 @@ function applyTerms(){
   EP_DATA.settings.materialsPercent=Math.max(0,Math.min(200,Number($("materialsInput").value)||0));
   EP_DATA.settings.discountPercent=Math.max(0,Math.min(100,Number($("discountInput").value)||0));
   EP_DATA.settings.vatPercent=Math.max(0,Math.min(30,Number($("vatInput").value)||0));
-  EP_DATA.settings.vatEnabled=$("vatEnabled").checked;
-  $("vatInput").disabled=!EP_DATA.settings.vatEnabled;
+  EP_DATA.settings.vatMode=$("vatMode").value;
+  /* «НДС, %» не нужен, когда НДС «Не учитывать»: гасим поле, чтобы на экране не было
+     противоречия «режим без НДС, но рядом активная ставка». Само правило «режим → суммы»
+     живёт в EPEstimate.vatBreakdown — здесь только состояние органа ввода. */
+  $("vatInput").disabled=EP_DATA.settings.vatMode==="none";
   applyProjectSettings();
 }
 ["workInput","materialsInput","discountInput","vatInput"].forEach(id=>{$(id).oninput=applyTerms});
-$("vatEnabled").onchange=applyTerms;
+$("vatMode").onchange=applyTerms;
 /* валюта отображения и курс */
 function applyCurrency(){
   EP_DATA.settings.displayCurrency=$("currencySelect").value;

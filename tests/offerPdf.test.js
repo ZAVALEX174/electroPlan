@@ -88,3 +88,41 @@ test("нет позиций без цены → оговорки в КП нет 
   const html = buildHtml(est, deps);   // базовый est без поля missing
   assert.ok(!/Позиций без цены/.test(html), "при полной смете оговорки о неполноте нет");
 });
+
+/* ТРИ режима НДС в печатном КП (итоги встречи 24.08 §1.2). Смету считает НАСТОЯЩИЙ EPEstimate.build —
+   КП берёт из неё числа и подписи, второй копии формулы НДС в offerPdf нет (§7.1). База = 100 €
+   (работы/материалы 0), ставка 20%. */
+const vatCatalog = { 1: { id: 1, name: "Розетка", code: "R", price: 100, unit: "шт." } };
+const vatEst = mode => EPEstimate.build({
+  devices: [{ productId: 1 }], posts: [], product: id => vatCatalog[id], frameProduct: id => vatCatalog[id],
+  postCost: () => 0, settings: { workPercent: 0, materialsPercent: 0, discountPercent: 0, vatPercent: 20, vatMode: mode }
+});
+/* Деньги округляем до копеек — чтобы СВЕРЯТЬ СУММУ строки НДС, а не только её подпись: без этого
+   мутация «строка печатает est.subtotal вместо est.vat» (100 € вместо 16,67 €) осталась бы зелёной. */
+const vatDeps = Object.assign({}, deps, { money: n => Number(n).toFixed(2) + " €" });
+
+test("КП «начислить сверху»: база, НДС-слагаемое и итог с НДС — с точными суммами", () => {
+  const html = buildHtml(vatEst("surcharge"), vatDeps);
+  assert.match(html, /<span>Итого без НДС<\/span><b>100\.00 €<\/b>/, "база до НДС = 100");
+  assert.match(html, /<span>НДС 20%<\/span><b>20\.00 €<\/b>/, "НДС отдельной строкой = 20");
+  assert.match(html, /<span>Итого с НДС<\/span><b>120\.00 €<\/b>/, "итог = 100 + 20");
+  assert.ok(!/в т\.ч\. НДС/.test(html), "сверху — не «в т.ч.»");
+});
+
+test("КП «выделить в стоимости»: итог прежний, под ним «в т.ч. НДС 20%» с ВЫДЕЛЕННОЙ суммой", () => {
+  const html = buildHtml(vatEst("included"), vatDeps);
+  /* сумма строки = est.vat = 100×20/120 = 16,67 €, НЕ est.subtotal (100): ловит подмену поля */
+  assert.match(html, /<span>в т\.ч\. НДС 20%<\/span><b>16\.67 €<\/b>/, "выделенный НДС = 16,67, словами заказчика");
+  assert.match(html, /<span>Итого<\/span><b>100\.00 €<\/b>/, "итог не меняется — цены уже с НДС");
+  assert.ok(!/Итого без НДС/.test(html), "итог не разбивается");
+  assert.ok(!/Итого с НДС/.test(html), "итог прежний, без пометки «с НДС»");
+  const posGrand = html.indexOf("<span>Итого</span>");
+  const posIncl = html.indexOf("в т.ч. НДС");
+  assert.ok(posGrand > -1 && posIncl > posGrand, "«в т.ч. НДС» стоит ПОД итогом");
+});
+
+test("КП «не учитывать»: строки НДС нет вовсе, итог без НДС", () => {
+  const html = buildHtml(vatEst("none"), vatDeps);
+  assert.ok(!/НДС/.test(html), "ни одной строки со словом НДС");
+  assert.match(html, /<span>Итого<\/span><b>100\.00 €<\/b>/, "итог равен базе, без пометок");
+});

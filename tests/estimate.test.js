@@ -4,7 +4,7 @@
    поэтому браузер поднимать не нужно. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { build, postPrice, billableLighting, lightingCounts, pricelessNote } = require("../js/estimate.js");
+const { build, postPrice, billableLighting, lightingCounts, pricelessNote, vatBreakdown, vatModeOf } = require("../js/estimate.js");
 const PF = require("../js/postfit.js");
 const POSTS = require("../js/posts.js");
 
@@ -100,6 +100,75 @@ test("выключенный НДС не начисляется", () => {
   assert.equal(e.vat, 0);
   assert.equal(e.vatPercent, 0, "ставка обнуляется, чтобы её не напечатали в КП");
   near(e.total, e.subtotal, "итого равно сумме без НДС");
+});
+
+/* ТРИ режима НДС (итоги встречи 24.08 §1.2). Правило «режим → суммы» живёт в ОДНОЙ чистой функции
+   vatBreakdown; проверяем её напрямую на числах — все потребители берут результат отсюда. */
+test("vatBreakdown: «начислить сверху» добавляет НДС к базе", () => {
+  const v = vatBreakdown(12.5, "surcharge", 20);
+  assert.equal(v.mode, "surcharge");
+  near(v.amount, 2.5, "НДС 20% от 12,50");
+  near(v.total, 15, "итог = база + НДС");
+  assert.equal(v.included, false, "НДС добавлен сверху, а не сидит в итоге");
+  assert.equal(v.label, "НДС", "подпись строки — «НДС»");
+});
+
+test("vatBreakdown: «выделить в стоимости» не меняет итог, а считает НДС обратно", () => {
+  const v = vatBreakdown(12.5, "included", 20);
+  assert.equal(v.mode, "included");
+  /* цены уже с НДС: итог прежний, а выделенная сумма = база × p/(100+p) = 12,5 × 20/120 */
+  near(v.total, 12.5, "итог не меняется — цены уже с НДС");
+  near(v.amount, 2.0833, "в т.ч. НДС = 12,5 × 20/120");
+  assert.equal(v.included, true, "НДС уже входит в итог");
+  assert.equal(v.label, "в т.ч. НДС", "подпись строки — «в т.ч. НДС», не «НДС»");
+});
+
+test("vatBreakdown: «не учитывать» — ни НДС, ни ставки, итог = база", () => {
+  const v = vatBreakdown(12.5, "none", 20);
+  assert.equal(v.mode, "none");
+  assert.equal(v.amount, 0);
+  assert.equal(v.percent, 0, "ставка обнулена — строки НДС не будет");
+  near(v.total, 12.5, "итог равен базе");
+  assert.equal(v.label, "", "строки НДС нет — подпись пустая");
+});
+
+test("vatBreakdown: 0% не начисляет и не делит на ноль ни в одном режиме", () => {
+  near(vatBreakdown(100, "surcharge", 0).amount, 0, "0% сверху — ноль");
+  near(vatBreakdown(100, "surcharge", 0).total, 100, "итог = база");
+  near(vatBreakdown(100, "included", 0).amount, 0, "0% выделения — ноль (100+0 в знаменателе)");
+  near(vatBreakdown(100, "included", 0).total, 100, "итог = база");
+});
+
+test("vatBreakdown: неизвестный режим трактуется как «начислить сверху» (прежнее поведение)", () => {
+  const v = vatBreakdown(100, "wat", 20);
+  assert.equal(v.mode, "surcharge");
+  near(v.total, 120, "как галочка «включать НДС»");
+});
+
+/* Миграция старых проектов — тоже одно правило (vatModeOf): галочка vatEnabled превращается в режим. */
+test("vatModeOf: старый проект мигрирует по галочке vatEnabled", () => {
+  assert.equal(vatModeOf({ vatEnabled: true }), "surcharge", "включённая галочка → начислить сверху");
+  assert.equal(vatModeOf({ vatEnabled: false }), "none", "снятая галочка → не учитывать");
+  assert.equal(vatModeOf({}), "surcharge", "нет ни режима, ни галочки → прежнее поведение");
+});
+
+test("vatModeOf: явный vatMode главнее старой галочки", () => {
+  assert.equal(vatModeOf({ vatMode: "included", vatEnabled: false }), "included",
+    "проект, сохранённый в новом виде, восстанавливает режим, а не мигрирует по галочке");
+  assert.equal(vatModeOf({ vatMode: "мусор", vatEnabled: false }), "none",
+    "негодный режим падает на миграцию по галочке");
+});
+
+test("build читает режим НДС и мигрирует старую галочку", () => {
+  const inc = run({ devices: [{ productId: 1 }], settings: settings({ vatMode: "included", vatPercent: 20 }) });
+  near(inc.subtotal, 12.5, "база до НДС");
+  near(inc.total, 12.5, "«выделить» не меняет итог");
+  near(inc.vat, 2.0833, "в т.ч. НДС считается обратно");
+  assert.equal(inc.vatIncluded, true);
+  assert.equal(inc.vatLabel, "в т.ч. НДС");
+  const old = run({ devices: [{ productId: 1 }], settings: settings({ vatEnabled: true, vatPercent: 20 }) });
+  assert.equal(old.vatMode, "surcharge", "vatEnabled:true мигрирует в «начислить сверху»");
+  near(old.total, 15, "итог с НДС сверху — как раньше");
 });
 
 test("отсутствующий в каталоге товар не роняет расчёт", () => {

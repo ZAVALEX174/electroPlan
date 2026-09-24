@@ -123,6 +123,39 @@ function renderItem(it) {
   return it.name;
 }
 
+/* НДС — ТРИ режима (итоги встречи 24.08 §1.2, слова заказчика) и ОДНО правило «режим → суммы»
+   на все экраны и документы (§7.1). base — сумма ДО НДС (subtotal сметы), percent — ставка:
+     "none"      «Не учитывать»         — НДС нет: amount 0, итог = база, строки НДС нет;
+     "included"  «Выделить в стоимости» — цены УЖЕ с НДС: итог = база (НЕ меняется), а выделенная
+                 сумма считается ОБРАТНО, base × p/(100+p); в документах её подписывают «в т.ч. НДС p%»;
+     "surcharge" «Начислить сверху»     — НДС отдельной строкой: amount = base × p/100, итог = база + amount.
+   Возвращает {mode, percent, amount, included, total, label}: included — входит ли amount уже в total
+   (true только у «выделить»), label — подпись строки НДС словами заказчика (пусто у «не учитывать»).
+   Потребители берут ЧИСЛА отсюда и формулу не повторяют — иначе панель «Стоимость проекта» и КП
+   разошлись бы (§7.1). Неизвестный режим трактуем как «начислить сверху» — прежнее поведение галочки. */
+const VAT_LABELS = { none: "", included: "в т.ч. НДС", surcharge: "НДС" };
+function vatBreakdown(base, mode, percent) {
+  const sub = Number(base) || 0;
+  const p = Math.max(0, Number(percent) || 0);
+  const m = (mode === "none" || mode === "included" || mode === "surcharge") ? mode : "surcharge";
+  /* «Не учитывать» обнуляет и ставку: её негде показать, а нулём она гарантирует, что
+     ни один потребитель не напечатает «НДС 0%» (панель и КП гейтят строку по amount). */
+  if (m === "none") return { mode: m, percent: 0, amount: 0, included: false, total: sub, label: VAT_LABELS.none };
+  if (m === "included") return { mode: m, percent: p, amount: sub * p / (100 + p), included: true, total: sub, label: VAT_LABELS.included };
+  return { mode: m, percent: p, amount: sub * p / 100, included: false, total: sub + sub * p / 100, label: VAT_LABELS.surcharge };
+}
+
+/* Режим НДС проекта — ОДНО правило чтения настроек, вместе с миграцией старых проектов (§7.1 п.4:
+   обратная совместимость — самый частый пропущенный край). Новое поле settings.vatMode
+   ("none"|"included"|"surcharge"). Проекта, сохранённого до трёх режимов, этого поля нет — читаем
+   прежнюю галочку: vatEnabled === false → «не учитывать», иначе → «начислить сверху» (ровно то
+   поведение, что давала галочка «Включать НДС в КП»). */
+function vatModeOf(s) {
+  const m = s && s.vatMode;
+  if (m === "none" || m === "included" || m === "surcharge") return m;
+  return (s && s.vatEnabled === false) ? "none" : "surcharge";
+}
+
 /* input = {
      devices:[{productId}], posts:[{name,frameId,mechanismIds}],
      product(id) -> товар|undefined, postCost(post) -> число,
@@ -130,7 +163,8 @@ function renderItem(it) {
      lightingOf(post) -> [{code,name,price,groupLabel,roleLabel,missing}]   // необязательно:
        // механизмы, подставленные расчётом групп света (EPLightingPlan). Не элементы поста —
        // отдельные позиции состава, см. комментарий в build.
-     settings:{workPercent,materialsPercent,discountPercent,vatPercent,vatEnabled}
+     settings:{workPercent,materialsPercent,discountPercent,vatPercent,vatMode}
+       // vatMode: "none"|"included"|"surcharge"; старый проект несёт vatEnabled — мигрирует vatModeOf
    }
    Все суммы — в базовой валюте каталога (евро прайса). Пересчёт в рубли делает
    представление, а не расчёт: иначе повторная конвертация после смены курса
@@ -396,13 +430,17 @@ function build(input) {
   const materials = equipmentNet * (Number(s.materialsPercent) || 0) / 100;
   const work = equipmentNet * (Number(s.workPercent) || 0) / 100;
   const subtotal = equipmentNet + materials + work;
-  const vatPercent = s.vatEnabled ? (Number(s.vatPercent) || 0) : 0;
-  const vat = subtotal * vatPercent / 100;
+  /* НДС: режим проекта решает, как база (subtotal) превращается в итог. Всю арифметику и подпись
+     держит vatBreakdown (§7.1) — и панель, и КП берут из est готовые числа, второй копии формулы
+     «итог × p/(100+p)» нигде нет. Режим читаем через vatModeOf: там же миграция старой галочки. */
+  const vatInfo = vatBreakdown(subtotal, vatModeOf(s), Number(s.vatPercent) || 0);
 
   return {
     groups: [...groups.values()], missing,
     equipment, discountPercent, discount, equipmentNet,
-    materials, work, subtotal, vatPercent, vat, total: subtotal + vat
+    materials, work, subtotal,
+    vatMode: vatInfo.mode, vatPercent: vatInfo.percent, vat: vatInfo.amount,
+    vatIncluded: vatInfo.included, vatLabel: vatInfo.label, total: vatInfo.total
   };
 }
 
@@ -429,7 +467,7 @@ function pricelessNote(est) {
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem };
+const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, vatBreakdown, vatModeOf };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

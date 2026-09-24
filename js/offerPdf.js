@@ -305,8 +305,9 @@ function compose(est, deps) {
   ${options.prices ? `<div class="totals"><div><span>Оборудование</span><b>${money(est.equipment)}</b></div>
   ${est.discount ? `<div><span>Скидка ${est.discountPercent}%</span><b>−${money(est.discount)}</b></div>` : ""}
   <div><span>Монтажные материалы</span><b>${money(materials)}</b></div><div><span>Работы</span><b>${money(work)}</b></div>
-  ${est.vat ? `<div><span>Итого без НДС</span><b>${money(est.subtotal)}</b></div><div><span>НДС ${est.vatPercent}%</span><b>${money(est.vat)}</b></div>` : ""}
-  <div class="grand"><span>Итого${est.vat ? " с НДС" : ""}</span><b>${money(total)}</b></div></div>` : ""}
+  ${est.vat && !est.vatIncluded ? `<div><span>Итого без НДС</span><b>${money(est.subtotal)}</b></div><div><span>${esc(est.vatLabel || "НДС")} ${est.vatPercent}%</span><b>${money(est.vat)}</b></div>` : ""}
+  <div class="grand"><span>Итого${est.vat && !est.vatIncluded ? " с НДС" : ""}</span><b>${money(total)}</b></div>
+  ${est.vat && est.vatIncluded ? `<div><span>${esc(est.vatLabel || "в т.ч. НДС")} ${est.vatPercent}%</span><b>${money(est.vat)}</b></div>` : ""}</div>` : ""}
   ${pricelessNote ? `<div class="priceless">${options.prices ? esc(pricelessNote) : `Позиций без товара в каталоге: ${est.missing.length}. Проверьте состав проекта перед передачей документа.`}</div>` : ""}
   ${options.prices && displayCurrency() === "RUB" ? rateFooter() : ""}
   ${options.prices ? `<div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>` : ""}

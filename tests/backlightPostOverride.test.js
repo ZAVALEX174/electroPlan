@@ -82,7 +82,7 @@ function snapshotPosts(posts) {
     orthoMode: true, snapGrid: true, gridStep: 10, pxPerMeter: 100, scaleSegment: null, planLabel: "" };
   const ctx = { state, $: dom.$,
     EP_DATA: { settings: { docHeader: {}, offerOptions: {}, backlight: projectBacklight } },
-    EPOfferOptions: { normalize: () => ({}) }, Date };
+    EPOfferOptions: { normalize: () => ({}) }, EPEstimate: require("../js/estimate.js"), Date };
   const snap = stand.run("projectSnapshot", ctx)();
   /* JSON-круг = ровно то, что уходит в ProjectStore и возвращается restoreProject. */
   return JSON.parse(JSON.stringify(snap)).posts;
