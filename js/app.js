@@ -373,7 +373,12 @@ function setTool(tool){
   }
   if(tool==="scale")updateStatus("Отметьте две точки отрезка известной длины");
 }
-function updateStatus(text){$("status").textContent=text||`Элементов: ${state.devices.length} · Постов: ${state.posts.length} · Комнат: ${state.rooms.length}`}
+/* Счётчики над планом. Одиночные элементы больше не размещаются (реш. заказчика 24.08 §4.8 —
+   всё ставится постами), поэтому «Элементов: 0» на чистом проекте только зашумляет строку. Но в
+   старых проектах одиночные элементы остаются в смете — тогда счётчик показываем, чтобы их было
+   видно. Чистая функция от чисел: без state/DOM, тестируется без шима. */
+const statusCountsText=(devices,posts,rooms)=>`${devices>0?`Элементов: ${devices} · `:""}Постов: ${posts} · Комнат: ${rooms}`;
+function updateStatus(text){$("status").textContent=text||statusCountsText(state.devices.length,state.posts.length,state.rooms.length)}
 function markCanvasUsed(){$("canvasEmpty").style.display="none"}
 
 async function init(){
