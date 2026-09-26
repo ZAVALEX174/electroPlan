@@ -497,3 +497,61 @@ test("★ X2: шаблон, открытый на редактирование, 
     || dom.$("postFrameSelect").dataset.preferredFrameId === String(tplFrame.id),
     "смена комнаты не навязала авто-накладку шаблону — его накладка осталась (мутация X2 подменила бы её дефолтом комнаты)");
 });
+
+/* ── 11. В2: плашка пустого пула — совет ОДИН раз; «Механизмы поста сохранены» — только у поста с механизмами ──
+   Тот же настоящий renderBuilder и то же сужение под комнату Arke/«Антрацит» (пустой пул), что и в §2;
+   различаем лишь начинку черновика поста. Старый текст печатал совет дважды («измените отбор…» из
+   frameFacingEmptyText + «Смените отбор…») и обещал «Механизмы поста сохранены» даже у нового пустого. */
+function emptyRoomComposition(slots) {
+  const dom = stand.makeDom({ selects: ["postFrameSelect", "postSlotCount"] });
+  const state = { products: PRODUCTS,
+    rooms: [{ id: "r1", name: "Спальня", standard: "DE", collection: "Arke", frameColor: "Антрацит" }],
+    posts: [], builder: { slots, target: { mode: "add" }, roomId: "r1", editingPlacedId: null, frameAuto: true } };
+  dom.$("postFrameSelect").dataset.preferredFrameId = "";
+  dom.$("postSlotCount").value = "3";
+  const ctx = {
+    state, $: dom.$, esc: s => String(s == null ? "" : s),
+    byKind: kind => state.products.filter(x => x.kind === kind && x.active),
+    frameProduct: product, product, EPCatalog, EPRoom, EPPosts, EPBuilderSlots,
+    frameSlotCount: EPCatalog.frameSlotCount, frameSlotOptions: EPCatalog.frameSlotOptions,
+    compatibleMechanisms: EPCatalog.compatibleMechanisms, mechanismSpan: EPCatalog.mechanismSpan,
+    productSeries: EPCatalog.productSeries, moduleWord: EPCatalog.moduleWord,
+    frameOptions: (items, selId) => (items || []).map(i => `<option value="${i.id}" ${Number(i.id) === Number(selId) ? "selected" : ""}>${i.id}</option>`).join(""),
+    enhancePicker: () => {}, resolveMissingFrame: () => null,
+    lightingFor: () => ({}), projectPostsWithBuilder: () => [], builderPostDraft: () => ({ mechanismIds: [] }),
+    moduleLayout: () => [], lightingRowsFor: () => [], retargetBuilderSlot: () => {},
+    renderBuilderSlots: () => {}, renderBuilderCatalog: () => {},
+    renderBuilderComposition: (frame, errorHtml) => { dom.$("builderComposition").innerHTML = frame ? "<comp>" : (errorHtml || ""); },
+    builderInnardsFilter: () => ({}), frameFacingList: () => EPCatalog.productFacingValues(activeFrames, "frameColor"),
+    builderCtx: {}
+  };
+  stand.run(RB_CUT, ctx)();
+  return dom.$("builderComposition").innerHTML;
+}
+const countOf = (hay, needle) => hay.split(needle).length - 1;
+
+test("★ В2: пустой пул — совет о смене отбора звучит РОВНО один раз (не дважды)", () => {
+  const html = emptyRoomComposition([]);
+  assert.match(html, /в каталоге накладок нет — измените отбор в свойствах комнаты или откройте пост в другой комнате\./,
+    "единая формулировка: одна причина + один совет с обоими выходами");
+  assert.equal(countOf(html, "измените отбор в свойствах комнаты"), 1, "совет «измените отбор…» не повторяется");
+  assert.equal(countOf(html, "откройте пост в другой комнате"), 1, "«откройте пост в другой комнате» не повторяется");
+  assert.doesNotMatch(html, /Смените отбор/, "старой второй копии совета «Смените отбор…» больше нет");
+  assert.match(html, /стандарт «немецкий»/, "плашка по-прежнему называет ВСЕ условия (стандарт)");
+  assert.match(html, /серия «Arke»/); assert.match(html, /цвет «Антрацит»/);
+});
+
+test("★ В2: у нового ПУСТОГО поста фразы «Механизмы поста сохранены» нет", () => {
+  const html = emptyRoomComposition([]);
+  assert.doesNotMatch(html, /Механизмы поста сохранены/,
+    "сохранять нечего — механизмов в черновике нет (mechanismIds пуст)");
+});
+
+test("★ В2: у поста С механизмами «Механизмы поста сохранены» остаётся", () => {
+  const mech = PRODUCTS.find(p => p.kind === "mechanism" && p.active);
+  assert.ok(mech, "предпосылка: в каталоге есть активный механизм");
+  const html = emptyRoomComposition([EPBuilderSlots.slot(mech.id)]);
+  assert.match(html, /Механизмы поста сохранены\.$|Механизмы поста сохранены\.<\/span>/,
+    "у поста с механизмами обещание сохранности остаётся");
+  assert.equal(countOf(html, "измените отбор в свойствах комнаты"), 1, "совет по-прежнему один раз");
+});

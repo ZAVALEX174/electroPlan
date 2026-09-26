@@ -1,0 +1,14 @@
+  // --- В2: плашка «Под эту комнату накладок нет» — совет один раз, без «Механизмы сохранены» у нового ---
+  n = 500;
+  const kl = `Array.from(document.querySelectorAll(".room-label")).find(e=>e.textContent.includes("Кухня"))`;
+  const k = await rect(kl);
+  await clickAt(k.x + 12, k.y + k.h / 2); await sleep(500);
+  await setVal($("roomCollectionSelect"), "Arke");
+  await setVal($("room_frameColorSelect"), "Антрацит");
+  log.push("комната: стандарт=" + await ev(`return document.getElementById("roomStandardSelect").value`) + " серия=" + await ev(`return document.getElementById("roomCollectionSelect").value`) + " цвет=" + await ev(`return document.getElementById("room_frameColorSelect").value`));
+  await click($("newPostBtn")); await sleep(900);
+  const plate = `document.querySelector(".builder-error")`;
+  log.push("плашка (новый пост): " + await ev(`return (${plate})?.textContent`));
+  await ev(`(${plate})?.scrollIntoView({block:"center"});return 1;`);
+  await shot("noframe-newpost", [plate]);
+  await click($("cancelPost")); await sleep(400);
