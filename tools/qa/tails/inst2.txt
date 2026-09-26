@@ -1,0 +1,13 @@
+  // --- Б2 проход 2: набор столбцов не сбрасывает вид ---
+  n = 300;
+  await ev(`window.__kp="";window.open=()=>({closed:false,document:{open(){},write(h){window.__kp+=h},close(){},title:""},focus(){},print(){},close(){},addEventListener(){},location:{}});return 1;`);
+  await ev(`Array.from(document.querySelectorAll("details")).forEach(x=>x.open=true);return 1;`);
+  await setVal($("offer-assemblyView"), "assembled");
+  const presetBtn = await ev(`const b=Array.from(document.querySelectorAll("button")).find(b=>b.offsetParent&&/строител/i.test(b.textContent));return b?b.textContent.trim():null`);
+  log.push("кнопка набора: " + presetBtn);
+  await click(`Array.from(document.querySelectorAll("button")).find(b=>b.offsetParent&&/строител/i.test(b.textContent))`); await sleep(500);
+  log.push("после набора select=" + await ev(`return document.getElementById("offer-assemblyView").value`) + " активный набор=" + await ev(`return Array.from(document.querySelectorAll("button.active,button[aria-pressed=true]")).map(b=>b.textContent.trim()).filter(t=>/строит|клиент|дизайн|короб/i.test(t)).join(",")`));
+  await ev(`window.__kp="";return 1;`); await click($("installSheetBtn")); await sleep(900);
+  log.push("лист: схема=" + await ev(`return (window.__kp.match(/Взрыв-схема поста/g)||[]).length`));
+  await ev(`document.getElementById("offer-assemblyView").scrollIntoView({block:"center"});return 1;`);
+  await shot("after-preset", [`document.getElementById("offer-assemblyView")`]);

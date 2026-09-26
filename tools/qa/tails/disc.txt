@@ -1,0 +1,11 @@
+  // --- А2: личная скидка ---
+  n = 400;
+  await ev(`window.__kp="";window.open=()=>({closed:false,document:{open(){},write(h){window.__kp+=h},close(){},title:""},focus(){},print(){},close(){},addEventListener(){},location:{}});return 1;`);
+  await setVal($("discountInput"), "10");
+  await setVal(`document.querySelector("#specList input")`, "25"); await sleep(500);
+  await ev(`document.getElementById("specList").scrollIntoView({block:"center"});return 1;`);
+  await shot("disc-panel", [`document.querySelector("#specList input")`, `document.getElementById("discountRow")`]);
+  log.push("панель: поле=" + await ev(`return document.querySelector("#specList input").value`) + " строка=" + await ev(`return document.getElementById("discountRow").textContent`));
+  await ev(`window.__kp="";return 1;`); await click($("pdfBtn")); await sleep(1000);
+  const html = await ev(`return window.__kp`);
+  fs.writeFileSync(path.join(DIR, "kp-disc.html"), html);

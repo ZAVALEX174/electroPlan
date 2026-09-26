@@ -1,0 +1,15 @@
+  // --- Автономер КП ---
+  await ev(`window.__kp="";window.open=()=>({closed:false,document:{open(){},write(h){window.__kp+=h},close(){},title:""},focus(){},print(){},close(){},addEventListener(){},location:{}});return 1;`);
+  const kpNum = async () => { await ev(`window.__kp="";return 1;`); await click($("pdfBtn")); await sleep(900);
+    return ev(`const m=window.__kp.match(/EPG-\d{4}-\d{4,}/);return {field:document.getElementById("docNumber").value, inKP:m?m[0]:null, prefs:localStorage.getItem("ep_prefs")&&JSON.parse(localStorage.getItem("ep_prefs")).offerCounters}`); };
+  log.push("до: поле=" + await ev(`return document.getElementById("docNumber").value`));
+  log.push("КП 1: " + JSON.stringify(await kpNum()));
+  log.push("КП 2 (повтор): " + JSON.stringify(await kpNum()));
+  await ev(`document.getElementById("docNumber").scrollIntoView({block:"center"});return 1;`);
+  await shot("num-field", [`document.getElementById("docNumber")`]);
+  await setVal($("docNumber"), "Мой-17");
+  log.push("КП ручной: " + JSON.stringify(await kpNum()));
+  await setVal($("docNumber"), "");
+  log.push("КП после очистки: " + JSON.stringify(await kpNum()));
+  await c.send("Page.reload"); await sleep(5000);
+  log.push("после перезагрузки: поле=" + await ev(`return document.getElementById("docNumber").value`));

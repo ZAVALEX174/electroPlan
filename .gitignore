@@ -27,3 +27,6 @@ node_modules/
 CLAUDE.local.md
 
 .claude/worktrees/
+
+# Результаты инструментов проверки (скриншоты, профиль браузера, собранные сценарии)
+tools/qa/out/

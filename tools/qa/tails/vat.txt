@@ -1,0 +1,22 @@
+  // --- НДС: три режима ---
+  n = 100;
+  await ev(`window.__kp="";window.open=()=>({closed:false,document:{open(){},write(h){window.__kp+=h},close(){},title:""},focus(){},print(){},close(){},addEventListener(){},location:{}});return 1;`);
+  for (const mode of ["none", "included", "surcharge"]) {
+    await setVal($("vatMode"), mode); await sleep(500);
+    await ev(`document.getElementById("vatMode").scrollIntoView({block:"center"});return 1;`); await sleep(300);
+    await shot("vat-panel-" + mode, [`document.getElementById("vatMode")`, `document.querySelector(".grand-total")`]);
+    log.push(mode + " panel: " + await ev(`return Array.from(document.querySelectorAll("#vatRow,.grand-total,#vatIncludedRow")).filter(e=>!e.hidden).map(e=>e.textContent.replace(/\s+/g," ").trim()).join(" | ")`));
+    await ev(`window.__kp="";return 1;`);
+    await click($("pdfBtn")); await sleep(1000);
+    const html = await ev("return window.__kp");
+    const nt = await json("/json/new?about:blank", "PUT");
+    const k = connect(nt.webSocketDebuggerUrl); await k.ready; await k.send("Page.enable");
+    await k.send("Emulation.setDeviceMetricsOverride", { width: 1100, height: 1400, deviceScaleFactor: 1, mobile: false });
+    const ft = await k.send("Page.getFrameTree");
+    await k.send("Page.setDocumentContent", { frameId: ft.frameTree.frame.id, html }); await sleep(1200);
+    const t = await k.send("Runtime.evaluate", { expression: `(()=>{const g=document.querySelector(".grand");const box=g.parentElement;box.scrollIntoView({block:"center"});return box.innerText.replace(/\s+/g," ")})()`, returnByValue: true });
+    log.push(mode + " КП: " + t.result.value);
+    const r = await k.send("Page.captureScreenshot", { format: "png" });
+    fs.writeFileSync(path.join(SHOTS, `${++n}-vat-kp-${mode}.png`), Buffer.from(r.data, "base64"));
+    k.close();
+  }

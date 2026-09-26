@@ -1,0 +1,20 @@
+  // --- Б2: лист монтажника в двух видах ---
+  n = 200;
+  await ev(`window.__kp="";window.open=()=>({closed:false,document:{open(){},write(h){window.__kp+=h},close(){},title:""},focus(){},print(){},close(){},addEventListener(){},location:{}});return 1;`);
+  await ev(`const d=document.querySelector("details");Array.from(document.querySelectorAll("details")).forEach(x=>x.open=true);document.getElementById("offer-assemblyView").scrollIntoView({block:"center"});return 1;`); await sleep(400);
+  await shot("assembly-select", [`document.getElementById("offer-assemblyView")`]);
+  for (const mode of ["exploded", "assembled"]) {
+    await setVal($("offer-assemblyView"), mode); await sleep(400);
+    await ev(`window.__kp="";return 1;`);
+    await click($("installSheetBtn")); await sleep(1000);
+    const html = await ev("return window.__kp");
+    log.push(mode + ": len=" + html.length + " схема=" + (html.match(/Взрыв-схема поста/g)||[]).length + " img=" + (html.match(/<img/g)||[]).length);
+    const nt = await json("/json/new?about:blank", "PUT");
+    const k = connect(nt.webSocketDebuggerUrl); await k.ready; await k.send("Page.enable");
+    await k.send("Emulation.setDeviceMetricsOverride", { width: 1100, height: 1300, deviceScaleFactor: 1, mobile: false });
+    const ft = await k.send("Page.getFrameTree");
+    await k.send("Page.setDocumentContent", { frameId: ft.frameTree.frame.id, html }); await sleep(1500);
+    const r = await k.send("Page.captureScreenshot", { format: "png" });
+    fs.writeFileSync(path.join(SHOTS, `${++n}-install-${mode}.png`), Buffer.from(r.data, "base64"));
+    k.close();
+  }
