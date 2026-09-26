@@ -7,7 +7,9 @@ window.EP_DATA = {
     currency: window.EP_VIMAR_CATALOG?.meta?.currency || "EUR",
     workPercent: 18,
     materialsPercent: 7,
-    discountPercent: 0,   // скидка на оборудование, задаётся в интерфейсе
+    discountPercent: 0,   // общая скидка на оборудование, задаётся в интерфейсе
+    // Личные скидки позиций (А2) хранятся НА ОБЪЕКТАХ (post.discount/device.discount), не в settings:
+    // ключ строки сметы производен от состава и «уплывал» бы при перенумерации/смене стены.
     vatPercent: 20,       // ставка НДС
     vatEnabled: true,     // включать ли НДС в коммерческое предложение
     // Надбавка к курсу ЦБ, % (правило ЦентрСвет: цена = курс ЦБ + 3%).

@@ -2065,6 +2065,10 @@ function orphanObjectsWarningText(){
   return `⚠ Вне помещений: ${total} — отмечены на плане.${money} `
     +`Перетащите объект в комнату или подвиньте контур.`;
 }
+/* Строки спецификации текущей отрисовки — чтобы делегированный обработчик поля «скидка, %» нашёл
+   объекты строки (g.members) по индексу поля (data-disc-row). Держит их оркестратор: сами объекты
+   в разметку не положишь. */
+let _specGroups=[];
 function renderSummary(){
   const light=projectLighting();
   const est=buildEstimate(light);
@@ -2072,6 +2076,9 @@ function renderSummary(){
   $("workTotal").textContent=money(est.work);$("grandTotal").textContent=money(est.total);
   /* скидка и НДС показываются, только когда заданы — чтобы не мозолить нулями */
   $("discountRow").hidden=!est.discount;
+  /* Панель — внутренний экран сметчика: показываем ОБЩИЙ процент всегда (в т.ч. при смеси), а
+     специфику личных скидок несут поля «скидка, %» у строк ниже. Клиентское пояснение про смесь —
+     только в КП (offerPdf), а не здесь. */
   $("discountTotal").textContent="−"+money(est.discount)+` (${est.discountPercent}%)`;
   /* Строка НДС в панели стоит там же, где в КП (§7.1, одинаково в панели и в документе):
      «Начислить сверху» — НДС это слагаемое, идёт ДО «Итого» (#vatRow), и столбец сходится в сумму;
@@ -2087,8 +2094,20 @@ function renderSummary(){
   $("vatIncludedLabel").textContent=est.vatLabel;
   $("vatIncludedTotal").textContent=money(est.vat)+` (${est.vatPercent}%)`;
   $("objectCount").textContent=state.devices.length+state.posts.length;
+  /* У каждой строки — своё поле «скидка, %» (А2). Пусто → действует общая (её процент в
+     placeholder), число → личная скидка (0 — «без скидки»). Скидка хранится НА ОБЪЕКТАХ строки
+     (post.discount/device.discount), поэтому значение поля берём из g.discount — сырой своей
+     скидки строки (undefined = нет своей, поле пустое; 0 — валидное «своя 0%»). g.members —
+     сами объекты строки, поле правит их ЦЕЛИКОМ (см. onSpecDiscountChange). _specGroups держит
+     строки текущей отрисовки, чтобы обработчик по индексу поля нашёл нужные members. */
+  _specGroups=est.groups;
   $("specList").innerHTML=est.groups.length
-    ?est.groups.map(g=>`<div class="spec-item"><div><strong>${esc(g.name)}</strong><span>${g.count} ${esc(g.unit)}</span></div><b>${money(g.sum)}</b></div>`).join("")
+    ?est.groups.map((g,i)=>{
+      const val=(g.discount!=null&&g.discount!=="")?esc(g.discount):"";
+      return `<div class="spec-item"><div><strong>${esc(g.name)}</strong><span>${g.count} ${esc(g.unit)}</span></div><b>${money(g.sum)}</b>`
+        +`<label class="spec-disc" title="Своя скидка на позицию. Пусто — действует общая скидка ${est.discountPercent}%">`
+        +`<input type="number" min="0" max="100" step="1" inputmode="numeric" data-disc-row="${i}" value="${val}" placeholder="${est.discountPercent}"><span>%</span></label></div>`;
+    }).join("")
     :'<div class="library-empty">Проект пока пуст</div>';
   /* Тот же блок, что печатается в КП и листе монтажника: подставленные механизмы, потребность
      в импульсных реле и пробелы с их причинами. */
@@ -4648,6 +4667,9 @@ function buildPostLayout(options,light){
     return {
       number:p.number,
       modules:comp.modulesTotal,
+      /* Личная скидка поста — для пометки в раскладке КП (EPOfferPdf). Процент/признак «личная»
+         считает та же EPEstimate.discountOf по p.discount, что и строки сметы. */
+      discount:p.discount,
       fill,
       box:{name:(comp.box||comp.boxFallback)?.name,code:(comp.box||comp.boxFallback)?.code,count:comp.boxCount},
       frameCode:comp.frameAvailability.code,
@@ -5864,6 +5886,43 @@ function applyTerms(){
 }
 ["workInput","materialsInput","discountInput","vatInput"].forEach(id=>{$(id).oninput=applyTerms});
 $("vatMode").onchange=applyTerms;
+/* Записать личную скидку НА ОБЪЕКТЫ строки (А2): скидка живёт на самом посте/изделии
+   (post.discount/device.discount), а не в карте по ключу строки — иначе перенумерация или смена
+   стены уводили бы её на чужую позицию. members — все объекты строки (est.groups[].members); поле
+   строки правит их ЦЕЛИКОМ. Пусто → УДАЛЯЕМ поле discount (строка считается по общей; 0 ≠ пусто —
+   0 остаётся явной «скидкой 0%»). Иначе зажимаем 0..100 ровно как общую скидку (applyTerms). Пересчёт
+   и сохранение — applyProjectSettings (та же дверь, что у прочих настроек проекта). */
+function applyItemDiscount(members,rawValue){
+  const raw=String(rawValue).trim();
+  const val=raw===""?null:Math.max(0,Math.min(100,Number(raw)||0));
+  (Array.isArray(members)?members:[]).forEach(o=>{if(!o)return;if(val==null)delete o.discount;else o.discount=val;});
+  applyProjectSettings();
+}
+/* Обработчик изменения поля «скидка, %» строки. Нечисловой ввод (у <input type=number> при badInput
+   .value === "") НЕ должен молча снимать заданную скидку — такой ввод игнорируем, оставляя прежнее.
+   Пустое поле без badInput — это осознанное «убрать свою скидку» и доходит до applyItemDiscount.
+   Перерисовка #specList (applyProjectSettings) уничтожает поле, куда браузер увёл фокус по Tab, —
+   запоминаем следующий фокус ДО перерисовки и, если это тоже поле скидки, возвращаем его. */
+function onSpecDiscountChange(input){
+  if(!input)return;
+  if(input.validity&&input.validity.badInput)return;
+  const g=_specGroups[Number(input.dataset.discRow)];
+  if(!g)return;
+  const active=(typeof document!=="undefined")?document.activeElement:null;
+  const backRow=active&&active.dataset?active.dataset.discRow:null;
+  applyItemDiscount(g.members,input.value);
+  if(backRow!=null){
+    const list=$("specList");
+    const back=list&&list.querySelector?list.querySelector('input[data-disc-row="'+backRow+'"]'):null;
+    if(back&&back.focus)back.focus();
+  }
+}
+/* Делегируем на контейнер — #specList перерисовывается в renderSummary, а слушатель на нём живёт.
+   Событие change (не input): перерисовка на каждом символе сбивала бы набор. */
+$("specList").onchange=e=>{
+  const input=e.target&&e.target.closest?e.target.closest("input[data-disc-row]"):null;
+  onSpecDiscountChange(input);
+};
 /* валюта отображения и курс */
 function applyCurrency(){
   EP_DATA.settings.displayCurrency=$("currencySelect").value;

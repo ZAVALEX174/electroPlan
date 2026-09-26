@@ -156,8 +156,63 @@ function vatModeOf(s) {
   return (s && s.vatEnabled === false) ? "none" : "surcharge";
 }
 
+/* СКОЛЬКО СКИДКИ У СТРОКИ И СКОЛЬКО ВСЕГО — ОДНО правило на все экраны и документы (§7.1). И панель
+   «Стоимость проекта», и КП, и работы/материалы, и НДС берут числа ОТСЮДА; второй копии формулы
+   «общая или своя» нет (итоги встречи 24.08 §1.2: «Скидки — на весь объём, с возможностью правки
+   отдельных позиций»).
+
+   ⚠️ ЛИЧНАЯ СКИДКА ХРАНИТСЯ НА САМОМ ОБЪЕКТЕ — post.discount у поста, device.discount у изделия
+   (см. app.js applyItemDiscount), а НЕ в карте по ключу строки сметы. Прежняя карта по ключу
+   «уплывала»: ключ строки производен от состава (номер поста в подписи, тип стены, группы света,
+   подсветка), и перенумерация/смена стены/назначение группы молча снимали скидку или дарили её
+   чужому посту того же состава. Скидка на объекте переживает всё это, а удаление объекта или
+   «Очистить» уносит скидку вместе с ним — «осиротеть» ей негде.
+
+   discountOf(own, general) — процент И признак «личная» ОДНОЙ строки:
+     own === null/undefined/"" → своей скидки нет, действует общий процент (personal:false);
+     число → своя, зажатая в 0..100 тем же правилом, что общая (ввод вне диапазона зажимается).
+   ⚠️ personal — это «процент строки ОТЛИЧАЕТСЯ от общего»: своя скидка, равная общей, ведёт себя
+   как общая (не «смесь», без пометки в КП). Своя 0% при общей >0 — это personal:true с percent 0
+   («без скидки на эту позицию»); своя 0% при общей 0 — от общей не отличается, personal:false.
+
+   discountBreakdown(rows, general) — по строкам [{sum, discount}] считает {general, rows[], total,
+   mixed}. total — сумма скидок с учётом личных. ⚠️ ОБРАТНАЯ СОВМЕСТИМОСТЬ ПО КОПЕЙКЕ: строки БЕЗ
+   своей скидки скидываются ОДНИМ умножением от их суммарной базы ((equipment − personalBase) ×
+   general/100), а не по-построчно — иначе накопление округлений давало бы ±1 цент против прежней
+   формулы equipment×general/100 (пример из независимой проверки: 506,41 → 506,42). Проект без
+   единой личной скидки поэтому считается ровно как раньше, до цента. */
+const clampPercent = v => Math.max(0, Math.min(100, Number(v) || 0));
+const hasOwnDiscount = v => v != null && v !== "";
+function discountOf(own, generalPercent) {
+  const general = clampPercent(generalPercent);
+  if (!hasOwnDiscount(own)) return { percent: general, personal: false };
+  const percent = clampPercent(own);
+  return { percent, personal: percent !== general };
+}
+function discountBreakdown(rows, generalPercent) {
+  const general = clampPercent(generalPercent);
+  let personalPart = 0, personalBase = 0, equipment = 0, mixed = false;
+  const out = (Array.isArray(rows) ? rows : []).map((r) => {
+    const sum = Number(r && r.sum) || 0;
+    equipment += sum;
+    const d = discountOf(r && r.discount, general);
+    if (d.personal) {
+      const amount = sum * d.percent / 100;
+      personalPart += amount; personalBase += sum; mixed = true;
+      return { percent: d.percent, personal: true, amount };
+    }
+    /* Построчная сумма скидки — только для показа: в total общий процент считается ОДНИМ
+       умножением ниже (совместимость по копейке), а не сложением этих чисел. */
+    return { percent: d.percent, personal: false, amount: sum * general / 100 };
+  });
+  const total = (equipment - personalBase) * general / 100 + personalPart;
+  return { general, rows: out, total, mixed };
+}
+
 /* input = {
-     devices:[{productId}], posts:[{name,frameId,mechanismIds}],
+     devices:[{productId,discount?}], posts:[{name,frameId,mechanismIds,discount?}],
+       // discount — ЛИЧНАЯ скидка позиции (% на самом объекте, см. discountOf). Нет поля → действует
+       //   общая settings.discountPercent. Строки с РАЗНОЙ личной скидкой не сливаются в одну.
      product(id) -> товар|undefined, postCost(post) -> число,
      frameProduct(id) -> товар|undefined,
      lightingOf(post) -> [{code,name,price,groupLabel,roleLabel,missing}]   // необязательно:
@@ -165,12 +220,18 @@ function vatModeOf(s) {
        // отдельные позиции состава, см. комментарий в build.
      settings:{workPercent,materialsPercent,discountPercent,vatPercent,vatMode}
        // vatMode: "none"|"included"|"surcharge"; старый проект несёт vatEnabled — мигрирует vatModeOf
+       // discountPercent — ОБЩАЯ скидка; личные скидки живут на объектах (см. выше)
    }
    Все суммы — в базовой валюте каталога (евро прайса). Пересчёт в рубли делает
    представление, а не расчёт: иначе повторная конвертация после смены курса
    накапливала бы ошибку.
 
-   groups[] = {name, composition, items, unit, count, sum}
+   groups[] = {key, name, composition, items, unit, count, sum, discount, members,
+               discountPercent, discountPersonal, discountAmount}
+   discount — своя скидка строки (undefined = по общей); members — сами объекты строки (посты/
+   изделия), их правит поле «скидка, %» панели ЦЕЛИКОМ; discountPercent/discountPersonal — из
+   discountOf (эффективный процент и «отличается ли от общего»). Строки с разной discount не
+   сливаются (ключ несёт суффикс «|d:N»), поэтому members одной строки несут одну и ту же скидку.
    items — СТРУКТУРНЫЙ состав ОДНОЙ единицы позиции (одного комплекта-поста либо одного
    одиночного изделия плана): [{kind, code, name, count, price, assumed?, notRequired?}], где
    kind — роль узла в посте ("mechanism"|"support"|"box"|"frame"|"lighting"|"backlight") либо
@@ -215,12 +276,18 @@ function build(input) {
        пометкой — потерять её молча хуже, чем показать проблему */
     if (!p) missing.push(d.productId);
     const name = p ? p.name : `Товар не найден (арт. ${d.productId})`;
+    /* Личная скидка изделия входит в ключ строки суффиксом «|d:N»: изделия с РАЗНОЙ своей скидкой
+       обязаны быть разными строками (значение одно на строку, а поле панели правит все её объекты).
+       Нет своей скидки → суффикса нет → ключ байт-в-байт прежний, старые сметы не перегруппируются. */
+    let key = p ? "d" + p.id : "d?" + d.productId;
+    if (hasOwnDiscount(d.discount)) key += "|d:" + clampPercent(d.discount);
     lines.push({
-      key: p ? "d" + p.id : "d?" + d.productId,
+      key,
       name,
       composition: p ? p.code : `артикул ${d.productId} отсутствует в каталоге`,
       unit: (p && p.unit) || "шт.",
       price: (p && p.price) || 0,
+      discount: d.discount, ref: d,
       /* Одиночное изделие плана — тоже позиция состава, просто состоящая из себя одной.
          Своя строка items у него нужна, чтобы читателю структурного состава не пришлось
          разбирать особый случай: «в строке поста состав в items, а в строке изделия —
@@ -390,10 +457,16 @@ function build(input) {
     const backCodes = backItems.map((it) => [String(it.code), it.count])
       .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
     if (backCodes.length || gapCount) key += "|b:" + JSON.stringify([backCodes, gapCount]);
+    /* ⚠️ ЛИЧНАЯ СКИДКА ПОСТА ВХОДИТ В КЛЮЧ ПОСЛЕДНИМ суффиксом «|d:N». Два физически одинаковых
+       поста с РАЗНОЙ своей скидкой — разные строки КП (владельцу так и сказано): у строки одна
+       скидка на все её посты, а поле панели правит их вместе. Нет своей скидки → суффикса нет →
+       ключ прежний, старые сметы не перегруппируются и совпадают с HEAD до копейки. */
+    if (hasOwnDiscount(po.discount)) key += "|d:" + clampPercent(po.discount);
     lines.push({
       key,
       name: po.name,
       items,
+      discount: po.discount, ref: po,
       /* Печатная строка — ПРОИЗВОДНАЯ от items, а не вторая их сборка (см. renderItem). */
       composition: items.map(renderItem).filter(Boolean).join(", "),
       unit: "компл.",
@@ -417,15 +490,28 @@ function build(input) {
      них, поэтому состав у всех строк группы одинаковый. */
   const groups = new Map();
   lines.forEach((l) => {
-    const g = groups.get(l.key) || { name: l.name, composition: l.composition, items: l.items, unit: l.unit, count: 0, sum: 0 };
-    g.count++; g.sum += l.price; groups.set(l.key, g);
+    /* В группе храним: key (устойчивость строки), discount (своя скидка — одна на строку, т.к.
+       разные скидки не сливаются) и members (сами объекты строки — их правит поле панели ЦЕЛИКОМ). */
+    const g = groups.get(l.key) || { key: l.key, name: l.name, composition: l.composition,
+      items: l.items, unit: l.unit, count: 0, sum: 0, discount: l.discount, members: [] };
+    g.count++; g.sum += l.price; if (l.ref) g.members.push(l.ref); groups.set(l.key, g);
   });
+  const groupList = [...groups.values()];
 
   const equipment = lines.reduce((acc, l) => acc + l.price, 0);
-  /* скидка бьётся по оборудованию, а работы и материалы считаются уже от него —
-     иначе процент «отыгрывался» бы обратно через надбавки */
-  const discountPercent = Math.max(0, Math.min(100, Number(s.discountPercent) || 0));
-  const discount = equipment * discountPercent / 100;
+  /* Скидка бьётся по оборудованию, а работы и материалы считаются уже от него — иначе процент
+     «отыгрывался» бы обратно через надбавки. Скидка позиционная: у строки свой процент (общий либо
+     личный, discount на объекте). Итог и построчные признаки — ОДНО правило discountBreakdown (§7.1);
+     оно же гарантирует совпадение с прежней формулой до копейки, когда личных скидок нет. */
+  const db = discountBreakdown(groupList, s.discountPercent);
+  const discountPercent = db.general;
+  const discount = db.total;
+  const discountMixed = db.mixed;
+  groupList.forEach((g, i) => {
+    g.discountPercent = db.rows[i].percent;
+    g.discountPersonal = db.rows[i].personal;
+    g.discountAmount = db.rows[i].amount;
+  });
   const equipmentNet = equipment - discount;
   const materials = equipmentNet * (Number(s.materialsPercent) || 0) / 100;
   const work = equipmentNet * (Number(s.workPercent) || 0) / 100;
@@ -436,8 +522,11 @@ function build(input) {
   const vatInfo = vatBreakdown(subtotal, vatModeOf(s), Number(s.vatPercent) || 0);
 
   return {
-    groups: [...groups.values()], missing,
-    equipment, discountPercent, discount, equipmentNet,
+    groups: groupList, missing,
+    /* discountPercent — ОБЩИЙ процент. discountMixed — у хоть одной строки процент ОТЛИЧАЕТСЯ от
+       общего (discountOf.personal): тогда у итоговой скидки единого процента нет, КП поясняет это
+       строкой «Скидка (общая N%, у отмеченных позиций своя)», а разницу называют пометки строк. */
+    equipment, discountPercent, discount, discountMixed, equipmentNet,
     materials, work, subtotal,
     vatMode: vatInfo.mode, vatPercent: vatInfo.percent, vat: vatInfo.amount,
     vatIncluded: vatInfo.included, vatLabel: vatInfo.label, total: vatInfo.total
@@ -467,7 +556,7 @@ function pricelessNote(est) {
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, vatBreakdown, vatModeOf };
+const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, vatBreakdown, vatModeOf, discountOf, discountBreakdown };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

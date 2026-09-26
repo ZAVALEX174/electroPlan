@@ -269,7 +269,9 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
    «0,00 €» и дубль «в т.ч. НДС»). Узкий селектор .price-card[hidden] (специфичность строго выше
    .price-card) возвращает скрытие ровно этим строкам, не трогая глобальный [hidden]. */
 .price-card[hidden]{display:none}
-.spec-list{display:flex;flex-direction:column;gap:6px}.spec-item{display:grid;grid-template-columns:1fr auto;gap:5px;padding:8px;border-radius:10px;background:var(--panel-soft);font-size:10px}.spec-item strong{font-size:11px}.spec-item span{color:var(--muted)}
+.spec-list{display:flex;flex-direction:column;gap:6px}.spec-item{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:5px;padding:8px;border-radius:10px;background:var(--panel-soft);font-size:10px}.spec-item strong{font-size:11px}.spec-item span{color:var(--muted)}
+/* Своё поле «скидка, %» позиции (А2): узкий инпут справа от суммы. Пусто — действует общая скидка. */
+.spec-disc{display:flex;align-items:center;gap:2px;color:var(--muted);font-size:10px}.spec-disc input{width:38px;font-size:10px;padding:2px 3px;text-align:right}
 .modal-backdrop{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(11,40,68,.58);backdrop-filter:blur(5px)}.modal-backdrop.open{display:flex}
 .modal{width:min(880px,100%);max-height:92vh;overflow-y:auto;overflow-x:hidden;padding:21px;border:1px solid #acd0ef;border-radius:21px;background:#fff;box-shadow:0 30px 100px rgba(0,45,86,.3)}
 /* Конструктор поста — ПОЛНОЭКРАННОЕ окно (E17). Подложке снимаем отступы (модификатор

@@ -132,6 +132,15 @@ function compose(est, deps) {
   const itemText = (value, code) => config.itemText(value, options.articles, code);
   const estimate = deps.EPEstimate || defaultEstimate();
 
+  /* Проценты в КП — с ДЕСЯТИЧНОЙ ЗАПЯТОЙ (русский документ), как курс в rateFooter: «12,5%», а не
+     «12.5%». Целое остаётся целым. */
+  const pct = n => String(n).replace(".", ",");
+  /* Пометка личной скидки строки/поста — ОДНА формулировка на спецификацию и раскладку. Печатаем
+     ТОЛЬКО когда процент строки отличается от общего (personal); своя 0% при общей >0 — «без скидки».
+     Пусто, когда цены в КП выключены (options.prices): в документе без цен скидке взяться неоткуда. */
+  const discMark = (personal, percent) => (!options.prices || !personal) ? ""
+    : (Number(percent) === 0 ? "без скидки" : "скидка " + pct(percent) + "%");
+
   /* Оговорка о позициях без цены — ОДНОЙ строкой с экраном (см. defaultEstimate выше). Считает по
      тому же est.missing, что и панель «Стоимость проекта»; печатается прямо под «Итого», иначе КП
      выглядел бы окончательной суммой, хотя часть позиций вошла в неё нулём. deps.EPEstimate — точка
@@ -170,7 +179,13 @@ function compose(est, deps) {
     article: (g.items || []).filter(it => !it.notRequired && it.count > 0)
       .map(it => `${it.code || "артикул не определён"}${it.count > 1 ? " × " + it.count : ""}${it.assumed ? " (предположительно)" : ""}`).join(", "),
     quantity: g.count, unit: g.unit,
-    price: g.count ? g.sum / g.count : 0, sum: g.sum
+    price: g.count ? g.sum / g.count : 0, sum: g.sum,
+    /* Пометка личной скидки строки (est.groups[].discountPersonal/discountPercent из
+       EPEstimate.build). Цену и сумму строки НЕ трогаем — они остаются каталожными (до скидки),
+       как и «Стоимость блока/артикулов» в раскладке: скидка учтена ОДНОЙ строкой «Скидка» в
+       итогах, а пометка объясняет клиенту, откуда у итоговой скидки разный процент по позициям
+       (иначе единая строка «Скидка» на смеси процентов была бы необъяснима). */
+    discountMark: discMark(g.discountPersonal, g.discountPercent)
   }));
 
   /* Шапка документа (PLAN 5): поля из панели проекта. Печатаем только заполненные —
@@ -208,8 +223,17 @@ function compose(est, deps) {
      заголовком, без признака ошибки. Ячейку рисует рендерер, ЗАВЕДЁННЫЙ ПОД ТОТ ЖЕ ключ; ключ
      без рендерера в колонки не попадает (layoutColumns), поэтому данные под чужой шапкой
      невозможны — колонка появляется только вместе со своим рендерером. */
+  /* Личная скидка ПОСТА для пометки в раскладке (набор «Для клиента» печатает раскладку без
+     спецификации — там пометок иначе не было бы вовсе). Процент/признак «личная» считает ТА ЖЕ
+     discountOf, что и строки сметы; p.discount кладёт оркестратор (buildPostLayout). Пометку
+     вешаем на столбец «№ поста» — он есть во всех наборах раскладки, поэтому она не пропадёт
+     вместе с выключенным столбцом. */
+  const layoutDisc = p => {
+    const d = estimate.discountOf ? estimate.discountOf(p.discount, s.discountPercent) : { personal: false };
+    return discMark(d.personal, d.percent);
+  };
   const layoutRenderers = {
-    number: p => esc(p.number),
+    number: p => { const m = layoutDisc(p); return esc(p.number) + (m ? `<div class="pl-disc">${esc(m)}</div>` : ""); },
     fill: p => (p.fill || []).map(f => f.noCount ? esc(itemText(f.word)) : `${esc(itemText(f.word))} — ${Number(f.count) || 0}`).join("<br>") || "—",
     modules: p => Number(p.modules) || 0,
     box: p => `${esc(itemText(p.box?.name || "Монтажная коробка не подобрана", p.box?.code))}`
@@ -263,7 +287,7 @@ function compose(est, deps) {
   <table class="specification"><thead><tr>${specColumns.map(([key, label]) => `<th${["price", "sum"].includes(key) ? ' class="right"' : ""}>${esc(label)}</th>`).join("")}</tr></thead><tbody>
   ${rows.map((r, i) => `<tr>${specColumns.map(([key]) => ["price", "sum"].includes(key)
     ? `<td class="right">${money(r[key])}</td>`
-    : `<td>${key === "name" ? `<b>${esc(r.name)}</b>` : esc(key === "number" ? i + 1 : r[key])}</td>`).join("")}</tr>`).join("")}
+    : `<td>${key === "name" ? `<b>${esc(r.name)}</b>${r.discountMark ? ` <span class="disc-mark">${esc(r.discountMark)}</span>` : ""}` : esc(key === "number" ? i + 1 : r[key])}</td>`).join("")}</tr>`).join("")}
   </tbody></table>` : "";
 
   /* Секции-строки, приходящие оркестратором готовыми, — ОТДЕЛЬНЫМИ const: их же читает страж
@@ -294,7 +318,7 @@ function compose(est, deps) {
   const signatureBlock = signatureBlockHtml(deps.signature, deps.stamp, (deps.header || {}).developer, esc);
 
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Коммерческое предложение</title><style>
-  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.priceless{width:340px;margin:8px 0 0 auto;color:#9b3f2b;font-size:11px;font-weight:bold;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}.terms{margin-top:28px;padding-top:12px;border-top:1px solid #d8e6f2;color:#4a5b6c;font-size:11px;line-height:1.45}.signature{display:flex;gap:48px;align-items:flex-end;margin-top:34px;page-break-inside:avoid}.sign-col{text-align:center}.sign-name{margin-top:6px;font-size:11px;color:#4a5b6c}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}@media print{button{display:none}}</style></head><body>
+  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.priceless{width:340px;margin:8px 0 0 auto;color:#9b3f2b;font-size:11px;font-weight:bold;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}.terms{margin-top:28px;padding-top:12px;border-top:1px solid #d8e6f2;color:#4a5b6c;font-size:11px;line-height:1.45}.signature{display:flex;gap:48px;align-items:flex-end;margin-top:34px;page-break-inside:avoid}.sign-col{text-align:center}.sign-name{margin-top:6px;font-size:11px;color:#4a5b6c}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}.disc-mark{color:#9b3f2b;font-size:10px;font-weight:normal;white-space:nowrap}.pl-disc{color:#9b3f2b;font-size:9px;font-weight:normal;margin-top:2px}@media print{button{display:none}}</style></head><body>
   <h1>Коммерческое предложение</h1><div class="sub">Проект электрики и комплектация электроустановочных изделий</div>
   <div class="meta"><div class="box">${logoImg}${headerRows}</div><button onclick="window.print()">Сохранить в PDF</button></div>
   ${planSection}
@@ -303,7 +327,7 @@ function compose(est, deps) {
   ${specSection}
   ${lightingSection}
   ${options.prices ? `<div class="totals"><div><span>Оборудование</span><b>${money(est.equipment)}</b></div>
-  ${est.discount ? `<div><span>Скидка ${est.discountPercent}%</span><b>−${money(est.discount)}</b></div>` : ""}
+  ${est.discount ? `<div><span>${est.discountMixed ? `Скидка (общая ${pct(est.discountPercent)}%, у отмеченных позиций своя)` : `Скидка ${pct(est.discountPercent)}%`}</span><b>−${money(est.discount)}</b></div>` : ""}
   <div><span>Монтажные материалы</span><b>${money(materials)}</b></div><div><span>Работы</span><b>${money(work)}</b></div>
   ${est.vat && !est.vatIncluded ? `<div><span>Итого без НДС</span><b>${money(est.subtotal)}</b></div><div><span>${esc(est.vatLabel || "НДС")} ${est.vatPercent}%</span><b>${money(est.vat)}</b></div>` : ""}
   <div class="grand"><span>Итого${est.vat && !est.vatIncluded ? " с НДС" : ""}</span><b>${money(total)}</b></div>
