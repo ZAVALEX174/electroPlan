@@ -1,0 +1,19 @@
+  // --- В1: «Разместить» + клик прямо по табличке комнаты ставит пост ---
+  n = 400;
+  const cntPosts = () => ev(`return document.querySelectorAll(".plan-icon").length`);
+  const gl = `Array.from(document.querySelectorAll(".room-label")).find(e=>e.textContent.includes("Гостиная"))`;
+  log.push("табличка Гостиной — контурная комната: " + await ev(`return !!document.querySelector("#roomsSvg polygon")`));
+  log.push("иконок до: " + await cntPosts() + "; в табличке Гостиной: " + await ev(`return (${gl}).querySelector(".room-object-count").textContent`));
+  await click(`document.querySelector("[data-place-template]")`);
+  log.push("режим размещения включён: " + await ev(`return document.getElementById("canvas").classList.contains("placing")`));
+  const g = await rect(gl);
+  await clickAt(g.x + g.w / 2, g.y + g.h / 2); await sleep(600);
+  log.push("иконок после клика по табличке: " + await cntPosts());
+  log.push("toast: " + await ev(`return document.querySelector(".toast")?.textContent`));
+  log.push("в табличке Гостиной: " + await ev(`return (${gl}).querySelector(".room-object-count").textContent`));
+  await shot("label-place", [gl]);
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(300);
+  // вне размещения клик по табличке выделяет комнату
+  await clickAt(g.x + 12, g.y + g.h / 2); await sleep(500);
+  log.push("вне размещения: иконок " + await cntPosts() + ", табличка выделена: " + await ev(`return (${gl}).classList.contains("selected")`));
+  await shot("label-select", [gl]);

@@ -538,8 +538,12 @@ function renderRooms(){
     el.innerHTML=`<span class="room-title">${esc(r.name)}</span>${areaText?`<small>${esc(areaText)}</small>`:""}<span class="room-object-count">${count} объект.</span>`;
     /* полигональную комнату подпись не двигает (контур отдельно) — только выделяет/удаляет
        кликом; подпись комнаты без контура тащится и выделяется единым обработчиком makeDraggable */
-    if(isPoly)el.onclick=e=>{e.stopPropagation();state.tool==="delete"?removeEntity("room",r.id):selectEntity("room",r.id)};
-    else{el.onclick=e=>e.stopPropagation();makeDraggable(el,r,"room")}   /* клик не должен доходить до canvas.onclick */
+    if(isPoly)el.onclick=e=>{
+      e.stopPropagation();   /* клик по подписи не всплывает к canvas.onclick — иначе пост поставился бы дважды */
+      if(state.pending){placePendingAtEvent(e);return}   /* режим размещения: пост встаёт в точку клика по табличке — тем же правилом, что клик по пустому месту */
+      state.tool==="delete"?removeEntity("room",r.id):selectEntity("room",r.id);
+    };
+    else{el.onclick=e=>{e.stopPropagation();if(state.pending)placePendingAtEvent(e)};makeDraggable(el,r,"room")}   /* клик не доходит до canvas.onclick; в размещении — пост в точку клика тем же правилом */
     canvas.appendChild(el);
   });
 }
@@ -1329,6 +1333,12 @@ function makeDraggable(el,obj,kind){
   el.dataset.kind=kind;el.dataset.id=obj.id;
   let mode="idle",sx=0,sy=0,bx=0,by=0,stop=null,dragMap=null,switched=false;
   function beginPress(clientX,clientY,pointerId){
+    /* Режим размещения: нажатие на табличку КОМНАТЫ не перехватываем. Без этого return нажатие
+       (даже при инструменте select) выделило бы комнату и начало перенос таблички, а click не
+       поставил бы пост; при другом инструменте ensureSelectTool ниже ещё и сбросил бы state.pending.
+       Пусть click дойдёт до обработчика подписи (placePendingAtEvent). Иконки постов/элементов
+       в размещении переносим как обычно — потому условие только для kind==="room". */
+    if(state.pending&&kind==="room")return;
     if(state.tool==="delete"){removeEntity(kind,obj.id);return}   /* в режиме удаления нажатие удаляет */
     if(spaceDown)return;   /* зажат пробел — жест забирает панорама холста, объект не трогаем */
     switched=ensureSelectTool();
@@ -3866,6 +3876,21 @@ function addPending(x,y){
   if(room)toast(`Объект добавлен в комнату «${room.name}»`);
   else if(outside)toast("Объект размещён вне комнаты");
 }
+/* Формула «экранный клик → координаты плана» (с учётом масштаба), общая для canvas.onclick и
+   placePendingAtEvent (клик размещения). НЕ единственный источник: addWallPoint, addRoomLinePoint
+   и pointermove считают ту же формулу своей копией — сюда их пока не свели. */
+function canvasEventPoint(e){
+  const r=canvas.getBoundingClientRect();
+  return {x:(e.clientX-r.left)/state.scale,y:(e.clientY-r.top)/state.scale};
+}
+/* Единое правило «клик в режиме размещения ставит объект в точку клика». Зовут и canvas.onclick
+   (клик по пустому месту), и обработчики подписей комнат (клик прямо по табличке): расчёт координат
+   и addPending живут в одном месте, второй копии нет. */
+function placePendingAtEvent(e){
+  if(!state.pending)return;
+  const p=canvasEventPoint(e);
+  addPending(p.x,p.y);
+}
 /* Шаг сетки теперь настройка проекта (state.gridStep), а не константа: владелец
    просил уметь менять его. Фолбэк на дефолт — для устойчивости, если поле пустое. */
 function snapToGrid(v){const g=state.gridStep||EPConfig.gridDefault;return Math.round(v/g)*g}
@@ -5488,8 +5513,8 @@ function autoTracePlan(){
 }
 
 canvas.onclick=e=>{
-  const r=canvas.getBoundingClientRect(),x=(e.clientX-r.left)/state.scale,y=(e.clientY-r.top)/state.scale;
-  if(state.pending)addPending(x,y);
+  const {x,y}=canvasEventPoint(e);
+  if(state.pending)placePendingAtEvent(e);
   else if(state.tool==="scale"){addScalePoint(x,y);return}
   else if(state.tool==="wall")addWallPoint(e);
   else if(state.tool==="roomline"){addRoomLinePoint(e);return}
