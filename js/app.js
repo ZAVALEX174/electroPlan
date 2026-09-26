@@ -4251,6 +4251,8 @@ function projectSnapshot(){
     /* реквизиты документа (проект/клиент/адрес/разработчик/дата/номер КП) — часть проекта */
     docHeader:EP_DATA.settings.docHeader||{},
     offerOptions:EPOfferOptions.normalize(EP_DATA.settings.offerOptions),
+    /* вид поста в листе монтажника — отдельное поле проекта (не внутри offerOptions, см. Б2) */
+    assemblyView:EPOfferOptions.assemblyView(EP_DATA.settings.assemblyView),
     /* условия сделки и валюта — часть проекта, а не глобальная настройка приложения */
     /* vatMode пишем ЧЕРЕЗ vatModeOf, а не сырым полем: у старого проекта (или свежего дефолта
        data.js) поля vatMode ещё нет, сырой пик дал бы undefined, JSON бы его выбросил — и в
@@ -4378,6 +4380,11 @@ async function restoreProject(){
   if(p.docHeader)EP_DATA.settings.docHeader=p.docHeader;
   fillDocHeaderInputs();
   EP_DATA.settings.offerOptions=EPOfferOptions.normalize(p.offerOptions);
+  /* Вид поста — отдельное поле проекта. Миграция: снимки, сохранённые ранним черновиком Б2, держали
+     его ВНУТРИ offerOptions (p.offerOptions.assemblyView) — читаем оттуда, если своего поля ещё нет.
+     Старый проект без обоих полей открывается со взрыв-схемой (assemblyView сведёт undefined к ней). */
+  EP_DATA.settings.assemblyView=EPOfferOptions.assemblyView(
+    p.assemblyView!==undefined?p.assemblyView:(p.offerOptions&&p.offerOptions.assemblyView));
   syncOfferOptions();
   if(p.plan){
     await new Promise(done=>{
@@ -4517,7 +4524,9 @@ function renderOfferOptions(){
 function syncOfferOptions(){
   const o=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
   ["articles","prices"].forEach(key=>{$("offer-"+key).checked=o[key]});
-  $("offer-assemblyView").value=o.assemblyView;   /* вид поста в листе монтажника (Б2) */
+  /* Вид поста — отдельная настройка проекта, не часть набора столбцов: восстанавливаем select из
+     settings.assemblyView, чтобы экран не разошёлся с документом (Б2). */
+  $("offer-assemblyView").value=EPOfferOptions.assemblyView(EP_DATA.settings.assemblyView);
   Object.entries(EPOfferOptions.fields).forEach(([group,fields])=>fields.forEach(([key])=>{
     const input=$("offer-"+group+"-"+key);
     input.checked=o[group][key];
@@ -4574,11 +4583,15 @@ function saveCustomOfferPreset(index){
   renderCustomOfferPresets();
 }
 function applyOfferOption(input){
-  const o=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
   const {offerGroup:group,offerKey:key}=input.dataset;
+  /* Вид поста в листе монтажника — ОТДЕЛЬНАЯ настройка проекта, а не набор столбцов: пишем в
+     settings.assemblyView, а не в offerOptions, иначе смена набора столбцов сбрасывала бы вид, а
+     подсветка активного набора гасла бы из-за него. Подсветку наборов при этом трогать не нужно
+     (вид в сравнение не входит), поэтому выходим сразу. */
+  if(key==="assemblyView"){EP_DATA.settings.assemblyView=EPOfferOptions.assemblyView(input.value);scheduleSave();return}
+  const o=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
   if(group&&EPOfferOptions.fields[group]?.some(([k])=>k===key))o[group][key]=input.checked;
   else if(key==="articles"||key==="prices")o[key]=input.checked;
-  else if(key==="assemblyView")o.assemblyView=input.value;   /* select, не чекбокс: берём value (normalize сведёт чужое к взрыв-схеме) */
   else return;
   EP_DATA.settings.offerOptions=o;
   syncOfferOptions();scheduleSave();
@@ -5136,11 +5149,12 @@ function openInstallSheet(data){
   const win=window.open("","_blank");
   if(!win){toast("Разрешите всплывающие окна для листа монтажника");return}
   const h=docHeader();
-  /* Вид поста берём из настроек КП (EP_DATA.settings.offerOptions) в ОДНОМ месте — так его получают
-     оба пути листа: и кнопка «Лист монтажника» на проект, и лист из конструктора поста (§7.1). */
+  /* Вид поста — отдельная настройка проекта (EP_DATA.settings.assemblyView), берём её в ОДНОМ месте:
+     так его получают оба пути листа — и кнопка «Лист монтажника» на проект, и лист из конструктора
+     поста (§7.1). Наборы столбцов КП вид не задают, поэтому читаем НЕ из offerOptions. */
   win.document.write(EPInstallSheet.buildHtml(
     Object.assign({header:{project:h.project,developer:h.developer,date:h.date},
-      assemblyView:EPOfferOptions.normalize(EP_DATA.settings.offerOptions).assemblyView},data),
+      assemblyView:EPOfferOptions.assemblyView(EP_DATA.settings.assemblyView)},data),
     {esc,logo:companyLogo()}));
   win.document.close();
 }

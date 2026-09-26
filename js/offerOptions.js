@@ -39,17 +39,21 @@ const groupLabels = { sections: "Разделы", layout: "Столбцы рас
 function normalize(value) {
   const v = value && typeof value === "object" ? value : {};
   const bool = (x, fallback) => typeof x === "boolean" ? x : fallback;
-  /* Вид поста в листе монтажника (Б2, слова заказчика «общая сборка» / «взрыв-схема»): флаг
-     ПРЕДСТАВЛЕНИЯ документа, как articles/prices, — не смета и не подбор. По умолчанию "exploded"
-     (взрыв-схема): существующие проекты и наборы, где вид не задан, печатают лист как раньше.
-     Любое чужое значение сводим к умолчанию — буква из старого/чужого снимка не должна сломать
-     выбор. Единственная точка, где значение приводится к каноническому виду. */
-  const out = { articles: bool(v.articles, true), prices: bool(v.prices, true),
-    assemblyView: v.assemblyView === "assembled" ? "assembled" : "exploded" };
+  const out = { articles: bool(v.articles, true), prices: bool(v.prices, true) };
   Object.entries(fields).forEach(([group, rows]) => {
     out[group] = Object.fromEntries(rows.map(([key, , fallback]) => [key, bool(v[group]?.[key], fallback)]));
   });
   return out;
+}
+/* Вид поста в листе монтажника (Б2, слова заказчика «общая сборка» / «взрыв-схема»): "assembled" —
+   собранная накладка с клавишами; "exploded" (умолчание) — разложенная по деталям схема, как было.
+   Это ОТДЕЛЬНАЯ НАСТРОЙКА ПРОЕКТА, а НЕ часть набора столбцов КП: поэтому она НЕ ходит через
+   normalize/preset/sameOptions/custom-наборы. Иначе любой готовый или свой набор столбцов молча
+   перезаписывал бы вид (наборы сравнивают и переписывают offerOptions целиком), а подсветка активного
+   набора гасла бы из-за несовпадения вида. Единственная точка канонизации значения: чужое/пустое → "exploded",
+   поэтому старый снимок проекта и лист без выбора печатаются как раньше. */
+function assemblyView(value) {
+  return value === "assembled" ? "assembled" : "exploded";
 }
 /* Готовые наборы столбцов заказчика (EPG, ответы 16.09) — по РОЛЯМ. Состав каждого ровно по словам
    заказчика, в ОДНОЙ точке рядом с полной схемой: правка состава набора не расходится по
@@ -148,7 +152,7 @@ function saveCustomPreset(presets, index, name, options) {
 function sameOptions(a, b) {
   return JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
 }
-const api = { fields, groupLabels, normalize, preset, itemText, CUSTOM_SLOTS, normalizeCustomPresets, saveCustomPreset, sameOptions };
+const api = { fields, groupLabels, normalize, preset, itemText, CUSTOM_SLOTS, normalizeCustomPresets, saveCustomPreset, sameOptions, assemblyView };
 if (typeof window !== "undefined") window.EPOfferOptions = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

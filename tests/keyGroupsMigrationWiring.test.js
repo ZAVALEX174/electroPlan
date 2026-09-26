@@ -99,7 +99,7 @@ test("E13-mig-2: restoreProject чистит осиротевшие группы
       ProjectStore: { load: () => project },
       state, EPPosts, EPBuilderSlots, product,
       EPConfig: { gridSteps: [10], gridDefault: 10 },
-      EPOfferOptions: { normalize: () => ({}) },
+      EPOfferOptions: { normalize: () => ({}), assemblyView: () => "exploded" },
       EP_DATA: { settings: {} },
       $: stand.makeDom().$,
       fillDocHeaderInputs() {}, syncOfferOptions() {}, markCanvasUsed() {},
