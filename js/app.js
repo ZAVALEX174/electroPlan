@@ -581,9 +581,24 @@ function carryUserRoomFields(oldAutoRooms,newRooms){
   });
 }
 function refreshRoomAfterEdit(room){
-  const c=polygonCentroid(room.polygon);
+  /* В10: якорь подписи — точка ВНУТРИ контура (roomLabelPoint), у выпуклых равна прежнему центроиду. */
+  const c=roomLabelPoint(room.polygon);
   room.seedX=c.x;room.seedY=c.y;room.x=c.x-45;room.y=c.y-16;
   refreshAfterRoomAssignments(renderRooms, persistProject);
+}
+/* В10: миграция открываемого проекта. Старые проекты хранят якорь подписи контурной комнаты как
+   среднее вершин; у Г/П-образных оно лежит ВНЕ контура, и табличка (с кликом «поставить сюда пост»)
+   попадала в соседнюю комнату. Пересчитываем якорь контурных комнат через roomLabelPoint — точку
+   внутри контура. У выпуклых (прямоугольники) точка равна прежнему центроиду, поэтому обычные
+   таблички не двигаются. Комнаты без контура (инструмент «T») пропускаем — их подпись пользователь
+   ставит и тащит руками, полигона у них нет. */
+function relabelContourRooms(rooms){
+  (rooms||[]).forEach(r=>{
+    if(r.polygon&&r.polygon.length>2){
+      const c=roomLabelPoint(r.polygon);
+      r.seedX=c.x;r.seedY=c.y;r.x=c.x-45;r.y=c.y-16;
+    }
+  });
 }
 function renderVertexHandles(svg,room){
   const poly=room.polygon;
@@ -665,7 +680,7 @@ function removeWall(id){
    Чистая геометрия (полигоны, площади, флуд-фолл свободного пространства) вынесена
    в js/geometry.js (EPGeom) — см. PLAN 2.1; здесь берём её через алиасы, а привязка
    к state/DOM остаётся в этом файле. */
-const {polygonCentroid,polygonAreaPx,pointInPolygon,componentAt,roomContourProbe,segmentsIntersection,distancePointToSegment}=EPGeom;
+const {polygonCentroid,polygonAreaPx,pointInPolygon,componentAt,roomContourProbe,segmentsIntersection,distancePointToSegment,roomLabelPoint,roomNamePoint}=EPGeom;
 /* площадь комнаты в м² — только если задан масштаб плана */
 function roomAreaM2(room){
   if(!state.pxPerMeter||!room?.polygon||room.polygon.length<3)return null;
@@ -719,7 +734,7 @@ async function detectRooms(){
     const built=[];
     res.rooms.forEach(rm=>{
       const poly=EPRoomSeg.mapPolygon(rm.polygon,res,cw,ch);
-      const c=polygonCentroid(poly);
+      const c=roomLabelPoint(poly);
       const room={id:uid("room_"),name:"Комната "+(++next),area:"",polygon:poly,autoPolygon:true,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16};
       state.rooms.push(room);built.push(room);
     });
@@ -753,7 +768,7 @@ async function detectRoomsML(){
     const built=[];
     res.rooms.forEach(rm=>{
       const poly=EPFloorplanML.mapPolygon(rm.polygon,res,cw,ch);
-      const c=polygonCentroid(poly);
+      const c=roomLabelPoint(poly);
       const room={id:uid("room_"),name:"Комната "+(++next),area:"",polygon:poly,autoPolygon:true,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16};
       state.rooms.push(room);built.push(room);
     });
@@ -4127,7 +4142,7 @@ function buildRoomsFromLines(opts){
   let next=state.rooms.reduce((max,r)=>{const m=/^Помещение\s+(\d+)$/.exec(r.name||"");return m?Math.max(max,Number(m[1])):max},0);
   const built=[];
   res.rooms.forEach(rm=>{
-    const poly=rm.polygon,c=polygonCentroid(poly);
+    const poly=rm.polygon,c=roomLabelPoint(poly);
     /* roomSource — признак способа получения контура (по линиям/по сетке): запасной
        проход не подменяет основной молча, источник виден и в state, и в отчётах */
     const room={id:uid("room_"),name:"Помещение "+(++next),area:"",polygon:poly,autoPolygon:true,roomSource:rm.source,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16};
@@ -4373,6 +4388,7 @@ async function restoreProject(){
   try{p=ProjectStore.load()}catch(e){return null}
   if(!p)return null;
   state.devices=p.devices||[];state.posts=p.posts||[];state.rooms=p.rooms||[];
+  relabelContourRooms(state.rooms);   /* В10: у старых проектов подпись Г/П-комнаты могла лежать вне контура — вернуть внутрь */
   /* миграция старых проектов: они сохранялись без номеров постов — проставляем
      недостающие по порядку массива (существующие номера не трогаем), чтобы номер был
      стабильным идентификатором и на плане, и в документах */
@@ -4840,7 +4856,9 @@ function planLabelsSpec(){
        с тем же фолбэком x+55/y+18, что и в buildSpaceComponents). */
     rooms:state.rooms.map(r=>{
       if(r.polygon&&r.polygon.length>2){
-        const c=polygonCentroid(r.polygon);
+        /* В10: имя в документе центрируется прямо по точке (translate −50%), поэтому берём roomNamePoint —
+           точку визуального центрирования: у прежних комнат = центроид (как было), у переставленных = полюс. */
+        const c=roomNamePoint(r.polygon);
         return {name:r.name,polygon:r.polygon,x:c.x,y:c.y};
       }
       return {name:r.name,x:r.seedX!=null?r.seedX:r.x+55,y:r.seedY!=null?r.seedY:r.y+18};

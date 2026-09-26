@@ -345,7 +345,7 @@ function makeSession() {
     renderProjectWallTypeSelect: () => {}, renderProjectBacklight: () => {},
     fillDocHeaderInputs: () => {}, syncOfferOptions: () => {}, markCanvasUsed: () => {}
   };
-  const src = stand.functionSource("restoreProject") + "\n" + stand.functionSource("projectSnapshot")
+  const src = stand.functionSource("relabelContourRooms") + "\n" + stand.functionSource("restoreProject") + "\n" + stand.functionSource("projectSnapshot")
     + "\n;({ restore: restoreProject, snapshot: projectSnapshot });";
   vm.createContext(ctx);
   const api = vm.runInContext(src, ctx);

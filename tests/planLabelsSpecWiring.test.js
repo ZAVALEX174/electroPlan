@@ -7,7 +7,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
-const { polygonCentroid } = require("../js/geometry.js");
+const { polygonCentroid, roomLabelPoint, roomNamePoint } = require("../js/geometry.js");
 const EPLightingGroups = require("../js/lightingGroups.js");
 const EPLightingByRoom = require("../js/lightingByRoom.js");
 
@@ -23,6 +23,8 @@ function makeCtx(over) {
     canvas: { clientWidth: 1000, clientHeight: 700 },
     POST_ICON_HALF: 15,
     polygonCentroid,
+    roomLabelPoint,
+    roomNamePoint,
     EPLightingGroups,
     EPLightingByRoom,
     planImageForDoc: () => "IMG"
@@ -54,13 +56,42 @@ test("блок строится без подложки: план не загр�
   assert.equal(s.rooms.length, 1, "помещение отдано");
 });
 
-test("контурное помещение отдаётся с полигоном и якорем-центроидом", () => {
+test("контурное помещение отдаётся с полигоном и якорем-центроидом (выпуклый — прежняя точка)", () => {
   const s = spec(makeCtx({ state: { rooms: [{ name: "Кухня", polygon: SQUARE }] } }));
   const r = s.rooms[0];
   assert.deepEqual(r.polygon, SQUARE, "контур передан как есть");
   const c = polygonCentroid(SQUARE);
-  assert.equal(r.x, c.x, "якорь подписи по X — центроид контура");
+  assert.equal(r.x, c.x, "якорь подписи по X — центроид контура (выпуклый: roomLabelPoint = центроид)");
   assert.equal(r.y, c.y, "якорь подписи по Y — центроид контура");
+});
+
+/* В10: у вогнутого контура (Г-образного) среднее вершин лежит ВНЕ комнаты — имя в документе берётся
+   через roomNamePoint (точку визуального центрирования = сам полюс), а не «сырой» центроид и НЕ якорь
+   экранной таблички (иначе в узком коридоре имя ушло бы за стену). */
+const GAMMA = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 40 }, { x: 40, y: 40 }, { x: 40, y: 300 }, { x: 0, y: 300 }];
+test("вогнутое (Г-образное) помещение: имя в документе — в точке визуального центрирования (полюс), не центроид", () => {
+  const s = spec(makeCtx({ state: { rooms: [{ name: "Коридор", polygon: GAMMA }] } }));
+  const r = s.rooms[0];
+  const { pointInPolygon } = require("../js/geometry.js");
+  const c = polygonCentroid(GAMMA);
+  assert.equal(pointInPolygon(c.x, c.y, GAMMA), false, "среднее вершин Г-комнаты — вне контура (иначе тест бессмыслен)");
+  const nm = roomNamePoint(GAMMA);
+  assert.equal(r.x, nm.x, "точка имени по X — roomNamePoint (полюс)");
+  assert.equal(r.y, nm.y, "точка имени по Y — roomNamePoint");
+  assert.equal(pointInPolygon(r.x, r.y, GAMMA), true, "имя стоит внутри контура коридора");
+  assert.notEqual(r.x, roomLabelPoint(GAMMA).x, "это НЕ якорь экранной таблички (тот сдвинут на −(20,10))");
+});
+
+/* В10 п.2: узкий коридор (30 px). Имя в документе должно стоять в полюсе (внутри), а якорь экранной
+   таблички (полюс−(20,10)) в таком коридоре УЖЕ за стеной — брать его для документа нельзя. */
+const GAMMA30 = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 30 }, { x: 30, y: 30 }, { x: 30, y: 300 }, { x: 0, y: 300 }];
+test("узкий коридор 30 px: имя в документе внутри контура, экранный якорь — вне", () => {
+  const s = spec(makeCtx({ state: { rooms: [{ name: "Коридор", polygon: GAMMA30 }] } }));
+  const r = s.rooms[0];
+  const { pointInPolygon } = require("../js/geometry.js");
+  assert.equal(pointInPolygon(r.x, r.y, GAMMA30), true, "имя (roomNamePoint) — внутри узкого коридора");
+  const anchor = roomLabelPoint(GAMMA30);
+  assert.equal(pointInPolygon(anchor.x, anchor.y, GAMMA30), false, "экранный якорь в 30-px коридоре вышел за контур — потому документ его не берёт");
 });
 
 test("комната без контура не теряется: подпись по seedX/seedY", () => {

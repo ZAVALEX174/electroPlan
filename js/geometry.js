@@ -7,11 +7,110 @@
 (() => {
 "use strict";
 
-/* Центроид (среднее вершин) — им позиционируется подпись комнаты. */
+/* Центроид (среднее вершин). Для ВЫПУКЛОЙ комнаты он лежит внутри контура, и им же
+   позиционируется подпись; у Г/П-образных (вогнутых) он может уехать наружу — см. roomLabelPoint. */
 function polygonCentroid(poly) {
   let x = 0, y = 0;
   poly.forEach(p => { x += p.x; y += p.y; });
   return { x: x / poly.length, y: y / poly.length };
+}
+
+/* Знаковое расстояние от точки до контура: +внутри / −снаружи, |·| — до ближайшего ребра.
+   Опирается на pointInPolygon (знак) и distancePointToSegment (модуль) этого же модуля —
+   второй реализации границы/дистанции не заводим. Нужна poleOfInaccessibility. */
+function signedPolygonDist(x, y, poly) {
+  let minDist = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    minDist = Math.min(minDist, distancePointToSegment(x, y, poly[j].x, poly[j].y, poly[i].x, poly[i].y));
+  }
+  return (pointInPolygon(x, y, poly) ? 1 : -1) * minDist;
+}
+
+/* «Полюс недоступности» — центр наибольшей вписанной в контур окружности (алгоритм polylabel
+   Mapbox: квадродерево ячеек с приоритетом по верхней оценке расстояния до границы). Возвращает
+   точку, ГАРАНТИРОВАННО лежащую внутри даже у вогнутых (Г/П-образных) контуров, в отличие от
+   среднего вершин. Детерминирован при фиксированной precision — тот же контур даёт ту же точку.
+   Радиус вписанной окружности здесь не нужен, отдаём только координаты. */
+function poleOfInaccessibility(poly, precision) {
+  precision = precision > 0 ? precision : 1;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of poly) {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+  }
+  const width = maxX - minX, height = maxY - minY;
+  const cellSize = Math.min(width, height);
+  if (cellSize === 0) return { x: minX, y: minY }; // вырожденный контур — угол bbox
+  // ячейка: центр (x,y), полудлина h, d — знак-дистанция центра, max — верхняя оценка по углу
+  const makeCell = (x, y, h) => { const d = signedPolygonDist(x, y, poly); return { x, y, h, d, max: d + h * Math.SQRT2 }; };
+  /* приоритетная очередь (двоичная куча max по .max): контуры комнат небольшие, но куча держит
+     число проб логарифмическим и не зависит от порядка вставки ячеек. */
+  const heap = [];
+  const up = i => { while (i > 0) { const p = (i - 1) >> 1; if (heap[p].max >= heap[i].max) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const push = c => { heap.push(c); up(heap.length - 1); };
+  const pop = () => {
+    const top = heap[0], last = heap.pop();
+    if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = 2 * i + 2; let m = i; if (l < heap.length && heap[l].max > heap[m].max) m = l; if (r < heap.length && heap[r].max > heap[m].max) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } }
+    return top;
+  };
+  const h0 = cellSize / 2;
+  for (let x = minX; x < maxX; x += cellSize) for (let y = minY; y < maxY; y += cellSize) push(makeCell(x + h0, y + h0, h0));
+  let best = makeCell(minX + width / 2, minY + height / 2, 0); // затравка — центр bbox
+  while (heap.length) {
+    const cell = pop();
+    if (cell.d > best.d) best = cell;
+    if (cell.max - best.d <= precision) continue; // дробить дальше нечего — точность достигнута
+    const h = cell.h / 2;
+    push(makeCell(cell.x - h, cell.y - h, h));
+    push(makeCell(cell.x + h, cell.y - h, h));
+    push(makeCell(cell.x - h, cell.y + h, h));
+    push(makeCell(cell.x + h, cell.y + h, h));
+  }
+  return { x: best.x, y: best.y };
+}
+
+/* Смещение якоря подписи относительно ВИДИМОГО центра таблички. app.js рисует табличку левым-верхним
+   углом в точке (c.x-45, c.y-16), а сама табличка ~130×~52 px (css .room-label: min-width 110 + padding).
+   Значит её видимый центр = c + (65-45, 26-16) = c + (20, 10). Чтобы у вогнутой комнаты ВИДИМЫЙ центр
+   таблички (и центрированное в ней имя, по которому кликает пользователь) сел ровно на точку внутри
+   контура, якорь сдвигаем на это смещение назад. У выпуклых комнат смещение НЕ применяем — их якорь
+   обязан совпасть с прежним центроидом бит-в-бит (иначе привычные таблички «поедут»). */
+const LABEL_ANCHOR_DX = 20, LABEL_ANCHOR_DY = 10;
+
+/* ЕДИНЫЙ критерий положения подписи комнаты (В10). Прежде подпись позиционировалась по среднему
+   вершин (polygonCentroid), но кликают и центрируют имя не по самому якорю, а по ВИДИМОМУ центру
+   таблички: на экране это c+(LABEL_ANCHOR_DX,DY) (app.js рисует табличку углом в c−(45,16), сама она
+   ~130×~52 px), в документе — точка имени (planLabels центрирует его translate(−50%) прямо по точке).
+   Держим прежнюю точку (центроид) РОВНО пока видимый центр при прежнем якоре лежит внутри контура;
+   иначе комната «переставляется» на полюс недоступности — точку внутри. Это ловит не только Г/П, где
+   наружу уходит и сам центроид, но и вогнутые/узкие комнаты, где центроид внутри, а видимый центр уже
+   за стеной или в соседней комнате. Один критерий на оба потребителя — без второй копии.
+   Возвращает { keep, centroid, pole }: keep=true — оставляем прежнюю точку; pole считаем лениво. */
+function roomLabelDecision(poly) {
+  const c = polygonCentroid(poly);
+  if (pointInPolygon(c.x + LABEL_ANCHOR_DX, c.y + LABEL_ANCHOR_DY, poly)) return { keep: true, centroid: c, pole: c };
+  return { keep: false, centroid: c, pole: poleOfInaccessibility(poly) };
+}
+
+/* Точка ЯКОРЯ ЭКРАННОЙ таблички (её кладут в room.x=точка.x−45, room.y=точка.y−16). У «прежних»
+   комнат = центроид (бит-в-бит, привычные таблички не двигаются). У переставленных сдвинута на
+   LABEL_ANCHOR_* так, чтобы ВИДИМЫЙ центр таблички (и центрированное в ней имя, по которому кликают)
+   сел ровно на полюс — глубоко внутри контура. */
+function roomLabelPoint(poly) {
+  if (!poly || poly.length < 3) return polygonCentroid(poly || [{ x: 0, y: 0 }]);
+  const d = roomLabelDecision(poly);
+  return d.keep ? d.centroid : { x: d.pole.x - LABEL_ANCHOR_DX, y: d.pole.y - LABEL_ANCHOR_DY };
+}
+
+/* Точка ИМЕНИ комнаты В ДОКУМЕНТЕ (КП, лист монтажника). planLabels центрирует имя translate(−50%)
+   ПРЯМО по этой точке — без экранного сдвига −45/−16, — поэтому здесь отдаём точку визуального
+   центрирования: у «прежних» = центроид (как было бит-в-бит), у переставленных = САМ полюс (а не
+   якорь экранной таблички, иначе в узком коридоре имя ушло бы за стену). Критерий — тот же
+   roomLabelDecision, второй копии нет. */
+function roomNamePoint(poly) {
+  if (!poly || poly.length < 3) return polygonCentroid(poly || [{ x: 0, y: 0 }]);
+  const d = roomLabelDecision(poly);
+  return d.keep ? d.centroid : d.pole;
 }
 
 /* Площадь замкнутого полигона в px² (формула шнурков). */
@@ -290,7 +389,7 @@ function roomContourProbe(cx, cy, polygon, walls, inset) {
 const api = { polygonCentroid, polygonAreaPx, pointInPolygon, distancePointToSegment,
   closestPointOnSegment, segmentsIntersection, allIntersections, nearestEndpoint,
   nearestIntersection, nearestSegmentPoint, snapPlanPoint, buildSpaceComponents, componentAt,
-  roomContourProbe };
+  roomContourProbe, signedPolygonDist, poleOfInaccessibility, roomLabelPoint, roomNamePoint };
 if (typeof window !== "undefined") window.EPGeom = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

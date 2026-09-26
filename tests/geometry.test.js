@@ -6,7 +6,8 @@ const assert = require("node:assert/strict");
 const {
   segmentsIntersection, allIntersections, nearestEndpoint, nearestIntersection,
   distancePointToSegment, closestPointOnSegment, nearestSegmentPoint,
-  polygonAreaPx, pointInPolygon, snapPlanPoint, roomContourProbe
+  polygonAreaPx, pointInPolygon, snapPlanPoint, roomContourProbe,
+  polygonCentroid, poleOfInaccessibility, roomLabelPoint, roomNamePoint
 } = require("../js/geometry.js");
 
 /* отрезок из двух точек в форме {a,b} — как хранятся стены и линии разметки */
@@ -247,4 +248,99 @@ test("snapPlanPoint: сетка и ортогональность вместе �
   const p = snapPlanPoint(43, 12, { x: 10, y: 10 }, { grid: 10, snapGrid: true, ortho: true });
   near(p.x, 40, "x на узле сетки");
   near(p.y, 10, "y выровнен к prev, остаётся на узле");
+});
+
+/* ---- Точка подписи комнаты (В10): выпуклая = прежний центроид, вогнутая = внутрь контура ---- */
+
+const RECT = [{ x: 10, y: 20 }, { x: 210, y: 20 }, { x: 210, y: 120 }, { x: 10, y: 120 }];
+/* Г-образный коридор вокруг кухни (из задачи): среднее вершин лежит в кухне, а не в коридоре. */
+const GAMMA = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 40 }, { x: 40, y: 40 }, { x: 40, y: 300 }, { x: 0, y: 300 }];
+const KITCHEN = [{ x: 40, y: 40 }, { x: 300, y: 40 }, { x: 300, y: 300 }, { x: 40, y: 300 }];
+/* П-образная комната (открыта вверх) с соседом-вырезом в проёме. */
+const U_ROOM = [{ x: 0, y: 0 }, { x: 120, y: 0 }, { x: 120, y: 120 }, { x: 180, y: 120 }, { x: 180, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 200 }, { x: 0, y: 200 }];
+const U_NOTCH = [{ x: 120, y: 0 }, { x: 180, y: 0 }, { x: 180, y: 120 }, { x: 120, y: 120 }];
+
+/* Видимый центр таблички = якорь + (65,26): app.js рисует табличку углом в (точка.x-45, точка.y-16),
+   сама она ~130×~52 px (min-width 110 + padding). По этой точке пользователь и кликает. */
+const visibleCenter = p => ({ x: p.x - 45 + 65, y: p.y - 16 + 26 });
+
+test("roomLabelPoint: у выпуклой (прямоугольной) комнаты — ровно прежний центроид (сдвига нет)", () => {
+  const c = polygonCentroid(RECT), p = roomLabelPoint(RECT);
+  near(p.x, c.x, "выпуклая: X якоря = центроид");
+  near(p.y, c.y, "выпуклая: Y якоря = центроид");
+  assert.ok(Math.abs(p.x - c.x) <= 1 && Math.abs(p.y - c.y) <= 1, "в пределах 1 px от прежней точки");
+});
+
+test("roomLabelPoint: Г-коридор — видимая табличка внутри своей комнаты, не в соседней кухне", () => {
+  const c = polygonCentroid(GAMMA);
+  assert.equal(pointInPolygon(c.x, c.y, GAMMA), false, "среднее вершин Г-комнаты — ВНЕ коридора");
+  assert.equal(pointInPolygon(c.x, c.y, KITCHEN), true, "и лежит в соседней кухне (мотив дефекта В10)");
+  const v = visibleCenter(roomLabelPoint(GAMMA));
+  assert.equal(pointInPolygon(v.x, v.y, GAMMA), true, "видимый центр таблички — в коридоре");
+  assert.equal(pointInPolygon(v.x, v.y, KITCHEN), false, "и НЕ в кухне (клик не поставит пост в чужую комнату)");
+});
+
+test("roomLabelPoint: П-образная комната — видимая табличка внутри своей, не в вырезе-соседе", () => {
+  const c = polygonCentroid(U_ROOM);
+  assert.equal(pointInPolygon(c.x, c.y, U_ROOM), false, "среднее вершин П-комнаты — ВНЕ контура (в проёме)");
+  const v = visibleCenter(roomLabelPoint(U_ROOM));
+  assert.equal(pointInPolygon(v.x, v.y, U_ROOM), true, "видимый центр таблички — внутри П-комнаты");
+  assert.equal(pointInPolygon(v.x, v.y, U_NOTCH), false, "и НЕ в соседней комнате-вырезе");
+});
+
+test("poleOfInaccessibility: точка лежит внутри Г-контура (гарантия «внутри»)", () => {
+  const p = poleOfInaccessibility(GAMMA);
+  assert.equal(pointInPolygon(p.x, p.y, GAMMA), true, "полюс недоступности — внутри контура");
+});
+
+test("roomLabelPoint: вырожденный контур (<3 вершин) не падает — отдаёт среднее", () => {
+  const p = roomLabelPoint([{ x: 4, y: 6 }, { x: 8, y: 10 }]);
+  near(p.x, 6, "среднее X двух точек");
+  near(p.y, 8, "среднее Y двух точек");
+});
+
+/* Критерий по ВИДИМОМУ центру таблички, а не по центроиду: вогнутая комната, где центроид внутри,
+   но видимый центр (центроид+(20,10)) попадает в вырез/соседа — тоже переставляется. Полигон:
+   прямоугольник 200×100 с прямоугольным вырезом справа x[140,200] y[40,80]. */
+const NOTCH_POLY = [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 40 }, { x: 140, y: 40 }, { x: 140, y: 80 }, { x: 200, y: 80 }, { x: 200, y: 100 }, { x: 0, y: 100 }];
+const NOTCH_NEIGHBOR = [{ x: 140, y: 40 }, { x: 200, y: 40 }, { x: 200, y: 80 }, { x: 140, y: 80 }];
+test("roomLabelPoint: центроид ВНУТРИ, но видимый центр в соседе — комната переставляется на полюс", () => {
+  const c = polygonCentroid(NOTCH_POLY);
+  assert.equal(pointInPolygon(c.x, c.y, NOTCH_POLY), true, "центроид сам по себе ВНУТРИ (прежний критерий сказал бы «оставить»)");
+  const oldVis = { x: c.x + 20, y: c.y + 10 }; // ДО: якорь=центроид, видимый центр = c+(20,10)
+  assert.equal(pointInPolygon(oldVis.x, oldVis.y, NOTCH_POLY), false, "но видимый центр при прежнем якоре — ВНЕ контура (дефект)");
+  assert.equal(pointInPolygon(oldVis.x, oldVis.y, NOTCH_NEIGHBOR), true, "и попадал в соседнюю комнату-вырез");
+  const v = visibleCenter(roomLabelPoint(NOTCH_POLY));
+  assert.equal(pointInPolygon(v.x, v.y, NOTCH_POLY), true, "после: видимый центр таблички — внутри своей комнаты");
+  assert.equal(pointInPolygon(v.x, v.y, NOTCH_NEIGHBOR), false, "и не в соседе");
+});
+
+test("roomNamePoint: у переставленной комнаты имя в документе = САМ полюс (внутри), не якорь таблички", () => {
+  const nm = roomNamePoint(NOTCH_POLY);
+  assert.equal(pointInPolygon(nm.x, nm.y, NOTCH_POLY), true, "точка имени — внутри контура");
+  const anchor = roomLabelPoint(NOTCH_POLY);
+  near(nm.x, anchor.x + 20, "имя = якорь+(20,10): якорь сдвинут на −(20,10) от полюса");
+  near(nm.y, anchor.y + 10, "имя по Y = полюс");
+});
+
+test("roomNamePoint: у «прежней» (широкой) комнаты имя = центроид (бит-в-бит, как было)", () => {
+  const c = polygonCentroid(RECT), nm = roomNamePoint(RECT);
+  near(nm.x, c.x, "широкая комната: имя в документе = центроид");
+  near(nm.y, c.y, "и по Y");
+});
+
+test("узкий коридор 30 px: имя в документе (полюс) внутри, а экранный якорь — уже за стеной", () => {
+  const GAMMA30 = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 30 }, { x: 30, y: 30 }, { x: 30, y: 300 }, { x: 0, y: 300 }];
+  assert.equal(pointInPolygon(roomNamePoint(GAMMA30).x, roomNamePoint(GAMMA30).y, GAMMA30), true, "имя (полюс) — внутри 30-px коридора");
+  const a = roomLabelPoint(GAMMA30);
+  assert.equal(pointInPolygon(a.x, a.y, GAMMA30), false, "экранный якорь (полюс−(20,10)) в 30-px коридоре вышел за контур");
+});
+
+test("узкий выпуклый прямоугольник: держит прежнюю точку при W>40 и H>20, иначе переставляется", () => {
+  const rectOf = (w, h) => [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }];
+  const keeps = (w, h) => { const c = polygonCentroid(rectOf(w, h)), p = roomLabelPoint(rectOf(w, h)); return p.x === c.x && p.y === c.y; };
+  assert.equal(keeps(42, 22), true, "42×22 — обычная комната, точка прежняя (центроид)");
+  assert.equal(keeps(41, 21), true, "41×21 — ещё держит прежнюю");
+  assert.equal(keeps(40, 20), false, "40×20 — видимый центр на границе, переставляется на полюс");
+  assert.equal(keeps(30, 16), false, "узкий 30×16 — прежний видимый центр был за стеной, теперь центрируется");
 });

@@ -175,7 +175,7 @@ test("D10: UI → снимок проекта → восстановление �
     EPConfig: { gridSteps: [10], gridDefault: 10 }, markCanvasUsed: () => {},
     renderLightingSchemeSelect: () => {}, renderProjectWallTypeSelect: () => {}, renderProjectBacklight: () => {} });
   // Восстановление настоящей async-функции тем же общим стендом.
-  const restore = stand.run(["syncOfferOptions", "highlightActiveOfferPreset", "restoreProject"], ctx);
+  const restore = stand.run(["syncOfferOptions", "highlightActiveOfferPreset", "relabelContourRooms", "restoreProject"], ctx);
   await restore();
   assert.deepEqual(ctx.EP_DATA.settings.offerOptions, expected);
   delete snap.offerOptions;

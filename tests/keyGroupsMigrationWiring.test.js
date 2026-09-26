@@ -94,7 +94,7 @@ test("E13-mig-2: restoreProject чистит осиротевшие группы
   const project = { posts: [{ mechanismIds: [KEY_ID, NONKEY_ID], keyGroups: ["Кухня", "Спальня"] }] };
   const state = {};
   const restoreProject = stand.runNamed(
-    ["controlPlaceKind", "isControlPlaceItem", "keySlotKind", "dropOrphanKeyGroups", "restoreProject"],
+    ["controlPlaceKind", "isControlPlaceItem", "keySlotKind", "dropOrphanKeyGroups", "relabelContourRooms", "restoreProject"],
     {
       ProjectStore: { load: () => project },
       state, EPPosts, EPBuilderSlots, product,

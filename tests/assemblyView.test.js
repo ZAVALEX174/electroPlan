@@ -198,7 +198,7 @@ async function realRestore(project, opts) {
   };
   const names = ["controlPlaceKind", "isControlPlaceItem", "keySlotKind", "dropOrphanKeyGroups"];
   if (realSync) names.push("syncOfferOptions"); else ctx.syncOfferOptions = () => {};
-  names.push("restoreProject");
+  names.push("relabelContourRooms", "restoreProject");
   await stand.runNamed(names, ctx)();
   return { settings: ctx.EP_DATA.settings, select: dom.els["offer-assemblyView"].value };
 }

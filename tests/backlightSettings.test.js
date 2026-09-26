@@ -84,7 +84,7 @@ function restoreStand(snapshot, startBacklight) {
     EPViewport: { clampScale: s => s },
     dropOrphanKeyGroups: noop, renderLightingSchemeSelect: noop, renderProjectWallTypeSelect: noop,
     fillDocHeaderInputs: noop, syncOfferOptions: noop, markCanvasUsed: noop };
-  const restore = stand.run(["backlightCatalogOptions", "renderProjectBacklight", "restoreProject"], ctx);
+  const restore = stand.run(["backlightCatalogOptions", "renderProjectBacklight", "relabelContourRooms", "restoreProject"], ctx);
   return { dom, ctx, restore };
 }
 
