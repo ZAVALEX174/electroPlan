@@ -25,11 +25,18 @@
      render();                                                       // исполнили настоящий app.js
      assert.match(dom.els.outsideRoomsStatus.textContent, /Вне помещений/);
 
+   МНОГОФАЙЛОВЫЙ ПОИСК. Функцию ищем не в одном app.js, а по списку SOURCE_FILES (app.js + модули,
+   вынесенные из него по И1). Имя, найденное сразу в двух файлах, — громкая ошибка двусмысленности
+   (с именами файлов), а не тихий выбор первого. run/runNamed собирают имена из РАЗНЫХ файлов в одну
+   vm-программу. SRC остаётся стрипнутым исходником ГЛАВНОГО файла (app.js) — на него завязаны
+   структурные тесты app.js.
+
    ИНТЕРФЕЙС.
      stand.run(names, ctx)      — вырезать функции names (строка или массив в порядке зависимостей),
                                   исполнить в vm-контексте ctx и вернуть ПОСЛЕДНЮЮ по имени.
      stand.functionSource(name) — исходный текст одной функции (если нужен сырой доступ).
      stand.destructuredNames(ns)— имена из `const {…}=<ns>;` (проверка проброшенных алиасов).
+     stand.forSources(sources)  — те же помощники над ПРОИЗВОЛЬНЫМ [{file, src}] (для теста стенда).
      stand.loadVimarCatalog()   — настоящий каталог VIMAR через window-шим.
    ШИМЫ (каждый честный — соблюдает спеку в том, на чём держатся находки):
      stand.makeDom({selects})   — реестр узлов по id ($); id из selects — <select> по спеке.
@@ -48,103 +55,155 @@ const assert = require("node:assert/strict");
 const { stripComments } = require("./stripComments.js");
 
 const JS_DIR = path.join(__dirname, "..", "..", "js");
+
+/* Файлы-исходники, из которых стенд вырезает НАСТОЯЩИЙ текст функций/констант app.js. Пока app.js —
+   монолит; по И1 (раздел И docs/ОСТАТОК-РАБОТ) из него по одному куску выносятся модули, и стенд
+   обязан находить переехавшую функцию там, куда она уехала — сюда дописывают её файл (js/wallScope.js,
+   js/postBuilder.js …). Имя ищется по ВСЕМ файлам списка; найденное сразу в двух — ГРОМКАЯ ошибка
+   (двусмысленность, с именами файлов), а не тихий выбор первого: тихий выбор замаскировал бы
+   недоудалённый после выноса дубль в app.js. Первый файл — главный: его стрипнутый текст
+   экспортируется как SRC (на него завязаны структурные тесты app.js). */
+const SOURCE_FILES = ["app.js"];
+
 /* Стрипаем сразу весь файл: защита от закомментированного кода И от `\nfunction ` из комментария,
-   который иначе обрубил бы вырезаемое тело раньше времени. */
-const SRC = stripComments(fs.readFileSync(path.join(JS_DIR, "app.js"), "utf8"));
-
-/* Исходник одной функции: от её объявления до следующего `\nfunction ` верхнего уровня. Между
-   соседями только `}` и пустые строки — валидный JS. */
-function functionSource(name) {
-  const start = SRC.search(new RegExp("\\b(?:async\\s+)?function\\s+" + name + "\\s*\\("));
-  assert.ok(start >= 0, "функция " + name + " должна существовать в app.js");
-  const rest = SRC.slice(start);
-  /* restoreProject асинхронная: нельзя терять async перед function и нельзя
-     прихватывать следующий async-блок вместе с соседней синхронной функцией. */
-  const nextMatch = /\n(?:async\s+)?function\s+/.exec(rest.slice(1));
-  const nextIdx = nextMatch ? nextMatch.index + 1 : -1;
-  return nextIdx >= 0 ? rest.slice(0, nextIdx) : rest;
+   который иначе обрубил бы вырезаемое тело раньше времени. Тот же стрип, что у структурных тестов. */
+function readSources(files) {
+  return files.map(name => ({
+    file: name,
+    src: stripComments(fs.readFileSync(path.join(JS_DIR, name), "utf8"))
+  }));
 }
 
-/* Исходный текст top-level `const <name>=…;`-объявления app.js. Симметричен functionSource, но
-   часть логики app.js живёт не в function-декларациях, а в одно-строчных const-стрелках верхнего
-   уровня (uid, byKind, $, esc). Их functionSource не берёт (ищет `\nfunction`), а поведенческому
-   тесту нужен НАСТОЯЩИЙ текст такой функции, а не рукописная копия: копия расходится с продакшеном
-   молча — ослабление esc в app.js тогда не краснит ни один тест.
-   Граница — КОНЕЦ СТРОКИ объявления: эти стрелки занимают ровно одну строку и кончаются на `;`.
-   name может быть спецсимволом регэкспа ($) — экранируем его перед подстановкой. Вернувшийся текст
-   исполняется как есть (`stand.constSource("esc")` + `\n;esc;` в vm вернёт саму функцию). */
-function constSource(name) {
-  const safe = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const m = new RegExp("(?:^|\\n)const\\s+" + safe + "\\s*=").exec(SRC);
-  assert.ok(m, "top-level const " + name + " должен существовать в app.js");
-  const start = m.index + (SRC[m.index] === "\n" ? 1 : 0);
-  const end = SRC.indexOf("\n", start);
-  return end >= 0 ? SRC.slice(start, end) : SRC.slice(start);
-}
+/* Все текстовые помощники строим над ПРОИЗВОЛЬНЫМ набором источников {file, src} — фабрикой, чтобы
+   тест самого стенда мог проверить многофайловый поиск и ловлю двойного имени на фикстурных
+   источниках, без временных файлов в js/. Продакшен-стенд ниже строится над реальными SOURCE_FILES. */
+function forSources(sources) {
+  assert.ok(sources.length > 0, "forSources: нужен хотя бы один источник");
+  const fileNames = sources.map(s => s.file).join(", ");
 
-/* Полный текст МНОГОСТРОЧНОГО top-level `const <name>=…;` app.js. constSource берёт ровно одну
-   строку (uid/esc/byKind однострочные), но часть связок объявлена стрелкой на несколько строк —
-   postDeps раскладывает объект зависимостей поста на три строки. Читаем блок от `const name=` до
-   закрывающей `;` на НУЛЕВОЙ глубине скобок, пропуская строковые литералы (в них скобки/`;` не
-   считаются). Тот же принцип, что у constSource: исполняем НАСТОЯЩИЙ текст, а не рукописную копию —
-   копия postDeps молча разошлась бы с продакшеном, и подмена backlight на {enabled:false} не
-   покраснела бы. */
-function constBlock(name) {
-  const safe = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const m = new RegExp("(?:^|\\n)const\\s+" + safe + "\\s*=").exec(SRC);
-  assert.ok(m, "top-level const " + name + " должен существовать в app.js");
-  const start = m.index + (SRC[m.index] === "\n" ? 1 : 0);
-  let depth = 0, quote = null;
-  for (let i = SRC.indexOf("=", start); i < SRC.length; i++) {
-    const ch = SRC[i];
-    if (quote) { if (ch === quote && SRC[i - 1] !== "\\") quote = null; continue; }
-    if (ch === '"' || ch === "'" || ch === "`") { quote = ch; continue; }
-    if (ch === "(" || ch === "{" || ch === "[") depth++;
-    else if (ch === ")" || ch === "}" || ch === "]") depth--;
-    else if (ch === ";" && depth === 0) return SRC.slice(start, i + 1);
+  /* Единственный источник, где встречается объявление name (его ловит re). re — без флага g:
+     .exec от начала строки, берём совпадение ради .index. Нет ни в одном → провал «должно
+     существовать» с перечнем файлов; в двух и больше → провал двусмысленности с их именами. */
+  function locate(name, re, what) {
+    const hits = [];
+    for (const s of sources) {
+      const m = re.exec(s.src);
+      if (m) hits.push({ file: s.file, src: s.src, index: m.index });
+    }
+    assert.ok(hits.length > 0, what + " " + name + " должно существовать в одном из файлов: " + fileNames);
+    assert.ok(hits.length === 1, what + " " + name + " объявлено сразу в нескольких файлах ("
+      + hits.map(h => h.file).join(", ") + ") — двусмысленность, стенд не выбирает молча");
+    return hits[0];
   }
-  return assert.fail("не нашёл конец const " + name + " (нет `;` на нулевой глубине скобок)");
-}
 
-/* Имена, которые app.js достаёт деструктуризацией `const {…}=<ns>;`. Нужно, чтобы собрать контекст
-   РОВНО из проброшенных имён и воспроизвести браузерный ReferenceError при забытом алиасе. */
-function destructuredNames(ns) {
-  const m = SRC.match(new RegExp("const\\s*\\{([^}]*)\\}\\s*=\\s*" + ns + "\\s*;"));
-  assert.ok(m, "в app.js не нашлась строка алиасов `const {...}=" + ns + ";`");
-  return m[1].split(",").map(s => s.trim()).filter(Boolean);
-}
-
-/* Исполнить одну или несколько функций app.js в контексте ctx и вернуть ПОСЛЕДНЮЮ по имени.
-   names — строка или массив (порядок = порядок объявления зависимостей). Контекст создаётся
-   здесь; свойства, дописанные в ctx до вызова, песочница видит. */
-function run(names, ctx) {
-  const list = Array.isArray(names) ? names : [names];
-  assert.ok(list.length > 0, "run: нужно хотя бы одно имя функции");
-  const returned = list[list.length - 1];
-  const code = list.map(functionSource).join("\n") + "\n;" + returned + ";";
-  vm.createContext(ctx);
-  return vm.runInContext(code, ctx);
-}
-
-/* Как run, но список смешанный: и function-декларации, и top-level const-стрелки app.js. Нужно,
-   когда проверяемая функция зовёт ДРУГУЮ настоящую функцию app.js, а та замыкается на const-стрелку
-   (openPostBuilder → builderSignature → builderWallType): все они обязаны делить ОДИН лексический
-   контекст (state, $, вынесенные namespace'ы), поэтому режем их вместе и исполняем одной программой,
-   а не копируем руками — копия молча разошлась бы с продакшеном. Для каждого имени автоматически
-   выбираем functionSource (есть `function имя(`) либо constSource (иначе). Возвращаем ПОСЛЕДНЕЕ. */
-function runNamed(names, ctx) {
-  const list = Array.isArray(names) ? names : [names];
-  assert.ok(list.length > 0, "runNamed: нужно хотя бы одно имя");
-  const returned = list[list.length - 1];
-  const code = list.map(name => {
+  /* Есть ли где-нибудь в источниках function-декларация name (не const-стрелка). Нужно runNamed,
+     чтобы выбрать functionSource/constSource по НАСТОЯЩЕМУ виду объявления, где бы тот ни жил. */
+  function isFunction(name) {
     const safe = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp("\\b(?:async\\s+)?function\\s+" + safe + "\\s*\\(").test(SRC)
-      ? functionSource(name)
-      : constSource(name);
-  }).join("\n") + "\n;" + returned + ";";
-  vm.createContext(ctx);
-  return vm.runInContext(code, ctx);
+    const re = new RegExp("\\b(?:async\\s+)?function\\s+" + safe + "\\s*\\(");
+    return sources.some(s => re.test(s.src));
+  }
+
+  /* Исходник одной функции: от её объявления до следующего `\nfunction ` верхнего уровня В ТОМ ЖЕ
+     файле. Между соседями только `}` и пустые строки — валидный JS. */
+  function functionSource(name) {
+    const hit = locate(name, new RegExp("\\b(?:async\\s+)?function\\s+" + name + "\\s*\\("), "функция");
+    const rest = hit.src.slice(hit.index);
+    /* restoreProject асинхронная: нельзя терять async перед function и нельзя
+       прихватывать следующий async-блок вместе с соседней синхронной функцией. */
+    const nextMatch = /\n(?:async\s+)?function\s+/.exec(rest.slice(1));
+    const nextIdx = nextMatch ? nextMatch.index + 1 : -1;
+    return nextIdx >= 0 ? rest.slice(0, nextIdx) : rest;
+  }
+
+  /* Исходный текст top-level `const <name>=…;`-объявления. Симметричен functionSource, но часть
+     логики живёт не в function-декларациях, а в одно-строчных const-стрелках верхнего уровня (uid,
+     byKind, $, esc). Их functionSource не берёт (ищет `\nfunction`), а поведенческому тесту нужен
+     НАСТОЯЩИЙ текст такой функции, а не рукописная копия: копия расходится с продакшеном молча —
+     ослабление esc тогда не краснит ни один тест.
+     Граница — КОНЕЦ СТРОКИ объявления: эти стрелки занимают ровно одну строку и кончаются на `;`.
+     name может быть спецсимволом регэкспа ($) — экранируем его перед подстановкой. Вернувшийся текст
+     исполняется как есть (`stand.constSource("esc")` + `\n;esc;` в vm вернёт саму функцию). */
+  function constSource(name) {
+    const safe = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const hit = locate(name, new RegExp("(?:^|\\n)const\\s+" + safe + "\\s*="), "top-level const");
+    const src = hit.src;
+    const start = hit.index + (src[hit.index] === "\n" ? 1 : 0);
+    const end = src.indexOf("\n", start);
+    return end >= 0 ? src.slice(start, end) : src.slice(start);
+  }
+
+  /* Полный текст МНОГОСТРОЧНОГО top-level `const <name>=…;`. constSource берёт ровно одну строку
+     (uid/esc/byKind однострочные), но часть связок объявлена стрелкой на несколько строк — postDeps
+     раскладывает объект зависимостей поста на три строки. Читаем блок от `const name=` до закрывающей
+     `;` на НУЛЕВОЙ глубине скобок, пропуская строковые литералы (в них скобки/`;` не считаются). Тот
+     же принцип, что у constSource: исполняем НАСТОЯЩИЙ текст, а не рукописную копию — копия postDeps
+     молча разошлась бы с продакшеном, и подмена backlight на {enabled:false} не покраснела бы. */
+  function constBlock(name) {
+    const safe = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const hit = locate(name, new RegExp("(?:^|\\n)const\\s+" + safe + "\\s*="), "top-level const");
+    const src = hit.src;
+    const start = hit.index + (src[hit.index] === "\n" ? 1 : 0);
+    let depth = 0, quote = null;
+    for (let i = src.indexOf("=", start); i < src.length; i++) {
+      const ch = src[i];
+      if (quote) { if (ch === quote && src[i - 1] !== "\\") quote = null; continue; }
+      if (ch === '"' || ch === "'" || ch === "`") { quote = ch; continue; }
+      if (ch === "(" || ch === "{" || ch === "[") depth++;
+      else if (ch === ")" || ch === "}" || ch === "]") depth--;
+      else if (ch === ";" && depth === 0) return src.slice(start, i + 1);
+    }
+    return assert.fail("не нашёл конец const " + name + " (нет `;` на нулевой глубине скобок)");
+  }
+
+  /* Имена, которые app.js достаёт деструктуризацией `const {…}=<ns>;`. Нужно, чтобы собрать контекст
+     РОВНО из проброшенных имён и воспроизвести браузерный ReferenceError при забытом алиасе. Алиасные
+     строки живут в ГЛАВНОМ файле (app.js) — ищем в нём (первый источник). */
+  function destructuredNames(ns) {
+    const primary = sources[0];
+    const m = primary.src.match(new RegExp("const\\s*\\{([^}]*)\\}\\s*=\\s*" + ns + "\\s*;"));
+    assert.ok(m, "в " + primary.file + " не нашлась строка алиасов `const {...}=" + ns + ";`");
+    return m[1].split(",").map(s => s.trim()).filter(Boolean);
+  }
+
+  /* Исполнить одну или несколько функций в контексте ctx и вернуть ПОСЛЕДНЮЮ по имени. names — строка
+     или массив (порядок = порядок объявления зависимостей). Имена могут жить в РАЗНЫХ файлах списка —
+     их тексты собираются в ОДНУ vm-программу (общий лексический контекст: state, $, namespace'ы).
+     Контекст создаётся здесь; свойства, дописанные в ctx до вызова, песочница видит. */
+  function run(names, ctx) {
+    const list = Array.isArray(names) ? names : [names];
+    assert.ok(list.length > 0, "run: нужно хотя бы одно имя функции");
+    const returned = list[list.length - 1];
+    const code = list.map(functionSource).join("\n") + "\n;" + returned + ";";
+    vm.createContext(ctx);
+    return vm.runInContext(code, ctx);
+  }
+
+  /* Как run, но список смешанный: и function-декларации, и top-level const-стрелки. Нужно, когда
+     проверяемая функция зовёт ДРУГУЮ настоящую функцию, а та замыкается на const-стрелку
+     (openPostBuilder → builderSignature → builderWallType): все они обязаны делить ОДИН лексический
+     контекст, поэтому режем их вместе и исполняем одной программой, а не копируем руками. Для каждого
+     имени автоматически выбираем functionSource (есть `function имя(` где-либо в источниках) либо
+     constSource. Имена по-прежнему собираются в одну программу — даже если разъехались по файлам. */
+  function runNamed(names, ctx) {
+    const list = Array.isArray(names) ? names : [names];
+    assert.ok(list.length > 0, "runNamed: нужно хотя бы одно имя");
+    const returned = list[list.length - 1];
+    const code = list.map(name => isFunction(name) ? functionSource(name) : constSource(name))
+      .join("\n") + "\n;" + returned + ";";
+    vm.createContext(ctx);
+    return vm.runInContext(code, ctx);
+  }
+
+  return { sources, functionSource, constSource, constBlock, destructuredNames, run, runNamed };
 }
+
+/* Продакшен-стенд: над реальными файлами списка. SRC — стрипнутый исходник ГЛАВНОГО файла (app.js),
+   как и раньше: его читают структурные тесты (assert.match(stand.SRC, …)). НЕ склейка всех файлов —
+   иначе матч случайно поймал бы совпадение из вынесенного модуля и перестал сторожить именно app.js. */
+const core = forSources(readSources(SOURCE_FILES));
+const SRC = core.sources[0].src;
+const { functionSource, constSource, constBlock, destructuredNames, run, runNamed } = core;
 
 /* Настоящий classList поверх Set — browser-семантика. toggle(cls, force): force не задан —
    переключить; истина — add; ложь — remove. На force держится СНЯТИЕ метки (syncNoRoomClass:
@@ -246,6 +305,8 @@ function loadVimarCatalog() {
 
 module.exports = {
   SRC,
+  SOURCE_FILES,
+  forSources,
   functionSource,
   constSource,
   constBlock,
