@@ -69,9 +69,10 @@ test("detectRoomsML: при неизменной подложке операци
   };
   const extra = {
     EPFloorplanML,
-    /* detectRoomsML позиционирует подпись через roomLabelPoint (В10) — мок отдаёт точку внутри
-       игрушечного контура; тест проверяет перестройку авто-комнат, а не саму точку. */
+    /* detectRoomsML позиционирует якорь таблички через roomLabelPoint и seed через roomNamePoint
+       (В10) — моки отдают точку внутри игрушечного контура; тест проверяет перестройку авто-комнат. */
     roomLabelPoint: () => ({ x: 5, y: 5 }),
+    roomNamePoint: () => ({ x: 5, y: 5 }),
     uid: p => p + "new",
     carryUserRoomFields: () => {},
     refreshAfterRoomAssignments: fn => { if (fn) fn(); },

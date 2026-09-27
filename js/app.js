@@ -581,9 +581,11 @@ function carryUserRoomFields(oldAutoRooms,newRooms){
   });
 }
 function refreshRoomAfterEdit(room){
-  /* В10: якорь подписи — точка ВНУТРИ контура (roomLabelPoint), у выпуклых равна прежнему центроиду. */
-  const c=roomLabelPoint(room.polygon);
-  room.seedX=c.x;room.seedY=c.y;room.x=c.x-45;room.y=c.y-16;
+  /* В10: якорь ЭКРАННОЙ таблички — roomLabelPoint (у выпуклых = прежний центроид), а seed (точка
+     привязки постов/поиска комнаты) — roomNamePoint, точка ВНУТРИ контура: у Г/П-комнаты якорь
+     сдвинут на −(10,2) и сам может лежать за стеной, seed'ом он быть не должен (В10 И5). */
+  const c=roomLabelPoint(room.polygon),nm=roomNamePoint(room.polygon);
+  room.seedX=nm.x;room.seedY=nm.y;room.x=c.x-45;room.y=c.y-16;
   refreshAfterRoomAssignments(renderRooms, persistProject);
 }
 /* В10: миграция открываемого проекта. Старые проекты хранят якорь подписи контурной комнаты как
@@ -595,8 +597,8 @@ function refreshRoomAfterEdit(room){
 function relabelContourRooms(rooms){
   (rooms||[]).forEach(r=>{
     if(r.polygon&&r.polygon.length>2){
-      const c=roomLabelPoint(r.polygon);
-      r.seedX=c.x;r.seedY=c.y;r.x=c.x-45;r.y=c.y-16;
+      const c=roomLabelPoint(r.polygon),nm=roomNamePoint(r.polygon);
+      r.seedX=nm.x;r.seedY=nm.y;r.x=c.x-45;r.y=c.y-16;
     }
   });
 }
@@ -734,8 +736,8 @@ async function detectRooms(){
     const built=[];
     res.rooms.forEach(rm=>{
       const poly=EPRoomSeg.mapPolygon(rm.polygon,res,cw,ch);
-      const c=roomLabelPoint(poly);
-      const room={id:uid("room_"),name:"Комната "+(++next),area:"",polygon:poly,autoPolygon:true,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16};
+      const c=roomLabelPoint(poly),nm=roomNamePoint(poly);   /* В10 И5: seed — точка ВНУТРИ контура (roomNamePoint), якорь таблички — roomLabelPoint */
+      const room={id:uid("room_"),name:"Комната "+(++next),area:"",polygon:poly,autoPolygon:true,seedX:nm.x,seedY:nm.y,x:c.x-45,y:c.y-16};
       state.rooms.push(room);built.push(room);
     });
     carryUserRoomFields(oldAuto,built);   /* вернуть имя/площадь, введённые вручную, на совпавшие комнаты */
@@ -768,8 +770,8 @@ async function detectRoomsML(){
     const built=[];
     res.rooms.forEach(rm=>{
       const poly=EPFloorplanML.mapPolygon(rm.polygon,res,cw,ch);
-      const c=roomLabelPoint(poly);
-      const room={id:uid("room_"),name:"Комната "+(++next),area:"",polygon:poly,autoPolygon:true,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16};
+      const c=roomLabelPoint(poly),nm=roomNamePoint(poly);   /* В10 И5: seed — точка ВНУТРИ контура (roomNamePoint), якорь таблички — roomLabelPoint */
+      const room={id:uid("room_"),name:"Комната "+(++next),area:"",polygon:poly,autoPolygon:true,seedX:nm.x,seedY:nm.y,x:c.x-45,y:c.y-16};
       state.rooms.push(room);built.push(room);
     });
     carryUserRoomFields(oldAuto,built);   /* вернуть имя/площадь, введённые вручную, на совпавшие комнаты */
@@ -4142,10 +4144,10 @@ function buildRoomsFromLines(opts){
   let next=state.rooms.reduce((max,r)=>{const m=/^Помещение\s+(\d+)$/.exec(r.name||"");return m?Math.max(max,Number(m[1])):max},0);
   const built=[];
   res.rooms.forEach(rm=>{
-    const poly=rm.polygon,c=roomLabelPoint(poly);
+    const poly=rm.polygon,c=roomLabelPoint(poly),nm=roomNamePoint(poly);   /* В10 И5: seed — точка ВНУТРИ контура (roomNamePoint) */
     /* roomSource — признак способа получения контура (по линиям/по сетке): запасной
        проход не подменяет основной молча, источник виден и в state, и в отчётах */
-    const room={id:uid("room_"),name:"Помещение "+(++next),area:"",polygon:poly,autoPolygon:true,roomSource:rm.source,seedX:c.x,seedY:c.y,x:c.x-45,y:c.y-16};
+    const room={id:uid("room_"),name:"Помещение "+(++next),area:"",polygon:poly,autoPolygon:true,roomSource:rm.source,seedX:nm.x,seedY:nm.y,x:c.x-45,y:c.y-16};
     state.rooms.push(room);built.push(room);
   });
   carryUserRoomFields(oldAuto,built);   /* вернуть имя/площадь, введённые вручную, на совпавшие комнаты */

@@ -9,14 +9,14 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
-const { roomLabelPoint, polygonCentroid, pointInPolygon } = require("../js/geometry.js");
+const { roomLabelPoint, roomNamePoint, polygonCentroid, pointInPolygon } = require("../js/geometry.js");
 
-const relabel = rooms => { stand.run("relabelContourRooms", { roomLabelPoint })(rooms); return rooms; };
+const relabel = rooms => { stand.run("relabelContourRooms", { roomLabelPoint, roomNamePoint })(rooms); return rooms; };
 
 const RECT = [{ x: 10, y: 20 }, { x: 210, y: 20 }, { x: 210, y: 120 }, { x: 10, y: 120 }];
 const GAMMA = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 40 }, { x: 40, y: 40 }, { x: 40, y: 300 }, { x: 0, y: 300 }];
 const KITCHEN = [{ x: 40, y: 40 }, { x: 300, y: 40 }, { x: 300, y: 300 }, { x: 40, y: 300 }];
-const visibleCenter = r => ({ x: r.x + 65, y: r.y + 26 }); // угол таблички = (x,y); центр = +(65,26)
+const visibleCenter = r => ({ x: r.x + 55, y: r.y + 18 }); // угол таблички = (x,y); центр = room.x+55/room.y+18 (app.js)
 
 test("прямоугольная комната: якорь = центроид−(45,16), как раньше (не двигается)", () => {
   const c = polygonCentroid(RECT);
@@ -35,6 +35,17 @@ test("Г-образная комната из старого проекта: п�
   assert.equal(pointInPolygon(v.x, v.y, KITCHEN), false, "и больше не в соседней кухне");
   const p = roomLabelPoint(GAMMA);
   assert.equal(r.x, p.x - 45, "якорь пересчитан через roomLabelPoint");
+});
+
+test("узкая Г-комната (16 px): seed (привязка постов) — точка ВНУТРИ контура, а не якорь таблички (В10 И5)", () => {
+  /* Якорь экранной таблички у 16-px коридора уходит за стену (см. geometry.test), поэтому seed
+     обязан браться из roomNamePoint (полюс, внутри), иначе привязка постов и поиск комнаты по seed
+     промахнутся мимо контура. Мутация «seed = якорь» краснит здесь. */
+  const NARROW = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 16 }, { x: 16, y: 16 }, { x: 16, y: 300 }, { x: 0, y: 300 }];
+  const [r] = relabel([{ id: "n", polygon: NARROW, x: 0, y: 0, seedX: 0, seedY: 0 }]);
+  assert.equal(pointInPolygon(r.seedX, r.seedY, NARROW), true, "seed внутри узкого контура");
+  const anchor = roomLabelPoint(NARROW);
+  assert.equal(pointInPolygon(anchor.x, anchor.y, NARROW), false, "а якорь таблички в 16-px коридоре вышел за стену — seed'ом быть не может");
 });
 
 test("комната без контура (инструмент «T») не трогается — её подпись тащат руками", () => {
