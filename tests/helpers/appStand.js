@@ -63,7 +63,47 @@ const JS_DIR = path.join(__dirname, "..", "..", "js");
    (двусмысленность, с именами файлов), а не тихий выбор первого: тихий выбор замаскировал бы
    недоудалённый после выноса дубль в app.js. Первый файл — главный: его стрипнутый текст
    экспортируется как SRC (на него завязаны структурные тесты app.js). */
-const SOURCE_FILES = ["app.js"];
+const SOURCE_FILES = ["app.js", "postBuilder.js"];
+
+/* Конец тела функции по БАЛАНСУ ФИГУРНЫХ СКОБОК — фолбэк functionSource для ПОСЛЕДНЕЙ функции файла,
+   у которой нет следующего `\nfunction`-соседа. Без него у функции внутри IIFE-модуля (js/postBuilder.js —
+   вынос по И1) в вырезку попадал бы хвост модуля (`return {…}; } … })();`) и падал бы в vm синтаксической
+   ошибкой. Идём от `{` тела и считаем скобки, ПРОПУСКАЯ строки '…' "…" и шаблоны `…${…}…` (в них скобки
+   не считаются): стек mode держит вложенные ${ `…` }. Регэкс-литералы намеренно НЕ разбираем — фолбэк
+   срабатывает только на последней функции модуля, а у неё (installSheetForBuilder/reportFailure) их нет;
+   появится такая — её поведенческий тест упадёт громко (см. тест стенда appStandMultiFile). src начинается
+   с `function`/`async function`, список параметров без строк и без `{`. Возвращает индекс СРАЗУ ЗА `}`. */
+function functionBodyEnd(src) {
+  let i = src.indexOf("(");
+  for (let paren = 0; i < src.length; i++) {
+    if (src[i] === "(") paren++;
+    else if (src[i] === ")" && --paren === 0) { i++; break; }
+  }
+  while (i < src.length && src[i] !== "{") i++;   // `{` тела
+  const modes = ["code"];       // стек: code | tpl | sq | dq
+  const braces = [0];           // глубина {} для каждого code-контекста (тело + каждое ${…})
+  for (; i < src.length; i++) {
+    const c = src[i], mode = modes[modes.length - 1];
+    if (mode === "sq") { if (c === "\\") i++; else if (c === "'") modes.pop(); continue; }
+    if (mode === "dq") { if (c === "\\") i++; else if (c === '"') modes.pop(); continue; }
+    if (mode === "tpl") {
+      if (c === "\\") { i++; continue; }
+      if (c === "`") { modes.pop(); continue; }
+      if (c === "$" && src[i + 1] === "{") { modes.push("code"); braces.push(0); i++; continue; }
+      continue;
+    }
+    if (c === "'") { modes.push("sq"); continue; }
+    if (c === '"') { modes.push("dq"); continue; }
+    if (c === "`") { modes.push("tpl"); continue; }
+    if (c === "{") { braces[braces.length - 1]++; continue; }
+    if (c === "}") {
+      if (braces[braces.length - 1] > 0) {
+        if (--braces[braces.length - 1] === 0 && modes.length === 1) return i + 1;   // конец тела
+      } else { modes.pop(); braces.pop(); }   // `}` закрыл ${…} — назад в шаблон
+    }
+  }
+  return src.length;
+}
 
 /* Стрипаем сразу весь файл: защита от закомментированного кода И от `\nfunction ` из комментария,
    который иначе обрубил бы вырезаемое тело раньше времени. Тот же стрип, что у структурных тестов. */
@@ -113,7 +153,10 @@ function forSources(sources) {
        прихватывать следующий async-блок вместе с соседней синхронной функцией. */
     const nextMatch = /\n(?:async\s+)?function\s+/.exec(rest.slice(1));
     const nextIdx = nextMatch ? nextMatch.index + 1 : -1;
-    return nextIdx >= 0 ? rest.slice(0, nextIdx) : rest;
+    /* Есть следующий `\nfunction` — режем до него (между соседями только `}` и пустые строки: те
+       же смежные const, что раньше, — ESC_CONFIRM_MS, builderDirty, — остаются в вырезке). Нет —
+       это ПОСЛЕДНЯЯ функция файла: обрезаем по реальному концу тела, а не тянем хвост модуля. */
+    return nextIdx >= 0 ? rest.slice(0, nextIdx) : rest.slice(0, functionBodyEnd(rest));
   }
 
   /* Исходный текст top-level `const <name>=…;`-объявления. Симметричен functionSource, но часть
@@ -195,7 +238,7 @@ function forSources(sources) {
     return vm.runInContext(code, ctx);
   }
 
-  return { sources, functionSource, constSource, constBlock, destructuredNames, run, runNamed };
+  return { sources, isFunction, functionSource, constSource, constBlock, destructuredNames, run, runNamed };
 }
 
 /* Продакшен-стенд: над реальными файлами списка. SRC — стрипнутый исходник ГЛАВНОГО файла (app.js),
@@ -203,7 +246,16 @@ function forSources(sources) {
    иначе матч случайно поймал бы совпадение из вынесенного модуля и перестал сторожить именно app.js. */
 const core = forSources(readSources(SOURCE_FILES));
 const SRC = core.sources[0].src;
-const { functionSource, constSource, constBlock, destructuredNames, run, runNamed } = core;
+const { isFunction, functionSource, constSource, constBlock, destructuredNames, run, runNamed } = core;
+
+/* Стрипнутый исходник КОНКРЕТНОГО файла списка по имени. Нужен структурным тестам, которые сверяют
+   ТЕКСТ куска, переехавшего из app.js в модуль (И1): раньше они читали stand.SRC (всегда app.js),
+   теперь берут файл, где код реально лежит, — без ослабления регэкспа, только сменив источник. */
+function sourceOf(file) {
+  const hit = core.sources.find(s => s.file === file);
+  assert.ok(hit, "sourceOf: файла " + file + " нет в SOURCE_FILES (" + SOURCE_FILES.join(", ") + ")");
+  return hit.src;
+}
 
 /* Настоящий classList поверх Set — browser-семантика. toggle(cls, force): force не задан —
    переключить; истина — add; ложь — remove. На force держится СНЯТИЕ метки (syncNoRoomClass:
@@ -306,7 +358,9 @@ function loadVimarCatalog() {
 module.exports = {
   SRC,
   SOURCE_FILES,
+  sourceOf,
   forSources,
+  isFunction,
   functionSource,
   constSource,
   constBlock,

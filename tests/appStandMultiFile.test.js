@@ -73,3 +73,48 @@ test("стенд-1: реальный стенд по умолчанию чита
   assert.match(stand.SRC, /function\s+renderProperties\s*\(/,
     "SRC — исходник app.js (обратная совместимость структурных тестов)");
 });
+
+test("стенд-1: после И1 стенд читает и js/postBuilder.js (переехавшая функция находится там)", () => {
+  assert.ok(stand.SOURCE_FILES.includes("postBuilder.js"), "postBuilder.js добавлен в список источников");
+  assert.match(stand.sourceOf("postBuilder.js"), /function\s+savePostBuilder\s*\(/,
+    "текст savePostBuilder берётся из postBuilder.js (куда он переехал по И1)");
+});
+
+/* Грабля стенда (И1): functionSource режет тело «до следующего \nfunction», а у ПОСЛЕДНЕЙ функции
+   IIFE-модуля (postBuilder.js) такого соседа нет — раньше в вырезку попадал хвост `return {…}; })();`
+   и падал в vm синтаксической ошибкой. Фолбэк по балансу фигурных скобок обязан остановиться на конце
+   тела, не съев хвост модуля и не сбившись на строке с `}` и шаблоне `${…}`. */
+test("стенд-1: ПОСЛЕДНЯЯ функция модуля вырезается по концу тела, хвост `})();` не тянется", () => {
+  const src = [
+    "(() => {",
+    '"use strict";',
+    "function attach(ctx){",
+    "const {a}=ctx;",
+    "function first(){ return a+1; }",
+    "function last(){ const s=\"}\"; return `x${a}y`+s; }",
+    "return {first,last};",
+    "}",
+    "const api={attach};",
+    "})();",
+    ""
+  ].join("\n");
+  const s = stand.forSources([{ file: "m.js", src }]);
+  const cut = s.functionSource("last");
+  assert.match(cut, /function last\(\)\{/, "вырезка начинается с самой функции");
+  assert.doesNotMatch(cut, /return \{first,last\}/, "хвост attach (return {…}) НЕ попал в вырезку");
+  assert.doesNotMatch(cut, /\}\)\(\)/, "закрытие IIFE `})()` НЕ попало в вырезку");
+  assert.doesNotMatch(cut, /const api=/, "экспорт модуля НЕ попал в вырезку");
+  const last = s.run("last", { a: 5 });
+  assert.equal(last(), "x5y}", "исполняется в vm: строка с `}` и шаблон `${}` не сбили баланс скобок");
+});
+
+test("стенд-1: НЕпоследняя функция по-прежнему тянет смежный const до следующего \\nfunction", () => {
+  /* На этом держатся вырезки closePostBuilderWiring (ESC_CONFIRM_MS между closePostBuilder и
+     requestClosePostBuilder; builderDirty за builderSignature) — фолбэк для последней функции не
+     должен менять поведение для функций с соседом. */
+  const src = ["function sig(){ return 1; }", "const dirty=()=>sig();", "function other(){ return 2; }", ""].join("\n");
+  const s = stand.forSources([{ file: "m.js", src }]);
+  const cut = s.functionSource("sig");
+  assert.match(cut, /const dirty=/, "смежный const попадает в вырезку предыдущей функции (как ESC_CONFIRM_MS/builderDirty)");
+  assert.doesNotMatch(cut, /function other/, "следующая function в вырезку не входит");
+});

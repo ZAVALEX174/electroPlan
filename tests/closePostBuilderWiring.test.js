@@ -36,10 +36,12 @@ const stand = require("./helpers/appStand.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
 const EPConfirmRepeat = require("../js/confirmRepeat.js"); // НАСТОЯЩИЙ механизм подтверждения
 
-/* НАСТОЯЩИЕ функции app.js одной программой в общем лексическом блоке. Для каждого имени берём
-   functionSource (есть `function имя(`) либо constSource (const-стрелка/константа). builderDirty
-   приезжает в текст builderSignature: functionSource доводит его до следующего `\nfunction`
-   (retargetBuilderSlot), а между ними лежит `const builderDirty=…;`. Так все функции настоящие и
+/* НАСТОЯЩИЕ функции конструктора одной программой в общем лексическом блоке. После И1 они живут в
+   js/postBuilder.js — стенд ищет их по SOURCE_FILES, а вид объявления (функция/const) определяет
+   stand.isFunction по ВСЕМ файлам, а не только по app.js. Для каждого имени берём functionSource
+   (есть `function имя(`) либо constSource (const-стрелка/константа). builderDirty приезжает в текст
+   builderSignature: functionSource доводит его до следующего `\nfunction` (retargetBuilderSlot), а
+   между ними лежит `const builderDirty=…;` (порядок сохранён при выносе). Так все функции настоящие и
    делят один контекст (state, $, builderWallType, EPBuilderSlots, EPConfirmRepeat, ESC_CONFIRM_MS,
    closePostBuilder, toast, Date). Возвращаем и request, и sig — sig нужен, чтобы снять ЧЕСТНЫЙ
    снимок «как было» настоящей подписью, а не рукописной константой. */
@@ -48,12 +50,8 @@ function cutClose(ctx) {
      requestClosePostBuilder, и functionSource(closePostBuilder) прихватывает его в свой текст (как
      builderDirty приезжает в builderSignature). Так константа настоящая, а не продублирована. */
   const names = ["builderWallType", "builderSignature", "closePostBuilder", "requestClosePostBuilder"];
-  const code = names.map(name => {
-    const safe = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp("\\b(?:async\\s+)?function\\s+" + safe + "\\s*\\(").test(stand.SRC)
-      ? stand.functionSource(name)
-      : stand.constSource(name);
-  }).join("\n") + "\n;({request:requestClosePostBuilder, sig:builderSignature, dirty:builderDirty});";
+  const code = names.map(name => stand.isFunction(name) ? stand.functionSource(name) : stand.constSource(name))
+    .join("\n") + "\n;({request:requestClosePostBuilder, sig:builderSignature, dirty:builderDirty});";
   vm.createContext(ctx);
   return vm.runInContext(code, ctx);
 }

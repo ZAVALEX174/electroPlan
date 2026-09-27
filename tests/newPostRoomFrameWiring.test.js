@@ -455,8 +455,8 @@ function runChangeRoom(state, dom, roomId) {
    stand.SRC и запускаем в vm — не копия правила), затем НАСТОЯЩИЙ changeBuilderRoom: выбранную человеком
    накладку смена комнаты не перетирает. Мутация «onchange без frameAuto=false» краснит здесь. */
 test("★ X1: настоящий onchange поля накладки снимает frameAuto; смена комнаты не перетирает накладку человека", () => {
-  const m = stand.SRC.match(/\$\("postFrameSelect"\)\.onchange=(\(\)=>\{[^}]*\})/);
-  assert.ok(m, "нашли обработчик onchange поля накладки в app.js");
+  const m = stand.sourceOf("postBuilder.js").match(/\$\("postFrameSelect"\)\.onchange=(\(\)=>\{[^}]*\})/);
+  assert.ok(m, "нашли обработчик onchange поля накладки в js/postBuilder.js (провязка #postModal переехала туда по И1)");
   const chosen = byCode("19642.01");   // человек выбрал Arke 2М в поле
   const dom = stand.makeDom({ selects: ["postFrameSelect", "postSlotCount", "builderRoomSelect"] });
   dom.$("postFrameSelect").innerHTML = `<option value="${chosen.id}">f</option>`;
