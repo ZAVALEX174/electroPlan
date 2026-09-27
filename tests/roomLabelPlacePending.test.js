@@ -47,13 +47,15 @@ test("placePendingAtEvent: нет режима размещения — addPendi
 
 /* --- canvas.onclick: маршрутизация клика по холсту -------------------------------------------- */
 /* canvas.onclick — это ПРИСВАИВАНИЕ стрелки (canvas.onclick=e=>…), а не function-декларация, поэтому
-   stand.run его не вырежет. Берём текст из stand.SRC от маркера `canvas.onclick=` до парной `}`
-   (пропуская строковые литералы, как constBlock в стенде) и исполняем ВМЕСТЕ с настоящим
-   canvasEventPoint в vm — так проверяем и ветку размещения, и что координаты идут через масштаб. */
+   stand.run его не вырежет. Берём текст из js/canvasInput.js (куда диспетчер клика переехал по И1,
+   кусок 4 — раньше читали stand.SRC=app.js) от маркера `canvas.onclick=` до парной `}` (пропуская
+   строковые литералы, как constBlock в стенде) и исполняем ВМЕСТЕ с настоящим canvasEventPoint в vm —
+   так проверяем и ветку размещения, и что координаты идут через масштаб. Источник сменён, регэксп и
+   разбор те же: мутация ветки размещения или координатной строки по-прежнему краснит. */
 function canvasOnclickSource() {
-  const src = stand.SRC;
+  const src = stand.sourceOf("canvasInput.js");
   const start = src.indexOf("canvas.onclick=");
-  assert.ok(start >= 0, "в app.js должно быть присваивание canvas.onclick");
+  assert.ok(start >= 0, "в js/canvasInput.js должно быть присваивание canvas.onclick");
   let depth = 0, quote = null, i = src.indexOf("{", start);
   for (; i < src.length; i++) {
     const ch = src[i];

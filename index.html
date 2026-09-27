@@ -621,6 +621,11 @@
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
 <script src="js/docs.js?v=20260927.1"></script>
-<script src="js/app.js?v=20260927.6"></script>
+<!-- Ввод на холсте (клики, перенос объектов, панорама, зум колесом): trackDrag, makeDraggable,
+     canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
+     Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него
+     makeDraggable и placePendingAtEvent). -->
+<script src="js/canvasInput.js?v=20260927.1"></script>
+<script src="js/app.js?v=20260927.7"></script>
 </body>
 </html>
