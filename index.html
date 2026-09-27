@@ -611,6 +611,10 @@
 <!-- Автонумерация КП (EPG-ГГГГ-NNNN): формат и счётчик по году в одном чистом модуле. Грузится
      до app.js, который зовёт его при сборке КП, если «Номер КП» пуст. -->
 <script src="js/offerNumber.js?v=20260924.1"></script>
-<script src="js/app.js?v=20260927.1"></script>
+<!-- Промис-модалка выбора охвата правки типа стены (#wallScopeModal): текст вопроса, состояние
+     «висящего» промиса и провязка кнопок. Вынесена из app.js (И1). Грузится ДО app.js, который
+     подключает её через EPWallScope.create({$, WALL_STEP_LABEL}). -->
+<script src="js/wallScope.js?v=20260927.1"></script>
+<script src="js/app.js?v=20260927.2"></script>
 </body>
 </html>

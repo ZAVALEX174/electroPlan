@@ -3711,34 +3711,17 @@ function changeBuilderRoom(roomId){
   if(auto)syncAutoPostName(frameSlotCount(auto));   /* автоимя следует за модульностью накладки новой комнаты (п.1) */
   renderBuilder();
 }
-/* «Изменить в данном блоке или для всех однотипных блоков» — дословная просьба заказчика
-   (24.08) после того, как правка типа стены у одного поста разъехалась по всему проекту.
-   Промис-модалка по конвенции проекта (см. choosePdfPage/askScaleLength): резолв лежит в
-   переменной модуля, разметка — та же .modal-backdrop > .modal, отказ (крестик, клик мимо,
-   Esc) даёт null. Своего компонента не заводим.
-   Защита от повторного открытия — как у choosePdfPage: висящий вопрос закрываем отказом,
-   иначе его промис остался бы неразрешённым навсегда и «Сохранить» молча перестало бы
-   работать. */
-let wallScopeResolve=null;
-function finishWallScope(scope){
-  if(!wallScopeResolve)return;
-  const resolve=wallScopeResolve;wallScopeResolve=null;
-  $("wallScopeModal").classList.remove("open");resolve(scope);
-}
-function askWallScope(sameTypeCount,wall){
-  if(wallScopeResolve)finishWallScope(null);
-  $("wallScopeCopy").textContent=`Тип стены «${WALL_STEP_LABEL[wall]||wall}» — применить только к этому посту `
-    +`или ко всем однотипным (${sameTypeCount} шт., считая этот)? Однотипные — посты с той же накладкой `
-    +`и тем же набором механизмов; у тех из них, где тип стены уже задавали отдельно, он будет заменён.`;
-  $("wallScopeAll").textContent=`Во всех однотипных (${sameTypeCount})`;
-  $("wallScopeModal").classList.add("open");
-  setTimeout(()=>$("wallScopeSelf").focus(),0);
-  return new Promise(resolve=>{wallScopeResolve=resolve});
-}
-$("wallScopeSelf").onclick=()=>finishWallScope("self");
-$("wallScopeAll").onclick=()=>finishWallScope("sameType");
-$("closeWallScopeModal").onclick=()=>finishWallScope(null);
-$("wallScopeModal").onclick=e=>{if(e.target===$("wallScopeModal"))finishWallScope(null)};
+/* «Изменить в данном блоке или для всех однотипных блоков» — промис-модалка охвата правки типа
+   стены вынесена в js/wallScope.js (И1, разбиение app.js): там текст вопроса, состояние «висящего»
+   промиса и провязка кнопок #wallScopeModal. Здесь — тонкое подключение. Экземпляр один на страницу;
+   создаём ЛЕНИВО при первом обращении, чтобы эта связка не выполняла EPWallScope.create в момент
+   загрузки — её текст попадает в вырезку соседней функции у поведенческого стенда, а тот исполняет
+   функции app.js в vm без модулей (ровно поэтому прежде тут стоял «пустой» let-резолв). askWallScope/
+   finishWallScope сохраняют имена — вызовы в savePostBuilder/renderProperties/обработчике Esc не меняются. */
+let _wallScope=null;
+function wallScope(){return _wallScope||(_wallScope=EPWallScope.create({$,WALL_STEP_LABEL}))}
+function askWallScope(sameTypeCount,wall){return wallScope().askWallScope(sameTypeCount,wall)}
+function finishWallScope(scope){return wallScope().finishWallScope(scope)}
 
 async function savePostBuilder(){
   /* Проверяем сборку ПО ПОСТАМ: механизм не должен быть шире поста или «размазан» через

@@ -1,0 +1,23 @@
+  // --- И1 шаг 2: окно «применить тип стены к этому посту или ко всем однотипным» после выноса в js/wallScope.js ---
+  n = 700;
+  const errs = [];
+  await c.send("Runtime.enable");
+  c.on?.("Runtime.exceptionThrown", e => errs.push(e.exceptionDetails?.text));
+  // второй такой же пост рядом с первым
+  await click(`document.querySelector("[data-place-template]")`);
+  const kl2 = await rect(`Array.from(document.querySelectorAll(".room-label")).find(e=>e.textContent.includes("Кухня"))`);
+  await clickAt(kl2.x + kl2.w / 2 + 70, kl2.y + kl2.h + 45); await sleep(700);
+  log.push("постов на плане: " + await ev(`return document.querySelectorAll(".plan-icon").length`));
+  // выделить первый пост и сменить тип стены
+  await click(`document.querySelectorAll(".plan-icon")[0]`); await sleep(500);
+  const before = await ev(`return document.getElementById("postWallSelect")?.value`);
+  log.push("тип стены до: " + before);
+  await setVal($("postWallSelect"), before === "hollow" ? "solid" : "hollow"); await sleep(600);
+  log.push("окно открыто: " + await ev(`return document.getElementById("wallScopeModal").classList.contains("open")`));
+  log.push("вопрос: " + await ev(`return document.getElementById("wallScopeCopy").textContent`));
+  await shot("wallscope-modal", [`document.querySelector("#wallScopeModal .modal")`]);
+  await click($("wallScopeAll")); await sleep(700);
+  log.push("окно закрыто: " + !(await ev(`return document.getElementById("wallScopeModal").classList.contains("open")`)));
+  await click(`document.querySelectorAll(".plan-icon")[1]`); await sleep(500);
+  log.push("тип стены у второго поста после «во всех»: " + await ev(`return document.getElementById("postWallSelect")?.value`));
+  log.push("ошибки страницы: " + JSON.stringify(errs));
