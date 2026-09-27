@@ -34,7 +34,8 @@ const { stripComments } = require("./helpers/stripComments.js");
    и имя фабрики. Пока один — postBuilder; следующий attach-вынос добавляется строкой сюда. */
 const FACTORY_MODULES = [
   { file: "postBuilder.js", namespace: "EPPostBuilder", factoryFn: "attach" },
-  { file: "rooms.js", namespace: "EPRooms", factoryFn: "attach" }
+  { file: "rooms.js", namespace: "EPRooms", factoryFn: "attach" },
+  { file: "docs.js", namespace: "EPDocs", factoryFn: "attach" }
 ];
 
 /* Разбор списка имён из `{a, b: c, …}`: возвращает пары {key, local} (key — свойство, local — связанное

@@ -598,6 +598,16 @@ HTML/CSS/JS-прототипа, к Битриксу не подключён (с�
 
 > **Добавляй новую запись сверху. Формат: дата · что сделано · как сделано · проблемы.**
 
+### 2026-09-27 — Разбиение app.js: КП и лист монтажника в своём модуле (И1, кусок 3)
+
+Сборка и открытие документов → js/docs.js (EPDocs.attach, 12 функций дословно, сверено скриптом): generateCommercialOffer,
+installSheetForProject, openInstallSheet, buildPostSheet, buildExplodedSpec, supplierSpec*, planLabelsSpec, planBlockHtml,
+planImageForDoc, buildPostLayout, postPricedItems; кнопки pdfBtn/installSheetBtn провязаны внутри attach. app.js
+4559 → 4004. attach документов стоит ДО attach окна поста (иначе TDZ при загрузке — тесты этого не видят).
+**Проверка:** 9 сценариев (полный показ, inst, inst2, vat, num, disc, concave, noframe, label) на ветке и main — все
+журналы совпали, все КП байт в байт; «Лист монтажника» из окна поста — 10 719 символов, как на main. 1548 тестов.
+4 мутации не ловятся ни здесь, ни на main — дыры покрытия документов, З9.
+
 ### 2026-09-27 — Разбиение app.js: комнаты в своём модуле (И1, кусок 2)
 
 Таблички и контуры комнат, правка вершин, перестановка табличек старых проектов → js/rooms.js (EPRooms.attach, 8 функций

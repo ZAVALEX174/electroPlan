@@ -617,6 +617,10 @@
 <script src="js/wallScope.js?v=20260927.1"></script>
 <script src="js/postBuilder.js?v=20260927.2"></script>
 <script src="js/rooms.js?v=20260927.1"></script>
-<script src="js/app.js?v=20260927.5"></script>
+<!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
+     installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
+     app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
+<script src="js/docs.js?v=20260927.1"></script>
+<script src="js/app.js?v=20260927.6"></script>
 </body>
 </html>
