@@ -457,33 +457,10 @@ function renderGroupLinks(){
    SVG-namespace остаётся здесь: он общий для нескольких отрисовщиков (renderGroupLinks/renderScaleRuler/
    разметка линий), а слою комнат приходит через ctx. */
 const SVG_NS="http://www.w3.org/2000/svg";
-/* Тонкая обёртка над EPRoomCarry: пересчёт уничтожает авто-комнаты и заводит новые, а набранное
-   человеком имя/площадь (в отличие от правки вершин) autoPolygon не снимает и теряется. Чистое
-   сопоставление старых и новых по геометрии — в модуле; здесь только применяем его план к
-   свежепостроенным объектам. Ручные комнаты (autoPolygon===false) не источники и не цели. */
-function carryUserRoomFields(oldAutoRooms,newRooms){
-  EPRoomCarry.carry(oldAutoRooms,newRooms,EPGeom).forEach(t=>{
-    const room=newRooms.find(r=>r.id===t.toId);
-    if(!room)return;
-    if(t.name!=null)room.name=t.name;
-    if(t.area!=null)room.area=t.area;
-    /* Своя схема электрики комнаты переносится вместе с именем/площадью: пересчёт контуров зовётся
-       автоматически (scheduleRoomsFromLines), и без переноса схема стиралась бы при каждой правке
-       линий разметки. Отсутствие в переносе (t.lightingScheme==null) поля не создаёт — комната
-       остаётся «как в проекте». */
-    if(t.lightingScheme!=null)room.lightingScheme=t.lightingScheme;
-    /* Коллекция накладок комнаты (E13) переносится тем же путём, что схема: без этого правка линий
-       разметки (scheduleRoomsFromLines) стирала бы её при каждом пересчёте контуров. Отсутствие в
-       переносе (t.collection==null) поля не создаёт — комната остаётся без заданной коллекции. */
-    if(t.collection!=null)room.collection=t.collection;
-    /* Отделка накладки комнаты (E14: материал/форма/цвет) — тем же путём, что коллекция: перенос
-       собирает эти поля в EPRoomCarry.normUserFields, здесь их только применяем. Отсутствие в
-       переносе (==null) поля не создаёт — признак остаётся незаданным. */
-    if(t.frameMaterial!=null)room.frameMaterial=t.frameMaterial;
-    if(t.frameShape!=null)room.frameShape=t.frameShape;
-    if(t.frameColor!=null)room.frameColor=t.frameColor;
-  });
-}
+/* Распознавание и разметка помещений (инструмент «Разметка», сборка помещений по линиям, авто-
+   определение комнат OpenCV/нейросетью, перенос ручных полей carryUserRoomFields) вынесены в
+   js/roomDetect.js (EPRoomDetect.attach, И1). drawRoomLines/addRoomLinePoint/finishRoomLineChain/
+   removeLastRoomLinePoint/buildRoomsFromLines берём назад из attach (см. низ файла). */
 /* Всё, что делит пространство на связные области: автообрисовка, ручные стены и
    линии разметки помещений. Линии разметки участвуют в делении сразу (требование
    Этапа 2), поэтому нарисованная перегородка тут же меняет привязку оборудования.
@@ -514,98 +491,6 @@ const formatArea=m2=>m2.toFixed(1).replace(".",",")+" м²";
 function roomAutoAreaText(room){const m2=roomAreaM2(room);return m2?formatArea(m2):""}
 /* что показывать: ручное значение приоритетнее авторасчёта */
 function roomDisplayArea(room){return room.area?.trim()?room.area.trim():roomAutoAreaText(room)}
-let _cvPromise=null;
-function loadOpenCv(){
-  if(window.cv&&window.cv.Mat)return Promise.resolve();
-  if(_cvPromise)return _cvPromise;
-  _cvPromise=new Promise((resolve,reject)=>{
-    const waitReady=()=>{const t0=Date.now();(function chk(){if(window.cv&&window.cv.Mat)resolve();else if(Date.now()-t0>60000)reject(new Error("Таймаут инициализации OpenCV"));else setTimeout(chk,80)})()};
-    const s=document.createElement("script");
-    s.src="vendor/opencv.js";
-    /* сборка отдаёт Promise модуля: его нужно дождаться и подменить window.cv
-       результатом — иначе cv.Mat остаётся undefined и сегментация падает */
-    s.onload=()=>{
-      if(window.cv&&typeof window.cv.then==="function"){
-        window.cv.then(mod=>{if(mod)window.cv=mod;waitReady()},err=>reject(err instanceof Error?err:new Error("Не удалось инициализировать OpenCV")));
-        return;
-      }
-      waitReady();
-    };
-    s.onerror=()=>reject(new Error("Не удалось загрузить vendor/opencv.js"));
-    document.head.appendChild(s);
-  });
-  return _cvPromise;
-}
-async function detectRooms(){
-  const img=$("planImage");
-  if(!state.planLoaded||!img.naturalWidth){toast("Сначала загрузите план");return}
-  const token=state.planToken;   /* запоминаем поколение подложки ДО первого await */
-  showTraceProgress(true,"Загрузка модуля распознавания");
-  try{
-    await loadOpenCv();
-    showTraceProgress(true,"Определение комнат");
-    await new Promise(r=>setTimeout(r,40));
-    if(planLostDuringOp(token))return;   /* подложку убрали/сменили за время загрузки — не трогаем комнаты */
-    const res=EPRoomSeg.segment(img);
-    const cw=canvas.clientWidth,ch=canvas.clientHeight;
-    /* уничтожаемые авто-комнаты — источники переноса ручных полей на новые (по геометрии) */
-    const oldAuto=state.rooms.filter(r=>r.autoPolygon);
-    /* вручную поправленные контуры (autoPolygon=false) сохраняются */
-    state.rooms=state.rooms.filter(r=>!r.autoPolygon);
-    const kept=state.rooms.length;
-    /* нумеруем дальше существующих, чтобы имена не дублировались */
-    let next=state.rooms.reduce((max,r)=>{const m=/^Комната\s+(\d+)$/.exec(r.name||"");return m?Math.max(max,Number(m[1])):max},0);
-    const built=[];
-    res.rooms.forEach(rm=>{
-      const poly=EPRoomSeg.mapPolygon(rm.polygon,res,cw,ch);
-      const c=roomLabelPoint(poly),nm=roomNamePoint(poly);   /* В10 И5: seed — точка ВНУТРИ контура (roomNamePoint), якорь таблички — roomLabelPoint */
-      const room={id:uid("room_"),name:"Комната "+(++next),area:"",polygon:poly,autoPolygon:true,seedX:nm.x,seedY:nm.y,x:c.x-45,y:c.y-16};
-      state.rooms.push(room);built.push(room);
-    });
-    carryUserRoomFields(oldAuto,built);   /* вернуть имя/площадь, введённые вручную, на совпавшие комнаты */
-    refreshAfterRoomAssignments(renderAll);
-    showTraceProgress(false);
-    toast(res.rooms.length?`Найдено комнат: ${res.rooms.length}`:"Комнаты не найдены");
-    updateStatus(kept
-      ?`Комнат определено: ${res.rooms.length} · сохранено ручных контуров: ${kept}`
-      :`Комнат определено: ${res.rooms.length}`);
-  }catch(e){console.error(e);showTraceProgress(false);toast(e.message||"Не удалось определить комнаты")}
-}
-/* ---- Определение комнат нейросетью (точная обводка стен, мебель не учитывается) ---- */
-async function detectRoomsML(){
-  const img=$("planImage");
-  if(!state.planLoaded||!img.naturalWidth){toast("Сначала загрузите план");return}
-  const token=state.planToken;   /* запоминаем поколение подложки ДО первого await */
-  showTraceProgress(true,"Распознавание плана","Загрузка модели (~100 МБ при первом запуске)…");
-  try{
-    const res=await EPFloorplanML.segmentRooms(img,{
-      onProgress:msg=>showTraceProgress(true,"Распознавание плана",msg||"Анализ чертежа…")
-    });
-    if(planLostDuringOp(token))return;   /* ДО удаления авто-комнат: иначе их не восстановить (carryUserRoomFields по пустому res) */
-    const cw=canvas.clientWidth,ch=canvas.clientHeight;
-    /* уничтожаемые авто-комнаты — источники переноса ручных полей на новые (по геометрии) */
-    const oldAuto=state.rooms.filter(r=>r.autoPolygon);
-    /* вручную поправленные контуры сохраняем, как и в OpenCV-режиме */
-    state.rooms=state.rooms.filter(r=>!r.autoPolygon);
-    const kept=state.rooms.length;
-    let next=state.rooms.reduce((max,r)=>{const m=/^Комната\s+(\d+)$/.exec(r.name||"");return m?Math.max(max,Number(m[1])):max},0);
-    const built=[];
-    res.rooms.forEach(rm=>{
-      const poly=EPFloorplanML.mapPolygon(rm.polygon,res,cw,ch);
-      const c=roomLabelPoint(poly),nm=roomNamePoint(poly);   /* В10 И5: seed — точка ВНУТРИ контура (roomNamePoint), якорь таблички — roomLabelPoint */
-      const room={id:uid("room_"),name:"Комната "+(++next),area:"",polygon:poly,autoPolygon:true,seedX:nm.x,seedY:nm.y,x:c.x-45,y:c.y-16};
-      state.rooms.push(room);built.push(room);
-    });
-    carryUserRoomFields(oldAuto,built);   /* вернуть имя/площадь, введённые вручную, на совпавшие комнаты */
-    refreshAfterRoomAssignments(renderAll);
-    showTraceProgress(false);
-    toast(res.rooms.length?`Найдено комнат: ${res.rooms.length}`:"Комнаты не найдены");
-    updateStatus(kept
-      ?`Комнат определено: ${res.rooms.length} · сохранено ручных контуров: ${kept}`
-      :`Комнат определено: ${res.rooms.length}`);
-  }catch(e){console.error(e);showTraceProgress(false);toast(e.message||"Не удалось определить комнаты")}
-}
-
 /* ---- Курс евро: работа с сетью и кэшем вынесена в js/rates.js (EPRates),
    здесь остаётся только применение курса к настройкам и интерфейс ---- */
 function applyRateEntry(entry){
@@ -2325,200 +2210,6 @@ function drawWalls(){
   state.walls.forEach(appendLine);
 }
 
-/* ---- Линии разметки помещений (Этап 2): отдельный слой #markupSvg.
-   Чистая геометрия магнитов и пересечений — в EPGeom (тестируется), здесь только
-   работа с DOM/state и оркестровка рисования цепочки. ---- */
-function makeRoomLine(a,b){return {id:uid("rline_"),a:{x:a.x,y:a.y},b:{x:b.x,y:b.y}}}
-
-/* Магнит: конец линии → пересечение линий → ТЕЛО линии (в этом порядке приоритета).
-   Тело идёт последним: точные привязки (конец, пересечение) должны его перебивать,
-   иначе курсор будет промахиваться мимо узлов. Привязка к телу нужна там, где на линии
-   нет ни конца, ни пересечения (случай владельца: вертикаль доводится к диагонали) —
-   благодаря ей точка садится РОВНО на линию, и потом появляется настоящее пересечение.
-   Радиус — из EPConfig, не зашит в код (PLAN 2.3). null — если рядом ничего нет. */
-function roomLineMagnet(x,y,radius){
-  const pt={x,y};
-  const ep=EPGeom.nearestEndpoint(pt,state.roomLines,radius);
-  if(ep)return {x:ep.x,y:ep.y,kind:"endpoint"};
-  const ix=EPGeom.nearestIntersection(pt,state.roomLines,radius);
-  if(ix)return {x:ix.x,y:ix.y,kind:"intersection"};
-  const bp=EPGeom.nearestSegmentPoint(pt,state.roomLines,radius);
-  if(bp)return {x:bp.x,y:bp.y,kind:"segment"};
-  return null;
-}
-/* Единая точка расчёта итоговой точки клика/курсора — чтобы превью и фактическая
-   постановка совпадали. Приоритет: замыкание контура → магнит к линиям → сетка.
-   Режим ортогональности и привязки — из state (переключатели в панели), Shift даёт
-   временную инверсию ортогональности (стандарт CAD). */
-function resolveRoomLinePoint(rawX,rawY,shiftKey){
-  const R=EPConfig.snapRadius,pts=state.roomLinePoints;
-  /* замыкание: рядом с первой точкой цепочки (нужно ≥3 точек, чтобы вышел контур) */
-  if(pts.length>=3){
-    const first=pts[0];
-    if(Math.hypot(rawX-first.x,rawY-first.y)<=R)return {x:first.x,y:first.y,kind:"close",closing:true};
-  }
-  /* Магниты к концам/пересечениям линий перебивают и сетку, и ортогональность и
-     работают ВСЕГДА, даже когда привязка к сетке выключена: без них контуры не
-     замкнутся (владелец: отключать привязку к сетке, а не все магниты). */
-  const snap=roomLineMagnet(rawX,rawY,R);
-  if(snap)return {x:snap.x,y:snap.y,kind:snap.kind,closing:false};
-  /* Иначе — сетка/ортогональность по режимам. Shift — ВРЕМЕННАЯ инверсия текущего
-     режима ортогональности: XOR галочки и Shift (галочка вкл + Shift → свободно;
-     галочка выкл + Shift → ровно). Сетку Shift не трогает — только угол. */
-  const ortho=(!!state.orthoMode)!==(!!shiftKey);
-  const p=EPGeom.snapPlanPoint(rawX,rawY,pts.at(-1)||null,{grid:state.gridStep,snapGrid:state.snapGrid!==false,ortho});
-  return {x:p.x,y:p.y,kind:"grid",closing:false};
-}
-function finishRoomLineChain(){state.roomLinePoints=[];state.roomLineIds=[];state.roomLineHover=null}
-function addRoomLinePoint(e){
-  const r=canvas.getBoundingClientRect();
-  const raw={x:(e.clientX-r.left)/state.scale,y:(e.clientY-r.top)/state.scale};
-  const p=resolveRoomLinePoint(raw.x,raw.y,e.shiftKey);
-  markCanvasUsed();
-  if(p.closing){
-    const first=state.roomLinePoints[0],last=state.roomLinePoints.at(-1);
-    if(last&&(last.x!==first.x||last.y!==first.y))state.roomLines.push(makeRoomLine(last,first));
-    finishRoomLineChain();
-    refreshAfterRoomAssignments(()=>{drawRoomLines();renderRooms()}, scheduleSave);
-    scheduleRoomsFromLines();   /* контур замкнулся — авто-пересчёт помещений с задержкой */
-    updateStatus("Контур замкнут — линии разметки готовы для определения помещений");
-    return;
-  }
-  const prev=state.roomLinePoints.at(-1);
-  if(prev&&prev.x===p.x&&prev.y===p.y)return; /* защита от нулевого сегмента */
-  state.roomLinePoints.push({x:p.x,y:p.y});
-  if(state.roomLinePoints.length>1){
-    const line=makeRoomLine(state.roomLinePoints.at(-2),p);
-    state.roomLines.push(line);state.roomLineIds.push(line.id);
-    refreshAfterRoomAssignments(renderRooms, scheduleSave);
-    scheduleRoomsFromLines();   /* линия добавлена — авто-пересчёт (сработает, когда контур замкнётся) */
-  }
-  state.roomLineHover=null;
-  drawRoomLines();
-}
-/* Backspace во время рисования — снять последнюю точку и её сегмент */
-function removeLastRoomLinePoint(){
-  if(!state.roomLinePoints.length)return;
-  state.roomLinePoints.pop();
-  const id=state.roomLineIds.pop();
-  if(id)state.roomLines=state.roomLines.filter(l=>l.id!==id);
-  refreshAfterRoomAssignments(()=>{drawRoomLines();renderRooms()}, scheduleSave);
-  scheduleRoomsFromLines();   /* линия снята — авто-пересчёт помещений */
-  updateStatus(state.roomLinePoints.length?`Точка снята · в цепочке ${state.roomLinePoints.length}`:"Цепочка очищена — поставьте первую точку");
-}
-function removeRoomLine(id){
-  state.roomLines=state.roomLines.filter(l=>l.id!==id);
-  refreshAfterRoomAssignments(()=>{drawRoomLines();renderRooms()}, scheduleSave);
-  scheduleRoomsFromLines();   /* отдельная линия удалена — авто-пересчёт помещений */
-}
-function clearRoomLines(){
-  state.roomLines=[];finishRoomLineChain();
-  refreshAfterRoomAssignments(()=>{drawRoomLines();renderRooms()}, scheduleSave);
-  toast("Разметка помещений очищена");
-}
-function drawRoomLines(){
-  const svg=$("markupSvg");if(!svg)return;
-  svg.innerHTML="";
-  const interactive=state.tool==="delete";   /* удаление отдельной линии — только инструментом «Удалить» */
-  state.roomLines.forEach(w=>{
-    if(interactive){
-      const hit=document.createElementNS(SVG_NS,"line");
-      hit.setAttribute("x1",w.a.x);hit.setAttribute("y1",w.a.y);hit.setAttribute("x2",w.b.x);hit.setAttribute("y2",w.b.y);
-      hit.setAttribute("stroke","transparent");hit.setAttribute("stroke-width","14");
-      hit.style.pointerEvents="stroke";hit.style.cursor="pointer";
-      hit.onclick=ev=>{ev.stopPropagation();removeRoomLine(w.id)};
-      svg.appendChild(hit);
-    }
-    const l=document.createElementNS(SVG_NS,"line");
-    l.setAttribute("x1",w.a.x);l.setAttribute("y1",w.a.y);l.setAttribute("x2",w.b.x);l.setAttribute("y2",w.b.y);
-    l.setAttribute("class","room-line");l.style.pointerEvents="none";
-    svg.appendChild(l);
-  });
-  if(state.tool==="roomline")drawRoomLineChain(svg);
-}
-/* Рисуемая цепочка: вершины, «резинка»-превью к курсору и индикатор притяжения */
-function drawRoomLineChain(svg){
-  const pts=state.roomLinePoints,hover=state.roomLineHover;
-  pts.forEach((p,i)=>{
-    const dot=document.createElementNS(SVG_NS,"circle");
-    dot.setAttribute("cx",p.x);dot.setAttribute("cy",p.y);dot.setAttribute("r",i===0?4.5:3);
-    dot.setAttribute("class",i===0?"room-line-start":"room-line-dot");
-    svg.appendChild(dot);
-  });
-  const last=pts.at(-1);
-  if(last&&hover){
-    const pv=document.createElementNS(SVG_NS,"line");
-    pv.setAttribute("x1",last.x);pv.setAttribute("y1",last.y);pv.setAttribute("x2",hover.x);pv.setAttribute("y2",hover.y);
-    pv.setAttribute("class","room-line-preview");
-    svg.appendChild(pv);
-  }
-  if(hover){
-    const ring=document.createElementNS(SVG_NS,"circle");
-    ring.setAttribute("cx",hover.x);ring.setAttribute("cy",hover.y);
-    ring.setAttribute("r",hover.closing?7:hover.kind==="endpoint"?6:5);
-    ring.setAttribute("class","snap-indicator snap-"+(hover.closing?"close":hover.kind));
-    svg.appendChild(ring);
-  }
-}
-
-/* ---- Помещения из линий разметки (Этап 3): грани планарного графа.
-   Вся геометрия — в чистом EPRoomsFromLines (тестируется), здесь оркестровка:
-   чтение state.roomLines, сохранение ручных контуров, нумерация, перерисовка.
-   opts.silent — авто-режим: не сыпать сообщения во время рисования. ---- */
-function buildRoomsFromLines(opts){
-  opts=opts||{};
-  const silent=opts.silent===true;
-  const lines=state.roomLines;
-  if(!lines||!lines.length){if(!silent)toast("Нет линий разметки — нарисуйте контур инструментом «Разметка»");return}
-  /* сетка запасного прохода — по bounding box самой разметки (бесконечный холст),
-     а не по размеру блока: линии бывают где угодно. Основной проход (грани графа)
-     origin/размеры не использует и работает в абсолютных координатах. */
-  const linePts=[];lines.forEach(l=>linePts.push(l.a,l.b));
-  const g=EPViewport.spaceGrid(EPViewport.bounds(linePts),
-    {cell:EPConfig.spaceCell,margin:EPConfig.spaceMargin,maxCells:EPConfig.spaceMaxCells});
-  const res=EPRoomsFromLines.roomsFromLines(lines,{
-    geom:EPGeom,tol:EPConfig.roomWeldTol,minArea:EPConfig.roomMinAreaPx,
-    maxSegments:EPConfig.roomMaxSegments,maxFaces:EPConfig.roomMaxFaces,
-    healTol:EPConfig.roomHealTol,   /* аварийная починка зазоров: недоведённые концы → тело линии */
-    width:g.width,height:g.height,originX:g.originX,originY:g.originY,
-    cell:g.cell,wallRadius:wallRadiusFor(g.cell),simplifyEps:EPConfig.roomSimplifyEps
-  });
-  if(res.method==="skipped-limit"){if(!silent)toast(`Слишком много линий разметки (>${EPConfig.roomMaxSegments}) — пересчёт помещений пропущен`);return}
-  if(!res.rooms.length){
-    /* честно сообщаем: замкнутых контуров нет. В авто-режиме молчим, чтобы не
-       мешать рисованию — сообщение появится только по кнопке. Существующие
-       комнаты НЕ трогаем: нечего заменять, а ручные тем более сохраняем. */
-    if(!silent){toast("Контур не замкнут — помещение не определено");updateStatus("Контур не замкнут — помещение не определено")}
-    return;
-  }
-  /* уничтожаемые авто-комнаты — источники переноса ручных полей на новые (по геометрии) */
-  const oldAuto=state.rooms.filter(r=>r.autoPolygon);
-  /* ручные контуры (autoPolygon===false) переживают пересчёт — как в detectRooms* */
-  state.rooms=state.rooms.filter(r=>!r.autoPolygon);
-  const kept=state.rooms.length;
-  /* нумеруем «Помещение N» дальше существующих одноимённых, чтобы имена не дублировались */
-  let next=state.rooms.reduce((max,r)=>{const m=/^Помещение\s+(\d+)$/.exec(r.name||"");return m?Math.max(max,Number(m[1])):max},0);
-  const built=[];
-  res.rooms.forEach(rm=>{
-    const poly=rm.polygon,c=roomLabelPoint(poly),nm=roomNamePoint(poly);   /* В10 И5: seed — точка ВНУТРИ контура (roomNamePoint) */
-    /* roomSource — признак способа получения контура (по линиям/по сетке): запасной
-       проход не подменяет основной молча, источник виден и в state, и в отчётах */
-    const room={id:uid("room_"),name:"Помещение "+(++next),area:"",polygon:poly,autoPolygon:true,roomSource:rm.source,seedX:nm.x,seedY:nm.y,x:c.x-45,y:c.y-16};
-    state.rooms.push(room);built.push(room);
-  });
-  carryUserRoomFields(oldAuto,built);   /* вернуть имя/площадь, введённые вручную, на совпавшие комнаты */
-  refreshAfterRoomAssignments(renderAll, persistProject);
-  if(!silent){
-    const byGrid=res.rooms.filter(r=>r.source==="grid").length;
-    const note=res.method==="grid"?" (по сетке — контур приблизительный)":byGrid?` (из них по сетке: ${byGrid})`:"";
-    /* число «зашитых» зазоров показываем явно: если починка склеила лишнее, пользователь
-       должен это видеть, а не гадать, почему помещения не те (решение владельца) */
-    const healed=res.healedJoints||0;
-    const healNote=healed?` · зашито зазоров: ${healed}`:"";
-    toast(`Помещений по линиям: ${res.rooms.length}${note}`);
-    updateStatus((kept?`Помещений по линиям: ${res.rooms.length} · сохранено ручных контуров: ${kept}`:`Помещений по линиям: ${res.rooms.length}`)+healNote);
-  }
-}
 /* Автопересчёт с задержкой после правки линий (решение владельца №3: «по кнопке +
    авто, чтобы не мешало рисовать»). Гейт _autosaveOn — тот же, что у scheduleSave:
    не дёргаем во время восстановления проекта. Авто-режим молчалив. */
@@ -3303,13 +2994,6 @@ function autoTracePlan(){
   },60);
 }
 
-/* превью «резинки» и подсветка точки притяжения при рисовании разметки */
-canvas.addEventListener("pointermove",e=>{
-  if(state.tool!=="roomline")return;
-  const r=canvas.getBoundingClientRect();
-  state.roomLineHover=resolveRoomLinePoint((e.clientX-r.left)/state.scale,(e.clientY-r.top)/state.scale,e.shiftKey);
-  drawRoomLines();
-});
 document.querySelectorAll("[data-tool]").forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
 /* Переключатели режимов разметки. Сохраняем сразу (как cyclePlanVisibility): это
    настройка проекта, а не пачка мелких правок — задержка автосейва тут не нужна. */
@@ -3320,7 +3004,6 @@ $("gridStepSelect").onchange=e=>{
   state.gridStep=EPConfig.gridSteps.includes(s)?s:EPConfig.gridDefault;
   applyGridStyle();persistProject();   /* фоновая сетка должна сразу перерисоваться под новый шаг */
 };
-$("clearRoomLinesBtn").onclick=clearRoomLines;
 $("planVisibilityBtn").onclick=cyclePlanVisibility;
 /* «Убрать план» больше НЕ зовёт clearPlan напрямую — оно только задаёт вопрос (via:"arm"); удаляет
    отдельная кнопка «Точно убрать план?» (см. askClearPlan/confirmClearPlan). */
@@ -3496,9 +3179,6 @@ $("planUpload").onchange=async e=>{
 };
 $("clearBtn").onclick=()=>{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.roomLines=[];finishRoomLineChain();state.selected=null;clearAnnotations();renderAll();renderProperties();renderSummary()};
 $("autoTraceBtn").onclick=autoTracePlan;
-$("detectRoomsBtn").onclick=detectRooms;
-$("detectRoomsMlBtn").onclick=detectRoomsML;
-$("roomsFromLinesBtn").onclick=()=>buildRoomsFromLines();   /* явный запуск — не в silent-режиме */
 $("annotateBtn").onclick=annotatePlan;
 $("clearAnnotateBtn").onclick=()=>{clearAnnotations();toast("Разметка убрана")};
 $("scaleBtn").onclick=()=>{setTool("scale");toast("Проведите отрезок известной длины: два клика по плану")};
@@ -3768,6 +3448,23 @@ const {openPostBuilder,renderPostSlotCountSelect,requestClosePostBuilder,builder
   product,productMoney,productPicture,productSeries,renderAll,renderLightingSchemeSelect,
   renderProperties,renderSummary,renderTemplates,roomCatalogFilter,socketBox,state,
   toast,uid,updateStatus
+});
+
+/* Распознавание и разметка помещений вынесены в js/roomDetect.js (И1, последний кусок). Поднимаем
+   ОДИН раз здесь и ОБЯЗАТЕЛЬНО ДО EPCanvasInput.attach: ввод на холсте берёт из ctx addRoomLinePoint
+   (клик инструментом «Разметка»), а он теперь const из этого attach — окажись он позже, чтение имени
+   при сборке ctx холста дало бы ReferenceError (TDZ) на загрузке. attach сам вешает превью-обработчик
+   разметки (canvas pointermove) и кнопки распознавания/сборки и возвращает то, что app.js зовёт сам:
+   drawRoomLines (renderAll/restoreProject), addRoomLinePoint (уходит в EPCanvasInput.attach),
+   finishRoomLineChain (clearBtn), removeLastRoomLinePoint (keydown Backspace) и buildRoomsFromLines
+   (его зовёт оставшийся в app.js scheduleRoomsFromLines: гейт автосейва _autosaveOn делит его со
+   scheduleSave, поэтому scheduleRoomsFromLines остался в app.js). renderRooms передаём ЛЕНИВОЙ стрелкой:
+   сам он — const из EPRooms.attach ниже, на момент вызова ещё не инициализирован; разметка зовёт его
+   лишь при действии пользователя, когда const уже готов (TDZ нет). */
+const {addRoomLinePoint,drawRoomLines,finishRoomLineChain,removeLastRoomLinePoint,buildRoomsFromLines}=EPRoomDetect.attach({
+  $,SVG_NS,canvas,markCanvasUsed,persistProject,planLostDuringOp,refreshAfterRoomAssignments,
+  renderAll,renderRooms:()=>renderRooms(),roomLabelPoint,roomNamePoint,scheduleRoomsFromLines,scheduleSave,
+  showTraceProgress,state,toast,uid,updateStatus,wallRadiusFor
 });
 
 /* Ввод на холсте (клики, перенос, панорама, зум) вынесен в js/canvasInput.js (И1, кусок 4). Поднимаем

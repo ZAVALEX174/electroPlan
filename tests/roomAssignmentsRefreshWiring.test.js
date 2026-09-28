@@ -33,12 +33,15 @@ const { stripComments } = require("./helpers/stripComments.js");
 const SRC = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
 /* Разбиение app.js (И1) уносит часть потребителей контракта в модули-фабрики: refreshRoomAfterEdit
    (правка вершины комнаты) переехал в js/rooms.js, а makeDraggable (finishDrag после переноса) — в
-   js/canvasInput.js (кусок 4); оба зовут refreshAfterRoomAssignments уже оттуда. Перепись вызовов ниже
-   считается по app.js + вынесенным модулям, иначе переехавший вызов остался бы не под охраной (его
+   js/canvasInput.js (кусок 4), а восемь потребителей (detectRooms/detectRoomsML/buildRoomsFromLines и
+   инструмент «Разметка»: addRoomLinePoint/removeLastRoomLinePoint/removeRoomLine/clearRoomLines) — в
+   js/roomDetect.js (последний кусок); все зовут refreshAfterRoomAssignments уже оттуда. Перепись вызовов
+   ниже считается по app.js + вынесенным модулям, иначе переехавший вызов остался бы не под охраной (его
    можно было бы вырезать, и счётчик app.js этого не заметил). Функциональные тесты (functionBody)
    по-прежнему смотрят app.js — сама функция контракта и renderAll/addWallPoint там. */
 const ROOMS = fs.readFileSync(path.join(__dirname, "..", "js", "rooms.js"), "utf8");
 const CANVAS = fs.readFileSync(path.join(__dirname, "..", "js", "canvasInput.js"), "utf8");
+const ROOMDETECT = fs.readFileSync(path.join(__dirname, "..", "js", "roomDetect.js"), "utf8");
 
 /* Тело функции: от объявления до следующего `\nfunction ` верхнего уровня — как в соседних
    *Wiring-тестах. refreshAfterRoomAssignments и renderAll — верхнеуровневые соседи, этого хватает. */
@@ -122,8 +125,9 @@ test("путь стены-перегородки (addWallPoint) идёт чер�
    есть refreshAfterRoomAssignments» — это то же размножение правила, за которое чинили app.js:
    добавили потребителя — забыли добавить проверку, дыра вернулась. Столбим КЛАСС целиком одним
    числом: сколько в app.js и вынесенных из него модулях (js/rooms.js — refreshRoomAfterEdit;
-   js/canvasInput.js — makeDraggable) мест, зовущих контракт. Число — факт кода (сегодня 15, из них
-   13 в app.js, 1 в rooms.js и 1 в canvasInput.js), не догадка.
+   js/canvasInput.js — makeDraggable; js/roomDetect.js — распознавание/разметка помещений) мест,
+   зовущих контракт. Число — факт кода (сегодня 15, из них 5 в app.js, 1 в rooms.js, 1 в canvasInput.js
+   и 8 в roomDetect.js), не догадка.
    Удаление вызова у ЛЮБОГО из пятнадцати потребителей роняет счётчик до 14 → красный, вне
    зависимости от того, в какой именно функции вызов вырезали. Рост числа (новый потребитель)
    тоже красит — и это правильно: автор нового пути обязан осознанно подтвердить перепись,
@@ -134,7 +138,7 @@ test("путь стены-перегородки (addWallPoint) идёт чер�
 const CONTRACT_CALL_SITES = 15; // перепись refreshAfterRoomAssignments(...) в app.js + вынесенных модулях
 
 test("все потребители зовут контракт: перепись вызовов refreshAfterRoomAssignments не изменилась", () => {
-  const code = stripComments(SRC) + "\n" + stripComments(ROOMS) + "\n" + stripComments(CANVAS);
+  const code = stripComments(SRC) + "\n" + stripComments(ROOMS) + "\n" + stripComments(CANVAS) + "\n" + stripComments(ROOMDETECT);
 
   const total = (code.match(/refreshAfterRoomAssignments\s*\(/g) || []).length;
   const defs = (code.match(/function\s+refreshAfterRoomAssignments\s*\(/g) || []).length;

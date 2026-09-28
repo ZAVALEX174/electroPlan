@@ -63,7 +63,7 @@ const JS_DIR = path.join(__dirname, "..", "..", "js");
    (двусмысленность, с именами файлов), а не тихий выбор первого: тихий выбор замаскировал бы
    недоудалённый после выноса дубль в app.js. Первый файл — главный: его стрипнутый текст
    экспортируется как SRC (на него завязаны структурные тесты app.js). */
-const SOURCE_FILES = ["app.js", "postBuilder.js", "rooms.js", "docs.js", "canvasInput.js"];
+const SOURCE_FILES = ["app.js", "postBuilder.js", "rooms.js", "docs.js", "canvasInput.js", "roomDetect.js"];
 
 /* Конец тела функции по БАЛАНСУ ФИГУРНЫХ СКОБОК — фолбэк functionSource для ПОСЛЕДНЕЙ функции файла,
    у которой нет следующего `\nfunction`-соседа. Без него у функции внутри IIFE-модуля (js/postBuilder.js —

@@ -36,7 +36,8 @@ const FACTORY_MODULES = [
   { file: "postBuilder.js", namespace: "EPPostBuilder", factoryFn: "attach" },
   { file: "rooms.js", namespace: "EPRooms", factoryFn: "attach" },
   { file: "docs.js", namespace: "EPDocs", factoryFn: "attach" },
-  { file: "canvasInput.js", namespace: "EPCanvasInput", factoryFn: "attach" }
+  { file: "canvasInput.js", namespace: "EPCanvasInput", factoryFn: "attach" },
+  { file: "roomDetect.js", namespace: "EPRoomDetect", factoryFn: "attach" }
 ];
 
 /* Разбор списка имён из `{a, b: c, …}`: возвращает пары {key, local} (key — свойство, local — связанное

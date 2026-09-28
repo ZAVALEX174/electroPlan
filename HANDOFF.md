@@ -598,6 +598,17 @@ HTML/CSS/JS-прототипа, к Битриксу не подключён (с�
 
 > **Добавляй новую запись сверху. Формат: дата · что сделано · как сделано · проблемы.**
 
+### 2026-09-28 — Разбиение app.js ЗАКРЫТО: распознавание и разметка помещений в своём модуле (И1)
+
+Последний кусок → js/roomDetect.js (EPRoomDetect.attach, 15 функций дословно): инструмент «Разметка» (resolveRoomLinePoint,
+addRoomLinePoint, finishRoomLineChain, removeLastRoomLinePoint, removeRoomLine, clearRoomLines, drawRoomLines…),
+buildRoomsFromLines, detectRooms/detectRoomsML, loadOpenCv, carryUserRoomFields; scheduleRoomsFromLines остался в app.js
+(гейт автосейва). Состояние цепочки разметки — в state, ловушки let нет. attach до EPCanvasInput (берёт addRoomLinePoint).
+**Проверка:** 15 функций и 103 строки подписок сверены скриптом; мутации 6/9 (3 не ловятся и на main — З11); сценарии
+full/label/concave/noframe совпали с main, КП байт в байт; разметка руками — одинаково с main. 1554 теста.
+**Итог И1:** app.js 6093 → 3501; модули postBuilder, rooms, docs, canvasInput, roomDetect, wallScope; страж границы
+tests/postBuilderModuleBoundary.test.js (FACTORY_MODULES). Точка отката — метка do-razdeleniya-app-js.
+
 ### 2026-09-27 — Разбиение app.js: ввод на холсте в своём модуле (И1, кусок 4)
 
 trackDrag, makeDraggable (+подсветка комнаты-приёмника), canvasEventPoint, placePendingAtEvent, canvas.onclick, панорама
