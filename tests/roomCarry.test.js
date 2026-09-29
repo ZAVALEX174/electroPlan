@@ -9,13 +9,17 @@
    комнату при полной перерисовке; (в) результат НЕ зависит от порядка входных массивов; (г)
    назначение один-к-одному. Все три критичных места проверены на фальсификацию (см. отчёт).
 
-   ГЕОМЕТРИЯ ФИКСТУР. Комнаты — прямоугольники: rect(id,x0,y0,x1,y1). Центроид EPGeom — среднее
-   вершин, для прямоугольника это его центр ((x0+x1)/2,(y0+y1)/2); площадь — w*h. Центры фикстур
-   держим ВНУТРИ клеток (не на границе смежных прямоугольников), т.к. попадание точки на ребро у
-   ray-casting неустойчиво, а нам важна сама логика сопоставления, а не поведение на границе. */
+   ГЕОМЕТРИЯ ФИКСТУР. Прямоугольники — rect(id,x0,y0,x1,y1); Г/П-образные — withPoly(id, poly, extra).
+   Пара сопоставляется по ТОЧКЕ СОПОСТАВЛЕНИЯ (EPGeom.roomMatchPoint), а не по голому центроиду: у
+   прямоугольника это его центр ((x0+x1)/2,(y0+y1)/2) = центроид (он внутри), у Г/П — полюс
+   недоступности ВНУТРИ контура (среднее вершин у них уезжает наружу, поэтому старое правило «по
+   центроиду» их пересборку не опознавало — В13). Площадь — w*h. Центры прямоугольников держим ВНУТРИ
+   клеток (не на границе смежных), т.к. попадание точки на ребро у ray-casting неустойчиво, а нам важна
+   логика сопоставления, а не поведение на границе. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const C = require("../js/roomCarry.js");
+const G = require("../js/geometry.js");   /* настоящая геометрия: центроид/полюс/точка сопоставления */
 
 /* Прямоугольная комната по двум углам. extra — пользовательские поля (name/area/autoPolygon). */
 function rect(id, x0, y0, x1, y1, extra) {
@@ -29,7 +33,7 @@ function rect(id, x0, y0, x1, y1, extra) {
 test("имя переносится, когда контур совпал", () => {
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Кухня", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
-  assert.deepEqual(C.carry([oldR], [newR]), [{ toId: "new1", fromId: "old1", name: "Кухня", area: null, lightingScheme: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
+  assert.deepEqual(C.carry([oldR], [newR]), [{ toId: "new1", fromId: "old1", name: "Кухня", area: null, lightingScheme: null, standard: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 /* ---- 2. Авто-имена НЕ переносятся (конфликт с нумерацией новых) ---- */
@@ -56,7 +60,7 @@ test("isAutoName: авто-формат распознаётся, ручные �
 test("непустая площадь переносится с trim, при авто-имени имя остаётся null", () => {
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Комната 5", area: "  18,6 м²  ", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
-  assert.deepEqual(C.carry([oldR], [newR]), [{ toId: "new1", fromId: "old1", name: null, area: "18,6 м²", lightingScheme: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
+  assert.deepEqual(C.carry([oldR], [newR]), [{ toId: "new1", fromId: "old1", name: null, area: "18,6 м²", lightingScheme: null, standard: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 test("пустая (пробельная) площадь не переносится", () => {
@@ -69,7 +73,7 @@ test("пустая (пробельная) площадь не переносит
 test("имя и площадь переносятся вместе, когда оба заданы человеком", () => {
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Кухня", area: "20", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
-  assert.deepEqual(C.carry([oldR], [newR]), [{ toId: "new1", fromId: "old1", name: "Кухня", area: "20", lightingScheme: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
+  assert.deepEqual(C.carry([oldR], [newR]), [{ toId: "new1", fromId: "old1", name: "Кухня", area: "20", lightingScheme: null, standard: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 /* ---- 4. Независимость от порядка входа (обе перестановки) ---- */
@@ -151,7 +155,7 @@ test("комнаты без полигона (старая и новая) не �
   const newGood = rect("new1", 0, 0, 100, 100, { name: "Комната 1" });
   let res;
   assert.doesNotThrow(() => { res = C.carry([oldNoPoly, oldGood], [newNoPoly, newGood]); });
-  assert.deepEqual(res, [{ toId: "new1", fromId: "old1", name: "Кухня", area: null, lightingScheme: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
+  assert.deepEqual(res, [{ toId: "new1", fromId: "old1", name: "Кухня", area: null, lightingScheme: null, standard: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 /* ---- 10. Ручная комната (autoPolygon===false) источником не бывает ---- */
@@ -169,7 +173,7 @@ test("схема электрики комнаты переносится на �
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Комната 5", lightingScheme: "relay", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
   assert.deepEqual(C.carry([oldR], [newR]),
-    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: "relay", collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
+    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: "relay", standard: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 /* Схема несётся ВМЕСТЕ с именем/площадью, а не вместо них. */
@@ -177,7 +181,7 @@ test("схема переносится вместе с ручным имене�
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Кухня", area: "18", lightingScheme: "classic", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
   assert.deepEqual(C.carry([oldR], [newR]),
-    [{ toId: "new1", fromId: "old1", name: "Кухня", area: "18", lightingScheme: "classic", collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
+    [{ toId: "new1", fromId: "old1", name: "Кухня", area: "18", lightingScheme: "classic", standard: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 /* ---- 12. Отсутствие/мусор схемы не создаёт поле ------------------------------------
@@ -187,7 +191,7 @@ test("отсутствие схемы не порождает перенос п�
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Кухня", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
   assert.deepEqual(C.carry([oldR], [newR]),
-    [{ toId: "new1", fromId: "old1", name: "Кухня", area: null, lightingScheme: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
+    [{ toId: "new1", fromId: "old1", name: "Кухня", area: null, lightingScheme: null, standard: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 test("пустая строка/мусор в схеме трактуются как отсутствие", () => {
@@ -207,7 +211,7 @@ test("комната только со схемой (без ручного им�
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
   /* имя авто-формата не переносится, площади нет — но схема есть, значит перенос обязан быть */
   assert.deepEqual(C.carry([oldR], [newR]),
-    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: "bell", collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
+    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: "bell", standard: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 /* ---- 14. Коллекция накладок (E13) переносится как схема ------------------------------
@@ -219,14 +223,14 @@ test("комната только с коллекцией (без ручного
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Комната 5", collection: "Arke", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
   assert.deepEqual(C.carry([oldR], [newR]),
-    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: null, collection: "Arke", frameMaterial: null, frameShape: null, frameColor: null }]);
+    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: null, standard: null, collection: "Arke", frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 test("коллекция едет вместе с именем, площадью и схемой", () => {
   const oldR = rect("old1", 0, 0, 100, 100, { name: "Кухня", area: "18", lightingScheme: "classic", collection: "Plana", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
   assert.deepEqual(C.carry([oldR], [newR]),
-    [{ toId: "new1", fromId: "old1", name: "Кухня", area: "18", lightingScheme: "classic", collection: "Plana", frameMaterial: null, frameShape: null, frameColor: null }]);
+    [{ toId: "new1", fromId: "old1", name: "Кухня", area: "18", lightingScheme: "classic", standard: null, collection: "Plana", frameMaterial: null, frameShape: null, frameColor: null }]);
 });
 
 test("пустая/нестроковая коллекция не переносится (collection: null)", () => {
@@ -245,7 +249,7 @@ test("отделка (материал/форма/цвет) переноситс
     { name: "Комната 5", frameMaterial: "Металл", frameShape: "Скруглённая", frameColor: "Никель матовый", autoPolygon: true });
   const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
   assert.deepEqual(C.carry([oldR], [newR]),
-    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: null, collection: null,
+    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: null, standard: null, collection: null,
        frameMaterial: "Металл", frameShape: "Скруглённая", frameColor: "Никель матовый" }]);
 });
 
@@ -264,4 +268,188 @@ test("пустая/нестроковая отделка не переносит
   assert.equal(t.frameMaterial, null);
   assert.equal(t.frameShape, null);
   assert.equal(t.frameColor, null);
+});
+
+/* --- МОНТАЖНЫЙ СТАНДАРТ КОМНАТЫ (room.standard): перенос при пересчёте контуров (В13) ------------
+   Решение владельца: стандарт переносить. Сейчас он пропадает у ВСЕХ комнат, включая прямоугольные,
+   поэтому тест — и на прямоугольник (здесь), и на Г/П (ниже). Правило то же, что у коллекции. */
+
+test("монтажный стандарт переносится на совпавший контур (прямоугольник)", () => {
+  const oldR = rect("old1", 0, 0, 100, 100, { name: "Комната 5", standard: "IT", autoPolygon: true });
+  const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
+  assert.deepEqual(C.carry([oldR], [newR]),
+    [{ toId: "new1", fromId: "old1", name: null, area: null, lightingScheme: null, standard: "IT", collection: null, frameMaterial: null, frameShape: null, frameColor: null }]);
+});
+
+test("комната ТОЛЬКО со стандартом (без имени/площади) всё равно переносится", () => {
+  const oldR = rect("old1", 0, 0, 100, 100, { name: "Помещение 3", standard: "DE", autoPolygon: true });
+  const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
+  const res = C.carry([oldR], [newR]);
+  assert.equal(res.length, 1, "перенос есть, хотя ручное — только стандарт (мутация «standard вне условия „нести нечего“» краснит здесь)");
+  assert.equal(res[0].standard, "DE");
+});
+
+test("стандарт едет вместе со схемой, коллекцией и отделкой (прямоугольник)", () => {
+  const oldR = rect("old1", 0, 0, 100, 100, { name: "Кухня", lightingScheme: "relay", standard: "IT",
+    collection: "Arke", frameColor: "Антрацит", autoPolygon: true });
+  const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
+  assert.deepEqual(C.carry([oldR], [newR]),
+    [{ toId: "new1", fromId: "old1", name: "Кухня", area: null, lightingScheme: "relay", standard: "IT",
+       collection: "Arke", frameMaterial: null, frameShape: null, frameColor: "Антрацит" }]);
+});
+
+test("пустой/нестроковый стандарт не переносится (standard: null)", () => {
+  const oEmpty = rect("oe", 0, 0, 100, 100, { name: "Кухня", standard: "", autoPolygon: true });
+  const nEmpty = rect("ne", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
+  assert.equal(C.carry([oEmpty], [nEmpty])[0].standard, null);
+  const oJunk = rect("oj", 0, 0, 100, 100, { name: "Кухня", standard: 42, autoPolygon: true });
+  const nJunk = rect("nj", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
+  assert.equal(C.carry([oJunk], [nJunk])[0].standard, null);
+});
+
+/* ============================ Г- И П-ОБРАЗНЫЕ КОМНАТЫ (В13) ============================
+   Мотив: у Г/П среднее вершин лежит ВНЕ контура, и старое правило «сопоставляем по центроиду» их
+   пересборку не опознавало — при любой правке линий такая комната получала новое id, авто-имя и
+   пустые поля. Теперь сопоставление идёт по EPGeom.roomMatchPoint (точке ВНУТРИ контура). */
+
+/* Комната по произвольному контуру. extra — пользовательские поля. Копируем вершины, чтобы тест не
+   делил массив с фикстурой. */
+function withPoly(id, poly, extra) {
+  return Object.assign({ id, polygon: poly.map(p => ({ x: p.x, y: p.y })) }, extra || {});
+}
+
+/* Г-образный контур (коридор огибает угол); среднее вершин (113.3,113.3) лежит ВНЕ него — в «дырке». */
+const GAMMA_POLY = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 40 }, { x: 40, y: 40 }, { x: 40, y: 300 }, { x: 0, y: 300 }];
+/* П-образный контур (открыт вверх); среднее вершин тоже вне контура (в проёме). */
+const U_POLY = [{ x: 0, y: 0 }, { x: 120, y: 0 }, { x: 120, y: 120 }, { x: 180, y: 120 }, { x: 180, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 200 }, { x: 0, y: 200 }];
+
+/* «Пересобранный тем же контуром»: вставляем середины рёбер (T-вершины — их несут грани
+   roomsFromLines), разворачиваем обход и сдвигаем начало. Форма и площадь те же, массив вершин —
+   другой; так проверяется независимость сопоставления от числа/порядка вершин. */
+function rebuilt(poly, shift) {
+  const mids = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    mids.push({ x: a.x, y: a.y }, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  }
+  const rev = mids.reverse();
+  const k = ((shift || 0) % rev.length + rev.length) % rev.length;
+  return rev.slice(k).concat(rev.slice(0, k));
+}
+
+test("Г-комната, пересобранная тем же контуром (T-вершины, другой обход): переносятся ВСЕ поля", () => {
+  const old = withPoly("g", GAMMA_POLY, { name: "Прихожая", area: "12,5 м²", lightingScheme: "relay",
+    standard: "IT", collection: "Arke", frameMaterial: "Металл", frameShape: "Скруглённая", frameColor: "Антрацит", autoPolygon: true });
+  const neu = withPoly("g2", rebuilt(GAMMA_POLY, 5), { name: "Помещение 4", autoPolygon: true });
+  assert.deepEqual(C.carry([old], [neu]),
+    [{ toId: "g2", fromId: "g", name: "Прихожая", area: "12,5 м²", lightingScheme: "relay", standard: "IT",
+       collection: "Arke", frameMaterial: "Металл", frameShape: "Скруглённая", frameColor: "Антрацит" }]);
+});
+
+test("П-комната, пересобранная тем же контуром: переносятся имя, площадь, схема, коллекция, отделка", () => {
+  const old = withPoly("u", U_POLY, { name: "Студия", area: "30", lightingScheme: "bell",
+    standard: "DE", collection: "Plana", frameColor: "Белая", autoPolygon: true });
+  const neu = withPoly("u2", rebuilt(U_POLY, 3), { name: "Комната 2", autoPolygon: true });
+  assert.deepEqual(C.carry([old], [neu]),
+    [{ toId: "u2", fromId: "u", name: "Студия", area: "30", lightingScheme: "bell", standard: "DE",
+       collection: "Plana", frameMaterial: null, frameShape: null, frameColor: "Белая" }]);
+});
+
+test("Г-коридор вокруг кухни: центроид коридора попадает в кухню, но поля НЕ перескакивают", () => {
+  const KITCHEN = [{ x: 40, y: 40 }, { x: 300, y: 40 }, { x: 300, y: 300 }, { x: 40, y: 300 }];
+  const gc = G.polygonCentroid(GAMMA_POLY);
+  assert.equal(G.pointInPolygon(gc.x, gc.y, KITCHEN), true, "предпосылка: среднее вершин коридора — внутри кухни (коварный случай)");
+  assert.equal(G.pointInPolygon(gc.x, gc.y, GAMMA_POLY), false, "и вне самого коридора");
+  const oldCorr = withPoly("corr", GAMMA_POLY, { name: "Коридор", lightingScheme: "relay", autoPolygon: true });
+  const oldKitch = withPoly("kitch", KITCHEN, { name: "Кухня", lightingScheme: "classic", autoPolygon: true });
+  const newCorr = withPoly("corr2", rebuilt(GAMMA_POLY, 1), { name: "Помещение 1", autoPolygon: true });
+  const newKitch = withPoly("kitch2", KITCHEN, { name: "Помещение 2", autoPolygon: true });
+  const byTo = Object.fromEntries(C.carry([oldCorr, oldKitch], [newCorr, newKitch]).map(t => [t.toId, t]));
+  assert.equal(byTo.corr2.fromId, "corr", "коридор перенёс поля на пересобранный коридор, не в кухню");
+  assert.equal(byTo.corr2.name, "Коридор");
+  assert.equal(byTo.corr2.lightingScheme, "relay");
+  assert.equal(byTo.kitch2.fromId, "kitch", "кухня — на кухню");
+  assert.equal(byTo.kitch2.name, "Кухня");
+  assert.equal(byTo.kitch2.lightingScheme, "classic");
+});
+
+test("разделение Г надвое: поля достаются фрагменту, внутрь которого попала точка сопоставления Г", () => {
+  const TOP = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 40 }, { x: 0, y: 40 }];       // верхняя полоса Г
+  const LEG = [{ x: 0, y: 40 }, { x: 40, y: 40 }, { x: 40, y: 300 }, { x: 0, y: 300 }];      // левая нога Г
+  const m = G.roomMatchPoint(GAMMA_POLY);
+  assert.equal(G.pointInPolygon(m.x, m.y, TOP), true, "предпосылка: точка сопоставления Г лежит в верхнем фрагменте");
+  assert.equal(G.pointInPolygon(m.x, m.y, LEG), false, "и не в нижнем");
+  const oldG = withPoly("g", GAMMA_POLY, { name: "Прихожая", lightingScheme: "relay", autoPolygon: true });
+  const top = withPoly("top", TOP, { name: "Помещение 1", autoPolygon: true });
+  const leg = withPoly("leg", LEG, { name: "Помещение 2", autoPolygon: true });
+  const res = C.carry([oldG], [top, leg]);
+  assert.equal(res.length, 1, "перенос ровно один — второй фрагмент останется со свежим авто-именем");
+  assert.equal(res[0].toId, "top", "поля ушли в фрагмент с точкой сопоставления Г");
+  assert.equal(res[0].name, "Прихожая");
+  assert.equal(res[0].lightingScheme, "relay");
+});
+
+test("слияние двух полосок в Г: поля берёт та старая, внутрь которой попала точка сопоставления Г", () => {
+  const TOP = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 40 }, { x: 0, y: 40 }];
+  const LEG = [{ x: 0, y: 40 }, { x: 40, y: 40 }, { x: 40, y: 300 }, { x: 0, y: 300 }];
+  const m = G.roomMatchPoint(GAMMA_POLY);
+  assert.equal(G.pointInPolygon(m.x, m.y, TOP), true, "предпосылка: точка Г накрыта верхней полоской");
+  const top = withPoly("top", TOP, { name: "Верх", lightingScheme: "relay", autoPolygon: true });
+  const leg = withPoly("leg", LEG, { name: "Лево", lightingScheme: "classic", autoPolygon: true });
+  const merged = withPoly("g", GAMMA_POLY, { name: "Помещение 3", autoPolygon: true });
+  const res = C.carry([top, leg], [merged]);
+  assert.equal(res.length, 1, "одна новая комната — один перенос");
+  assert.equal(res[0].fromId, "top", "поля взяты у полоски, накрывшей точку Г");
+  assert.equal(res[0].name, "Верх");
+  assert.equal(res[0].lightingScheme, "relay");
+});
+
+/* ---- И1: доказательство совпадения со старым правилом (оракул — carry по ЦЕНТРОИДУ) ----
+   Пропускаем НАСТОЯЩИЙ carry с подменённым roomMatchPoint = polygonCentroid: это ровно старое правило.
+   На планах, где центроид всех комнат внутри своего контура (прямоугольники, в т.ч. с T-вершинами и
+   узкие), roomMatchPoint === centroid, поэтому новое правило обязано дать бит-в-бит тот же результат.
+   Мутация «вернуть центроид в carry» здесь не краснит (для таких входов оба правила совпадают) — её
+   ловит перебор Г/П выше; а вот «точка внутри без проверки центроида (всегда полюс)» краснит: полюс
+   прямоугольника с T-вершинами ≠ его центроид. */
+test("И1 (оракул): при центроиде внутри контура новое правило = старое (по центроиду), бит-в-бит", () => {
+  const geomOracle = Object.assign({}, G, { roomMatchPoint: G.polygonCentroid });
+  let s = 123456789;                                   // детерминированный ГПСЧ (LCG)
+  const rnd = () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const NAMES = ["Кухня", "Спальня", "Гостиная", "Ванная", "Холл", "Комната 7"];   // «Комната 7» — авто
+  const SCHEMES = [undefined, "relay", "classic", "bell"];
+  /* T-вершина НЕ в середине ребра (ассиметрично) — так центроид новой РЕАЛЬНО смещается относительно
+     чистого прямоугольника, но остаётся внутри (у выпуклой среднее вершин всегда внутри). */
+  const tVertices = poly => {
+    const o = [];
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      o.push({ x: a.x, y: a.y });
+      if (i % 2 === 0) o.push({ x: a.x + (b.x - a.x) / 3, y: a.y + (b.y - a.y) / 3 });   // 1/3 ребра
+    }
+    return o;
+  };
+  let plansWithTransfer = 0;
+  for (let plan = 0; plan < 40; plan++) {
+    const cols = 2 + Math.floor(rnd() * 3), rows = 2 + Math.floor(rnd() * 3);
+    const cell = 40 + Math.floor(rnd() * 60);
+    const old = [], neu = [];
+    let idx = 0;
+    for (let cx = 0; cx < cols; cx++) for (let cy = 0; cy < rows; cy++) {
+      const x0 = cx * cell + 1, y0 = cy * cell + 1;
+      const narrow = rnd() < 0.3;                       // узкие комнаты — центроид всё равно внутри
+      const x1 = x0 + (narrow ? 8 : cell - 2), y1 = y0 + cell - 2;
+      const poly = [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }];
+      old.push(withPoly("o" + plan + "_" + idx, poly, { name: NAMES[Math.floor(rnd() * NAMES.length)],
+        area: rnd() < 0.5 ? String(10 + idx) : "", lightingScheme: SCHEMES[Math.floor(rnd() * SCHEMES.length)],
+        collection: rnd() < 0.4 ? "Arke" : undefined, autoPolygon: true }));
+      neu.push(withPoly("n" + plan + "_" + idx, tVertices(poly), { name: "Комната " + (idx + 1), autoPolygon: true }));
+      idx++;
+    }
+    const actual = C.carry(old, neu);
+    assert.deepEqual(actual, C.carry(old, neu, geomOracle), "план " + plan + ": новое правило = старое (по центроиду)");
+    /* И5: перестановка входа не меняет результат (тай-брейк геометрический, не по порядку) */
+    assert.deepEqual(C.carry([...old].reverse(), [...neu].reverse()), actual, "план " + plan + ": порядок входа не влияет");
+    if (actual.length) plansWithTransfer++;
+  }
+  assert.ok(plansWithTransfer >= 30, "перенос реально состоялся в большинстве планов (тест не пустой): " + plansWithTransfer);
 });

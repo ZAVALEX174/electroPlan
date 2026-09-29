@@ -135,6 +135,28 @@ function roomNamePoint(poly) {
   return d.keep ? d.centroid : d.pole;
 }
 
+/* Точка СОПОСТАВЛЕНИЯ комнаты при пересборке контуров (В13) — ГАРАНТИРОВАННО ВНУТРИ контура, чтобы
+   перенос пользовательских полей (EPRoomCarry.carry) опознавал «ту же область» и у Г/П-образных
+   (вогнутых) комнат, а не только у выпуклых. НЕ путать с точкой ПОДПИСИ (roomLabelPoint/roomNamePoint):
+   те завязаны на смещение ЭКРАННОЙ таблички (LABEL_ANCHOR_*, CSS .room-label), которое ещё поедет; на
+   него сопоставление опираться не должно (В13 И3). Правило одно и живёт здесь — в roomCarry второй
+   копии геометрии нет:
+     • центроид ВНУТРИ контура (тот же pointInPolygon) → отдаём РОВНО его, бит-в-бит. Тогда на планах,
+       где у всех комнат центроид внутри своего контура (прямоугольники, в т.ч. с T-вершинами, узкие,
+       мелкие), выдача carry не меняется ни на бит против прежнего правила «по центроиду» (В13 И1);
+     • центроид вне/на границе (Г/П-образные) → полюс недоступности: точка ГЛУБОКО ВНУТРИ, не зависящая
+       от числа/порядка вершин (T-вершины, «усы»-коллинеары), сдвига начала обхода и его разворота (В13 И2).
+   Вырожденный вход (<3 вершин — среднее; нечисловая вершина) — как в roomLabelDecision: полюс не считаем
+   (poleOfInaccessibility на битом контуре может зациклиться / дать bbox=NaN), возвращаем среднее вершин
+   как есть. carry на такой не матчит (pointInPolygon по NaN ложно) — пары просто нет (В13 И4). */
+function roomMatchPoint(poly) {
+  if (!poly || poly.length < 3) return polygonCentroid(poly || [{ x: 0, y: 0 }]);
+  const c = polygonCentroid(poly);
+  if (!poly.every(p => p && Number.isFinite(p.x) && Number.isFinite(p.y))) return c;
+  if (pointInPolygon(c.x, c.y, poly)) return c;   /* центроид внутри — прежняя точка бит-в-бит (И1) */
+  return poleOfInaccessibility(poly);             /* вне/на границе — точка внутри вогнутого контура (И2) */
+}
+
 /* Площадь замкнутого полигона в px² (формула шнурков). */
 function polygonAreaPx(poly) {
   if (!poly || poly.length < 3) return 0;
@@ -411,7 +433,8 @@ function roomContourProbe(cx, cy, polygon, walls, inset) {
 const api = { polygonCentroid, polygonAreaPx, pointInPolygon, distancePointToSegment,
   closestPointOnSegment, segmentsIntersection, allIntersections, nearestEndpoint,
   nearestIntersection, nearestSegmentPoint, snapPlanPoint, buildSpaceComponents, componentAt,
-  roomContourProbe, signedPolygonDist, poleOfInaccessibility, roomLabelPoint, roomNamePoint };
+  roomContourProbe, signedPolygonDist, poleOfInaccessibility, roomLabelPoint, roomNamePoint,
+  roomMatchPoint };
 if (typeof window !== "undefined") window.EPGeom = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

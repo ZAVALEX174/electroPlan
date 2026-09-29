@@ -37,6 +37,7 @@ const EPConfig = require("../js/config.js");
 const EPViewport = require("../js/viewport.js");
 const EPRoomsFromLines = require("../js/roomsFromLines.js");
 const EPRoomCarry = require("../js/roomCarry.js");
+const EPRoom = require("../js/room.js");   /* разрешение схемы комнаты — тот же вход, что у schemeForPartition */
 
 /* Готовит vm-контекст с настоящими функциями разметки + scheduleRoomsFromLines (из app.js).
    Зависимости вне темы разметки (перерисовки, сохранение, статусы) — тихие заглушки-шпионы; всё,
@@ -204,4 +205,81 @@ test("«Очистить разметку» обнуляет линии, но п
   assert.equal(state.rooms.length, 2, "очистка разметки НЕ пересобирает и не удаляет комнаты");
   assert.ok(state.rooms.some(r => r.name === "Bedroom"), "введённое имя комнаты не пострадало");
   assert.ok(built.spies.toast.some(m => /Разметка помещений очищена/.test(m)), "тост об очистке");
+});
+
+/* --- В13: Г-комната, нарисованная разметкой; пересборка (авто-путь и кнопка) сохраняет ВСЕ поля ----
+   Тут ЗАКРЫВАЕТСЯ дыра покрытия: carryUserRoomFields (roomDetect.js) реально ИСПОЛНЯЕТСЯ, и его строки
+   записи lightingScheme/standard/collection/frame* отрабатывают на настоящем пути (стенд §7.1 гоняет
+   их через vm вместе с buildRoomsFromLines). У Г-комнаты среднее вершин лежит ВНЕ контура — на старом
+   правиле «по центроиду» любая пересборка теряла её имя/площадь/схему/стандарт/серию/отделку. */
+
+/* Г-контур (коридор): смещён от начала координат, чтобы клики стенда были положительными. */
+const GAMMA = [[100, 100], [400, 100], [400, 140], [140, 140], [140, 400], [100, 400]];
+const SCHEMES = [{ id: "classic" }, { id: "relay" }, { id: "bell" }];
+const POST_PT = { x: 200, y: 120 };   /* точка внутри верхней полосы Г (там стоит пост) */
+const EXPECTED = { name: "Прихожая-Г", area: "12,5 м²", lightingScheme: "relay", standard: "IT", collection: "Arke",
+  frameMaterial: "Металл", frameShape: "Скруглённая", frameColor: "Антрацит" };
+
+/* Нарисовать Г разметкой и вернуть стенд (snapGrid=false — клики садятся ровно, магнит ловит лишь
+   замыкание у первой вершины). */
+function drawGammaStand() {
+  const built = buildStand(makeState());
+  GAMMA.forEach(([x, y]) => click(built.api, x, y));
+  click(built.api, 101, 101);   // ≈ первая вершина → замыкание контура
+  return built;
+}
+/* Комната, в КОНТУР которой попала точка (первичная ветвь resolveRoomForPoint — pointInPolygon). */
+const roomAt = (state, pt) => state.rooms.find(r => r.autoPolygon && r.polygon && EPGeom.pointInPolygon(pt.x, pt.y, r.polygon)) || null;
+/* Задать Г все ручные поля (как панель свойств; набор полей autoPolygon не снимает — комната остаётся источником). */
+function setGammaFields(room) {
+  room.name = "Прихожая-Г"; room.area = "12,5 м²"; room.lightingScheme = "relay"; room.standard = "IT";
+  room.collection = "Arke"; room.frameMaterial = "Металл"; room.frameShape = "Скруглённая"; room.frameColor = "Антрацит";
+}
+const gammaFieldsOf = r => ({ name: r.name, area: r.area, lightingScheme: r.lightingScheme, standard: r.standard,
+  collection: r.collection, frameMaterial: r.frameMaterial, frameShape: r.frameShape, frameColor: r.frameColor });
+
+test("Г нарисована разметкой: пересборка (дорисовка в стороне + кнопка) сохраняет имя/площадь/схему/стандарт/серию/отделку", () => {
+  const built = drawGammaStand();
+  const { state, api } = built;
+  const g0 = roomAt(state, POST_PT);
+  assert.ok(g0, "предпосылка: замкнутая Г собралась в комнату");
+  setGammaFields(g0);
+  const id0 = g0.id;
+
+  /* Путь A: дорисован контур В СТОРОНЕ — авто-пересчёт (scheduleRoomsFromLines) пересобирает всё. */
+  [[600, 100], [800, 100], [800, 250], [600, 250]].forEach(([x, y]) => click(api, x, y));
+  click(api, 601, 101);   // замкнуть второй контур → авто-пересборка
+  const gA = roomAt(state, POST_PT);
+  assert.ok(gA, "Г пережила авто-пересборку (дорисовка соседа)");
+  assert.notEqual(gA.id, id0, "это НОВЫЙ объект комнаты (id сменился) — значит поля именно ПЕРЕНЕСЕНЫ, а не остались на месте");
+  assert.deepEqual(gammaFieldsOf(gA), EXPECTED, "все поля Г перенесены (строки lightingScheme/standard/frame* carryUserRoomFields исполнились)");
+
+  /* Путь B: прямой вызов buildRoomsFromLines — путь кнопки «Определить помещения по линиям». */
+  const idA = gA.id;
+  api.buildRoomsFromLines();
+  const gB = roomAt(state, POST_PT);
+  assert.ok(gB, "Г пережила пересборку кнопкой");
+  assert.notEqual(gB.id, idA, "снова новый объект — поля перенесены и на пути кнопки");
+  assert.deepEqual(gammaFieldsOf(gB), EXPECTED, "поля Г на месте и после кнопки");
+});
+
+test("деньги: пост в Г-комнате после пересборки — в комнате со СВОЕЙ схемой (relay ≠ проектная classic)", () => {
+  const built = drawGammaStand();
+  const { state, api } = built;
+  const g0 = roomAt(state, POST_PT);
+  setGammaFields(g0);
+  /* Пост в точке POST_PT. Его привязка к комнате пересчитывается по геометрии (в app.js —
+     resolveRoomForPoint в refreshAfterRoomAssignments, ПОСЛЕ carry), поэтому здесь моделируем её
+     тем же pointInPolygon, что и первичная ветвь resolveRoomForPoint. */
+  state.posts = [{ id: "p1", number: 1, roomId: g0.id, x: POST_PT.x, y: POST_PT.y, mechanismIds: [1001], keyGroups: ["Свет"] }];
+  api.buildRoomsFromLines();
+  const gB = roomAt(state, POST_PT);
+  assert.ok(gB, "новая Г-комната на месте после пересборки");
+  /* schemeForPartition (app.js:1477) для комнаты поста читает EPRoom.roomLightingScheme(комната, схема
+     проекта, SCHEMES). Пост стоит в gB, у неё перенесена своя схема relay → цена поста считается по
+     relay (кнопка), а не по проектной classic (выключатель). Без переноса схема упала бы на classic —
+     ровно «цена уезжает», которую видел владелец. */
+  assert.equal(gB.lightingScheme, "relay", "у новой Г-комнаты её собственная схема реально записана (перенос сработал)");
+  assert.equal(EPRoom.roomLightingScheme(gB, "classic", SCHEMES), "relay",
+    "схема для поста = собственная relay, НЕ проектная classic: денежная основа поста сохранена");
 });

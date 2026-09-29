@@ -1,0 +1,67 @@
+  // ============ В13: Г-комната сохраняет поля и деньги при пересборке «по линиям» ============
+  // Схема ПРОЕКТА — «классическая», схема Г-КОМНАТЫ — «Реле»: цельный выключатель 09001 (classic)
+  // в relay заменяется кнопкой 09008 — цена поста другая, значит #grandTotal зависит от схемы Г.
+  // На СТАРОМ коде пересборка по линиям теряла поля Г (центроид вне контура) → схема падала на
+  // проектную classic и итог «уезжал». На НОВОМ — поля переносятся, итог не меняется.
+  n = 700;
+  await sleep(1500);   // дать автосейву общей части записаться
+  // Г-контур (коридор огибает угол; среднее вершин лежит ВНЕ него) + второй прямоугольник «в стороне».
+  const GAMMA = [{ x: 200, y: 160 }, { x: 620, y: 160 }, { x: 620, y: 220 }, { x: 280, y: 220 }, { x: 280, y: 560 }, { x: 200, y: 560 }];
+  const SIDE = [{ x: 760, y: 160 }, { x: 1040, y: 160 }, { x: 1040, y: 420 }, { x: 760, y: 420 }];
+  const seg = (pts, pre) => pts.map((a, i) => ({ id: pre + i, a, b: pts[(i + 1) % pts.length] }));
+  const info = await ev(`
+    const prod=((window.EP_DATA&&EP_DATA.products)||[]).find(p=>p.code==="09001");
+    const mechId=prod?prod.id:100766;   // цельный выключатель Neve Up (classic) → кнопка 09008 (relay)
+    const post=(id,num,x,y,grp)=>({id,number:num,roomId:"room_gamma",x,y,mechanismIds:[mechId],keyGroups:[grp],keyCrossNumbers:[""],keyMechanisms:[""],frameId:null});
+    const k=ProjectStore.key;const p=JSON.parse(localStorage.getItem(k));
+    p.terms=Object.assign({},p.terms,{lightingScheme:"classic"});
+    p.walls=[];p.autoWalls=[];
+    p.rooms=[{id:"room_gamma",name:"Прихожая-Г",area:"12,5 м²",polygon:${JSON.stringify(GAMMA)},autoPolygon:true,
+      lightingScheme:"relay",standard:"IT",collection:"Neve Up",frameColor:"Белая",seedX:240,seedY:190,x:195,y:174}];
+    p.roomLines=${JSON.stringify(seg(GAMMA, "g").concat(seg(SIDE, "s")))};
+    p.posts=[post("post_g1",1,360,190,"Свет-1"),post("post_g2",2,460,190,"Свет-2"),post("post_g3",3,240,400,"Свет-3")];
+    p.devices=[];
+    localStorage.setItem(k,JSON.stringify(p));
+    return { mechId, code: prod && prod.code, price: prod && prod.price };`);
+  log.push("пост-механизм: " + JSON.stringify(info));
+  await c.send("Page.reload"); await sleep(5000);
+  await ev(`document.getElementById("canvas").scrollIntoView({block:"start"});return 1;`);
+
+  // Г-комната = самая ЛЕВАЯ табличка (Г при x~200, второй прямоугольник при x~760) — отбор не зависит
+  // от имени, поэтому одинаково работает и на старом коде, где имя Г потеряно.
+  const gammaLabel = `(()=>{const ls=[...document.querySelectorAll(".room-label")];if(!ls.length)return null;return ls.map(e=>[e,e.getBoundingClientRect().left]).sort((a,b)=>a[1]-b[1])[0][0];})()`;
+  const selectGamma = async () => {
+    const r = await rect(gammaLabel); if (!r) throw new Error("нет таблички Г-комнаты");
+    await clickAt(r.x + r.w / 2, r.y + r.h / 2); await sleep(500);
+    // гарантируем вид «Списком»: иначе селекторов стандарта/серии/цвета в панели нет
+    await ev(`const b=document.getElementById("roomFacingViewList");if(b&&!b.classList.contains("active"))b.click();return 1;`); await sleep(300);
+  };
+  const panel = async () => ev(`return {
+    имя:(${gammaLabel})?.querySelector(".room-title")?.textContent||"",
+    площадь:document.getElementById("roomArea")?.value||"",
+    схема:document.getElementById("roomSchemeSelect")?.value||"—",
+    стандарт:document.getElementById("roomStandardSelect")?.value||"—",
+    серия:document.getElementById("roomCollectionSelect")?.value||"—",
+    цвет:document.getElementById("room_frameColorSelect")?.value||"—"
+  };`);
+  const grand = () => ev(`return document.getElementById("grandTotal").textContent`);
+
+  // --- ДО пересборки ---
+  await selectGamma();
+  const before = await panel(); const gtBefore = await grand();
+  log.push("ДО:   " + JSON.stringify(before) + " · Итого=" + gtBefore);
+  await shot("carry-before", [gammaLabel, `document.getElementById("roomSchemeSelect")`], RIGHT);
+  await shot("carry-markup", [`document.getElementById("markupSvg")`]);   // разметка: Г + вторая комната в стороне
+
+  // --- Правка разметки в стороне (второй контур нарисован) + «Определить помещения по линиям» ---
+  await click($("roomsFromLinesBtn")); await sleep(1000);
+  log.push("после кнопки: комнат на плане = " + await ev(`return document.querySelectorAll(".room-label").length`));
+
+  // --- ПОСЛЕ пересборки ---
+  await selectGamma();
+  const after = await panel(); const gtAfter = await grand();
+  log.push("ПОСЛЕ: " + JSON.stringify(after) + " · Итого=" + gtAfter);
+  log.push("СОХРАНИЛОСЬ? схема " + (before.схема === after.схема) + " · стандарт " + (before.стандарт === after.стандарт)
+    + " · серия " + (before.серия === after.серия) + " · цвет " + (before.цвет === after.цвет)
+    + " · ИТОГО совпало " + (gtBefore === gtAfter) + " (было " + gtBefore + " / стало " + gtAfter + ")");
+  await shot("carry-after", [gammaLabel, `document.getElementById("roomSchemeSelect")`], RIGHT);

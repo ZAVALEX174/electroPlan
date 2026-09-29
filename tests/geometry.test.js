@@ -7,7 +7,7 @@ const {
   segmentsIntersection, allIntersections, nearestEndpoint, nearestIntersection,
   distancePointToSegment, closestPointOnSegment, nearestSegmentPoint,
   polygonAreaPx, pointInPolygon, snapPlanPoint, roomContourProbe,
-  polygonCentroid, poleOfInaccessibility, roomLabelPoint, roomNamePoint
+  polygonCentroid, poleOfInaccessibility, roomLabelPoint, roomNamePoint, roomMatchPoint
 } = require("../js/geometry.js");
 
 /* отрезок из двух точек в форме {a,b} — как хранятся стены и линии разметки */
@@ -415,4 +415,85 @@ test("вырожденно-плоский контур 1000×0.001: poleOfInacce
   const p = poleOfInaccessibility(flat);
   assert.ok(Date.now() - t < 1000, "уложился в лимит (жёсткий кап числа ячеек)");
   assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y), "точка числовая");
+});
+
+/* ---- Точка СОПОСТАВЛЕНИЯ комнаты при пересборке (В13, EPGeom.roomMatchPoint) ------------------
+   Отдельная от точки подписи: гарантирована ВНУТРИ контура и НЕ завязана на смещение таблички.
+   На ней держится перенос полей Г/П-комнат (EPRoomCarry.carry). */
+
+test("roomMatchPoint И1: у прямоугольника (в т.ч. с T-вершинами) точка = центроид бит-в-бит, внутри", () => {
+  const c = polygonCentroid(RECT), m = roomMatchPoint(RECT);
+  assert.equal(m.x, c.x, "выпуклая: X точки сопоставления = центроид");
+  assert.equal(m.y, c.y, "выпуклая: Y точки сопоставления = центроид");
+  assert.equal(pointInPolygon(m.x, m.y, RECT), true, "точка внутри контура");
+  /* Прямоугольник с лишними коллинеарными (T-) вершинами: центроид не тот же, что у чистого,
+     но всё равно ВНУТРИ, поэтому точка сопоставления = именно он, бит-в-бит (мутация «всегда полюс»
+     краснит здесь). */
+  const RECT_T = [{ x: 10, y: 20 }, { x: 110, y: 20 }, { x: 210, y: 20 }, { x: 210, y: 70 },
+    { x: 210, y: 120 }, { x: 110, y: 120 }, { x: 10, y: 120 }, { x: 10, y: 70 }];
+  const cT = polygonCentroid(RECT_T), mT = roomMatchPoint(RECT_T);
+  assert.equal(pointInPolygon(cT.x, cT.y, RECT_T), true, "центроид прямоугольника с T-вершинами внутри");
+  assert.equal(mT.x, cT.x, "T-вершины: точка = центроид бит-в-бит (X)");
+  assert.equal(mT.y, cT.y, "T-вершины: точка = центроид бит-в-бит (Y)");
+});
+
+test("roomMatchPoint И1: узкая/мелкая комната с центроидом внутри — точка = центроид бит-в-бит", () => {
+  const NARROW = [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 400, y: 6 }, { x: 0, y: 6 }]; // 400×6
+  const TINY = [{ x: 0, y: 0 }, { x: 3, y: 0 }, { x: 3, y: 3 }, { x: 0, y: 3 }];         // 3×3
+  for (const poly of [NARROW, TINY]) {
+    const c = polygonCentroid(poly), m = roomMatchPoint(poly);
+    assert.equal(pointInPolygon(c.x, c.y, poly), true, "центроид внутри");
+    assert.equal(m.x, c.x, "точка = центроид (X)");
+    assert.equal(m.y, c.y, "точка = центроид (Y)");
+  }
+});
+
+test("roomMatchPoint И2: у Г/П центроид СНАРУЖИ, а точка сопоставления строго ВНУТРИ", () => {
+  for (const [poly, tag] of [[GAMMA, "Г"], [U_ROOM, "П"]]) {
+    const c = polygonCentroid(poly), m = roomMatchPoint(poly);
+    assert.equal(pointInPolygon(c.x, c.y, poly), false, tag + ": среднее вершин вне контура");
+    assert.equal(pointInPolygon(m.x, m.y, poly), true, tag + ": точка сопоставления внутри контура");
+    assert.ok(m.x !== c.x || m.y !== c.y, tag + ": точка сдвинута с центроида на полюс");
+  }
+});
+
+test("roomMatchPoint И2: сдвиг начальной вершины и разворот обхода не меняют точку (Г/П на сетке)", () => {
+  const rot = (p, k) => p.slice(k).concat(p.slice(0, k));
+  for (const [poly, tag] of [[GAMMA, "Г"], [U_ROOM, "П"]]) {
+    const base = roomMatchPoint(poly);
+    for (let k = 1; k < poly.length; k++) {
+      const r = roomMatchPoint(rot(poly, k));
+      assert.equal(r.x, base.x, tag + ": сдвиг начала на " + k + " не меняет X");
+      assert.equal(r.y, base.y, tag + ": сдвиг начала на " + k + " не меняет Y");
+    }
+    const rev = roomMatchPoint([...poly].reverse());
+    assert.equal(rev.x, base.x, tag + ": разворот обхода не меняет X");
+    assert.equal(rev.y, base.y, tag + ": разворот обхода не меняет Y");
+  }
+});
+
+test("roomMatchPoint И3: точка НЕ зависит от смещения таблички (в отличие от roomNamePoint)", () => {
+  /* NOTCH_POLY: центроид ВНУТРИ, но центроид+(10,2) в вырезе-соседе. Точка подписи (roomNamePoint)
+     из-за смещения таблички уезжает на полюс; точка сопоставления смотрит ТОЛЬКО на центроид —
+     значит остаётся на нём. Так доказано, что roomMatchPoint не завязан на LABEL_ANCHOR_* и CSS. */
+  const c = polygonCentroid(NOTCH_POLY), m = roomMatchPoint(NOTCH_POLY), nm = roomNamePoint(NOTCH_POLY);
+  assert.equal(pointInPolygon(c.x, c.y, NOTCH_POLY), true, "центроид сам по себе внутри");
+  assert.equal(m.x, c.x, "точка сопоставления = центроид (смещение таблички не учтено), X");
+  assert.equal(m.y, c.y, "точка сопоставления = центроид, Y");
+  assert.ok(nm.x !== c.x || nm.y !== c.y, "а точка ИМЕНИ из-за смещения таблички ушла на полюс — правила разные");
+});
+
+test("roomMatchPoint И4: вырожденный/битый вход не роняет и не виснет", { timeout: 3000 }, () => {
+  const avg2 = roomMatchPoint([{ x: 4, y: 6 }, { x: 8, y: 10 }]);
+  near(avg2.x, 6, "<3 вершин — среднее X");
+  near(avg2.y, 8, "<3 вершин — среднее Y");
+  assert.doesNotThrow(() => roomMatchPoint([]), "пустой контур не роняет");
+  assert.doesNotThrow(() => roomMatchPoint(null), "null не роняет");
+  for (const bad of [NaN, Infinity, undefined, "x"]) {
+    const poly = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: bad, y: 100 }, { x: 0, y: 100 }];
+    const m = roomMatchPoint(poly), c = polygonCentroid(poly);
+    /* нечисловая вершина: возвращаем центроид как есть (может быть NaN по X), но НЕ виснем на полюсе */
+    assert.equal(Number.isNaN(m.x) ? Number.isNaN(c.x) : m.x === c.x, true, "битая вершина → X центроида");
+    assert.equal(m.y, c.y, "битая вершина → Y центроида");
+  }
 });
