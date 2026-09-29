@@ -1280,10 +1280,17 @@ function renderProperties(){
     <small class="prop-hint prop-collection-source${roomStd?" own":""}">${roomStd?"Конструктор поста в этой комнате предлагает накладки только этого монтажного стандарта":"Стандарт не задан — предлагаются накладки любого стандарта"}</small>`;
     const collectionFieldHtml=`<label class="room-collection-field">Коллекция накладок<select id="roomCollectionSelect">${collectionOptions}</select></label>
     <small class="prop-hint prop-collection-source${roomColl?" own":""}">${roomColl?"Конструктор поста в этой комнате предлагает накладки только этой коллекции":"Коллекция не задана — предлагаются все накладки каталога"}</small>`;
-    const facingChosen=[roomStd?`Стандарт: ${EPCatalog.standardLabel(roomStd)}`:null,roomColl?`Серия: ${roomColl}`:null].concat(facingSpecs.filter(s=>s.cur).map(s=>`${s.label}: ${s.cur}`)).filter(Boolean);
+    /* Стандарт монтажа — первый критерий отделки, но пока он не выбран, сводка о нём молчала и человек
+       не находил слово «Стандарт» (В3). Поэтому в виде «С картинками» у него СВОЯ строка над кнопкой
+       мастера, видимая ВСЕГДА: «не задан» или название (тот же EPCatalog.standardLabel, что в селекторе
+       списка). Значение — тот же валидированный roomStd (мёртвый → «не задан»). Из общей сводки
+       стандарт убран, чтобы не показываться дважды; и пустой текст сводки зависит от него: при
+       заданном стандарте «предлагаются все накладки каталога» было бы неправдой. */
+    const facingChosen=[roomColl?`Серия: ${roomColl}`:null].concat(facingSpecs.filter(s=>s.cur).map(s=>`${s.label}: ${s.cur}`)).filter(Boolean);
     const facingBody=facingView==="list"
       ?standardFieldHtml+collectionFieldHtml+facingFieldsHtml
-      :`<div class="room-facing-summary${facingChosen.length?" own":""}">${facingChosen.length?esc(facingChosen.join(" · ")):"Отделка не задана — предлагаются все накладки каталога"}</div>
+      :`<div class="room-facing-summary room-facing-standard${roomStd?" own":""}">Стандарт: ${esc(roomStd?EPCatalog.standardLabel(roomStd):"не задан")}</div>
+        <div class="room-facing-summary${facingChosen.length?" own":""}">${facingChosen.length?esc(facingChosen.join(" · ")):(roomStd?"Серия, материал, форма и цвет не заданы":"Отделка не задана — предлагаются все накладки каталога")}</div>
         <button type="button" class="btn ghost room-facing-pick-btn" id="roomFramePickerBtn">Подобрать накладку</button>`;
     const facingBlockHtml=`<div class="room-facing-block">
       <div class="room-facing-head"><span class="room-facing-title">Отделка накладки</span>
