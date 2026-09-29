@@ -93,7 +93,7 @@ function makeState(over) {
     tool: "roomline", scale: 1,
     orthoMode: false, snapGrid: false, gridStep: 10,
     roomLines: [], roomLinePoints: [], roomLineIds: [], roomLineHover: null,
-    rooms: []
+    rooms: [], roomFieldMemory: []   /* память полей исчезнувших комнат (В15) — как в проекте */
   }, over);
 }
 
@@ -282,4 +282,97 @@ test("деньги: пост в Г-комнате после пересборк�
   assert.equal(gB.lightingScheme, "relay", "у новой Г-комнаты её собственная схема реально записана (перенос сработал)");
   assert.equal(EPRoom.roomLightingScheme(gB, "classic", SCHEMES), "relay",
     "схема для поста = собственная relay, НЕ проектная classic: денежная основа поста сохранена");
+});
+
+/* ============ В15: удалили стену → комната исчезла → перерисовали → вернулась со СВОИМИ полями ============
+   Здесь работает НАСТОЯЩИЙ путь удаления/перерисовки (removeRoomLine / addRoomLinePoint →
+   scheduleRoomsFromLines → buildRoomsFromLines → carryUserRoomFields → EPRoomCarry.reconcile), а память
+   хранится в state.roomFieldMemory (в проекте — переживает автосейв/перезагрузку). Стенд §7.1 исполняет
+   реальные функции; reconcile/geometry не подменяем. Проверяем то, что увидит владелец: комната
+   возвращается со своими полями и своей (денежной) схемой. */
+
+/* Два смежных прямоугольника РАЗНОЙ ширины: левый 200 (200..400), правый 300 (400..700). Ширины разные,
+   чтобы при слиянии центроид объединённой комнаты не сел на бывшую общую грань x=400 (ray-casting там
+   неустойчив). Общую стену x=400 рисуем один раз (в левом), правый доводится к её концам магнитом. */
+function drawTwoRoomsWide() {
+  const built = buildStand(makeState());
+  const { api } = built;
+  click(api, 200, 200); click(api, 400, 200); click(api, 400, 350); click(api, 200, 350);
+  click(api, 201, 201);          // ≈первая точка → замыкание левого
+  click(api, 401, 199);          // магнит → общая вершина (400,200)
+  click(api, 700, 200); click(api, 700, 350);
+  click(api, 399, 351);          // магнит → общая вершина (400,350)
+  api.finishRoomLineChain();
+  return built;
+}
+
+test("В15 Ж1: удалили внешнюю стену комнаты (исчезла) → перерисовали → вернулась со своими полями и схемой; память в state", () => {
+  const built = drawTwoRooms();
+  built.api.buildRoomsFromLines();
+  const { state, api } = built;
+  assert.equal(state.rooms.length, 2, "предусловие: две комнаты");
+  const right = state.rooms.find(r => EPGeom.polygonCentroid(r.polygon).x > 400);
+  right.name = "Спальня"; right.lightingScheme = "relay"; right.standard = "IT"; right.collection = "Arke";
+
+  /* УДАЛЯЕМ верхнюю (внешнюю) стену правой инструментом «Удалить» — её контур размыкается, правая исчезает */
+  const top = findLine(state.roomLines, 400, 200, 600, 200);
+  api.removeRoomLine(top.id);
+  assert.equal(state.rooms.length, 1, "правый контур разомкнут — правая комната исчезла");
+  assert.ok(EPGeom.polygonCentroid(state.rooms[0].polygon).x < 400, "уцелела левая");
+  assert.equal(state.roomFieldMemory.length, 1, "поля исчезнувшей правой ушли в память проекта");
+  assert.equal(state.roomFieldMemory[0].fields.name, "Спальня");
+
+  /* ПЕРЕРИСОВЫВАЕМ ту же стену инструментом «Разметка»: клики садятся на существующие узлы магнитом */
+  click(api, 400, 200); click(api, 600, 200);
+  api.finishRoomLineChain();
+  const back = roomAt(state, { x: 500, y: 275 });   // точка внутри правой [400,200]-[600,350]
+  assert.ok(back, "правая комната вернулась после перерисовки стены");
+  assert.equal(back.name, "Спальня", "имя вернулось из памяти");
+  assert.equal(back.lightingScheme, "relay", "СВОЯ схема вернулась → цена постов правой та же (не проектная)");
+  assert.equal(back.standard, "IT");
+  assert.equal(back.collection, "Arke");
+  assert.equal(state.roomFieldMemory.length, 0, "выданная запись из памяти удалена — повторно не всплывёт");
+});
+
+test("В15 Ж2: удалили ОБЩУЮ стену (комнаты слились) → перерисовали → вернулись ОБЕ, каждая со своими полями (без перестановки)", () => {
+  const built = drawTwoRoomsWide();
+  built.api.buildRoomsFromLines();
+  const { state, api } = built;
+  assert.equal(state.rooms.length, 2, "предусловие: две комнаты");
+  const left = state.rooms.find(r => EPGeom.polygonCentroid(r.polygon).x < 400);
+  const right = state.rooms.find(r => EPGeom.polygonCentroid(r.polygon).x > 400);
+  left.name = "Кухня"; left.lightingScheme = "classic";
+  right.name = "Гостиная"; right.lightingScheme = "relay";
+
+  /* УДАЛЯЕМ общую стену x=400 → обе комнаты сливаются в одну */
+  const shared = state.roomLines.find(l => l.a.x === 400 && l.b.x === 400);
+  api.removeRoomLine(shared.id);
+  assert.equal(state.rooms.length, 1, "общая стена удалена — комнаты слились");
+  assert.equal(state.roomFieldMemory.length, 1, "поля одной из слитых — в памяти (вторую наследовала объединённая)");
+
+  /* ПЕРЕРИСОВЫВАЕМ общую стену → разделение обратно на две */
+  click(api, 400, 200); click(api, 400, 350);
+  api.finishRoomLineChain();
+  assert.equal(state.rooms.length, 2, "разделились обратно на две");
+  const backLeft = roomAt(state, { x: 300, y: 275 });   // внутри левой [200,200]-[400,350]
+  const backRight = roomAt(state, { x: 550, y: 275 });  // внутри правой [400,200]-[700,350]
+  assert.ok(backLeft && backRight, "обе комнаты вернулись");
+  assert.equal(backLeft.name, "Кухня", "левая — со СВОИМИ полями, не правой (без перестановки)");
+  assert.equal(backLeft.lightingScheme, "classic");
+  assert.equal(backRight.name, "Гостиная", "правая — со СВОИМИ полями");
+  assert.equal(backRight.lightingScheme, "relay");
+  assert.equal(state.roomFieldMemory.length, 0, "обе выданы — память пуста");
+});
+
+test("В15 Ж5/Ж6: «Очистить разметку» забывает память; ручную комнату память не трогает", () => {
+  const built = drawTwoRooms();
+  built.api.buildRoomsFromLines();
+  const { state, api } = built;
+  const right = state.rooms.find(r => EPGeom.polygonCentroid(r.polygon).x > 400);
+  right.name = "Спальня"; right.lightingScheme = "relay";
+  const top = findLine(state.roomLines, 400, 200, 600, 200);
+  api.removeRoomLine(top.id);
+  assert.equal(state.roomFieldMemory.length, 1, "предпосылка: правая исчезла, поля в памяти");
+  api.clearRoomLines();
+  assert.equal(state.roomFieldMemory.length, 0, "«Очистить разметку» забывает память полей (В15 Ж5)");
 });

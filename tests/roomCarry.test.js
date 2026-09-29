@@ -453,3 +453,187 @@ test("И1 (оракул): при центроиде внутри контура 
   }
   assert.ok(plansWithTransfer >= 30, "перенос реально состоялся в большинстве планов (тест не пустой): " + plansWithTransfer);
 });
+
+/* ============ З13: сопоставление carry идёт по roomMatchPoint, НЕ по подписи/полюсу ============
+   Мутации `matchPoint = geom.roomMatchPoint` → `geom.roomNamePoint` (MX1) и → `geom.poleOfInaccessibility`
+   (MX2) прежде НЕ краснели: на прямоугольниках все три точки совпадают. Ловим их на входах, где точки
+   РАСХОДЯТСЯ и попадают в РАЗНЫЕ фрагменты разреза, — тогда выбор точки виден в том, какому фрагменту
+   достались поля. Предпосылки проверяем прямо в тесте настоящей геометрией, чтобы вход не «сполз». */
+
+test("З13(а): прямоугольник с T-вершинами, разрез y=40 — поля у ВЕРХНЕГО фрагмента (центроид), не у нижнего (полюс)", () => {
+  /* Полигон 300×100 с лишними вершинами на верхнем ребре: центроид (среднее вершин) уезжает ВВЕРХ к
+     (150,33.3), а полюс недоступности (центр вписанной окружности) сидит в середине (150,50). Разрез
+     y=40 разводит их: центроид — в верхнем фрагменте, полюс — в нижнем. roomMatchPoint = центроид (он
+     внутри), значит поля обязаны уйти ВВЕРХ; MX2 (полюс) увёл бы их вниз. */
+  const T = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 200, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 100 }, { x: 0, y: 100 }];
+  const c = G.polygonCentroid(T), pole = G.poleOfInaccessibility(T);
+  assert.ok(c.y < 40 && pole.y > 40, "предпосылка: центроид (y=" + c.y.toFixed(1) + ") в верхнем, полюс (y=" + pole.y + ") в нижнем");
+  const UP = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 40 }, { x: 0, y: 40 }];
+  const LO = [{ x: 0, y: 40 }, { x: 300, y: 40 }, { x: 300, y: 100 }, { x: 0, y: 100 }];
+  const old = withPoly("t", T, { name: "Кухня", lightingScheme: "relay", autoPolygon: true });
+  const up = withPoly("up", UP, { name: "Помещение 1", autoPolygon: true });
+  const lo = withPoly("lo", LO, { name: "Помещение 2", autoPolygon: true });
+  const res = C.carry([old], [up, lo]);
+  assert.equal(res.length, 1, "перенос ровно один — второй фрагмент со свежим авто-именем");
+  assert.equal(res[0].toId, "up", "поля ушли в ВЕРХНИЙ фрагмент (точка сопоставления = центроид). MX2 (полюс) увёл бы в lo");
+  assert.equal(res[0].name, "Кухня");
+});
+
+test("З13(б): узкая комната (центроид внутри, центроид+(10,2) снаружи), разрез — поля у фрагмента с ЦЕНТРОИДОМ", () => {
+  /* Узкий пенал 8×300 с вершинами, сгруппированными у верха: центроид (среднее вершин) = (4,85.7),
+     полюс = (4,150). Комната УЗКАЯ — центроид+(10,2) уже вне контура, поэтому у roomNamePoint критерий
+     keep проваливается и он отдаёт ПОЛЮС (как MX1), а roomMatchPoint остаётся на центроиде. Разрез y=100
+     разводит центроид (верх) и полюс (низ): верный ответ — верхний фрагмент; и MX1 (подпись→полюс), и
+     MX2 (полюс) увели бы вниз. Так один вход ловит ОБЕ мутации. */
+  const S = [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 4, y: 0 }, { x: 6, y: 0 }, { x: 8, y: 0 }, { x: 8, y: 300 }, { x: 0, y: 300 }];
+  const c = G.polygonCentroid(S), pole = G.poleOfInaccessibility(S), namePt = G.roomNamePoint(S);
+  assert.equal(G.pointInPolygon(c.x, c.y, S), true, "предпосылка: центроид внутри узкого контура");
+  assert.equal(G.pointInPolygon(c.x + 10, c.y + 2, S), false, "предпосылка: центроид+(10,2) уже СНАРУЖИ (узкая) — оттого namePoint уходит на полюс");
+  assert.ok(c.y < 100 && pole.y > 100 && namePt.y > 100, "предпосылка: центроид в верхнем, полюс и подпись — в нижнем");
+  const SU = [{ x: 0, y: 0 }, { x: 8, y: 0 }, { x: 8, y: 100 }, { x: 0, y: 100 }];
+  const SL = [{ x: 0, y: 100 }, { x: 8, y: 100 }, { x: 8, y: 300 }, { x: 0, y: 300 }];
+  const old = withPoly("s", S, { name: "Пенал", collection: "Arke", autoPolygon: true });
+  const su = withPoly("su", SU, { name: "Помещение 1", autoPolygon: true });
+  const sl = withPoly("sl", SL, { name: "Помещение 2", autoPolygon: true });
+  const res = C.carry([old], [su, sl]);
+  assert.equal(res.length, 1);
+  assert.equal(res[0].toId, "su", "поля у ВЕРХНЕГО фрагмента (центроид). MX1 (подпись→полюс) и MX2 (полюс) увели бы в sl");
+  assert.equal(res[0].name, "Пенал");
+});
+
+/* ==================== В15: ПАМЯТЬ ПОЛЕЙ ИСЧЕЗНУВШИХ КОМНАТ (reconcile) ====================
+   reconcile = carry + память. Значения по умолчанию для «жёсткого» ожидания переноса: все восемь полей
+   null, поверх — заданные. Так каждое поле в ожидании закреплено (мутация «потерять поле» краснеет). */
+const NIL = { name: null, area: null, lightingScheme: null, standard: null, collection: null, frameMaterial: null, frameShape: null, frameColor: null };
+const tr = (toId, fromId, over) => Object.assign({ toId, fromId }, NIL, over || {});
+/* Карта переносов по toId — для порядко-независимого, но по-прежнему ЖЁСТКОГО (все поля) сравнения. */
+const byTo = list => Object.fromEntries(list.map(t => [t.toId, t]));
+
+test("Ж1 (прямоугольник): комната исчезла → память хранит поля; появилась заново → все поля вернулись, память пуста", () => {
+  const room = rect("a", 0, 0, 100, 100, { name: "Кухня", lightingScheme: "relay", standard: "IT", collection: "Arke", autoPolygon: true });
+  /* исчезла: новых комнат нет (стену удалили, контур разомкнут) — переносить некуда, поля уходят в память */
+  const gone = C.reconcile([room], [], []);
+  assert.deepEqual(gone.transfers, [], "переносить некуда — ни одного переноса");
+  assert.equal(gone.memory.length, 1, "поля исчезнувшей комнаты запомнены");
+  assert.deepEqual(gone.memory[0].fields, { name: "Кухня", area: null, lightingScheme: "relay", standard: "IT", collection: "Arke", frameMaterial: null, frameShape: null, frameColor: null });
+  /* появилась заново тем же контуром (свежий id, авто-имя) — память отдаёт ей ВСЕ поля */
+  const back = rect("new", 0, 0, 100, 100, { name: "Помещение 1", autoPolygon: true });
+  const ret = C.reconcile([], [back], gone.memory);
+  assert.deepEqual(ret.transfers, [tr("new", null, { name: "Кухня", lightingScheme: "relay", standard: "IT", collection: "Arke" })],
+    "все поля вернулись на перерисованную комнату");
+  assert.equal(ret.memory.length, 0, "выданная запись из памяти удалена (не выдастся повторно)");
+});
+
+test("Ж1 (Г-образная): исчезла и вернулась со всеми полями — точка сопоставления Г внутри контура", () => {
+  const g = withPoly("g", GAMMA_POLY, { name: "Прихожая", area: "12,5 м²", lightingScheme: "relay", standard: "IT",
+    collection: "Arke", frameMaterial: "Металл", frameShape: "Скруглённая", frameColor: "Антрацит", autoPolygon: true });
+  const gone = C.reconcile([g], [], []);
+  assert.equal(gone.memory.length, 1, "Г-комната запомнена (полюс недоступности внутри контура)");
+  /* вернулась пересобранным контуром (T-вершины, другой обход) — как строит грани roomsFromLines */
+  const back = withPoly("g2", rebuilt(GAMMA_POLY, 5), { name: "Помещение 4", autoPolygon: true });
+  const ret = C.reconcile([], [back], gone.memory);
+  assert.deepEqual(byTo(ret.transfers).g2, tr("g2", null, { name: "Прихожая", area: "12,5 м²", lightingScheme: "relay",
+    standard: "IT", collection: "Arke", frameMaterial: "Металл", frameShape: "Скруглённая", frameColor: "Антрацит" }));
+  assert.equal(ret.memory.length, 0);
+});
+
+test("Ж2 (общая стена): слияние→разделение возвращает ОБЕ комнаты со СВОИМИ полями, без перестановки", () => {
+  /* Ширины РАЗНЫЕ (100 и 120), чтобы центроид объединённой M (110,50) не сел на бывшую общую грань
+     x=100 (там ray-casting неустойчив), а уверенно попал в правую — так тест проверяет логику, а не
+     поведение на ребре. Слева «КомнатаЛ/classic», справа «КомнатаП/relay». */
+  const A = rect("A", 0, 0, 100, 100, { name: "КомнатаЛ", lightingScheme: "classic", autoPolygon: true });
+  const B = rect("B", 100, 0, 220, 100, { name: "КомнатаП", lightingScheme: "relay", autoPolygon: true });
+  const M = rect("M", 0, 0, 220, 100, { name: "Помещение 5", autoPolygon: true });
+  /* удалили общую стену → одна комната M. Одна старая наследуется M через carry, вторая уходит в память. */
+  const merged = C.reconcile([A, B], [M], []);
+  assert.equal(merged.transfers.length, 1, "слияние: ровно один перенос на M");
+  assert.equal(merged.memory.length, 1, "поля второй (не наследованной M) комнаты — в памяти");
+  const winner = merged.transfers[0].name, loser = merged.memory[0].fields.name;
+  assert.deepEqual([winner, loser].sort(), ["КомнатаЛ", "КомнатаП"], "одна ушла в M, другая в память — без потери и без дубля");
+  /* применяем перенос к M (как оркестратор), затем перерисовали общую стену → M разделилась на A' и B' */
+  if (merged.transfers[0].name != null) M.name = merged.transfers[0].name;
+  if (merged.transfers[0].lightingScheme != null) M.lightingScheme = merged.transfers[0].lightingScheme;
+  const Ap = rect("Ap", 0, 0, 100, 100, { name: "Помещение 1", autoPolygon: true });
+  const Bp = rect("Bp", 100, 0, 220, 100, { name: "Помещение 2", autoPolygon: true });
+  const split = C.reconcile([M], [Ap, Bp], merged.memory);
+  const t = byTo(split.transfers);
+  assert.equal(t.Ap.name, "КомнатаЛ", "левый фрагмент получил СВОИ поля (не правого)");
+  assert.equal(t.Ap.lightingScheme, "classic");
+  assert.equal(t.Bp.name, "КомнатаП", "правый фрагмент получил СВОИ поля");
+  assert.equal(t.Bp.lightingScheme, "relay");
+  assert.equal(split.memory.length, 0, "обе выданы — память пуста");
+});
+
+test("Ж3: пересборка без исчезновений даёт ТОТ ЖЕ перенос (жёсткое ожидание, не оракул через carry)", () => {
+  /* Две комнаты стопкой (центроиды (50,50) и (50,150) — внутри своих контуров, не на общей грани).
+     Память ПУСТА: фаза 2 ничего не добавляет, перенос обязан совпасть с обычным carry — но сверяем
+     с РУКОПИСНЫМ ожиданием, а не с C.carry(...): оракул через тот же carry слеп к подмене roomMatchPoint
+     внутри него (урок З13). */
+  const A = rect("A", 0, 0, 100, 100, { name: "Кухня", lightingScheme: "relay", autoPolygon: true });
+  const B = rect("B", 0, 100, 100, 200, { name: "Спальня", lightingScheme: "classic", autoPolygon: true });
+  const A2 = rect("A2", 0, 0, 100, 100, { name: "Помещение 1", autoPolygon: true });
+  const B2 = rect("B2", 0, 100, 100, 200, { name: "Помещение 2", autoPolygon: true });
+  const res = C.reconcile([A, B], [A2, B2], []);
+  assert.deepEqual(byTo(res.transfers), {
+    A2: tr("A2", "A", { name: "Кухня", lightingScheme: "relay" }),
+    B2: tr("B2", "B", { name: "Спальня", lightingScheme: "classic" })
+  }, "перенос ровно как раньше (все поля закреплены)");
+  assert.equal(res.memory.length, 0, "никто не исчез — память пуста");
+});
+
+test("Ж3: посторонняя запись в памяти НЕ липнет к несвязанной комнате и остаётся лежать", () => {
+  /* В памяти набор для области [0,0]-[40,40]; новая комната далеко [200,200]-[300,300]. Двунаправленное
+     попадание и порог площади не проходят — перенос пуст, запись памяти сохраняется (ждёт свою область). */
+  const memory = [{ polygon: [{ x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 40 }, { x: 0, y: 40 }], fields: Object.assign({}, NIL, { name: "Гостиная" }) }];
+  const far = rect("far", 200, 200, 300, 300, { name: "Помещение 1", autoPolygon: true });
+  const res = C.reconcile([], [far], memory);
+  assert.deepEqual(res.transfers, [], "чужой комнате поля не отданы");
+  assert.equal(res.memory.length, 1, "запись памяти осталась (не потеряна и не выдана)");
+});
+
+test("Ж4: один запомненный набор достаётся ровно ОДНОЙ новой комнате (две перекрывающиеся — не обе)", () => {
+  /* Набор для [0,0]-[100,100]; две новые перекрывают его центр (как в тесте один-к-одному carry). Победитель
+     — ближе по площади (nBig); nSmall не получает ничего, дубля набора нет. Запись после выдачи удалена. */
+  const memory = [{ polygon: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }], fields: Object.assign({}, NIL, { name: "Гостиная" }) }];
+  const nBig = rect("nBig", 10, 10, 90, 90, { autoPolygon: true });    // 6400
+  const nSmall = rect("nSmall", 15, 15, 85, 85, { autoPolygon: true }); // 4900
+  const res = C.reconcile([], [nBig, nSmall], memory);
+  assert.equal(res.transfers.length, 1, "набор выдан ровно один раз");
+  assert.equal(res.transfers[0].toId, "nBig", "ближе по площади — берёт первым; вторая пустая");
+  assert.equal(res.transfers[0].name, "Гостиная");
+  assert.equal(res.memory.length, 0, "выданный набор из памяти удалён");
+});
+
+test("Ж5: память ограничена (FIFO вытесняет старейших) и переживает JSON-сериализацию проекта", () => {
+  /* 70 исчезнувших комнат в РАЗНЫХ местах, все с полями. Память держит не больше предела и оставляет
+     СВЕЖИЕ (последние по входу), вытесняя старые с начала. Предел зашит в модуль (64) — проверяем факт
+     ограничения и FIFO по именам R0..R69. */
+  const many = [];
+  for (let i = 0; i < 70; i++) many.push(rect("r" + i, i * 10, 0, i * 10 + 8, 8, { name: "R" + i, autoPolygon: true }));
+  const res = C.reconcile(many, [], []);
+  assert.equal(res.memory.length, 64, "память ограничена предельным размером");
+  assert.equal(res.memory[0].fields.name, "R6", "вытеснены самые старые (R0..R5), оставлены свежие");
+  assert.equal(res.memory[63].fields.name, "R69", "последний запомненный — самый свежий");
+  /* переживает автосейв/перезагрузку: память — простые данные, круговой прогон через JSON не меняет её,
+     и восстановленная память по-прежнему возвращает поля перерисованной комнате */
+  const room = rect("a", 0, 0, 100, 100, { name: "Кухня", lightingScheme: "relay", autoPolygon: true });
+  const gone = C.reconcile([room], [], []);
+  const persisted = JSON.parse(JSON.stringify(gone.memory));
+  assert.deepEqual(persisted, gone.memory, "память сериализуется в проект без потерь");
+  const back = rect("new", 0, 0, 100, 100, { name: "Помещение 1", autoPolygon: true });
+  const ret = C.reconcile([], [back], persisted);
+  assert.equal(ret.transfers[0].name, "Кухня", "после перезагрузки память всё ещё возвращает поля");
+  assert.equal(ret.transfers[0].lightingScheme, "relay");
+});
+
+test("Ж6: ручная комната (autoPolygon===false) исчезла — НЕ запоминается (пересчёт её не трогает); авто-комната, которая осталась, переносится как раньше", () => {
+  const manual = rect("m", 0, 0, 100, 100, { name: "Моя комната", lightingScheme: "relay", autoPolygon: false });
+  const goneManual = C.reconcile([manual], [], []);
+  assert.equal(goneManual.memory.length, 0, "ручной контур источником памяти не бывает");
+  /* одиночная авто-комната, пережившая пересборку тем же контуром: обычный перенос, память не растёт */
+  const single = rect("s", 0, 0, 100, 100, { name: "Кухня", lightingScheme: "classic", autoPolygon: true });
+  const single2 = rect("s2", 0, 0, 100, 100, { name: "Помещение 1", autoPolygon: true });
+  const res = C.reconcile([single], [single2], []);
+  assert.deepEqual(res.transfers, [tr("s2", "s", { name: "Кухня", lightingScheme: "classic" })]);
+  assert.equal(res.memory.length, 0, "ничего не исчезло — память пуста");
+});

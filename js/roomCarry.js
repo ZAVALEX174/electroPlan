@@ -114,6 +114,14 @@ function normUserFields(o) {
   return { name, area, lightingScheme, standard, collection, frameMaterial, frameShape, frameColor };
 }
 
+/* Есть ли в наборе полей хоть одно переносимое (не null). Одно правило «нести/помнить нечего» —
+   и у carry (пара занята, но переноса не создаём), и у памяти В15 (набор без полей не запоминаем).
+   Раздельные копии этого условия молча разъехались бы при добавлении нового поля в normUserFields. */
+function hasAnyField(f) {
+  return f.name != null || f.area != null || f.lightingScheme != null || f.standard != null
+    || f.collection != null || f.frameMaterial != null || f.frameShape != null || f.frameColor != null;
+}
+
 /* carry(oldRooms, newRooms[, geom]) → массив переносов
    [{ toId, fromId, name, area, lightingScheme, standard, collection, frameMaterial, frameShape, frameColor }].
    Каждый перенос — на ОДНУ новую комнату (toId); каждое поле = значение для записи либо null, если оно
@@ -156,8 +164,7 @@ function carry(oldRooms, newRooms, geom) {
     if (usedSrc.has(c.s.room) || usedDst.has(c.d.room)) return;   /* один-к-одному */
     const f = normUserFields(c.s.room);
     /* пара занята в любом случае (один-к-одному), но перенос добавляем, только если есть что нести */
-    if (f.name == null && f.area == null && f.lightingScheme == null && f.standard == null && f.collection == null
-        && f.frameMaterial == null && f.frameShape == null && f.frameColor == null) { usedSrc.add(c.s.room); usedDst.add(c.d.room); return; }
+    if (!hasAnyField(f)) { usedSrc.add(c.s.room); usedDst.add(c.d.room); return; }
     usedSrc.add(c.s.room); usedDst.add(c.d.room);
     out.push({ toId: c.d.room.id, fromId: c.s.room.id, name: f.name, area: f.area, lightingScheme: f.lightingScheme,
       standard: f.standard, collection: f.collection, frameMaterial: f.frameMaterial, frameShape: f.frameShape, frameColor: f.frameColor });
@@ -170,9 +177,95 @@ function keyCmp(a, b) {
   return a.c.x - b.c.x || a.c.y - b.c.y || a.a - b.a;
 }
 
+/* ПАМЯТЬ ПОЛЕЙ ИСЧЕЗНУВШИХ КОМНАТ (В15). Предел числа НАБОРОВ, которые память держит разом. Реальный
+   план — десятки комнат; 64 с запасом покрывает «удалил стену → перерисовал» для всех, но не даёт
+   памяти пухнуть без предела на бесконечной серии правок. При переполнении вытесняем СТАРЕЙШИЕ (FIFO,
+   срез с начала): свежезабытые нужнее — их вот-вот перерисуют, а совсем старые уже вряд ли вернутся. */
+const MEMORY_LIMIT = 64;
+
+/* reconcile(oldRooms, newRooms, memory[, geom]) → { transfers, memory }
+   Расширяет carry ПАМЯТЬЮ исчезнувших комнат (В15). Мотив: удалили стену — контур комнаты разомкнулся,
+   грани у неё больше нет, комната исчезает вместе с введёнными человеком полями; перерисовали стену —
+   комната возвращается пустым «Помещение N». Один carry этого не лечит: между удалением и перерисовкой
+   исходной комнаты уже нет в state.rooms, и переносить не с чего. Память хранит поля «растворившихся»
+   комнат до их возвращения.
+
+   ДВЕ ФАЗЫ, память — ДОБАВКА к carry, не замена:
+     1) обычный carry(old→new) — БАЙТ-В-БАЙТ как раньше: пересборки, где ничего не исчезло и не слилось,
+        дают ТОТ ЖЕ перенос (Ж3). Из его итога берём, кто из старых комнат С ПОЛЯМИ НЕ нашёл новую, —
+        их поля уходят в память (комната удалена совсем или слилась с соседкой);
+     2) записи ПАМЯТИ восстанавливаются на новые комнаты, которые в фазе 1 полей не получили
+        (свежепостроенные «Помещение N»), — ТЕМ ЖЕ правилом, что carry (двунаправленное попадание точек
+        ВНУТРЬ контуров + порог площади AREA_RATIO_MIN, назначение один-к-одному). Второй копии геометрии
+        нет: те же pointInPolygon/roomMatchPoint/polygonAreaPx.
+
+   ПОЧЕМУ НЕ ПУТАЮТСЯ ПОЛЯ (Ж2). Точка сопоставления лежит ВНУТРИ своего контура и привязывает набор к
+   ГЕОМЕТРИЧЕСКОЙ ОБЛАСТИ, а не к комнате-объекту. При слиянии A+B→M одна из старых наследуется M через
+   carry (по своей точке), ВТОРАЯ уходит в память со СВОИМ полигоном. При обратном разделении M→A'+B'
+   carry возвращает наследницу в её фрагмент, а память — вторую в её фрагмент: набор приходит именно
+   туда, где была его область, без перестановки. Комната без полей ничего не помнит; комната, чьи поля
+   уже уехали в новую, в память не дублируется — иначе набор раздался бы дважды (Ж4).
+
+   Память — чистые данные [{ polygon, fields }]; state и запись в state.rooms остаются в app.js. Здесь ни
+   state, ни DOM: прежнюю память принимаем аргументом, обновлённую возвращаем — хранит и кладёт её в
+   проект (переживает автосейв и перезагрузку) оркестратор. */
+function reconcile(oldRooms, newRooms, memory, geom) {
+  geom = geom || defaultGeom();
+  memory = Array.isArray(memory) ? memory : [];
+  if (!geom) return { transfers: [], memory };
+  const pin = geom.pointInPolygon, mpoint = geom.roomMatchPoint, apx = geom.polygonAreaPx;
+
+  /* Фаза 1 — обычный перенос старая→новая, дословно (Ж3). */
+  const transfers = carry(oldRooms, newRooms, geom);
+  const usedTo = new Set(transfers.map(t => t.toId));     /* новые, уже получившие поля в фазе 1 */
+  const usedFrom = new Set(transfers.map(t => t.fromId)); /* старые, чьи поля уже уехали в новую */
+
+  /* В память — старые авто-комнаты С ПОЛЯМИ, не нашедшие новую (исчезли/слились). Ручные контуры
+     (autoPolygon===false) пересчёт не трогает, источниками не бывают — их не помним (Ж6). */
+  const fresh = [];
+  (oldRooms || []).forEach(o => {
+    if (!hasPolygon(o) || o.autoPolygon === false || usedFrom.has(o.id)) return;
+    const f = normUserFields(o);
+    if (!hasAnyField(f)) return;
+    fresh.push({ polygon: o.polygon.map(p => ({ x: p.x, y: p.y })), fields: f });
+  });
+
+  /* Фаза 2 — восстановление из памяти на СВОБОДНЫЕ (не занятые фазой 1) новые комнаты. */
+  const freeTargets = (newRooms || []).filter(n => hasPolygon(n) && !usedTo.has(n.id));
+  const memMeta = memory.map((m, i) => ({ i, poly: m.polygon, fields: m.fields, c: mpoint(m.polygon), a: apx(m.polygon) }));
+  const dstMeta = freeTargets.map(n => ({ room: n, c: mpoint(n.polygon), a: apx(n.polygon) }));
+  const cands = [];
+  memMeta.forEach(s => {
+    dstMeta.forEach(d => {
+      if (!pin(s.c.x, s.c.y, d.room.polygon)) return;   /* точка памяти внутри новой */
+      if (!pin(d.c.x, d.c.y, s.poly)) return;           /* точка новой внутри полигона памяти (двунаправленно) */
+      const ratio = s.a > 0 && d.a > 0 ? Math.min(s.a, d.a) / Math.max(s.a, d.a) : 0;
+      if (ratio < AREA_RATIO_MIN) return;               /* тот же порог: набор не липнет к посторонней комнате (Ж4) */
+      cands.push({ s, d, ratio });
+    });
+  });
+  /* Тот же детерминированный порядок, что в carry: ближе площади — раньше, тай-брейк геометрический. */
+  cands.sort((A, B) => B.ratio - A.ratio || keyCmp(A.s, B.s) || keyCmp(A.d, B.d));
+  const usedMem = new Set(), usedDst = new Set();
+  cands.forEach(c => {
+    if (usedMem.has(c.s.i) || usedDst.has(c.d.room)) return;   /* один-к-одному: набор — не больше одной комнате (Ж4) */
+    usedMem.add(c.s.i); usedDst.add(c.d.room);
+    const f = c.s.fields;
+    transfers.push({ toId: c.d.room.id, fromId: null, name: f.name, area: f.area, lightingScheme: f.lightingScheme,
+      standard: f.standard, collection: f.collection, frameMaterial: f.frameMaterial, frameShape: f.frameShape, frameColor: f.frameColor });
+  });
+
+  /* Обновлённая память: НЕвыданные прежние записи (usedMem убирает розданные — запись забывается сразу
+     после выдачи, иначе набор достался бы и второй раз) + свежезабытые. Предел — FIFO по старейшим. */
+  const kept = memory.filter((_, i) => !usedMem.has(i));
+  let next = kept.concat(fresh);
+  if (next.length > MEMORY_LIMIT) next = next.slice(next.length - MEMORY_LIMIT);
+  return { transfers, memory: next };
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { carry, isAutoName };
+const api = { carry, reconcile, isAutoName };
 if (typeof window !== "undefined") window.EPRoomCarry = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

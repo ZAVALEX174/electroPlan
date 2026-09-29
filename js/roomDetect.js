@@ -71,7 +71,13 @@ let _cvPromise=null;
    здесь только применяем его план к свежепостроенным объектам. Ручные комнаты (autoPolygon===false) не
    источники и не цели. */
 function carryUserRoomFields(oldAutoRooms,newRooms){
-  EPRoomCarry.carry(oldAutoRooms,newRooms,EPGeom).forEach(t=>{
+  /* reconcile = carry + ПАМЯТЬ исчезнувших комнат (В15): комната, чью стену удалили, исчезает
+     (контур разомкнут), а перерисуют стену — вернётся со СВОИМИ полями. Память живёт в state (кладётся
+     в проект в projectSnapshot, переживает автосейв/перезагрузку); правило её жизни целиком в модуле —
+     здесь только читаем прежнюю и пишем обновлённую. */
+  const res=EPRoomCarry.reconcile(oldAutoRooms,newRooms,state.roomFieldMemory,EPGeom);
+  state.roomFieldMemory=res.memory;
+  res.transfers.forEach(t=>{
     const room=newRooms.find(r=>r.id===t.toId);
     if(!room)return;
     if(t.name!=null)room.name=t.name;
@@ -276,7 +282,10 @@ function removeRoomLine(id){
   scheduleRoomsFromLines();   /* отдельная линия удалена — авто-пересчёт помещений */
 }
 function clearRoomLines(){
-  state.roomLines=[];finishRoomLineChain();
+  /* «Очистить разметку» — явный сброс всей планировки по линиям: вместе с линиями забываем и память
+     полей исчезнувших комнат (В15 Ж5), иначе набор «прилип» бы к новой комнате, нарисованной позже
+     в том же месте, — для человека это разметка с нуля, а не продолжение старой. */
+  state.roomLines=[];state.roomFieldMemory=[];finishRoomLineChain();
   refreshAfterRoomAssignments(()=>{drawRoomLines();renderRooms()}, scheduleSave);
   toast("Разметка помещений очищена");
 }

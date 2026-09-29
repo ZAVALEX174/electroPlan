@@ -38,10 +38,11 @@ function rect(id, x0, y0, x1, y1, extra) {
   }, extra || {});
 }
 
-/* carryUserRoomFields зовёт EPRoomCarry.carry(old,new,EPGeom) и пишет поля в newRooms — больше из
-   лексики app.js ему ничего не нужно. Возврата нет: результат — мутация переданных newRooms. */
+/* carryUserRoomFields зовёт EPRoomCarry.reconcile(old,new,state.roomFieldMemory,EPGeom) и пишет поля в
+   newRooms; память исчезнувших комнат (В15) держит state.roomFieldMemory — тут он не в фокусе, даём
+   пустой. Возврата нет: результат — мутация переданных newRooms. */
 function runCarry(oldRooms, newRooms) {
-  const carry = stand.run("carryUserRoomFields", { EPRoomCarry, EPGeom });
+  const carry = stand.run("carryUserRoomFields", { EPRoomCarry, EPGeom, state: { roomFieldMemory: [] } });
   carry(oldRooms, newRooms);
   return newRooms;
 }

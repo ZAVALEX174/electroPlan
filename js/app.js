@@ -19,6 +19,11 @@ const state={
      точки текущей рисуемой цепочки, roomLineIds — id её сегментов (для Backspace),
      roomLineHover — подсвеченная точка притяжения курсора. */
   roomLines:[],roomLinePoints:[],roomLineIds:[],roomLineHover:null,
+  /* Память полей исчезнувших авто-комнат (В15): удалили стену — комната исчезла вместе с введёнными
+     полями, перерисовали — вернулась с ними же. Правило жизни памяти — в EPRoomCarry.reconcile, а
+     хранится она здесь (и в снимке проекта: переживает автосейв/перезагрузку между удалением и
+     перерисовкой). [{polygon, fields}]. Сбрасывается при «Очистить всё» и «Очистить разметку». */
+  roomFieldMemory:[],
   /* режимы разметки (решение владельца): переключатели в панели инструментов.
      orthoMode — рисовать строго ортогонально (Shift временно инвертирует режим);
      snapGrid  — привязывать точки к узлам сетки (магниты к линиям работают всегда);
@@ -2363,6 +2368,9 @@ function projectSnapshot(){
   return{name:"Проект электроснабжения",savedAt:new Date().toISOString(),
     devices:state.devices,posts:state.posts,rooms:state.rooms,walls:state.walls,autoWalls:state.autoWalls,
     roomLines:state.roomLines,planVisibility:state.planVisibility,
+    /* память полей исчезнувших комнат (В15) — часть проекта: без неё удалить стену, сохраниться и
+       перезагрузиться значило бы навсегда потерять поля комнаты, которую ещё собирались вернуть */
+    roomFieldMemory:state.roomFieldMemory,
     /* вид холста (смещение и масштаб) — чтобы вернуться туда, где работали.
        Старые проекты без view открываются с видом по умолчанию (см. restoreProject). */
     view:{panX:state.panX,panY:state.panY,scale:state.scale},
@@ -2447,6 +2455,8 @@ async function restoreProject(){
   /* старые проекты без разметки и без флага видимости открываются штатно:
      roomLines → [], planVisibility → "show" (обратная совместимость) */
   state.roomLines=p.roomLines||[];state.planVisibility=p.planVisibility||"show";
+  /* память полей исчезнувших комнат (В15): старый проект её не несёт — открывается пустой */
+  state.roomFieldMemory=Array.isArray(p.roomFieldMemory)?p.roomFieldMemory:[];
   /* режимы разметки с фолбэками: старый проект без этих полей открывается как
      ортогонально=вкл, привязка=вкл, шаг=умолчание (10 px). !==false даёт true для
      undefined; шаг валидируем по списку — чужое значение откатываем на дефолт. */
@@ -3177,7 +3187,7 @@ $("planUpload").onchange=async e=>{
     showTraceProgress(false);input.value="";
   }
 };
-$("clearBtn").onclick=()=>{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.roomLines=[];finishRoomLineChain();state.selected=null;clearAnnotations();renderAll();renderProperties();renderSummary()};
+$("clearBtn").onclick=()=>{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.roomLines=[];state.roomFieldMemory=[];finishRoomLineChain();state.selected=null;clearAnnotations();renderAll();renderProperties();renderSummary()};
 $("autoTraceBtn").onclick=autoTracePlan;
 $("annotateBtn").onclick=annotatePlan;
 $("clearAnnotateBtn").onclick=()=>{clearAnnotations();toast("Разметка убрана")};
