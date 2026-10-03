@@ -745,3 +745,37 @@ test("В16: авто-комната в стороне от поправленн�
   const res = C.coveredByManual([M], [far], G);
   assert.deepEqual(res.dropIds, [], "точка авто-комнаты вне поправленной — она самостоятельна, не дубль");
 });
+
+test("В17 (Н2): комната ВНУТРИ поправленной (границы не делит) НЕ съедается как дубль — остаётся", () => {
+  /* Поправленный зал [0..600]×[0..400]; пересчёт строит из тех же линий авто-ДУБЛЬ зала (рёбра общие) И
+     вложенный «санузел» [250..350]×[150..250] посреди зала (ни одной общей вершины с границей зала). У
+     обоих точка внутри зала и площадь ≤ зала — условия 1–2 пройдены, отсекает ТОЛЬКО условие «делит
+     границу». Без него санузел исчезал как дубль (В17 Н2: имя/схема/цена вложенной комнаты терялись). */
+  const hall = withPoly("hall", [{ x: 0, y: 0 }, { x: 600, y: 0 }, { x: 600, y: 400 }, { x: 0, y: 400 }],
+    { name: "Зал", autoPolygon: false });
+  const dup = withPoly("dup", [{ x: 0, y: 0 }, { x: 600, y: 0 }, { x: 600, y: 400 }, { x: 0, y: 400 }],
+    { name: "Помещение 1", autoPolygon: true });
+  const bath = withPoly("bath", [{ x: 250, y: 150 }, { x: 350, y: 150 }, { x: 350, y: 250 }, { x: 250, y: 250 }],
+    { name: "Помещение 2", lightingScheme: "relay", collection: "Neve Up", autoPolygon: true });
+  const bp = G.roomMatchPoint(bath.polygon);
+  assert.equal(G.pointInPolygon(bp.x, bp.y, hall.polygon), true, "предпосылка: точка санузла внутри зала (условие 1 пройдено)");
+  assert.ok(G.polygonAreaPx(bath.polygon) <= G.polygonAreaPx(hall.polygon) * 1.02, "предпосылка: санузел мал — порог площади пройден (условие 2)");
+  const res = C.coveredByManual([hall], [dup, bath], G);
+  assert.deepEqual([...res.dropIds].sort(), ["dup"], "убран только дубль зала; вложенный санузел границы зала не делит — оставлен");
+});
+
+test("В16 (п.3, порог площади держится): дубль чуть больше поправленной убирается, объемлющая-касающаяся — нет", () => {
+  /* Удерживает AREA_COVER_TOL с ОБЕИХ сторон (мутации 0.02→0 и 0.02→0.5 без этого теста зелёные). Обе
+     авто-комнаты ДЕЛЯТ границу с поправленной и их точка внутри неё — решает только порог площади. */
+  const M = withPoly("m", [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }],
+    { name: "Моя", autoPolygon: false });                                  // площадь 10000
+  const dup = withPoly("dup", [{ x: 0, y: 0 }, { x: 101, y: 0 }, { x: 101, y: 100 }, { x: 0, y: 100 }],
+    { name: "Помещение 1", autoPolygon: true });                           // 10100 = ·1.01 ≤ ·1.02 → дубль, убрать
+  const encl = withPoly("encl", [{ x: 0, y: 0 }, { x: 130, y: 0 }, { x: 130, y: 100 }, { x: 0, y: 100 }],
+    { name: "Помещение 2", autoPolygon: true });                           // 13000 = ·1.30 > ·1.02 → объемлющая, НЕ убирать
+  const dp = G.roomMatchPoint(dup.polygon), ep = G.roomMatchPoint(encl.polygon);
+  assert.equal(G.pointInPolygon(dp.x, dp.y, M.polygon), true, "предпосылка: точка дубля внутри поправленной");
+  assert.equal(G.pointInPolygon(ep.x, ep.y, M.polygon), true, "предпосылка: точка объемлющей тоже внутри поправленной (решает только площадь)");
+  const res = C.coveredByManual([M], [dup, encl], G);
+  assert.deepEqual([...res.dropIds].sort(), ["dup"], "дубль ·1.01 убран (порог 2%), объемлющая ·1.30 оставлена");
+});

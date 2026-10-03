@@ -7,7 +7,7 @@ const {
   segmentsIntersection, allIntersections, nearestEndpoint, nearestIntersection,
   distancePointToSegment, closestPointOnSegment, nearestSegmentPoint,
   polygonAreaPx, pointInPolygon, snapPlanPoint, roomContourProbe,
-  polygonCentroid, poleOfInaccessibility, roomLabelPoint, roomNamePoint, roomMatchPoint,
+  polygonCentroid, areaCentroid, poleOfInaccessibility, roomLabelPoint, roomNamePoint, roomMatchPoint,
   stripCollinear
 } = require("../js/geometry.js");
 
@@ -473,15 +473,16 @@ test("roomMatchPoint И2: сдвиг начальной вершины и раз
   }
 });
 
-test("roomMatchPoint И3: точка НЕ зависит от смещения таблички (в отличие от roomNamePoint)", () => {
-  /* NOTCH_POLY: центроид ВНУТРИ, но центроид+(10,2) в вырезе-соседе. Точка подписи (roomNamePoint)
-     из-за смещения таблички уезжает на полюс; точка сопоставления смотрит ТОЛЬКО на центроид —
-     значит остаётся на нём. Так доказано, что roomMatchPoint не завязан на LABEL_ANCHOR_* и CSS. */
-  const c = polygonCentroid(NOTCH_POLY), m = roomMatchPoint(NOTCH_POLY), nm = roomNamePoint(NOTCH_POLY);
-  assert.equal(pointInPolygon(c.x, c.y, NOTCH_POLY), true, "центроид сам по себе внутри");
-  assert.equal(m.x, c.x, "точка сопоставления = центроид (смещение таблички не учтено), X");
-  assert.equal(m.y, c.y, "точка сопоставления = центроид, Y");
-  assert.ok(nm.x !== c.x || nm.y !== c.y, "а точка ИМЕНИ из-за смещения таблички ушла на полюс — правила разные");
+test("roomMatchPoint И3: точка НЕ завязана на смещение таблички (своё правило, не roomNamePoint)", () => {
+  /* NOTCH_POLY: вершинный центроид ВНУТРИ, но центроид+(10,2) попадает в вырез-сосед, поэтому точка
+     ПОДПИСИ (roomNamePoint) из-за смещения таблички уезжает на полюс. Точка СОПОСТАВЛЕНИЯ считает центр
+     масс ПЛОЩАДИ (В17) и смотрит ТОЛЬКО на него — от смещения таблички (LABEL_ANCHOR) и CSS не зависит. Так доказано, что
+     roomMatchPoint живёт по своему правилу, а не по правилу подписи. */
+  const ac = areaCentroid(NOTCH_POLY), m = roomMatchPoint(NOTCH_POLY), nm = roomNamePoint(NOTCH_POLY);
+  assert.equal(pointInPolygon(ac.x, ac.y, NOTCH_POLY), true, "площадной центроид сам по себе внутри");
+  assert.equal(m.x, ac.x, "точка сопоставления = площадной центроид (смещение таблички не учтено), X");
+  assert.equal(m.y, ac.y, "точка сопоставления = площадной центроид, Y");
+  assert.ok(nm.x !== m.x || nm.y !== m.y, "а точка ИМЕНИ из-за смещения таблички иная — правила разные");
 });
 
 test("roomMatchPoint И4: вырожденный/битый вход не роняет и не виснет", { timeout: 3000 }, () => {
@@ -517,16 +518,47 @@ test("roomMatchPoint В16: асимметричные T-вершины не сд
   assert.ok(Math.abs(m.x - 510) < 1e-9, "именно 510, не 467.5 — иначе комната ложно попадёт в левую (кухонную) область");
 });
 
-test("roomMatchPoint В16: у контура БЕЗ коллинеаров точка прежняя бит-в-бит (И1 сохранён)", () => {
-  // прямоугольник и трапеция (коллинеаров нет) — центроид не должен измениться ни на бит
+test("roomMatchPoint В16/В17: у прямоугольника точка = среднее вершин бит-в-бит; у трапеции = центр масс площади", () => {
+  /* Прямоугольник: площадной и вершинный центроиды совпадают бит-в-бит — точка прямоугольных комнат
+     от перехода на площадной центроид (В17) не изменилась ни на бит (И1 сохранён). */
   const RECT2 = [{ x: 10, y: 20 }, { x: 210, y: 20 }, { x: 210, y: 120 }, { x: 10, y: 120 }];
+  const cR = polygonCentroid(RECT2), mR = roomMatchPoint(RECT2);
+  assert.equal(pointInPolygon(cR.x, cR.y, RECT2), true, "центроид прямоугольника внутри");
+  assert.equal(mR.x, cR.x, "прямоугольник: точка = среднее вершин бит-в-бит (X)");
+  assert.equal(mR.y, cR.y, "прямоугольник: точка = среднее вершин бит-в-бит (Y)");
+  /* Трапеция: В17 перешёл на центр масс ПЛОЩАДИ — он смещён к широкому основанию и точнее отражает
+     геометрию, чем среднее вершин. Точка = площадной центроид и остаётся внутри, но это уже НЕ среднее
+     вершин (прежнее правило было бы здесь менее устойчиво к выступам/вырезам, см. В17 Н1). */
   const TRAP = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 220, y: 100 }, { x: 80, y: 100 }];
-  for (const poly of [RECT2, TRAP]) {
-    const c = polygonCentroid(poly), m = roomMatchPoint(poly);
-    assert.equal(pointInPolygon(c.x, c.y, poly), true, "центроид внутри");
-    assert.equal(m.x, c.x, "точка = центроид бит-в-бит (X) — удаление коллинеаров ничего не тронуло");
-    assert.equal(m.y, c.y, "точка = центроид бит-в-бит (Y)");
-  }
+  const acT = areaCentroid(TRAP), mT = roomMatchPoint(TRAP);
+  assert.equal(pointInPolygon(mT.x, mT.y, TRAP), true, "точка трапеции внутри контура");
+  assert.equal(mT.x, acT.x, "трапеция: точка = площадной центроид (X)");
+  assert.equal(mT.y, acT.y, "трапеция: точка = площадной центроид (Y)");
+  assert.ok(mT.y !== polygonCentroid(TRAP).y, "и это НЕ среднее вершин — точка сместилась к широкому основанию");
+});
+
+/* ---- В17 Н1: тупиковый отрезок-«ус» и мелкий угловой чулан не должны уводить точку СОПОСТАВЛЕНИЯ.
+   Это денежный дефект: у слитой комнаты точка уезжала в чужую половину и ложно липла к памяти соседней
+   (неверная цена/состав поста). Площадной центроид (В17) к такой геометрии инвариантен. ---- */
+test("roomMatchPoint В17 Н1: тупиковый «ус» внутри контура НЕ сдвигает точку", () => {
+  // точный контур из сценария w1: слитая комната [200..820]×[200..400] + ус (200,300)→(260,300)→(200,300)
+  const WHISKER = [{ x: 200, y: 200 }, { x: 500, y: 200 }, { x: 820, y: 200 }, { x: 820, y: 400 },
+    { x: 500, y: 400 }, { x: 200, y: 400 }, { x: 200, y: 300 }, { x: 260, y: 300 }, { x: 200, y: 300 }];
+  const vc = polygonCentroid(WHISKER);
+  assert.ok(Math.abs(vc.x - 510) > 40, "предпосылка: СРЕДНЕЕ вершин уехало с 510 из-за уса (≈385.7)");
+  const m = roomMatchPoint(WHISKER);
+  assert.ok(Math.abs(m.x - 510) < 1e-6, "площадной центроид держится на истинном центре X=510, ус нулевой площади игнорируется");
+  assert.ok(Math.abs(m.y - 300) < 1e-6, "и на Y=300");
+  assert.equal(pointInPolygon(m.x, m.y, WHISKER), true, "точка внутри контура");
+});
+
+test("roomMatchPoint В17 Н1: мелкий угловой чулан сдвигает точку во много раз меньше, чем среднее вершин", () => {
+  // прямоугольник 600×400 (центр 300,200) + маленький выступ-чулан [0..80]×[-60..0] в левом-верхнем углу
+  const CH = [{ x: 0, y: -60 }, { x: 80, y: -60 }, { x: 80, y: 0 }, { x: 600, y: 0 }, { x: 600, y: 400 }, { x: 0, y: 400 }];
+  const vc = polygonCentroid(CH), m = roomMatchPoint(CH);
+  const dV = Math.hypot(vc.x - 300, vc.y - 200), dM = Math.hypot(m.x - 300, m.y - 200);
+  assert.ok(dM < dV / 3, "площадной центроид сместился (" + dM.toFixed(1) + ") во много раз меньше вершинного (" + dV.toFixed(1) + ")");
+  assert.equal(pointInPolygon(m.x, m.y, CH), true, "и остался внутри контура");
 });
 
 test("stripCollinear: убирает коллинеарные и совпавшие вершины, чистый контур не меняет", () => {
