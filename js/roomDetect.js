@@ -71,11 +71,27 @@ let _cvPromise=null;
    здесь только применяем его план к свежепостроенным объектам. Ручные комнаты (autoPolygon===false) не
    источники и не цели. */
 function carryUserRoomFields(oldAutoRooms,newRooms){
+  /* В16 (владелец: «поправленная — главная, СО СВОИМ названием, схемой и ценой; второй комнаты поверх
+     неё не появляется»). Пересчёт строит авто-комнаты из тех же линий ПОВЕРХ вручную поправленной
+     (autoPolygon===false) — её линии ведь остались. Такие авто-дубли убираем СРАЗУ, ДО переноса полей и
+     выдачи памяти: иначе дубль успел бы забрать из памяти запись исчезнувшей комнаты (reconcile фаза 2),
+     и она пропала бы навсегда. Поправленная НИЧЕГО не получает — остаётся со своими полями. Правило «что
+     накрыто» целиком в EPRoomCarry.coveredByManual. newRooms уже лежат в state.rooms (их туда положил
+     вызывающий) — вычёркиваем дубли и оттуда, и из целей carry/памяти. */
+  const manual=(state.rooms||[]).filter(r=>r.autoPolygon===false);
+  let targets=newRooms;
+  if(manual.length){
+    const drop=new Set(EPRoomCarry.coveredByManual(manual,newRooms,EPGeom).dropIds);
+    if(drop.size){
+      state.rooms=(state.rooms||[]).filter(r=>!drop.has(r.id));   /* убрать дубли с холста */
+      targets=newRooms.filter(r=>!drop.has(r.id));                /* и из целей переноса/памяти */
+    }
+  }
   /* reconcile = carry + ПАМЯТЬ исчезнувших комнат (В15): комната, чью стену удалили, исчезает
      (контур разомкнут), а перерисуют стену — вернётся со СВОИМИ полями. Память живёт в state (кладётся
      в проект в projectSnapshot, переживает автосейв/перезагрузку); правило её жизни целиком в модуле —
      здесь только читаем прежнюю и пишем обновлённую. */
-  const res=EPRoomCarry.reconcile(oldAutoRooms,newRooms,state.roomFieldMemory,EPGeom);
+  const res=EPRoomCarry.reconcile(oldAutoRooms,targets,state.roomFieldMemory,EPGeom);
   state.roomFieldMemory=res.memory;
   res.transfers.forEach(t=>{
     const room=newRooms.find(r=>r.id===t.toId);

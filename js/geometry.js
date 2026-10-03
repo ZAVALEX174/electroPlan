@@ -148,13 +148,58 @@ function roomNamePoint(poly) {
        от числа/порядка вершин (T-вершины, «усы»-коллинеары), сдвига начала обхода и его разворота (В13 И2).
    Вырожденный вход (<3 вершин — среднее; нечисловая вершина) — как в roomLabelDecision: полюс не считаем
    (poleOfInaccessibility на битом контуре может зациклиться / дать bbox=NaN), возвращаем среднее вершин
-   как есть. carry на такой не матчит (pointInPolygon по NaN ложно) — пары просто нет (В13 И4). */
+   как есть. carry на такой не матчит (pointInPolygon по NaN ложно) — пары просто нет (В13 И4).
+
+   КОЛЛИНЕАРНЫЕ ВЕРШИНЫ (В16, корень 1). Центроид считаем по контуру БЕЗ коллинеаров (stripCollinear).
+   Среднее вершин «уезжает» в ту сторону, где к ребру примкнула чужая линия разметки и наставила на нём
+   лишних T-вершин (пример В16: пустая слитая комната [200..820] с чуланом над левой половиной — её
+   среднее вершин съезжает с 510 до 467 и ложно попадает в память «Кухня»). Форма от удаления не
+   меняется, поэтому у контура без коллинеаров (обычные прямоугольники/трапеции/чистые Г/П) центроид и
+   итоговая точка — прежние бит-в-бит (И1/И2 сохраняются), а дрейф от примкнувшей линии исчезает. Точку
+   подписи (roomLabelPoint/roomNamePoint) это НЕ трогает — у них своя, визуальная задача (В16 вне их
+   периметра). */
 function roomMatchPoint(poly) {
   if (!poly || poly.length < 3) return polygonCentroid(poly || [{ x: 0, y: 0 }]);
-  const c = polygonCentroid(poly);
-  if (!poly.every(p => p && Number.isFinite(p.x) && Number.isFinite(p.y))) return c;
-  if (pointInPolygon(c.x, c.y, poly)) return c;   /* центроид внутри — прежняя точка бит-в-бит (И1) */
-  return poleOfInaccessibility(poly);             /* вне/на границе — точка внутри вогнутого контура (И2) */
+  if (!poly.every(p => p && Number.isFinite(p.x) && Number.isFinite(p.y))) return polygonCentroid(poly);
+  const clean = stripCollinear(poly);              /* T-вершины от примкнувшей линии не должны двигать точку */
+  const base = clean.length >= 3 ? clean : poly;   /* контур без коллинеаров выродился ниже треугольника — считаем по исходному */
+  const c = polygonCentroid(base);
+  if (pointInPolygon(c.x, c.y, base)) return c;    /* центроид внутри — прежняя точка бит-в-бит (И1) */
+  return poleOfInaccessibility(base);              /* вне/на границе — точка внутри вогнутого контура (И2) */
+}
+
+/* Убрать из контура вершины, НЕ меняющие его форму: совпавшие подряд и КОЛЛИНЕАРНЫЕ (лежащие на
+   прямой между соседями — «T-вершины», которые появляются там, где к контуру примыкает чужая линия
+   разметки). Нужна точке СОПОСТАВЛЕНИЯ (roomMatchPoint): среднее вершин уезжает от геометрического
+   центра, стоит подрисовать рядом линию и наставить на ребро лишних точек, — и комната ложно
+   матчится/не матчится (мотив В16, корень 1). Форму контура удаление не меняет: вершина отбрасывается,
+   только когда её высота над прямой «предыдущая→следующая» меньше COLLINEAR_TOL (суб-пиксель), —
+   поэтому у контура БЕЗ коллинеаров (прямоугольник, трапеция, чистые Г/П) результат тот же набор
+   вершин в том же порядке, а у roomMatchPoint — прежняя точка бит-в-бит. Порядок обхода сохраняем
+   (от него зависит знак площади у потребителей). Итеративно: снятие одной вершины может выпрямить
+   соседнюю. */
+const COLLINEAR_TOL = 1e-6;
+function stripCollinear(poly) {
+  // совпавшие подряд вершины (в т.ч. замыкающий дубль первой) — тоже лишние
+  const uniq = [];
+  for (const p of poly) { const q = uniq[uniq.length - 1]; if (!q || q.x !== p.x || q.y !== p.y) uniq.push(p); }
+  if (uniq.length > 1) { const f = uniq[0], l = uniq[uniq.length - 1]; if (f.x === l.x && f.y === l.y) uniq.pop(); }
+  let arr = uniq;
+  for (let changed = true; changed && arr.length >= 3;) {
+    changed = false;
+    const out = [], n = arr.length;
+    for (let i = 0; i < n; i++) {
+      const a = arr[(i - 1 + n) % n], b = arr[i], c = arr[(i + 1) % n];
+      const area2 = Math.abs((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
+      const base = Math.hypot(c.x - a.x, c.y - a.y);
+      // удаляем b, только если он лежит на прямой a—c (высота треугольника a-b-c меньше допуска)
+      if (base > 0 && area2 / base <= COLLINEAR_TOL) { changed = true; continue; }
+      out.push(b);
+    }
+    if (out.length < 3) break;   // не вырождаем контур ниже треугольника
+    arr = out;
+  }
+  return arr;
 }
 
 /* Площадь замкнутого полигона в px² (формула шнурков). */
@@ -434,7 +479,7 @@ const api = { polygonCentroid, polygonAreaPx, pointInPolygon, distancePointToSeg
   closestPointOnSegment, segmentsIntersection, allIntersections, nearestEndpoint,
   nearestIntersection, nearestSegmentPoint, snapPlanPoint, buildSpaceComponents, componentAt,
   roomContourProbe, signedPolygonDist, poleOfInaccessibility, roomLabelPoint, roomNamePoint,
-  roomMatchPoint };
+  roomMatchPoint, stripCollinear };
 if (typeof window !== "undefined") window.EPGeom = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

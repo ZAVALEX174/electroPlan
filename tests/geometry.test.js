@@ -7,7 +7,8 @@ const {
   segmentsIntersection, allIntersections, nearestEndpoint, nearestIntersection,
   distancePointToSegment, closestPointOnSegment, nearestSegmentPoint,
   polygonAreaPx, pointInPolygon, snapPlanPoint, roomContourProbe,
-  polygonCentroid, poleOfInaccessibility, roomLabelPoint, roomNamePoint, roomMatchPoint
+  polygonCentroid, poleOfInaccessibility, roomLabelPoint, roomNamePoint, roomMatchPoint,
+  stripCollinear
 } = require("../js/geometry.js");
 
 /* отрезок из двух точек в форме {a,b} — как хранятся стены и линии разметки */
@@ -496,4 +497,47 @@ test("roomMatchPoint И4: вырожденный/битый вход не рон
     assert.equal(Number.isNaN(m.x) ? Number.isNaN(c.x) : m.x === c.x, true, "битая вершина → X центроида");
     assert.equal(m.y, c.y, "битая вершина → Y центроида");
   }
+});
+
+/* ---- В16 корень 1: примкнувшая чужая линия (коллинеарные T-вершины) НЕ должна двигать точку
+   СОПОСТАВЛЕНИЯ. Мотив: пустая слитая комната [200..820] осталась прежней, но над её ЛЕВОЙ половиной
+   нарисовали чулан — на верхнем ребре появились T-вершины, среднее вершин «уехало» с 510 к 467 и
+   ложно попало в память «Кухня» (левая половина) → неверная цена/состав поста. roomMatchPoint теперь
+   считает центроид по контуру БЕЗ коллинеаров — точка остаётся в истинном центре. ---- */
+test("roomMatchPoint В16: асимметричные T-вершины не сдвигают точку с истинного центра", () => {
+  const CLEAN = [{ x: 200, y: 200 }, { x: 820, y: 200 }, { x: 820, y: 400 }, { x: 200, y: 400 }];
+  // те же края, но на верхнем ребре слева наставлены лишние (коллинеарные) вершины — «след» примкнувшей линии
+  const DRIFT = [{ x: 200, y: 200 }, { x: 300, y: 200 }, { x: 400, y: 200 }, { x: 500, y: 200 },
+    { x: 820, y: 200 }, { x: 820, y: 400 }, { x: 500, y: 400 }, { x: 200, y: 400 }];
+  const vc = polygonCentroid(DRIFT);
+  assert.ok(Math.abs(vc.x - 467.5) < 1e-9, "предпосылка: СРЕДНЕЕ вершин уехало к 467.5 (дрейф)");
+  const m = roomMatchPoint(DRIFT), mc = roomMatchPoint(CLEAN);
+  assert.equal(m.x, mc.x, "точка сопоставления = истинный центр чистого прямоугольника (X), а не дрейф");
+  assert.equal(m.y, mc.y, "точка сопоставления = истинный центр (Y)");
+  assert.ok(Math.abs(m.x - 510) < 1e-9, "именно 510, не 467.5 — иначе комната ложно попадёт в левую (кухонную) область");
+});
+
+test("roomMatchPoint В16: у контура БЕЗ коллинеаров точка прежняя бит-в-бит (И1 сохранён)", () => {
+  // прямоугольник и трапеция (коллинеаров нет) — центроид не должен измениться ни на бит
+  const RECT2 = [{ x: 10, y: 20 }, { x: 210, y: 20 }, { x: 210, y: 120 }, { x: 10, y: 120 }];
+  const TRAP = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 220, y: 100 }, { x: 80, y: 100 }];
+  for (const poly of [RECT2, TRAP]) {
+    const c = polygonCentroid(poly), m = roomMatchPoint(poly);
+    assert.equal(pointInPolygon(c.x, c.y, poly), true, "центроид внутри");
+    assert.equal(m.x, c.x, "точка = центроид бит-в-бит (X) — удаление коллинеаров ничего не тронуло");
+    assert.equal(m.y, c.y, "точка = центроид бит-в-бит (Y)");
+  }
+});
+
+test("stripCollinear: убирает коллинеарные и совпавшие вершины, чистый контур не меняет", () => {
+  const DRIFT = [{ x: 200, y: 200 }, { x: 300, y: 200 }, { x: 400, y: 200 }, { x: 500, y: 200 },
+    { x: 820, y: 200 }, { x: 820, y: 400 }, { x: 500, y: 400 }, { x: 200, y: 400 }];
+  const s = stripCollinear(DRIFT);
+  assert.deepEqual(s, [{ x: 200, y: 200 }, { x: 820, y: 200 }, { x: 820, y: 400 }, { x: 200, y: 400 }],
+    "T-вершины на прямых рёбрах сняты — остался минимальный прямоугольник в том же порядке обхода");
+  const CLEAN = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
+  assert.deepEqual(stripCollinear(CLEAN), CLEAN, "у чистого прямоугольника — тот же набор вершин");
+  // дубль-вершина и замыкающий повтор первой
+  const DUP = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }, { x: 0, y: 0 }];
+  assert.deepEqual(stripCollinear(DUP), CLEAN, "совпавшие подряд и замыкающий дубль первой вершины сняты");
 });

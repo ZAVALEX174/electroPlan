@@ -32,7 +32,9 @@ test("app.js: «Очистить всё» забывает память поле
 });
 
 test("roomDetect.js: carryUserRoomFields идёт через reconcile и сохраняет обновлённую память в state", () => {
-  assert.match(DETECT, /EPRoomCarry\.reconcile\(oldAutoRooms,newRooms,state\.roomFieldMemory,EPGeom\)/,
+  /* targets, а не newRooms: В16 исключает из целей авто-дубли, легшие на поправленную (coveredByManual),
+     ДО reconcile — чтобы дубль не забрал из памяти запись исчезнувшей комнаты. */
+  assert.match(DETECT, /EPRoomCarry\.reconcile\(oldAutoRooms,targets,state\.roomFieldMemory,EPGeom\)/,
     "перенос+память считает EPRoomCarry.reconcile (одно правило в модуле), прежняя память приходит из state");
   assert.match(DETECT, /state\.roomFieldMemory=res\.memory/, "обновлённая память записывается обратно в state");
 });
