@@ -114,12 +114,14 @@ function makeDraggable(el,obj,kind){
   el.dataset.kind=kind;el.dataset.id=obj.id;
   let mode="idle",sx=0,sy=0,bx=0,by=0,stop=null,dragMap=null,switched=false;
   function beginPress(clientX,clientY,pointerId){
-    /* Режим размещения: нажатие на табличку КОМНАТЫ не перехватываем. Без этого return нажатие
-       (даже при инструменте select) выделило бы комнату и начало перенос таблички, а click не
-       поставил бы пост; при другом инструменте ensureSelectTool ниже ещё и сбросил бы state.pending.
-       Пусть click дойдёт до обработчика подписи (placePendingAtEvent). Иконки постов/элементов
-       в размещении переносим как обычно — потому условие только для kind==="room". */
-    if(state.pending&&kind==="room")return;
+    /* В11 (решение владельца 03.10): в режиме размещения НИ ОДИН объект на холсте не перехватывает
+       нажатие — ни табличка комнаты, ни иконка поста/элемента. Иначе нажатие выделило бы объект и
+       начало его перенос, а при инструменте «Удалить» — удалило бы его (потеря данных), и пост в
+       точку клика бы не встал. Выходим до выделения/переноса/удаления для ЛЮБОГО kind; дальше click
+       поставит пост единым правилом placePendingAtEvent — иконка пропускает его к canvas.onclick,
+       табличка комнаты зовёт placePendingAtEvent сама (rooms.js). Объект под курсором остаётся
+       нетронутым. Раньше ранний return был только для kind==="room" — отсюда дефект на иконках. */
+    if(state.pending)return;
     if(state.tool==="delete"){removeEntity(kind,obj.id);return}   /* в режиме удаления нажатие удаляет */
     if(spaceDown)return;   /* зажат пробел — жест забирает панорама холста, объект не трогаем */
     switched=ensureSelectTool();

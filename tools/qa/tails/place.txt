@@ -1,0 +1,61 @@
+  // --- В11: «Разместить» ставит пост куда кликнули при ЛЮБОМ инструменте; стена/линия/пост целы ---
+  // Рисуем стену и линию разметки в пустой зоне (fx 0.12..0.30, fy 0.12/0.20 — выше и левее обеих
+  // комнат). Пустая зона важна: пост вне комнаты не запускает подмену накладки — проверяем именно
+  // размещение, а не отбор серии. Затем при инструменте «Удалить» кликаем у стены, по линии и по
+  // иконке уже стоящего поста — каждый раз должен появиться НОВЫЙ пост, а старый объект остаться.
+  n = 400;
+  const cntPosts = () => ev(`return document.querySelectorAll(".plan-icon.post").length`);
+  const cntWalls = () => ev(`return Array.from(document.querySelectorAll("#wallsSvg line")).filter(l=>l.style.pointerEvents==="none").length`);
+  const cntLines = () => ev(`return document.querySelectorAll("#markupSvg line.room-line").length`);
+  const toastText = () => ev(`return document.querySelector(".toast")?.textContent || ""`);
+
+  // стена (два клика инструментом «Стены»)
+  await click(`document.querySelector('[data-tool="wall"]')`); await sleep(300);
+  let wA = await canvasPt(0.12, 0.12), wB = await canvasPt(0.30, 0.12);
+  await clickAt(wA.x, wA.y); await clickAt(wB.x, wB.y); await sleep(400);
+  // линия разметки (два клика инструментом «Разметка»)
+  await click(`document.querySelector('[data-tool="roomline"]')`); await sleep(300);
+  let lA = await canvasPt(0.12, 0.20), lB = await canvasPt(0.30, 0.20);
+  await clickAt(lA.x, lA.y); await clickAt(lB.x, lB.y); await sleep(400);
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(300);
+
+  log.push("ДО: стен " + await cntWalls() + ", линий " + await cntLines() + ", постов " + await cntPosts());
+  await shot("place-setup", [`document.querySelector("#wallsSvg")`, `document.querySelector("#markupSvg")`]);
+
+  // (a) «Удалить» → «Разместить» → клик У СТЕНЫ (середина, +3px — внутри hit-зоны стены)
+  await click(`document.querySelector('[data-tool="delete"]')`); await sleep(300);
+  await click(`document.querySelector("[data-place-template]")`); await sleep(300);
+  log.push("(a) инструмент delete, режим размещения: " + await ev(`return document.getElementById("canvas").classList.contains("placing")`));
+  let wM = await canvasPt(0.21, 0.12);
+  let wallsBeforeA = await cntWalls(), postsBeforeA = await cntPosts();
+  await clickAt(wM.x, wM.y + 3); await sleep(600);
+  log.push("(a) у стены: стен " + wallsBeforeA + "→" + await cntWalls() + ", постов " + postsBeforeA + "→" + await cntPosts() + ", toast: " + await toastText());
+  await shot("place-near-wall", [`document.querySelector("#wallsSvg")`]);
+
+  // (b) «Удалить» → «Разместить» → клик ПО ЛИНИИ РАЗМЕТКИ
+  await click(`document.querySelector('[data-tool="delete"]')`); await sleep(300);
+  await click(`document.querySelector("[data-place-template]")`); await sleep(300);
+  let lM = await canvasPt(0.21, 0.20);
+  let linesBeforeB = await cntLines(), postsBeforeB = await cntPosts();
+  await clickAt(lM.x, lM.y); await sleep(600);
+  log.push("(b) по линии: линий " + linesBeforeB + "→" + await cntLines() + ", постов " + postsBeforeB + "→" + await cntPosts() + ", toast: " + await toastText());
+  await shot("place-on-line", [`document.querySelector("#markupSvg")`]);
+
+  // (c) «Удалить» → «Разместить» → клик ПО ИКОНКЕ уже стоящего поста (поста из шага (a), он в пустой зоне)
+  await click(`document.querySelector('[data-tool="delete"]')`); await sleep(300);
+  await click(`document.querySelector("[data-place-template]")`); await sleep(300);
+  let postsBeforeC = await cntPosts();
+  // иконка поста (a) стоит у точки wM — клик точно по ней
+  await clickAt(wM.x, wM.y + 3); await sleep(600);
+  log.push("(c) по иконке поста: постов " + postsBeforeC + "→" + await cntPosts() + ", toast: " + await toastText());
+  await shot("place-on-post", [`document.querySelector(".plan-icon.post")`]);
+
+  // контроль: ВНЕ размещения «Удалить» по-прежнему удаляет стену (правило инструментов не тронуто).
+  // Кликаем по стене в точке БЕЗ иконок (fx 0.14 — посты стоят у 0.21), иначе удалился бы пост сверху.
+  await click(`document.querySelector('[data-tool="delete"]')`); await sleep(300);
+  let wD = await canvasPt(0.14, 0.12);
+  let wallsBeforeDel = await cntWalls();
+  await clickAt(wD.x, wD.y); await sleep(600);
+  log.push("контроль вне размещения: клик «Удалить» по стене → стен " + wallsBeforeDel + "→" + await cntWalls() + " (должно убыть на 1)");
+  await shot("place-control-delete", [`document.querySelector("#wallsSvg")`]);
+

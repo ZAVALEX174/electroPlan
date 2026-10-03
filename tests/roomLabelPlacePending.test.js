@@ -219,14 +219,38 @@ test("размещение: нажатие на табличку без конт
   assert.equal(spies.ensure, 0, "ensureSelectTool (сбрасывающий pending) не вызывается в размещении");
 });
 
-test("размещение: нажатие на иконку ПОСТА идёт обычным путём (ранний return только для комнаты)", () => {
+test("В11 — размещение: нажатие на иконку ПОСТА НЕ выделяет и НЕ гасит pending (ранний return для ЛЮБОГО kind)", () => {
   const spies = { ensure: 0 };
-  const state = { pending: { type: "post", templateId: "t" }, tool: "select", selected: null };
+  const pending = { type: "post", templateId: "t" };
+  const state = { pending, tool: "select", selected: null };
   const el = buildDraggable(state, spies, "post");
   el.fire("pointerdown", makeEvent());
-  /* Ранний return в beginPress ограничен kind==="room". Для поста нажатие в размещении ведёт себя
-     как в HEAD: ensureSelectTool + выделение. Мутация state.pending&&kind==="room" → state.pending
-     заставила бы beginPress выйти и на посте — тогда обе проверки ниже покраснеют. */
-  assert.equal(spies.ensure, 1, "для поста ранний return не срабатывает — ensureSelectTool вызывается");
-  assert.deepEqual({ ...state.selected }, { kind: "post", id: "G1" }, "нажатие на пост в размещении выделяет пост");
+  /* В11 (решение владельца 03.10): нажатие на уже стоящий пост в размещении его не трогает — пост в
+     точку клика ставит click через canvas.onclick, а старый пост остаётся как был. beginPress обязан
+     выйти ДО ensureSelectTool/выделения для ВСЕХ kind, не только "room". Вернёшь прежний
+     `state.pending&&kind==="room"` — для поста снова сработает ensureSelectTool+выделение, и обе
+     проверки ниже покраснеют. */
+  assert.equal(spies.ensure, 0, "для поста в размещении ранний return срабатывает — ensureSelectTool не зовётся");
+  assert.equal(state.pending, pending, "режим размещения на иконке поста не сбрасывается");
+  assert.equal(state.selected, null, "нажатие на пост в размещении его НЕ выделяет (старый пост не трогаем)");
+});
+
+test("В11 — размещение + инструмент «Удалить»: нажатие на иконку поста его НЕ удаляет", () => {
+  /* Самый опасный край: при tool==="delete" beginPress раньше звал removeEntity прямо на нажатии
+     (потеря данных). Ранний `if(state.pending)return` стоит ВЫШE ветки delete — removeEntity не зовётся. */
+  const spies = { ensure: 0, remove: [] };
+  const state = { pending: { type: "post", templateId: "t" }, tool: "delete", selected: null };
+  const el = makeDragEl();
+  const md = stand.run("makeDraggable", {
+    state, HAS_POINTER: true, spaceDown: false,
+    ensureSelectTool: () => { spies.ensure++; state.pending = null; return false; },
+    applySelectionClasses: () => {}, renderProperties: () => {},
+    removeEntity: (k, id) => spies.remove.push([k, id]),
+    document: { addEventListener: () => {} },
+    trackDrag: () => () => {}
+  });
+  md(el, { id: "G1", x: 200, y: 50 }, "post");
+  el.fire("pointerdown", makeEvent());
+  assert.deepEqual(spies.remove, [], "в размещении удаляющий инструмент не стирает пост под курсором");
+  assert.equal(spies.ensure, 0, "beginPress вышел до ветки delete и до ensureSelectTool");
 });

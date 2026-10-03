@@ -418,9 +418,11 @@ function compactIcon(entity,kind){
   /* выделение/удаление/перенос — единый указательный обработчик (makeDraggable):
      клик и перенос разводятся порогом, сцена на нажатии не перерисовывается */
   el.onmouseenter=e=>showHover(kind,entity,e);el.onmousemove=positionHover;el.onmouseleave=hideHover;
-  /* клик по объекту не должен доходить до canvas.onclick (иначе в режиме размещения
-     из каталога он поставил бы ещё один объект поверх) — выделение уже в makeDraggable */
-  el.onclick=e=>e.stopPropagation();
+  /* Вне размещения клик по объекту не должен доходить до canvas.onclick (выделение уже сделал
+     makeDraggable, иначе canvas.onclick его ещё и снял бы). В РЕЖИМЕ размещения (В11) — наоборот:
+     пропускаем click к canvas.onclick, чтобы единое правило placePendingAtEvent поставило НОВЫЙ пост
+     в точку клика, а эта иконка осталась нетронутой (не удалена, не выделена, не перенесена). */
+  el.onclick=e=>{if(state.pending)return;e.stopPropagation()};
   makeDraggable(el,entity,kind);return el;
 }
 function renderDevices(){canvas.querySelectorAll(".plan-icon.device-only").forEach(e=>e.remove());state.devices.forEach(d=>{const el=compactIcon(d,"device");el.classList.add("device-only");canvas.appendChild(el)})}
@@ -2210,7 +2212,9 @@ function drawWalls(){
       hit.setAttribute("x1",w.a.x);hit.setAttribute("y1",w.a.y);hit.setAttribute("x2",w.b.x);hit.setAttribute("y2",w.b.y);
       hit.setAttribute("stroke","transparent");hit.setAttribute("stroke-width","14");
       hit.style.pointerEvents="stroke";hit.style.cursor="pointer";
-      hit.onclick=e=>{e.stopPropagation();state.tool==="delete"?removeWall(w.id):selectWall(w.id)};
+      /* В11: в размещении клик по стене её НЕ удаляет и НЕ выделяет — пропускаем событие к
+         canvas.onclick, где placePendingAtEvent поставит пост в точку клика у самой стены. */
+      hit.onclick=e=>{if(state.pending)return;e.stopPropagation();state.tool==="delete"?removeWall(w.id):selectWall(w.id)};
       svg.appendChild(hit);
     }
     const l=document.createElementNS("http://www.w3.org/2000/svg","line");

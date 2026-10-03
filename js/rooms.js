@@ -130,6 +130,7 @@ function renderVertexHandles(svg,room){
     mid.setAttribute("class","vertex-mid");
     svgTitle(mid,"Добавить вершину");
     mid.onpointerdown=e=>{
+      if(state.pending)return;   /* В11: в размещении вершину не добавляем — click всплывёт к canvas.onclick и поставит пост */
       e.preventDefault();e.stopPropagation();
       poly.splice(i+1,0,{x:(p.x+next.x)/2,y:(p.y+next.y)/2});
       markRoomEdited(room);refreshRoomAfterEdit(room);
@@ -144,6 +145,7 @@ function renderVertexHandles(svg,room){
     h.setAttribute("class","vertex-handle");
     svgTitle(h,"Перетащите вершину · Alt+клик удаляет");
     h.onpointerdown=e=>{
+      if(state.pending)return;   /* В11: в размещении вершину не двигаем/не удаляем — click поставит пост через canvas.onclick */
       e.preventDefault();e.stopPropagation();
       if(e.altKey){
         if(poly.length<=3){toast("В полигоне должно остаться не менее трёх вершин");return}

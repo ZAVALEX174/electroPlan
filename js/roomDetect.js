@@ -315,7 +315,9 @@ function drawRoomLines(){
       hit.setAttribute("x1",w.a.x);hit.setAttribute("y1",w.a.y);hit.setAttribute("x2",w.b.x);hit.setAttribute("y2",w.b.y);
       hit.setAttribute("stroke","transparent");hit.setAttribute("stroke-width","14");
       hit.style.pointerEvents="stroke";hit.style.cursor="pointer";
-      hit.onclick=ev=>{ev.stopPropagation();removeRoomLine(w.id)};
+      /* В11: в размещении клик по линии разметки её НЕ удаляет — пропускаем событие к canvas.onclick,
+         где placePendingAtEvent поставит пост в точку клика прямо на линии. */
+      hit.onclick=ev=>{if(state.pending)return;ev.stopPropagation();removeRoomLine(w.id)};
       svg.appendChild(hit);
     }
     const l=document.createElementNS(SVG_NS,"line");
