@@ -183,6 +183,16 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .doc-logo-preview img{max-height:48px;max-width:100%;object-fit:contain;border:1px solid var(--line);border-radius:6px;padding:4px;background:#fff}
 .doc-terms-field{display:flex;flex-direction:column;margin-top:8px;color:var(--muted);font-size:9px;font-weight:800}
 .doc-terms-field textarea{margin-top:3px;padding:7px 9px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text);font:inherit;font-weight:400;line-height:1.4;resize:vertical;min-height:64px}
+/* Реквизиты (A5): два блока с галочками «показывать в КП». Поле — подпись над полем ввода, галочка
+   справа в том же ряду. Обязательные поля (ФИО, контакты) — галочка disabled checked (серая). */
+.doc-header-form .doc-req-check{grid-column:1/-1;flex-direction:row;align-items:center;gap:6px;font-weight:700}
+.doc-requisites{margin-top:12px}
+.doc-req-head{font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin:10px 0 5px}
+.doc-req-head small{font-weight:600;text-transform:none;letter-spacing:0;opacity:.85}
+.doc-req-fields{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center}
+.doc-req-field{display:flex;flex-direction:column;color:var(--muted);font-size:9px;font-weight:800}
+.doc-req-field input{margin-top:3px;padding:6px 7px}
+.doc-req-check{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:9px;font-weight:700;white-space:nowrap}
 .offer-options{margin-top:12px;font-size:11px}
 .offer-options summary{cursor:pointer;font-weight:800;color:var(--text);padding:7px 0}
 .offer-options label{display:flex;align-items:flex-start;gap:6px;margin:7px 0;line-height:1.4}

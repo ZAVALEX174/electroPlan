@@ -188,15 +188,34 @@ function compose(est, deps) {
     discountMark: discMark(g.discountPersonal, g.discountPercent)
   }));
 
-  /* Шапка документа (PLAN 5): поля из панели проекта. Печатаем только заполненные —
-     «Клиент: —» в уходящем клиенту документе не нужен. Дата по умолчанию — сегодня. */
+  /* Шапка документа (PLAN 5 / A5): проектные строки + два блока реквизитов — «Исполнитель» (мои
+     реквизиты, общий бланк человека) и «Заказчик» (свои у проекта). ЧТО печатать в блоках решает
+     ОДНА чистая функция EPDocRequisites.printedFields (§7.1) — КП её лишь раскладывает. Печатаем
+     только непустое; блок без единого печатаемого поля не выводим вовсе (без пустого заголовка,
+     решение владельца п.4). Дата по умолчанию — сегодня. */
+  const reqCfg = typeof window !== "undefined" && window.EPDocRequisites
+    ? window.EPDocRequisites : require("./docRequisites.js");
   const h = deps.header || {};
+  const kv = (k, v) => `<b>${esc(k)}:</b> ${esc(v)}`;
+  /* Строка «Разработчик» — под своей галочкой (решение владельца п.1): developerShow===false прячет
+     ТОЛЬКО эту строку шапки. Подпись (signatureBlockHtml) и лист монтажника берут developer отдельно
+     и галочкой не управляются. «Клиента» в проектных строках больше нет — его заменяет блок «Заказчик». */
+  const projectRows = [
+    ["Проект", h.project], ["Адрес объекта", h.address],
+    ...(h.developerShow !== false ? [["Разработчик", h.developer]] : []),
+    ["Дата", h.date || new Date().toLocaleDateString("ru-RU")], ["Номер КП", h.number]
+  ].filter(([, v]) => v != null && String(v).trim() !== "").map(([k, v]) => kv(k, v)).join("<br>");
+  const reqBlock = (title, fields, src) => {
+    const rows = reqCfg.printedFields(fields, (src || {}).values, (src || {}).show);
+    if (!rows.length) return "";
+    return `<div class="req-block"><div class="req-title">${esc(title)}</div>`
+      + rows.map(r => kv(r.label, r.value)).join("<br>") + `</div>`;
+  };
   const headerRows = [
-    ["Проект", h.project], ["Клиент", h.client], ["Адрес объекта", h.address],
-    ["Разработчик", h.developer], ["Дата", h.date || new Date().toLocaleDateString("ru-RU")],
-    ["Номер КП", h.number]
-  ].filter(([, v]) => v != null && String(v).trim() !== "")
-   .map(([k, v]) => `<b>${esc(k)}:</b> ${esc(v)}`).join("<br>");
+    projectRows,
+    reqBlock("Исполнитель", reqCfg.MY_FIELDS, h.my),
+    reqBlock("Заказчик", reqCfg.CUSTOMER_FIELDS, h.customer)
+  ].filter(Boolean).join("");
   /* Логотип компании над реквизитами (deps.logo — data-URL из EPPrefs, бланк человека, не свойство
      проекта). Пусто → imgHtml вернёт "" и шапка останется байт-в-байт как раньше. */
   const logoImg = docImagesApi().imgHtml(deps.logo, esc);
@@ -318,7 +337,7 @@ function compose(est, deps) {
   const signatureBlock = signatureBlockHtml(deps.signature, deps.stamp, (deps.header || {}).developer, esc);
 
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Коммерческое предложение</title><style>
-  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.priceless{width:340px;margin:8px 0 0 auto;color:#9b3f2b;font-size:11px;font-weight:bold;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}.terms{margin-top:28px;padding-top:12px;border-top:1px solid #d8e6f2;color:#4a5b6c;font-size:11px;line-height:1.45}.signature{display:flex;gap:48px;align-items:flex-end;margin-top:34px;page-break-inside:avoid}.sign-col{text-align:center}.sign-name{margin-top:6px;font-size:11px;color:#4a5b6c}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}.disc-mark{color:#9b3f2b;font-size:10px;font-weight:normal;white-space:nowrap}.pl-disc{color:#9b3f2b;font-size:9px;font-weight:normal;margin-top:2px}@media print{button{display:none}}</style></head><body>
+  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.priceless{width:340px;margin:8px 0 0 auto;color:#9b3f2b;font-size:11px;font-weight:bold;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}.terms{margin-top:28px;padding-top:12px;border-top:1px solid #d8e6f2;color:#4a5b6c;font-size:11px;line-height:1.45}.signature{display:flex;gap:48px;align-items:flex-end;margin-top:34px;page-break-inside:avoid}.sign-col{text-align:center}.sign-name{margin-top:6px;font-size:11px;color:#4a5b6c}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}.disc-mark{color:#9b3f2b;font-size:10px;font-weight:normal;white-space:nowrap}.pl-disc{color:#9b3f2b;font-size:9px;font-weight:normal;margin-top:2px}.req-block{margin-top:10px}.req-title{font-weight:bold;color:#185d96;margin-bottom:2px}@media print{button{display:none}}</style></head><body>
   <h1>Коммерческое предложение</h1><div class="sub">Проект электрики и комплектация электроустановочных изделий</div>
   <div class="meta"><div class="box">${logoImg}${headerRows}</div><button onclick="window.print()">Сохранить в PDF</button></div>
   ${planSection}

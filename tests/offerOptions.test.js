@@ -194,7 +194,7 @@ test("D10: init создаёт поля до восстановления — п
       return null;
     }
   };
-  for (const name of ["loadCachedRate", "fillDocHeaderInputs", "renderDocImage", "renderCompanyTerms", "renderTemplates", "renderAll", "renderSummary",
+  for (const name of ["loadCachedRate", "renderRequisitesInputs", "fillDocHeaderInputs", "renderDocImage", "renderCompanyTerms", "renderTemplates", "renderAll", "renderSummary",
     "updateScaleUi", "updateRateUi", "applyPlanVisibility", "renderLightingSchemeSelect", "renderProjectWallTypeSelect",
     "renderProjectBacklight",
     "renderPostSlotCountSelect", "applyGridStyle", "syncMarkupControls", "updateZoomUi", "applyView"])

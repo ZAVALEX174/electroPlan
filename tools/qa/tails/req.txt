@@ -1,0 +1,76 @@
+  // --- A5: реквизиты КП («Мои» + «Заказчик», галочки «показывать в КП») ---
+  // Селекторы полей/галочек блоков реквизитов (строятся app.js из EPDocRequisites).
+  const reqField = (block, key) => `document.querySelector('[data-req-block="${block}"][data-req-key="${key}"]')`;
+  const reqCheck = (block, key) => `document.querySelector('[data-req-block="${block}"][data-req-check="${key}"]')`;
+  const uncheck = async sel => { await ev(`const e=${sel};e.checked=false;e.dispatchEvent(new Event("change",{bubbles:true}));return 1;`); await sleep(300); };
+
+  // Разработчик — проектное поле; задаём значение, чтобы было видно действие галочки.
+  await setVal($("docDeveloper"), "Семёнов П.");
+
+  // «Мои реквизиты» (бланк человека): заполняем все поля.
+  await setVal(reqField("my", "fio"), "Иван Мастеров");
+  await setVal(reqField("my", "phone"), "+7 900 111-22-33");
+  await setVal(reqField("my", "email"), "master@electro.pro");
+  await setVal(reqField("my", "legal"), "ИП Мастеров И.И.");
+  await setVal(reqField("my", "inn"), "771234567890");
+  await setVal(reqField("my", "address"), "Москва, ул. Светлая, 1");
+
+  // «Реквизиты заказчика» (свои у проекта): заполняем все поля.
+  await setVal(reqField("customer", "fio"), "Петрова А.С.");
+  await setVal(reqField("customer", "phone"), "+7 921 555-44-33");
+  await setVal(reqField("customer", "email"), "petrova@mail.ru");
+  await setVal(reqField("customer", "legal"), "ООО Ромашка");
+  await setVal(reqField("customer", "address"), "Тверь, пр. Мира, 10");
+
+  // Снимаем: «юрлицо» у себя, «адрес» у заказчика, «Разработчик» в шапке КП.
+  await uncheck(reqCheck("my", "legal"));
+  await uncheck(reqCheck("customer", "address"));
+  await uncheck($("docDeveloperShow"));
+
+  // Снимок панели (обведены оба блока и галочка «Разработчик»).
+  await ev(`document.querySelector(".doc-requisites").scrollIntoView({block:"center"});return 1;`); await sleep(300);
+  await shot("req-panel", [`document.getElementById("myRequisites")`, `document.getElementById("customerRequisites")`, `document.getElementById("docDeveloperShow")`]);
+
+  // Печать КП: перехватываем окно, копим HTML в window.__kp (как в num/disc).
+  await ev('window.__kp="";window.open=()=>({closed:false,document:{open(){},write(h){window.__kp+=h},close(){},title:""},focus(){},print(){},close(){},addEventListener(){},location:{}});return 1;');
+  await click($("pdfBtn")); await sleep(1200);
+  const html = await ev("return window.__kp");
+  fs.writeFileSync(path.join(DIR, "kp-req.html"), html);
+
+  // Что реально напечатано в шапке: вырезаем блок .box (реквизиты) и чистим от тегов.
+  const box = (html.split('<div class="box">')[1] || "").split("<button")[0];
+  const printed = box.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  log.push("ШАПКА КП: " + printed);
+  log.push("есть блок «Исполнитель»: " + /Исполнитель/.test(box));
+  log.push("есть блок «Заказчик»: " + /Заказчик/.test(box));
+  log.push("юрлицо исполнителя (снято у себя? — должно ОСТАТЬСЯ, снимали у заказчика нет такого): " + /ИП Мастеров/.test(box));
+  log.push("снятое юрлицо «Мои» НЕ печатается: " + !/ИП Мастеров/.test(box));
+  log.push("снятый адрес заказчика НЕ печатается: " + !/Тверь/.test(box));
+  log.push("снятый «Разработчик» НЕ печатается: " + !/Разработчик/.test(box));
+  log.push("обязательные заказчика есть: ФИО " + /Петрова/.test(box) + ", тел " + /555-44-33/.test(box) + ", email " + /petrova@mail\.ru/.test(box));
+
+  // Рендер шапки КП в отдельной вкладке и снимок верха страницы.
+  const nt = await json("/json/new?about:blank", "PUT");
+  {
+    const k = connect(nt.webSocketDebuggerUrl); await k.ready; await k.send("Page.enable");
+    await k.send("Emulation.setDeviceMetricsOverride", { width: 1100, height: 1400, deviceScaleFactor: 1, mobile: false });
+    const ft = await k.send("Page.getFrameTree");
+    await k.send("Page.setDocumentContent", { frameId: ft.frameTree.frame.id, html }); await sleep(1500);
+    const r = await k.send("Page.captureScreenshot", { format: "png" });
+    fs.writeFileSync(path.join(SHOTS, String(++n).padStart(2, "0") + "-kp-req-header.png"), Buffer.from(r.data, "base64")); log.push("kp-req-header " + html.length);
+    k.close();
+  }
+
+  // Перезагрузка: значения и галочки реквизитов — на месте (заказчик из проекта, «мои» из EPPrefs).
+  await c.send("Page.reload"); await sleep(5000);
+  const after = await ev(`return {
+    myFio: ${reqField("my", "fio")}.value,
+    myLegal: ${reqField("my", "legal")}.value,
+    myLegalChecked: ${reqCheck("my", "legal")}.checked,
+    myInnChecked: ${reqCheck("my", "inn")}.checked,
+    custFio: ${reqField("customer", "fio")}.value,
+    custAddr: ${reqField("customer", "address")}.value,
+    custAddrChecked: ${reqCheck("customer", "address")}.checked,
+    devShow: document.getElementById("docDeveloperShow").checked
+  }`);
+  log.push("ПОСЛЕ ПЕРЕЗАГРУЗКИ: " + JSON.stringify(after));

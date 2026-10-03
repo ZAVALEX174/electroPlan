@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261003.1">
+  <link rel="stylesheet" href="css/styles.css?v=20261003.2">
 </head>
 <body>
 <div class="app">
@@ -192,11 +192,19 @@
         <div class="section-head"><h3>Реквизиты КП</h3></div>
         <div class="doc-header-form">
           <label>Проект<input id="docProject" autocomplete="off" placeholder="Название проекта"></label>
-          <label>Клиент<input id="docClient" autocomplete="off" placeholder="Заказчик"></label>
           <label>Адрес объекта<input id="docAddress" autocomplete="off" placeholder="Адрес"></label>
           <label>Разработчик<input id="docDeveloper" autocomplete="off" placeholder="Кто составил"></label>
+          <label class="doc-req-check"><input type="checkbox" id="docDeveloperShow">показывать «Разработчик» в шапке КП</label>
           <label>Дата<input id="docDate" type="date"></label>
           <label>Номер КП<input id="docNumber" autocomplete="off" placeholder="№"></label>
+        </div>
+        <!-- Реквизиты (A5): «Мои» — общий бланк человека (как логотип); «Заказчика» — свои у проекта.
+             Поля и галочки строит app.js из EPDocRequisites (один источник с печатью КП). -->
+        <div class="doc-requisites">
+          <div class="doc-req-head">Мои реквизиты <small>— заполняются один раз, стоят во всех проектах</small></div>
+          <div id="myRequisites" class="doc-req-fields"></div>
+          <div class="doc-req-head">Реквизиты заказчика <small>— свои у каждого проекта</small></div>
+          <div id="customerRequisites" class="doc-req-fields"></div>
         </div>
         <div class="doc-logo-row">
           <button class="btn ghost small" type="button" id="docLogoBtn">Логотип компании…</button>
@@ -579,11 +587,12 @@
 <script src="js/catalogSections.js?v=20260828.1"></script>
 <script src="js/builderSlots.js?v=20260914.2"></script>
 <script src="js/offerOptions.js?v=20260926.1"></script>
+<script src="js/docRequisites.js?v=20261003.1"></script>
 <script src="js/estimate.js?v=20261003.1"></script>
 <!-- Картинки бланка компании (логотип, подпись, печать) — одно правило «годен ли файл» и разметка
      <img> на все документы (§7.1). Грузится до offerPdf/installSheet, которые через него рисуют. -->
 <script src="js/docImages.js?v=20260922.1"></script>
-<script src="js/offerPdf.js?v=20261003.1"></script>
+<script src="js/offerPdf.js?v=20261003.2"></script>
 <script src="js/installSheet.js?v=20260924.4"></script>
 <script src="js/supplierSpec.js?v=20260911.1"></script>
 <script src="js/postImage.js?v=20260920.1"></script>
@@ -631,6 +640,6 @@
      carryUserRoomFields. Вынесено из app.js (И1, последний кусок). Грузится ДО app.js, который зовёт
      EPRoomDetect.attach(ctx) ДО EPCanvasInput.attach (тот берёт из него addRoomLinePoint). -->
 <script src="js/roomDetect.js?v=20260929.2"></script>
-<script src="js/app.js?v=20261003.1"></script>
+<script src="js/app.js?v=20261003.2"></script>
 </body>
 </html>

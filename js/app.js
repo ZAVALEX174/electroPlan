@@ -328,6 +328,7 @@ async function init(){
   state.products=await DataService.getProducts();
   state.templates=await DataService.getSavedPosts();
   renderOfferOptions();   /* restoreProject синхронизирует уже существующие чекбоксы */
+  renderRequisitesInputs();   /* поля блоков «Мои реквизиты»/«Реквизиты заказчика» из EPDocRequisites */
   const restored=await restoreProject();
   loadCachedRate();
   fillDocHeaderInputs();   /* реквизиты КП: заполнить поля (и дату «сегодня» на чистом старте) */
@@ -2549,14 +2550,25 @@ async function restoreProject(){
    (settings.docHeader, см. projectSnapshot/restoreProject). Возвращаем готовый к печати
    вид: дата форматируется ГГГГ-ММ-ДД → ДД.ММ.ГГГГ, пустая дата → сегодня. Пустые поля
    отдаём как есть — offerPdf/installSheet сами их не печатают. */
-const DOC_FIELDS={docProject:"project",docClient:"client",docAddress:"address",docDeveloper:"developer",docDate:"date",docNumber:"number"};
+const DOC_FIELDS={docProject:"project",docAddress:"address",docDeveloper:"developer",docDate:"date",docNumber:"number"};
 function docHeader(){
   const d=EP_DATA.settings.docHeader||{};
   const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(d.date||"");
+  /* «Мои реквизиты» — бланк человека (EPPrefs, ключ "myRequisites"). Читаем ЛИТЕРАЛОМ, а не через
+     const/helper: docHeader исполняется в vm-стенде offerNumberWiring.test.js, куда top-level
+     const и соседние функции не попадают (туда проброшен лишь EPPrefs). Тот же ключ — в панельных
+     fill/apply ниже. «Реквизиты заказчика» — в проекте (d.customer), форма {values, show}. */
+  const my=EPPrefs.get("myRequisites",{})||{};
+  const cust=d.customer||{};
   return {
-    project:d.project||"",client:d.client||"",address:d.address||"",
+    project:d.project||"",address:d.address||"",
     developer:d.developer||"",number:d.number||"",
-    date:m?`${m[3]}.${m[2]}.${m[1]}`:(d.date||new Date().toLocaleDateString("ru-RU"))
+    date:m?`${m[3]}.${m[2]}.${m[1]}`:(d.date||new Date().toLocaleDateString("ru-RU")),
+    /* галочка «показывать Разработчика в шапке КП»: по умолчанию включена (undefined → true).
+       Правило «печатать ли» живёт в offerPdf (developerShow!==false); здесь только сырое значение. */
+    developerShow:d.developerShow!==false,
+    my:{values:my.values||{},show:my.show||{}},
+    customer:{values:cust.values||{},show:cust.show||{}}
   };
 }
 function applyDocHeader(){
@@ -2565,12 +2577,80 @@ function applyDocHeader(){
   scheduleSave();
 }
 function fillDocHeaderInputs(){
+  /* A5-миграция: старый проект нёс ФИО заказчика в поле «Клиент» (docHeader.client) — переносим в
+     customer.fio, чтобы данные не потерялись и строка «Клиент» не осталась в шапке КП. Делаем здесь
+     (а не в restoreProject): функция зовётся на ОБОИХ путях загрузки (init и restoreProject), а её
+     vm-стенды restoreProject стабят — так EPDocRequisites не требуется им в контекст. Снимок проекта
+     берёт settings.docHeader уже перенесённым. Идемпотентна. */
+  EP_DATA.settings.docHeader=EPDocRequisites.migrateDocHeader(EP_DATA.settings.docHeader);
   const d=EP_DATA.settings.docHeader||{};
-  $("docProject").value=d.project||"";$("docClient").value=d.client||"";
+  $("docProject").value=d.project||"";
   $("docAddress").value=d.address||"";$("docDeveloper").value=d.developer||"";
   $("docNumber").value=d.number||"";
   /* дата по умолчанию — сегодня (ISO для input[type=date]); значение можно изменить */
   $("docDate").value=d.date||new Date().toISOString().slice(0,10);
+  fillRequisitesInputs();   /* галочка «Разработчик» и оба блока реквизитов */
+}
+
+/* Панель «Реквизиты КП», блоки «Мои реквизиты» (бланк человека, EPPrefs) и «Реквизиты заказчика»
+   (свои у проекта). Поля и правило «обязательное/необязательное» берём из EPDocRequisites — ОДИН
+   источник с печатью КП (§7.1), чтобы список полей и галочек не разошёлся с документом. Обязательные
+   поля (ФИО, контакты) — галочка disabled checked: включена всегда, снять нельзя (решение владельца
+   п.3). В HTML попадают только статичные подписи и ключи полей (экранируем их), значения идут в
+   поля через .value, не через innerHTML. */
+function requisiteBlockHtml(block,fields){
+  return fields.map(f=>
+    `<label class="doc-req-field"><span>${esc(f.label)}</span>`
+    +`<input type="text" autocomplete="off" data-req-block="${esc(block)}" data-req-key="${esc(f.key)}"></label>`
+    +`<label class="doc-req-check"><input type="checkbox" data-req-block="${esc(block)}" data-req-check="${esc(f.key)}"`
+    +`${f.required?" disabled checked":""}>показывать в КП</label>`
+  ).join("");
+}
+function renderRequisitesInputs(){
+  $("myRequisites").innerHTML=requisiteBlockHtml("my",EPDocRequisites.MY_FIELDS);
+  $("customerRequisites").innerHTML=requisiteBlockHtml("customer",EPDocRequisites.CUSTOMER_FIELDS);
+}
+function reqInput(block,key){return document.querySelector(`[data-req-block="${block}"][data-req-key="${key}"]`)}
+function reqCheck(block,key){return document.querySelector(`[data-req-block="${block}"][data-req-check="${key}"]`)}
+function fillReqBlock(block,fields,src){
+  fields.forEach(f=>{
+    const inp=reqInput(block,f.key),chk=reqCheck(block,f.key);
+    if(inp)inp.value=(src.values||{})[f.key]||"";
+    /* обязательные галочки оставляем disabled checked как в разметке; меняем только необязательные */
+    if(chk&&!f.required)chk.checked=EPDocRequisites.isChecked(f,src.show);
+  });
+}
+function fillRequisitesInputs(){
+  const d=EP_DATA.settings.docHeader||{};
+  $("docDeveloperShow").checked=d.developerShow!==false;
+  const my=EPPrefs.get("myRequisites",{})||{};
+  fillReqBlock("my",EPDocRequisites.MY_FIELDS,{values:my.values||{},show:my.show||{}});
+  fillReqBlock("customer",EPDocRequisites.CUSTOMER_FIELDS,d.customer||{});
+}
+/* Чтение блока из полей: обязательные в show НЕ пишем — их печать от галочки не зависит, лишний
+   ключ только засорял бы снимок/бланк. */
+function readReqBlock(block,fields){
+  const values={},show={};
+  fields.forEach(f=>{
+    const inp=reqInput(block,f.key),chk=reqCheck(block,f.key);
+    if(inp)values[f.key]=inp.value;
+    if(chk&&!f.required)show[f.key]=chk.checked;
+  });
+  return {values,show};
+}
+/* «Мои реквизиты» — в EPPrefs (бланк человека, общий на все проекты). Литерал "myRequisites" — тот
+   же ключ, что в docHeader(); см. комментарий там о vm-стенде. */
+function applyMyRequisites(){EPPrefs.set("myRequisites",readReqBlock("my",EPDocRequisites.MY_FIELDS))}
+/* «Реквизиты заказчика» — в проект (settings.docHeader.customer). */
+function applyCustomerRequisites(){
+  const dh=EP_DATA.settings.docHeader=EP_DATA.settings.docHeader||{};
+  dh.customer=readReqBlock("customer",EPDocRequisites.CUSTOMER_FIELDS);
+  scheduleSave();
+}
+function applyDeveloperShow(){
+  const dh=EP_DATA.settings.docHeader=EP_DATA.settings.docHeader||{};
+  dh.developerShow=$("docDeveloperShow").checked;
+  scheduleSave();
 }
 
 /* Картинки бланка компании — БЛАНК ЧЕЛОВЕКА, а не свойство проекта: загрузил один раз — стоят во
@@ -3232,6 +3312,15 @@ $("renumberConfirmBtn").onclick=confirmRenumberPosts;
 });
 /* реквизиты КП: правки полей сохраняются в проект (settings.docHeader) */
 Object.keys(DOC_FIELDS).forEach(id=>{$(id).oninput=applyDocHeader});
+/* галочка «показывать Разработчика в шапке КП» — поле проекта (settings.docHeader.developerShow) */
+$("docDeveloperShow").onchange=applyDeveloperShow;
+/* блоки реквизитов строятся из EPDocRequisites — вешаем делегирование на контейнеры. input ловит
+   ввод в текстовые поля, change — переключение галочек. «Мои» идут в EPPrefs (бланк человека),
+   «заказчик» — в проект. */
+$("myRequisites").oninput=applyMyRequisites;
+$("myRequisites").onchange=applyMyRequisites;
+$("customerRequisites").oninput=applyCustomerRequisites;
+$("customerRequisites").onchange=applyCustomerRequisites;
 /* Картинки бланка (логотип/подпись/печать): скрытый file-input открывается кнопкой; после выбора
    обнуляем value, чтобы тот же файл можно было выбрать повторно (change иначе не сработает).
    «Убрать» чистит EPPrefs. Все три — ОДИН загрузчик loadDocImage(file, kind), различие в kind. */
