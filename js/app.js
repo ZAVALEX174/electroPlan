@@ -514,7 +514,7 @@ function removeWall(id){
    Чистая геометрия (полигоны, площади, флуд-фолл свободного пространства) вынесена
    в js/geometry.js (EPGeom) — см. PLAN 2.1; здесь берём её через алиасы, а привязка
    к state/DOM остаётся в этом файле. */
-const {polygonCentroid,polygonAreaPx,pointInPolygon,componentAt,roomContourProbe,segmentsIntersection,distancePointToSegment,roomLabelPoint,roomNamePoint}=EPGeom;
+const {polygonCentroid,polygonAreaPx,pointInPolygon,componentAt,roomContourProbe,segmentsIntersection,distancePointToSegment,roomLabelPoint,roomNamePoint,tightestRoomAtPoint}=EPGeom;
 /* площадь комнаты в м² — только если задан масштаб плана */
 function roomAreaM2(room){
   if(!state.pxPerMeter||!room?.polygon||room.polygon.length<3)return null;
@@ -798,30 +798,31 @@ function resolveRoomForPoint(cx,cy,ctx){
      и поправленная руками комната, оставшаяся на всю площадь ПОВЕРХ дорисованной части (В18). Берём
      САМУЮ ТЕСНУЮ — контур НАИМЕНЬШЕЙ площади: пост/прибор по смыслу относится к тому помещению, что
      его плотнее всего окружает (решение владельца 03.10: «пост в чулане — по чулану, не по залу»).
-     Раньше брали ПЕРВУЮ в state.rooms — порядок массива решал деньги: пост в санузле считался по схеме
-     и отделке зала (ДЕНЬГИ). При равной площади тай-брейк детерминированный по центроиду, а НЕ по
-     порядку входа (§7.1): автоопределение пересоздаёт id/порядок, и ответ не должен от них зависеть. */
-  const EPSA=1e-9;
-  let hit=null,hitA=Infinity,hitC=null;
-  for(const r of ctx.polyRooms){
-    if(!pointInPolygon(cx,cy,r.polygon))continue;
-    const a=polygonAreaPx(r.polygon);
-    if(a<hitA-EPSA){hit=r;hitA=a;hitC=null;continue}
-    if(a<=hitA+EPSA){   /* равные площади — выбираем по геометрии, не по месту в массиве */
-      const c=polygonCentroid(r.polygon);hitC=hitC||polygonCentroid(hit.polygon);
-      if(c.x<hitC.x-EPSA||(Math.abs(c.x-hitC.x)<=EPSA&&c.y<hitC.y)){hit=r;hitA=a;hitC=c}
-    }
-  }
+     Правило «точка → теснейшая накрывающая» ЕДИНО с кликом выбора/удаления на холсте — одна чистая
+     функция EPGeom.tightestRoomAtPoint (§7.1), второй копии нет (раньше клик жил своим find по порядку
+     массива, и под курсором подсвечивалась одна комната, а удалялась первая — В20 п.2). */
+  const hit=tightestRoomAtPoint(cx,cy,ctx.polyRooms);
   if(hit)return hit;
   const tolerance=EPConfig.roomEdgeTolerance;
   if(Number.isFinite(tolerance)&&tolerance>=0){
     const EPS=1e-9;
-    let near=null,bestDist=Infinity,ambiguous=false;
+    let near=null,bestDist=Infinity,nearA=Infinity,ambiguous=false;
     for(const room of ctx.polyRooms){
       const probe=roomContourProbe(cx,cy,room.polygon,ctx.walls||[],EPConfig.roomProbeInset);
       if(probe.blocked||probe.dist>tolerance)continue;
-      if(probe.dist<bestDist-EPS){near=room;bestDist=probe.dist;ambiguous=false}
-      else if(Math.abs(probe.dist-bestDist)<=EPS){ambiguous=true}
+      const a=polygonAreaPx(room.polygon);
+      /* Строго ближе — безусловный кандидат. На РАВНОМ расстоянии до нескольких ДОСТУПНЫХ контуров
+         выбираем ТЕСНЕЙШИЙ (как ветвь прямого попадания): пост ровно на ОБЩЕЙ наружной кромке чулана
+         и зала — pointInPolygon относит кромку наружу, ветвь попадания промахивается и управление
+         приходит сюда — относится к чулану, а не остаётся «вне помещений» со схемой и ценой проекта
+         (В20 п.1, ДЕНЬГИ). Если же площади ТОЖЕ равны — это не «теснее», а честная двусмысленность
+         (объект в зазоре между двумя РАВНЫМИ раздельными комнатами): оставляем видимой сиротой, а не
+         выбираем по порядку массива / нестабильному id (§7.1, regress — roomResolveRule). */
+      if(probe.dist<bestDist-EPS){near=room;bestDist=probe.dist;nearA=a;ambiguous=false;continue}
+      if(Math.abs(probe.dist-bestDist)<=EPS){
+        if(a<nearA-EPS){near=room;nearA=a;ambiguous=false}
+        else if(a<=nearA+EPS)ambiguous=true;
+      }
     }
     if(near&&!ambiguous)return near;
   }
@@ -3650,7 +3651,7 @@ const {addRoomLinePoint,drawRoomLines,finishRoomLineChain,removeLastRoomLinePoin
 const {makeDraggable,placePendingAtEvent,onSpaceKeydown}=EPCanvasInput.attach({
   $,addPending,addRoomLinePoint,addScalePoint,addWallPoint,applySelectionClasses,applyView,
   buildSpaceComponents,canvas,canvasScroll,ensureSelectTool,getRoomForPoint,hideHover,markCanvasUsed,
-  pointInPolygon,refreshAfterRoomAssignments,removeEntity,renderAll,renderGroupLinks,renderProperties,
+  tightestRoomAtPoint,refreshAfterRoomAssignments,removeEntity,renderAll,renderGroupLinks,renderProperties,
   renderRooms:()=>renderRooms(),renderSummary,scheduleSave,selectEntity,setTool,state,toast,uid,
   updateObjectRoom,updateStatus,zoomBy
 });

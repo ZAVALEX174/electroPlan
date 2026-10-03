@@ -245,6 +245,33 @@ function pointInPolygon(x, y, poly) {
   return inside;
 }
 
+/* САМАЯ ТЕСНАЯ комната, НАКРЫВАЮЩАЯ точку — контур НАИМЕНЬШЕЙ площади среди тех, что её содержат
+   (pointInPolygon). Единое правило «точка → помещение» (§7.1): и фактическая привязка объекта
+   (resolveRoomForPoint, ветвь прямого попадания), и клик выбора/удаления на холсте (canvasInput)
+   обязаны выбирать ОДНУ и ту же комнату — иначе под курсором подсвечивается одна, а удаляется/
+   считается другая. Точку могут накрывать несколько контуров сразу («комната в комнате» —
+   санузел/чулан посреди зала; поправленная руками комната поверх дорисованной части): берём
+   наименьшую по площади — объект/клик по смыслу относится к тому помещению, что плотнее всего
+   окружает точку. При равной площади тай-брейк детерминированный по центроиду (меньший X, затем
+   Y), а НЕ по месту в массиве: автоопределение пересоздаёт id/порядок, и ответ не должен от них
+   зависеть. rooms — массив комнат; контур годен от 3 вершин, прочие пропускаем. */
+function tightestRoomAtPoint(x, y, rooms) {
+  const EPS = 1e-9;
+  let hit = null, hitA = Infinity, hitC = null;
+  for (const r of (rooms || [])) {
+    if (!r || !r.polygon || r.polygon.length < 3) continue;
+    if (!pointInPolygon(x, y, r.polygon)) continue;
+    const a = polygonAreaPx(r.polygon);
+    if (a < hitA - EPS) { hit = r; hitA = a; hitC = null; continue; }
+    if (a <= hitA + EPS) {   /* равные площади — выбор по геометрии, не по месту во входе */
+      const c = polygonCentroid(r.polygon);
+      hitC = hitC || polygonCentroid(hit.polygon);
+      if (c.x < hitC.x - EPS || (Math.abs(c.x - hitC.x) <= EPS && c.y < hitC.y)) { hit = r; hitA = a; hitC = c; }
+    }
+  }
+  return hit;
+}
+
 /* Ближайшая точка НА отрезке A—B к точке (px,py): перпендикулярная проекция с зажимом
    параметра t в [0;1] (за концами отрезка — сам ближний конец). Возвращает {x,y,t,dist}.
    Это единственное место, где живёт математика проекции: distancePointToSegment и
@@ -504,7 +531,7 @@ const api = { polygonCentroid, areaCentroid, polygonAreaPx, pointInPolygon, dist
   closestPointOnSegment, segmentsIntersection, allIntersections, nearestEndpoint,
   nearestIntersection, nearestSegmentPoint, snapPlanPoint, buildSpaceComponents, componentAt,
   roomContourProbe, signedPolygonDist, poleOfInaccessibility, roomLabelPoint, roomNamePoint,
-  roomMatchPoint, stripCollinear };
+  roomMatchPoint, stripCollinear, tightestRoomAtPoint };
 if (typeof window !== "undefined") window.EPGeom = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -53,7 +53,7 @@ function attach(ctx){
 const {
   $,addPending,addRoomLinePoint,addScalePoint,addWallPoint,applySelectionClasses,applyView,
   buildSpaceComponents,canvas,canvasScroll,ensureSelectTool,getRoomForPoint,hideHover,markCanvasUsed,
-  pointInPolygon,refreshAfterRoomAssignments,removeEntity,renderAll,renderGroupLinks,renderProperties,
+  tightestRoomAtPoint,refreshAfterRoomAssignments,removeEntity,renderAll,renderGroupLinks,renderProperties,
   renderRooms,renderSummary,scheduleSave,selectEntity,setTool,state,toast,uid,updateObjectRoom,
   updateStatus,zoomBy
 }=ctx;
@@ -228,8 +228,10 @@ canvas.onclick=e=>{
   else if(state.tool==="wall")addWallPoint(e);
   else if(state.tool==="roomline"){addRoomLinePoint(e);return}
   else if(state.tool==="vertex"){
-    /* в режиме правки клик по контуру выбирает комнату, показывая её вершины */
-    const room=state.rooms.find(r=>r.polygon&&r.polygon.length>2&&pointInPolygon(x,y,r.polygon));
+    /* в режиме правки клик по контуру выбирает комнату, показывая её вершины. ТЕСНЕЙШАЯ накрывающая
+       (EPGeom.tightestRoomAtPoint) — то же правило, что привязка объектов (§7.1): клик по чулану
+       внутри зала выбирает чулан, а не зал вокруг, как подсказывает подсветка (В20 п.2) */
+    const room=tightestRoomAtPoint(x,y,state.rooms);
     if(room)selectEntity("room",room.id);
     else{state.selected=null;renderAll();renderProperties()}
     setTool("vertex");
@@ -242,7 +244,9 @@ canvas.onclick=e=>{
     toast("Комната создана. Оборудование внутри привязано автоматически");
   }
   else if(e.target===canvas||e.target===$("wallsSvg")||e.target===$("roomsSvg")){
-    const room=state.rooms.find(r=>r.polygon&&r.polygon.length>2&&pointInPolygon(x,y,r.polygon));
+    /* выбор/удаление комнаты кликом — ТЕСНЕЙШАЯ накрывающая (та же функция, что привязка, §7.1):
+       «Удалить» внутри чулана берёт чулан, а не осиротит зал вокруг него (В20 п.2, потеря данных) */
+    const room=tightestRoomAtPoint(x,y,state.rooms);
     if(room&&state.tool==="delete"){removeEntity("room",room.id)}
     else if(room){selectEntity("room",room.id)}
     else{state.selected=null;renderAll();renderProperties()}
