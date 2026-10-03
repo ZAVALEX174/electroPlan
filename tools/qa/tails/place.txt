@@ -59,3 +59,57 @@
   log.push("контроль вне размещения: клик «Удалить» по стене → стен " + wallsBeforeDel + "→" + await cntWalls() + " (должно убыть на 1)");
   await shot("place-control-delete", [`document.querySelector("#wallsSvg")`]);
 
+  // --- В19 (решение владельца 03.10): в «Разместить» двойной клик по иконке стоящего поста =
+  // «открыть ЭТОТ пост». Первый клик двойного по правилу В11 ставит НОВЫЙ пост поверх старого и
+  // выходит из размещения; второй клик (clickCount 2) + dblclick приходят по НОВОМУ посту. Ждём:
+  // новый пост убран (постов СТОЛЬКО ЖЕ), открыт конструктор СТАРОГО. Двойной клик по ПУСТОМУ месту
+  // по-прежнему +1 и открывает новый (это НЕ трогали).
+  const dblAt = async (x, y) => {
+    await mouse(x, y, "mouseMoved");
+    await c.send("Input.dispatchMouseEvent", { type: "mousePressed",  x, y, button: "left", clickCount: 1 });
+    await c.send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1 });
+    await c.send("Input.dispatchMouseEvent", { type: "mousePressed",  x, y, button: "left", clickCount: 2 });
+    await c.send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 2 });
+    await sleep(500);
+  };
+  const modalOpen  = () => ev(`return document.getElementById("postModal").classList.contains("open")`);
+  const modalTitle = () => ev(`return document.getElementById("postModalTitle").textContent`);
+  const postIds    = () => ev(`return Array.from(document.querySelectorAll(".plan-icon.post")).map(e=>e.dataset.id)`);
+  const closeModal = async () => { await click(`document.getElementById("closePostModal")`); await sleep(300); };
+
+  // сброс выделения/режима перед замером
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(200);
+
+  // (В19.1) ДВОЙНОЙ клик по иконке поста из шага (a) (стоит у wM, в пустой зоне)
+  await click(`document.querySelector("[data-place-template]")`); await sleep(300);
+  let idsBeforeDbl = await postIds();
+  let targetId = idsBeforeDbl[0];
+  let tr = await rect(`document.querySelector('.plan-icon.post[data-id=${JSON.stringify(targetId)}]')`);
+  await dblAt(tr.x + tr.w / 2, tr.y + tr.h / 2);
+  let idsAfterDbl = await postIds();
+  log.push("(В19.1) двойной клик по ИКОНКЕ: постов " + idsBeforeDbl.length + "→" + idsAfterDbl.length
+    + " (должно столько же), модалка " + await modalOpen() + " «" + await modalTitle()
+    + "», старый пост " + targetId + " на месте: " + idsAfterDbl.includes(targetId));
+  await shot("place-dblclick-open-old", [`document.getElementById("postModal")`]);
+  await closeModal();
+
+  // (В19.2) контроль: ДВОЙНОЙ клик по ПУСТОМУ месту → +1 и открыт НОВЫЙ (поведение В11 не тронуто)
+  await click(`document.querySelector("[data-place-template]")`); await sleep(300);
+  let idsBeforeEmpty = await postIds();
+  let ep = await canvasPt(0.27, 0.12);
+  await dblAt(ep.x, ep.y);
+  let idsAfterEmpty = await postIds();
+  log.push("(В19.2) двойной клик по ПУСТОМУ месту: постов " + idsBeforeEmpty.length + "→" + idsAfterEmpty.length
+    + " (должно +1), модалка " + await modalOpen() + " «" + await modalTitle() + "» (открыт новый)");
+  await shot("place-dblclick-empty", [`document.getElementById("postModal")`]);
+  await closeModal();
+
+  // (В19.3) контроль: ОДИНАРНЫЙ клик по иконке → по-прежнему +1 (новый пост)
+  await click(`document.querySelector("[data-place-template]")`); await sleep(300);
+  let idsBeforeSingle = await postIds();
+  let sr = await rect(`document.querySelector('.plan-icon.post[data-id=${JSON.stringify(targetId)}]')`);
+  await clickAt(sr.x + sr.w / 2, sr.y + sr.h / 2);
+  log.push("(В19.3) одинарный клик по ИКОНКЕ: постов " + idsBeforeSingle.length + "→" + (await postIds()).length
+    + " (должно +1), модалка " + await modalOpen() + " (должна быть закрыта)");
+  await shot("place-single-click-icon", [`document.querySelector(".plan-icon.post")`]);
+

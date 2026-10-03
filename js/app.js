@@ -421,12 +421,37 @@ function compactIcon(entity,kind){
   /* Вне размещения клик по объекту не должен доходить до canvas.onclick (выделение уже сделал
      makeDraggable, иначе canvas.onclick его ещё и снял бы). В РЕЖИМЕ размещения (В11) — наоборот:
      пропускаем click к canvas.onclick, чтобы единое правило placePendingAtEvent поставило НОВЫЙ пост
-     в точку клика, а эта иконка осталась нетронутой (не удалена, не выделена, не перенесена). */
-  el.onclick=e=>{if(state.pending)return;e.stopPropagation()};
+     в точку клика, а эта иконка осталась нетронутой (не удалена, не выделена, не перенесена).
+     В19: запоминаем, что клик размещения пришёлся на иконку СТОЯЩЕГО поста, — addPending ниже это
+     заметит и пометит постановку, чтобы двойной клик (второй клик + dblclick по новому посту) её
+     откатил и открыл старый пост (см. _placeOnPostIcon/openPostOnDblClick). Только для постов:
+     у устройств открытия по двойному клику нет. */
+  el.onclick=e=>{if(state.pending){if(kind==="post")_placeOnPostIcon=entity.id;return}e.stopPropagation()};
   makeDraggable(el,entity,kind);return el;
 }
 function renderDevices(){canvas.querySelectorAll(".plan-icon.device-only").forEach(e=>e.remove());state.devices.forEach(d=>{const el=compactIcon(d,"device");el.classList.add("device-only");canvas.appendChild(el)})}
-function renderPosts(){canvas.querySelectorAll(".plan-icon.post").forEach(e=>e.remove());state.posts.forEach(p=>{const el=compactIcon(p,"post");el.ondblclick=e=>{e.stopPropagation();openPostBuilder({placedId:p.id})};canvas.appendChild(el)})}
+function renderPosts(){canvas.querySelectorAll(".plan-icon.post").forEach(e=>e.remove());state.posts.forEach(p=>{const el=compactIcon(p,"post");el.ondblclick=e=>{e.stopPropagation();openPostOnDblClick(p.id)};canvas.appendChild(el)})}
+/* В19: двойной клик по иконке поста. Обычно — открыть ЭТОТ пост (как и было). Но если это тот
+   самый новый пост, что первый клик двойного только что поставил ПОВЕРХ старого в режиме
+   «Разместить» (см. _placeOnPostIcon/_lastIconPlacement в addPending), — откатываем постановку и
+   открываем СТАРЫЙ пост: жест сохраняет прежний смысл «открыть этот пост», а не плодит дубль.
+   Решение «это ли продолжение того двойного клика» — чистый EPPlaceDblClick.resolve (окно по
+   времени отделяет его от осознанного двойного клика по новому посту много позже). */
+function openPostOnDblClick(postId){
+  const d=EPPlaceDblClick.resolve(_lastIconPlacement,postId,Date.now());
+  if(d.undo){
+    _lastIconPlacement=null;
+    /* Новый пост убираем ЦЕЛИКОМ тем же путём, что «Удалить» (state.posts, выделение, смета,
+       автосохранение). Номер не «сгорает»: nextPostNumber считает максимум+1, снятие последнего
+       поста возвращает тот же номер следующему. Групп у нового поста нет (placementFields их
+       очищает) — осиротевших связей не остаётся. */
+    removeEntity("post",d.removeId);persistProject();
+    /* Тост «Объект добавлен…», показанный первым кликом, теперь вводил бы в заблуждение (ничего не
+       добавили) — гасим до открытия конструктора старого поста. */
+    const t=$("toast");if(t){t.classList.remove("show");t.textContent=""}
+  }
+  openPostBuilder({placedId:d.openId});
+}
 /* СВЯЗИ ГРУПП СВЕТА НА РАБОЧЕМ ХОЛСТЕ. Владелец хотел видеть связи между постами не только в
    КП, но и прямо в окне приложения: между постами общей группы — синий пунктир, у постов —
    мелкая подпись группы. Рисуем в отдельном SVG #linksSvg внутри #canvas, поэтому связи живут
@@ -2154,8 +2179,21 @@ function askWallScope(sameTypeCount,wall){return wallScope().askWallScope(sameTy
 function finishWallScope(scope){return wallScope().finishWallScope(scope)}
 
 
+/* В19: связь между кликом по иконке стоящего поста и последующим двойным кликом.
+   _placeOnPostIcon — id поста, по чьей иконке пришёлся ТЕКУЩИЙ клик размещения (ставит compactIcon,
+   читает и сразу гасит addPending в том же цикле события). _lastIconPlacement — постановка, которую
+   такой клик породил: {newId,overId,t}; по ней openPostOnDblClick понимает, что новый пост надо
+   откатить и открыть старый. Храним в переменных модуля, а НЕ полем на посте: маркер не должен
+   пережить автосохранение/перезагрузку, иначе двойной клик по восстановленному посту откатывал бы
+   его. */
+let _placeOnPostIcon=null;
+let _lastIconPlacement=null;
 function addPending(x,y){
   if(!state.pending)return;
+  /* Снимаем «клик пришёлся на иконку поста» в локальную ДО любых выходов (блокировка накладки
+     ниже делает return) и сбрасываем прошлую постановку: валидной её сделает только успешная
+     постановка кликом по иконке. */
+  const overPostIcon=_placeOnPostIcon;_placeOnPostIcon=null;_lastIconPlacement=null;
   markCanvasUsed();
   let created;
   if(state.pending.type==="device"){
@@ -2183,6 +2221,9 @@ function addPending(x,y){
     if(swap.blocked){toast(swap.message);return}
     if(swap.frameId!=null)created.frameId=swap.frameId;
     state.posts.push(created);
+    /* В19: постановка пришлась на иконку СТОЯЩЕГО поста — запоминаем её, чтобы двойной клик
+       (второй клик + dblclick по этому новому посту) откатил её и открыл старый. */
+    if(overPostIcon!=null)_lastIconPlacement={newId:created.id,overId:overPostIcon,t:Date.now()};
   }
   updateObjectRoom(created);
   const room=state.rooms.find(r=>r.id===created.roomId);

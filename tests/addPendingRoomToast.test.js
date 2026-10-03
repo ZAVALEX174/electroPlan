@@ -16,6 +16,9 @@ function place({ rooms, assignedRoomId = null, roomRule = EPRoomAssign }) {
   const messages = [];
   const addPending = stand.run("addPending", {
     state,
+    /* В19: addPending читает/пишет эти переменные модуля (связь клика по иконке с двойным кликом);
+       в изолированной вырезке их нет — кладём в контекст, как top-level let app.js. */
+    _placeOnPostIcon: null, _lastIconPlacement: null,
     markCanvasUsed: () => {},
     uid: () => "dev-1",
     updateObjectRoom: created => { created.roomId = assignedRoomId; },

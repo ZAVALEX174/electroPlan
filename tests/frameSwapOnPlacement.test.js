@@ -155,6 +155,9 @@ function placeTemplate({ template, room, catalog = EPCatalog, products = PRODUCT
   const toasts = [];
   const ctx = {
     state,
+    /* В19: addPending читает/пишет переменные модуля (связь клика по иконке с двойным кликом);
+       в изолированной вырезке их нет — кладём в контекст, как top-level let app.js. */
+    _placeOnPostIcon: null, _lastIconPlacement: null,
     EPCatalog: catalog, EPRoom, EPPosts,
     byKind: byKindL, frameProduct: prod, product: prod, compatibleMechanisms: EPCatalog.compatibleMechanisms,
     productSeries: EPCatalog.productSeries,
