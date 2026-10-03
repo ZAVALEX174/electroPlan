@@ -769,7 +769,24 @@ function roomResolveContext(prebuiltMap=null){
    кандидат передаём grid-ветке; если она не разрешает ситуацию — честно оставляем объект без комнаты
    и с видимой меткой, а не меняем схему и деньги молча. */
 function resolveRoomForPoint(cx,cy,ctx){
-  const hit=ctx.polyRooms.find(r=>pointInPolygon(cx,cy,r.polygon));
+  /* Точку могут накрывать НЕСКОЛЬКО контуров сразу: «комната в комнате» (санузел/чулан посреди зала)
+     и поправленная руками комната, оставшаяся на всю площадь ПОВЕРХ дорисованной части (В18). Берём
+     САМУЮ ТЕСНУЮ — контур НАИМЕНЬШЕЙ площади: пост/прибор по смыслу относится к тому помещению, что
+     его плотнее всего окружает (решение владельца 03.10: «пост в чулане — по чулану, не по залу»).
+     Раньше брали ПЕРВУЮ в state.rooms — порядок массива решал деньги: пост в санузле считался по схеме
+     и отделке зала (ДЕНЬГИ). При равной площади тай-брейк детерминированный по центроиду, а НЕ по
+     порядку входа (§7.1): автоопределение пересоздаёт id/порядок, и ответ не должен от них зависеть. */
+  const EPSA=1e-9;
+  let hit=null,hitA=Infinity,hitC=null;
+  for(const r of ctx.polyRooms){
+    if(!pointInPolygon(cx,cy,r.polygon))continue;
+    const a=polygonAreaPx(r.polygon);
+    if(a<hitA-EPSA){hit=r;hitA=a;hitC=null;continue}
+    if(a<=hitA+EPSA){   /* равные площади — выбираем по геометрии, не по месту в массиве */
+      const c=polygonCentroid(r.polygon);hitC=hitC||polygonCentroid(hit.polygon);
+      if(c.x<hitC.x-EPSA||(Math.abs(c.x-hitC.x)<=EPSA&&c.y<hitC.y)){hit=r;hitA=a;hitC=c}
+    }
+  }
   if(hit)return hit;
   const tolerance=EPConfig.roomEdgeTolerance;
   if(Number.isFinite(tolerance)&&tolerance>=0){
