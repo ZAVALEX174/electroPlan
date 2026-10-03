@@ -327,7 +327,7 @@ function compose(est, deps) {
   ${specSection}
   ${lightingSection}
   ${options.prices ? `<div class="totals"><div><span>Оборудование</span><b>${money(est.equipment)}</b></div>
-  ${est.discount ? `<div><span>${est.discountMixed ? `Скидка (общая ${pct(est.discountPercent)}%, у отмеченных позиций своя)` : `Скидка ${pct(est.discountPercent)}%`}</span><b>−${money(est.discount)}</b></div>` : ""}
+  ${est.discount ? `<div><span>${estimate.discountLabel(est.discountMixed, est.discountPercent)}</span><b>−${money(est.discount)}</b></div>` : ""}
   <div><span>Монтажные материалы</span><b>${money(materials)}</b></div><div><span>Работы</span><b>${money(work)}</b></div>
   ${est.vat && !est.vatIncluded ? `<div><span>Итого без НДС</span><b>${money(est.subtotal)}</b></div><div><span>${esc(est.vatLabel || "НДС")} ${est.vatPercent}%</span><b>${money(est.vat)}</b></div>` : ""}
   <div class="grand"><span>Итого${est.vat && !est.vatIncluded ? " с НДС" : ""}</span><b>${money(total)}</b></div>

@@ -209,6 +209,19 @@ function discountBreakdown(rows, generalPercent) {
   return { general, rows: out, total, mixed };
 }
 
+/* Подпись строки скидки — ОДНА формулировка на ДВА потребителя: панель «Стоимость проекта» и КП
+   (§7.1, чтобы у правки не было краёв). При смеси (хоть у одной строки свой процент) единого
+   процента у итоговой скидки нет — поясняем «Скидка (общая N%, у отмеченных позиций своя)», а
+   разницу называют пометки строк; без смеси — просто «Скидка N%». Процент пишем с десятичной
+   запятой (русский документ, как курс в rateFooter): «12,5%», целое остаётся целым. Саму сумму
+   «−X €» подпись НЕ несёт — её рисует потребитель рядом (у панели и КП разная разметка ячеек). */
+function discountLabel(mixed, generalPercent) {
+  const pct = String(generalPercent).replace(".", ",");
+  return mixed
+    ? `Скидка (общая ${pct}%, у отмеченных позиций своя)`
+    : `Скидка ${pct}%`;
+}
+
 /* input = {
      devices:[{productId,discount?}], posts:[{name,frameId,mechanismIds,discount?}],
        // discount — ЛИЧНАЯ скидка позиции (% на самом объекте, см. discountOf). Нет поля → действует
@@ -556,7 +569,7 @@ function pricelessNote(est) {
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, vatBreakdown, vatModeOf, discountOf, discountBreakdown };
+const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, vatBreakdown, vatModeOf, discountOf, discountBreakdown, discountLabel };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -210,10 +210,39 @@ test("панель: личная скидка показана в поле, 0 п
   assert.match(zero, /data-disc-row="0" value="0"/, "своя 0% показана нулём");
 });
 
-test("панель: строка «Скидка» показывает общий процент (N%) даже при смеси", () => {
-  const els = renderSpecDom(Object.assign({ devices: [{ productId: 7, discount: 20 }, { productId: 1 }] }, withSettings({ discountPercent: 10 })));
+test("панель (В9): при смеси подпись строки скидки — ТА ЖЕ, что в КП (одна EPEstimate.discountLabel)", () => {
+  const over = Object.assign({ devices: [{ productId: 7, discount: 20 }, { productId: 1 }] }, withSettings({ discountPercent: 10 }));
+  const els = renderSpecDom(over);
+  const est = build(over);
   assert.equal(els.discountRow.hidden, false, "строка скидки видна");
-  assert.match(els.discountTotal.textContent, /\(10%\)/, "панель показывает общий процент, специфику несут поля строк");
+  /* DoD владельца: подпись дословно как в КП — «Скидка (общая 10%, у отмеченных позиций своя)». */
+  const label = EPEstimate.discountLabel(est.discountMixed, est.discountPercent);
+  assert.equal(label, "Скидка (общая 10%, у отмеченных позиций своя)", "эталон подписи при смеси");
+  assert.equal(els.discountLabel.textContent, label, "подпись панели = общая функция");
+  const kp = buildHtml(est, offerDeps({ settings: { discountPercent: 10 } }));
+  assert.ok(kp.includes(`<span>${label}</span>`), "в КП строка итога несёт ту же подпись (один источник)");
+});
+
+test("панель (В9): сумма скидки — «−X €» БЕЗ «(N%)», процент теперь в подписи", () => {
+  const els = renderSpecDom(Object.assign({ devices: [{ productId: 7, discount: 20 }, { productId: 1 }] }, withSettings({ discountPercent: 10 })));
+  assert.ok(!/%/.test(els.discountTotal.textContent), "в сумме нет процента (он в подписи)");
+  assert.match(els.discountTotal.textContent, /^−€/, "сумма начинается с минуса и валюты");
+});
+
+test("панель (В9): без личных скидок подпись — «Скидка N%», как в КП", () => {
+  const over = Object.assign({ devices: [{ productId: 7 }] }, withSettings({ discountPercent: 15 }));
+  const els = renderSpecDom(over);
+  assert.equal(els.discountLabel.textContent, "Скидка 15%", "без смеси — короткая подпись");
+  const kp = buildHtml(build(over), offerDeps({ settings: { discountPercent: 15 } }));
+  assert.ok(kp.includes("<span>Скидка 15%</span>"), "та же короткая подпись в КП");
+});
+
+test("панель+КП (В9): дробный процент пишется одинаково с десятичной запятой", () => {
+  const over = Object.assign({ devices: [{ productId: 7 }] }, withSettings({ discountPercent: 12.5 }));
+  const els = renderSpecDom(over);
+  assert.equal(els.discountLabel.textContent, "Скидка 12,5%", "панель: десятичная запятая");
+  const kp = buildHtml(build(over), offerDeps({ settings: { discountPercent: 12.5 } }));
+  assert.ok(kp.includes("<span>Скидка 12,5%</span>"), "КП: та же запись дробного процента");
 });
 
 /* applyItemDiscount правит ВСЕ объекты строки и зовёт пересчёт (applyProjectSettings). */
