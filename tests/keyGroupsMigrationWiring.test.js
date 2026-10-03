@@ -97,7 +97,7 @@ test("E13-mig-2: restoreProject чистит осиротевшие группы
     ["controlPlaceKind", "isControlPlaceItem", "keySlotKind", "dropOrphanKeyGroups", "relabelContourRooms", "restoreProject"],
     {
       ProjectStore: { load: () => project },
-      state, EPPosts, EPBuilderSlots, product,
+      state, EPPosts, EPBuilderSlots, product, EPPlanRotate: require("../js/planRotate.js"),
       EPConfig: { gridSteps: [10], gridDefault: 10 },
       EPOfferOptions: { normalize: () => ({}), assemblyView: () => "exploded" },
       EP_DATA: { settings: {} },

@@ -21,11 +21,12 @@ function makeDom() {
 
 /* Спаи внешних связок clearPlan: их вызов — часть контракта, а поведение не наше. */
 function makeSpies() {
-  const calls = { clearAnnotations: 0, applyPlanVisibility: 0, persistProject: 0, updateStatus: [], toast: [] };
+  const calls = { clearAnnotations: 0, applyPlanVisibility: 0, applyPlanRotation: 0, persistProject: 0, updateStatus: [], toast: [] };
   return {
     calls,
     clearAnnotations: () => { calls.clearAnnotations++; },
     applyPlanVisibility: () => { calls.applyPlanVisibility++; },
+    applyPlanRotation: () => { calls.applyPlanRotation++; },
     persistProject: () => { calls.persistProject++; },
     updateStatus: t => { calls.updateStatus.push(t); },
     toast: t => { calls.toast.push(t); }

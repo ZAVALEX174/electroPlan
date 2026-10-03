@@ -188,7 +188,7 @@ async function realRestore(project, opts) {
     ProjectStore: { load: () => project },
     state: {}, EPPosts, EPBuilderSlots, product: () => null,
     EPConfig: { gridSteps: [10], gridDefault: 10, viewMinScale: 0.1, viewMaxScale: 10 },
-    EPViewport: { clampScale: s => s },
+    EPViewport: { clampScale: s => s }, EPPlanRotate: require("../js/planRotate.js"),
     EPOfferOptions,
     EP_DATA: { settings: {} },
     $: dom.$,

@@ -368,7 +368,7 @@ function makeSession() {
     EP_DATA: { settings: JSON.parse(JSON.stringify(freshDefaults())) },
     EPEstimate, EPPosts, EPOfferOptions,
     EPConfig: { gridSteps: [10], gridDefault: 10, viewMinScale: 0.1, viewMaxScale: 10 },
-    EPViewport: { clampScale: s => s },
+    EPViewport: { clampScale: s => s }, EPPlanRotate: require("../js/planRotate.js"),
     ProjectStore: { load: () => store.value },
     dropOrphanKeyGroups: () => {}, renderLightingSchemeSelect: () => {},
     renderProjectWallTypeSelect: () => {}, renderProjectBacklight: () => {},

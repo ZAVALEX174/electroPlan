@@ -170,6 +170,15 @@ function layout(spec) {
     img = { offX: (cw - dispW) / 2, offY: (ch - dispH) / 2, dispW, dispH };
   }
 
+  /* ПОВОРОТ ПОДЛОЖКИ (Б3, ч.1): тот же расчёт, что на холсте (EPPlanRotate), от тех же входов
+     (угол, натуральные размеры, мировой бокс natW/natH/cw/ch) — поэтому документ поворачивает фон
+     ровно как экран, а бирки/контуры остаются на местах (вращаем ТОЛЬКО картинку). Центр вращения —
+     центр её прямоугольника (L.image), он же центр бокса: это buildHtml задаёт transform-origin.
+     Нет поворота → пустая строка → в HTML transform не попадает (старый КП байт-в-байт как был). */
+  const rotate = (typeof window !== "undefined" && window.EPPlanRotate)
+    ? window.EPPlanRotate : require("./planRotate.js");
+  const imageTransform = hasImage ? rotate.cssTransform(s.planRotation, natW, natH, cw, ch) : "";
+
   /* Пост без номера не роняет документ: на плане он рисуется знаком вопроса (compactIcon),
      здесь — тем же. Пост без координат печатать некуда — пропускаем. */
   const pts = (Array.isArray(s.posts) ? s.posts : [])
@@ -261,6 +270,7 @@ function layout(spec) {
 
   return {
     imageUrl: hasImage ? imageUrl : null,
+    imageTransform,
     widthMm: frameW * k,
     /* высота кадра долей ШИРИНЫ: резиновый блок держит пропорцию процентным padding-top
        (тот же приём, что в EPPostImage) — при сужении страницы чертёж не плющит */
@@ -371,9 +381,13 @@ function buildHtml(spec, deps) {
      развёл бы бирки с чертежом. break-after:page — блок печатается своей страницей, как в
      эталонном документе заказчика. Подложки может не быть — тогда фон белый, а поверх остаются
      контуры, подписи и бирки. */
+  /* Поворот фона (Б3, ч.1) — тем же углом/вписывающим scale, что на экране (L.imageTransform от
+     EPPlanRotate). transform-origin:center = центр прямоугольника подложки = центр бокса, вокруг
+     которого вращает и холст. Нет поворота → строка пуста, атрибут не добавляется (старый КП как был). */
+  const tr = L.imageTransform ? `;transform:${L.imageTransform};transform-origin:center` : "";
   const image = L.imageUrl
     ? `<img src="${esc(L.imageUrl)}" alt="${esc(title)}" style="position:absolute;left:${f(L.image.left)}%;`
-      + `top:${f(L.image.top)}%;width:${f(L.image.width)}%;height:${f(L.image.height)}%;object-fit:fill">`
+      + `top:${f(L.image.top)}%;width:${f(L.image.width)}%;height:${f(L.image.height)}%;object-fit:fill${tr}">`
     : "";
   return `<section style="margin:0 0 16px;break-inside:avoid;page-break-inside:avoid;break-after:page;page-break-after:always">`
     + `<h2 style="font-size:16px;color:#185d96;margin:0 0 10px">${esc(title)}</h2>`

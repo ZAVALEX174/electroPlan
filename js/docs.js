@@ -168,6 +168,10 @@ function planLabelsSpec(){
     spec.imageUrl=planImageForDoc(img);
     spec.natW=img.naturalWidth;spec.natH=img.naturalHeight;
     spec.canvasW=canvas.clientWidth;spec.canvasH=canvas.clientHeight;
+    /* угол поворота подложки (Б3, ч.1): документ обязан показать чертёж повёрнутым так же, как на
+       экране, а контуры/бирки — на тех же местах (§7.1). Поворот считает тот же EPPlanRotate, что и
+       холст, — вторую копию правила не заводим. */
+    spec.planRotation=state.planRotation;
   }
   return spec;
 }

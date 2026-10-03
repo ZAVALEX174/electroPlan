@@ -30,6 +30,7 @@ const state={
      gridStep  — шаг сетки, px: влияет и на привязку, и на фоновую сетку холста. */
   orthoMode:true,snapGrid:true,gridStep:EPConfig.gridDefault,
   planVisibility:"show",   /* видимость подложки: show | dim | hide (Этап 1) */
+  planRotation:0,          /* угол поворота подложки, градусы [0,360) (Б3, ч.1): вращается только фон */
   pxPerMeter:null,scaleSegment:null,scalePoints:[],
   /* Конструктор поста. slots — механизм ВМЕСТЕ с группой света клавиши (js/builderSlots.js):
      параллельный массив групп разъехался бы на первой же перестановке или фильтрации набора.
@@ -334,7 +335,7 @@ async function init(){
   fillDocHeaderInputs();   /* реквизиты КП: заполнить поля (и дату «сегодня» на чистом старте) */
   renderDocImage("logo");renderDocImage("signature");renderDocImage("stamp"); /* картинки бланка из EPPrefs (общие для всех проектов) — предпросмотр в панели */
   renderCompanyTerms();    /* условия сделки из EPPrefs (общие для всех проектов) — в поле подвала КП */
-  renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();
+  renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();applyPlanRotation();
   renderLightingSchemeSelect();   /* селектор схемы в панели проекта: заполняем и на чистом старте */
   renderProjectWallTypeSelect();  /* тип стены проекта — там же, рядом со схемой */
   renderProjectBacklight();       /* подсветка клавиш — галочка и оба селектора из каталога */
@@ -2311,6 +2312,28 @@ function applyPlanVisibility(){
   const btn=$("planVisibilityBtn");
   if(btn){btn.textContent=PLAN_VIS_LABEL[mode];btn.title=PLAN_VIS_NEXT[mode];btn.disabled=!state.planLoaded}
 }
+/* ---- Поворот подложки (Б3, ч.1): вращается ТОЛЬКО #planImage; стены/комнаты/посты живут в
+   мировых координатах и не трогаются. Готовую CSS-трансформацию (rotate+вписывающий scale) считает
+   чистый EPPlanRotate — ОДНО правило на экран и на документ (planLabels.js зовёт тот же расчёт).
+   Вокруг чего вращаем: #planImage растянут inset:0 на весь мировой бокс холста, object-fit:contain
+   центрирует картинку в нём, transform-origin по умолчанию = центр элемента = центр бокса = центр
+   вписанной подложки. Бокс берём ЖИВОЙ (clientWidth/Height, без CSS-зума applyView — тот масштабирует
+   весь холст разом), поэтому вызываем это и на resize окна: при смене пропорций бокса меняется
+   вписывающий scale, иначе на 90° подложку обрезало бы окном. ---- */
+function applyPlanRotation(){
+  const img=$("planImage");if(!img)return;
+  /* нормализуем в самом state: ↺/↻ и восстановление кладут уже нормализованное, но страховка
+     от битого значения держит state.planRotation всегда числом в [0,360) */
+  const a=EPPlanRotate.normalizeAngle(state.planRotation);state.planRotation=a==null?0:a;
+  img.style.transform=EPPlanRotate.cssTransform(state.planRotation,img.naturalWidth,img.naturalHeight,canvas.clientWidth,canvas.clientHeight);
+  syncRotationUi();
+}
+/* Поле угла отражает state. Не трогаем, пока оно в фокусе: иначе переписали бы ввод под пальцами
+   (нормализация к [0,360) — после потери фокуса/Enter, а не на каждый символ). */
+function syncRotationUi(){
+  const inp=$("planRotateInput");
+  if(inp&&inp!==document.activeElement)inp.value=EPPlanRotate.formatAngle(state.planRotation);
+}
 /* ЕДИНАЯ синхронизация UI подложки по state.planLoaded (образец — updateScaleUi): что дизейплить
    и что показывать, решает ОДНО место, а не каждый потребитель своей копией. Загрузка плана,
    восстановление проекта и сброс подложки зовут его же — правило «эти органы живут, пока есть
@@ -2330,6 +2353,8 @@ function updatePlanUi(){
      сменил, так что даже уцелей armed, подтверждение дало бы cancel, а не удаление. */
   const clearConfirm=$("clearPlanConfirmBtn");if(clearConfirm&&!loaded)clearConfirm.hidden=true;
   const vis=$("planVisibilityBtn");if(vis)vis.disabled=!loaded;
+  /* органы поворота подложки живут по тому же правилу — без чертежа вращать нечего (Б3, ч.1) */
+  ["planRotateLeftBtn","planRotateRightBtn","planRotateInput"].forEach(id=>{const e=$(id);if(e)e.disabled=!loaded});
 }
 /* ЕДИНЫЙ предикат «подложка та же, что была в начале операции». Копий условия по коду
    быть не должно (HANDOFF §7.1 п.2). Меняет поколение только bumpPlanToken. */
@@ -2353,9 +2378,9 @@ function planLostDuringOp(token){
 function clearPlan(){
   const img=$("planImage");if(img)img.removeAttribute("src");
   bumpPlanToken();   /* подложка сменилась — идущие распознавания должны прекратиться */
-  state.planLoaded=false;state.planLabel="";state.planVisibility="show";
+  state.planLoaded=false;state.planLabel="";state.planVisibility="show";state.planRotation=0;
   clearAnnotations();
-  updatePlanUi();applyPlanVisibility();
+  updatePlanUi();applyPlanVisibility();applyPlanRotation();
   persistProject();
   updateStatus("План убран");toast("План убран");
 }
@@ -2441,6 +2466,10 @@ function projectSnapshot(){
   return{name:"Проект электроснабжения",savedAt:new Date().toISOString(),
     devices:state.devices,posts:state.posts,rooms:state.rooms,walls:state.walls,autoWalls:state.autoWalls,
     roomLines:state.roomLines,planVisibility:state.planVisibility,
+    /* угол поворота подложки (Б3, ч.1) — часть проекта: переживает автосейв/перезагрузку.
+       Старый проект без поля откроется с 0 (restoreProject), поворот — чисто визуальный,
+       координаты объектов он не трогает, смету не меняет. */
+    planRotation:state.planRotation,
     /* память полей исчезнувших комнат (В15) — часть проекта: без неё удалить стену, сохраниться и
        перезагрузиться значило бы навсегда потерять поля комнаты, которую ещё собирались вернуть */
     roomFieldMemory:state.roomFieldMemory,
@@ -2528,6 +2557,9 @@ async function restoreProject(){
   /* старые проекты без разметки и без флага видимости открываются штатно:
      roomLines → [], planVisibility → "show" (обратная совместимость) */
   state.roomLines=p.roomLines||[];state.planVisibility=p.planVisibility||"show";
+  /* угол поворота подложки (Б3, ч.1): старый проект поля не несёт → normalizeAngle(undefined)=null
+     → 0 (подложка без поворота). Битое значение из ручной правки тоже свернётся к 0. */
+  state.planRotation=EPPlanRotate.normalizeAngle(p.planRotation)||0;
   /* память полей исчезнувших комнат (В15): старый проект её не несёт — открывается пустой */
   state.roomFieldMemory=Array.isArray(p.roomFieldMemory)?p.roomFieldMemory:[];
   /* режимы разметки с фолбэками: старый проект без этих полей открывается как
@@ -3167,6 +3199,31 @@ $("gridStepSelect").onchange=e=>{
   applyGridStyle();persistProject();   /* фоновая сетка должна сразу перерисоваться под новый шаг */
 };
 $("planVisibilityBtn").onclick=cyclePlanVisibility;
+/* ПОВОРОТ ПОДЛОЖКИ (Б3, ч.1). ↺/↻ — шаг ±90° от текущего угла (EPPlanRotate.step нормализует).
+   Поле «угол» принимает любое число (в т.ч. «3,5» с запятой); мусор — откатываем к текущему углу,
+   а не сбрасываем в 0 (потеря работы). Каждое изменение угла — настройка проекта, сохраняем сразу,
+   как cyclePlanVisibility. */
+function rotatePlanBy(delta){
+  if(!state.planLoaded){toast("Сначала загрузите план");return}
+  state.planRotation=EPPlanRotate.step(state.planRotation,delta);
+  applyPlanRotation();persistProject();
+}
+function applyRotationInput(){
+  if(!state.planLoaded)return;
+  const a=EPPlanRotate.normalizeAngle($("planRotateInput").value);
+  if(a==null){toast("Угол не распознан — введите число градусов");syncRotationUi();return}
+  state.planRotation=a;applyPlanRotation();persistProject();
+}
+$("planRotateLeftBtn").onclick=()=>rotatePlanBy(-90);
+$("planRotateRightBtn").onclick=()=>rotatePlanBy(90);
+$("planRotateInput").onchange=applyRotationInput;
+/* Вписывающий scale зависит от пропорций мирового бокса — на resize окна пересчитываем, иначе
+   повёрнутую на 90° подложку обрезало бы окном холста. Угол/координаты не трогаем — чистая перерисовка. */
+var _planRotResizeTimer=null;
+window.addEventListener("resize",()=>{
+  clearTimeout(_planRotResizeTimer);
+  _planRotResizeTimer=setTimeout(()=>{if(state.planLoaded)applyPlanRotation()},150);
+});
 /* «Убрать план» больше НЕ зовёт clearPlan напрямую — оно только задаёт вопрос (via:"arm"); удаляет
    отдельная кнопка «Точно убрать план?» (см. askClearPlan/confirmClearPlan). */
 $("clearPlanBtn").onclick=askClearPlan;
@@ -3306,6 +3363,8 @@ function applyImportedPlan(file,result){
       updatePlanUi();clearAnnotations();
       /* новый чертёж показываем целиком, иначе после «скрыть» пользователь увидит пустоту */
       state.planVisibility="show";applyPlanVisibility();
+      /* новый чертёж — без поворота: прежний угол к чужой картинке не относится (Б3, ч.1) */
+      state.planRotation=0;applyPlanRotation();
       markCanvasUsed();
       const suffix=result.detail?` · ${result.detail}`:"";
       updateStatus(`План загружен (${result.format}): ${file.name}${suffix}`);resolve();

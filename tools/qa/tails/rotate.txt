@@ -1,0 +1,90 @@
+  // ============ Б3, ч.1: ПОВОРОТ ПОДЛОЖКИ (глазами владельца) ============
+  // Грузим чертёж тем же applyImportedPlan, что и ручная загрузка. Рисуем стену, вращаем фон
+  // кнопкой ↻90 и полем «3,5°». Нарисованное (стена + уже стоящий пост из общей части) НЕ должно
+  // двигаться, а угол — пережить перезагрузку. В конце — КП: подложка в документе должна быть
+  // повёрнута так же, как на экране (§7.1).
+  n = 900;
+
+  // органы поворота до загрузки чертежа — задизейблены (управлять нечем)
+  log.push("до загрузки: кнопки поворота disabled=" + await ev(`return [document.getElementById("planRotateLeftBtn").disabled,document.getElementById("planRotateRightBtn").disabled,document.getElementById("planRotateInput").disabled]`));
+
+  // чертёж из chertez/ → data-URL → кладём в проект (localStorage.plan) и перезагружаем: restoreProject
+  // поднимет подложку ровно так же, как при открытии сохранённого проекта (реальный путь загрузки фона).
+  const chertezBuf = fs.readFileSync(path.join(ROOT, "chertez", "scale_1200.jpg"));
+  const planDataUrl = "data:image/jpeg;base64," + chertezBuf.toString("base64");
+  await ev(`const k=ProjectStore.key;const p=JSON.parse(localStorage.getItem(k)||"{}");p.plan=${JSON.stringify(planDataUrl)};p.planLabel="scale_1200.jpg";localStorage.setItem(k,JSON.stringify(p));return 1;`);
+  await c.send("Page.reload"); await sleep(5000);
+  await ev(`document.getElementById("canvas").scrollIntoView({block:"start"});return 1;`);
+  await sleep(300);
+
+  // app.js (state/функции) НЕ в глобале — координаты читаем из DOM: атрибуты SVG-линии стены и
+  // style.left/top иконок постов это МИРОВЫЕ координаты (CSS-трансформация холста снимает зум, в них
+  // не входит). Угол — из поля ввода и из сохранённого проекта (localStorage). Статус загрузки — по
+  // кнопкам (их дизейбл ведёт updatePlanUi).
+  const wallCoords = () => ev(`const l=document.querySelector("#wallsSvg line");return l?{x1:l.getAttribute("x1"),y1:l.getAttribute("y1"),x2:l.getAttribute("x2"),y2:l.getAttribute("y2")}:null`);
+  const postCoords = () => ev(`return [...document.querySelectorAll(".plan-icon.post")].map(e=>({left:e.style.left,top:e.style.top}))`);
+  const field = () => ev(`return document.getElementById("planRotateInput").value`);
+  const transform = () => ev(`return document.getElementById("planImage").style.transform`);
+  const savedAngle = () => ev(`return JSON.parse(localStorage.getItem(ProjectStore.key)||"{}").planRotation`);
+  const btnsDisabled = () => ev(`return [document.getElementById("planRotateLeftBtn").disabled,document.getElementById("planRotateRightBtn").disabled,document.getElementById("planRotateInput").disabled]`);
+
+  log.push("после загрузки: кнопки disabled=" + JSON.stringify(await btnsDisabled()) + " (ожидание [false,false,false])");
+  await shot("rotate-loaded", [`document.getElementById("planRotateLeftBtn")`, `document.getElementById("planRotateRightBtn")`, `document.getElementById("planRotateInput")`], RIGHT);
+
+  // рисуем стену в пустой зоне (инструмент «Стены», два клика)
+  await click(`document.querySelector('[data-tool="wall"]')`); await sleep(300);
+  let wA = await canvasPt(0.20, 0.15), wB = await canvasPt(0.46, 0.15);
+  await clickAt(wA.x, wA.y); await clickAt(wB.x, wB.y); await sleep(400);
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(300);
+
+  // снимок координат ДО поворота
+  const wallBefore = await wallCoords(), postsBefore = await postCoords();
+  log.push("ДО: угол(поле)=" + JSON.stringify(await field()) + " стена=" + JSON.stringify(wallBefore) + " постов=" + postsBefore.length);
+  log.push("ДО: пост[0]=" + JSON.stringify(postsBefore[0]));
+  await shot("rotate-before", [`document.getElementById("wallsSvg")`]);
+
+  // ↻ 90°
+  await click(`document.getElementById("planRotateRightBtn")`); await sleep(400);
+  log.push("после ↻90: угол(поле)=" + JSON.stringify(await field()) + " сохранён=" + await savedAngle() + " transform=" + JSON.stringify(await transform()));
+  log.push("после ↻90: стена=" + JSON.stringify(await wallCoords()) + " пост[0]=" + JSON.stringify((await postCoords())[0]) + " (должны совпасть с ДО)");
+  await shot("rotate-90", [`document.getElementById("planImage")`]);
+
+  // ввод произвольного угла «3,5» (запятая)
+  await setVal(`document.getElementById("planRotateInput")`, "3,5"); await sleep(400);
+  log.push("после «3,5»: угол(поле)=" + JSON.stringify(await field()) + " сохранён=" + await savedAngle() + " transform=" + JSON.stringify(await transform()));
+  await shot("rotate-3p5", [`document.getElementById("planImage")`, `document.getElementById("planRotateInput")`], RIGHT);
+
+  // мусор в поле — угол 3.5 должен сохраниться, поле вернуться
+  await setVal(`document.getElementById("planRotateInput")`, "abc"); await sleep(400);
+  log.push("после мусора: сохранён=" + await savedAngle() + " поле=" + JSON.stringify(await field()) + " (ожидание: 3.5 и «3,5»)");
+
+  // перезагрузка — угол и координаты должны вернуться
+  await sleep(1500);   // дать автосейву стены записаться (поворот сохраняется сразу)
+  await c.send("Page.reload"); await sleep(5000);
+  await ev(`document.getElementById("canvas").scrollIntoView({block:"start"});return 1;`);
+  const wallAfter = await wallCoords(), postsAfter = await postCoords();
+  log.push("ПОСЛЕ reload: угол(поле)=" + JSON.stringify(await field()) + " сохранён=" + await savedAngle() + " transform=" + JSON.stringify(await transform()));
+  log.push("ПОСЛЕ: стена=" + JSON.stringify(wallAfter) + " пост[0]=" + JSON.stringify(postsAfter[0]));
+  log.push("СТЕНА совпала ДО/ПОСЛЕ? " + (JSON.stringify(wallBefore) === JSON.stringify(wallAfter)));
+  log.push("ПОСТЫ совпали ДО/ПОСЛЕ? " + (JSON.stringify(postsBefore) === JSON.stringify(postsAfter)));
+  log.push("УГОЛ пережил перезагрузку (= 3.5)? " + ((await savedAngle()) === 3.5));
+  await shot("rotate-reloaded", [`document.getElementById("planImage")`]);
+
+  // КП с планом: подложка в документе должна быть повёрнута тем же углом, бирки/контуры на местах
+  await ev('window.__kp="";window.open=()=>({closed:false,document:{open(){},write(h){window.__kp+=h},close(){},title:""},focus(){},print(){},close(){},addEventListener(){},location:{}});return 1;');
+  await click($("pdfBtn")); await sleep(1200);
+  const kpHtml = await ev("return window.__kp");
+  fs.writeFileSync(path.join(DIR, "kp-rotate.html"), kpHtml);
+  log.push("КП: transform подложки в документе = " + JSON.stringify((kpHtml.match(/transform:rotate\([^"]*/) || ["(нет)"])[0]));
+  {
+    const nt = await json("/json/new?about:blank", "PUT");
+    const k = connect(nt.webSocketDebuggerUrl); await k.ready; await k.send("Page.enable");
+    await k.send("Emulation.setDeviceMetricsOverride", { width: 1100, height: 1400, deviceScaleFactor: 1, mobile: false });
+    const ft = await k.send("Page.getFrameTree");
+    await k.send("Page.setDocumentContent", { frameId: ft.frameTree.frame.id, html: kpHtml }); await sleep(1500);
+    const r = await k.send("Page.captureScreenshot", { format: "png" });
+    fs.writeFileSync(path.join(SHOTS, String(++n).padStart(2, "0") + "-rotate-kp.png"), Buffer.from(r.data, "base64")); log.push("rotate-kp " + kpHtml.length);
+    k.close();
+  }
+
+  c.close();
