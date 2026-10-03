@@ -3594,7 +3594,7 @@ window.addEventListener("unhandledrejection",e=>reportFailure("Необрабо�
    (EPOfferPdf/EPInstallSheet/EPPlanLabels/EPSupplierSpec/EPExplodedView) — сюда приходят готовыми. */
 const {buildPostSheet,openInstallSheet}=EPDocs.attach({
   $,STANDARD_LABEL,assembledPostHtml,assembledPostSpec,buildEstimate,canvas,companyLogo,companySignature,
-  companyStamp,companyTerms,displayCurrency,docHeader,esc,frameProduct,keySlotKind,lightingHtml,
+  companyStamp,companyTerms,displayCurrency,displayRate,docHeader,esc,frameProduct,keySlotKind,lightingHtml,
   lightingRowsFor,mechanismSpan,money,postComposition,postCost,postTotalCost,postsForGroupLinks,product,
   productImage,projectLighting,roomNamePoint,scheduleSave,state,toast
 });

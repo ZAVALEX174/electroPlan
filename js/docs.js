@@ -35,7 +35,7 @@
 function attach(ctx){
 const {
   $,STANDARD_LABEL,assembledPostHtml,assembledPostSpec,buildEstimate,canvas,companyLogo,companySignature,
-  companyStamp,companyTerms,displayCurrency,docHeader,esc,frameProduct,keySlotKind,lightingHtml,
+  companyStamp,companyTerms,displayCurrency,displayRate,docHeader,esc,frameProduct,keySlotKind,lightingHtml,
   lightingRowsFor,mechanismSpan,money,postComposition,postCost,postTotalCost,postsForGroupLinks,product,
   productImage,projectLighting,roomNamePoint,scheduleSave,state,toast
 }=ctx;
@@ -620,11 +620,43 @@ function generateCommercialOffer(){
   win.document.close();
 }
 
+/* Выгрузка спецификации в Excel (A6, решение владельца 24.08 §1.2). Собираем ТЕ ЖЕ данные, что и КП:
+   один расчёт групп света, та же смета (buildEstimate), тот же свод (EPSupplierSpec.collect на
+   supplierSpecData) и те же настройки показа (offerOptions) — Excel и КП не могут разойтись в деньгах
+   (§7.1). В ОТЛИЧИЕ от generateCommercialOffer номер КП НЕ присваиваем и счётчик не двигаем (решение
+   владельца): берём уже закреплённый за проектом номер как есть (docHeader().number, может быть пуст).
+   Валюту и курс берём как у КП — displayCurrency()/displayRate(): число в книге = базовая цена × курс,
+   денежный формат ячейки округляет его так же, как money(). Саму книгу (байты .xlsx) строит чистый
+   EPSpecExcel; здесь остаётся то, что знает только приложение, — сбор из state и скачивание файла. */
+function exportSpecExcel(){
+  const light=projectLighting();
+  const est=buildEstimate(light);
+  const supplier=EPSupplierSpec.collect(supplierSpecData(light));
+  /* Пустой проект выгружать незачем: нет ни позиций сметы, ни строк свода. */
+  if(!(est.groups&&est.groups.length)&&!(supplier.rows&&supplier.rows.length)){
+    toast("В проекте нечего выгружать в Excel");return;
+  }
+  const options=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
+  const bytes=EPSpecExcel.build(est,supplier,
+    {options,currency:displayCurrency(),rate:displayRate()});
+  const dh=docHeader();
+  const name=EPSpecExcel.fileName(dh.number,dh.project);
+  /* Скачивание — единственная «грязная» часть: Blob из байтов книги и временная ссылка a[download].
+     revokeObjectURL откладываем, чтобы клик успел забрать содержимое. */
+  const blob=new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=name;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),0);
+}
+
 /* Провязка кнопок документов на проект — здесь же, где postBuilder провязывает своё окно: кнопка
    «Лист монтажника на проект» и «Сформировать КП». Кнопку «Лист монтажника» в самом конструкторе поста
    вешает EPPostBuilder.attach (у него свой installSheetForBuilder, зовущий наши buildPostSheet/openInstallSheet). */
 $("installSheetBtn").onclick=installSheetForProject;
 $("pdfBtn").onclick=generateCommercialOffer;
+$("xlsxBtn").onclick=exportSpecExcel;
 
 return {buildPostSheet,openInstallSheet};
 }

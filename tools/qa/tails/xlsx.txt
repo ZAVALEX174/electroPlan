@@ -1,0 +1,32 @@
+  // --- A6: выгрузка спецификации в Excel ---
+  // В сцене уже размещён пост в кухне — в проекте есть что выгружать.
+  // Кнопка «Спецификация Excel» стоит рядом с «Коммерческое предложение PDF».
+  await ev(`document.getElementById("xlsxBtn").scrollIntoView({block:"center"});return 1;`); await sleep(300);
+  await shot("xlsx-button", [`document.getElementById("xlsxBtn")`, `document.getElementById("pdfBtn")`]);
+  log.push("кнопка Excel: " + await ev(`return document.getElementById("xlsxBtn")?.textContent`));
+
+  // Перехватываем скачивание: запоминаем Blob, который отдаёт createObjectURL, и имя из a.download,
+  // не давая настоящему клику скачать файл в headless.
+  await ev(`
+    window.__xlsxBlob=null; window.__xlsxName=null;
+    URL.createObjectURL=(blob)=>{ window.__xlsxBlob=blob; return "blob:captured"; };
+    URL.revokeObjectURL=()=>{};
+    const realClick=HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click=function(){ if(this.download){ window.__xlsxName=this.download; } else { realClick.call(this); } };
+    return 1;
+  `);
+  await click($("xlsxBtn")); await sleep(900);
+
+  // Читаем пойманный Blob в base64 и сохраняем файл — его откроет openpyxl после прогона.
+  const info = await ev(`
+    const b=window.__xlsxBlob; if(!b)return null;
+    const bytes=new Uint8Array(await b.arrayBuffer());
+    let bin=""; for(let i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);
+    return { name:window.__xlsxName, size:bytes.length, type:b.type, b64:btoa(bin) };
+  `);
+  if (info) {
+    fs.writeFileSync(path.join(DIR, "spec.xlsx"), Buffer.from(info.b64, "base64"));
+    log.push("xlsx: name=" + info.name + " size=" + info.size + " type=" + info.type);
+  } else {
+    log.push("xlsx: скачивание не перехвачено");
+  }

@@ -17,6 +17,7 @@
       <button class="btn ghost" id="saveProjectBtn">Сохранить проект</button>
       <button class="btn ghost" id="installSheetBtn">Лист монтажника</button>
       <button class="btn primary" id="pdfBtn">Коммерческое предложение PDF</button>
+      <button class="btn ghost" id="xlsxBtn">Спецификация Excel</button>
     </div>
   </header>
 
@@ -596,6 +597,7 @@
 <script src="js/offerPdf.js?v=20261003.2"></script>
 <script src="js/installSheet.js?v=20260924.4"></script>
 <script src="js/supplierSpec.js?v=20260911.1"></script>
+<script src="js/specExcel.js?v=20261003.1"></script>
 <script src="js/postImage.js?v=20260920.1"></script>
 <script src="js/explodedView.js?v=20260805.5"></script>
 <script src="js/planLabels.js?v=20260914.2"></script>
@@ -630,7 +632,7 @@
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
-<script src="js/docs.js?v=20260927.1"></script>
+<script src="js/docs.js?v=20261003.2"></script>
 <!-- Ввод на холсте (клики, перенос объектов, панорама, зум колесом): trackDrag, makeDraggable,
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него
@@ -641,6 +643,6 @@
      carryUserRoomFields. Вынесено из app.js (И1, последний кусок). Грузится ДО app.js, который зовёт
      EPRoomDetect.attach(ctx) ДО EPCanvasInput.attach (тот берёт из него addRoomLinePoint). -->
 <script src="js/roomDetect.js?v=20261003.3"></script>
-<script src="js/app.js?v=20261003.5"></script>
+<script src="js/app.js?v=20261003.6"></script>
 </body>
 </html>
