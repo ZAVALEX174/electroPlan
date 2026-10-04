@@ -5,6 +5,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { beyondThreshold, worldPosition } = require("../js/drag.js");
+const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${a} ≈ ${b}`);
 
 test("порог: точное значение порога уже считается переносом", () => {
   /* ровно 4px по одной оси — граница включительно (>=), это уже перенос */
@@ -41,4 +42,33 @@ test("пересчёт координат при отдалении: scale<1 у�
 test("нулевой масштаб не делит на ноль (страховка → как scale 1)", () => {
   const p = worldPosition({ x: 5, y: 5 }, { x: 0, y: 0 }, { x: 3, y: 3 }, 0);
   assert.deepEqual(p, { x: 8, y: 8 });
+});
+
+/* ---- Б3, ч.2а: перенос при повёрнутом виде ---- */
+
+test("угол мира 0 (и его отсутствие) не меняет перенос — часть 1 не трогается", () => {
+  const a = worldPosition({ x: 100, y: 50 }, { x: 200, y: 200 }, { x: 230, y: 180 }, 1);
+  const b = worldPosition({ x: 100, y: 50 }, { x: 200, y: 200 }, { x: 230, y: 180 }, 1, 0);
+  assert.deepEqual(b, a, "angle=0 эквивалентен отсутствию угла");
+});
+
+test("при угле мира 90° экранная дельта вправо даёт мировую дельту вверх (обратная матрица)", () => {
+  /* вид повёрнут на 90°: движение курсора вправо по экрану (dx=+40) при scale=2 должно тащить объект
+     в мир по −Y на 20 (R(−90)·(40,0)/2 = (0,−20)); объект под курсором едет туда, куда ведёт рука. */
+  const p = worldPosition({ x: 100, y: 100 }, { x: 0, y: 0 }, { x: 40, y: 0 }, 2, 90);
+  near(p.x, 100, 1e-9);
+  near(p.y, 80, 1e-9);
+});
+
+test("перенос при угле мира: объект под курсором (round-trip экранной дельты)", () => {
+  /* проверяем инвариант «объект следует за курсором»: мировая дельта, умноженная на матрицу вида
+     R(angle)·scale, обязана вернуть исходную экранную дельту. */
+  const scale = 1.5, angle = 37, rad = angle * Math.PI / 180;
+  const base = { x: 10, y: 20 }, start = { x: 300, y: 300 }, cur = { x: 361, y: 277 };
+  const w = worldPosition(base, start, cur, scale, angle);
+  const dwx = w.x - base.x, dwy = w.y - base.y;
+  const sx = (dwx * Math.cos(rad) - dwy * Math.sin(rad)) * scale;
+  const sy = (dwx * Math.sin(rad) + dwy * Math.cos(rad)) * scale;
+  near(sx, cur.x - start.x, 1e-7);
+  near(sy, cur.y - start.y, 1e-7);
 });

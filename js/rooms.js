@@ -33,7 +33,7 @@
    правку вершин, возвращает то, что app.js продолжает звать по имени. Вызывается один раз из app.js. */
 function attach(ctx){
 const {
-  $,SVG_NS,canvas,esc,formatArea,getObjectsInRoom,makeDraggable,persistProject,placePendingAtEvent,
+  $,SVG_NS,canvas,clientToWorld,esc,formatArea,getObjectsInRoom,makeDraggable,persistProject,placePendingAtEvent,
   refreshAfterRoomAssignments,removeEntity,roomAreaM2,roomDisplayArea,roomLabelPoint,roomNamePoint,
   selectEntity,state,toast,updateStatus
 }=ctx;
@@ -162,13 +162,14 @@ function dragVertex(room,index,startEvent){
   const svg=$("roomsSvg");
   const pg=svg.querySelector(`polygon[data-room-id="${room.id}"]`);
   const handle=svg.querySelectorAll(".vertex-handle")[index];
-  const rect=canvas.getBoundingClientRect();
   const point=room.polygon[index];
   const move=e=>{
-    /* без зажима по краям блока: поле бесконечное, вершину можно тащить куда угодно.
-       rect снят на старте — холст во время правки вершины не панорамируется */
-    point.x=(e.clientX-rect.left)/state.scale;
-    point.y=(e.clientY-rect.top)/state.scale;
+    /* без зажима по краям блока: поле бесконечное, вершину можно тащить куда угодно. Координаты —
+       через единое clientToWorld (учитывает масштаб И угол мира, Б3 ч.2а): при повороте холста
+       вершина садится под курсор, а не мимо (прежняя формула по canvas.rect при повороте врала). */
+    const w=clientToWorld(e.clientX,e.clientY);
+    point.x=w.x;
+    point.y=w.y;
     if(pg)pg.setAttribute("points",room.polygon.map(p=>p.x+","+p.y).join(" "));
     if(handle){handle.setAttribute("cx",point.x);handle.setAttribute("cy",point.y)}
   };

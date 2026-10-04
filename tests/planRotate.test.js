@@ -139,6 +139,56 @@ test("поворот НЕ двигает нарисованное: снимок 
   assert.deepEqual(stripB, stripA, "смена угла не изменила НИ ОДНОЙ координаты нарисованного");
 });
 
+/* ---- 2b. Б3, ч.2а: угол МИРА и режим органов поворота в проекте ---- */
+
+test("снимок пишет угол мира и режим; восстановление их возвращает; старый проект → 0/\"image\"", async () => {
+  const s = makeSession();
+  Object.assign(s.state, { devices: [], posts: [], rooms: [], walls: [], autoWalls: [], roomLines: [],
+    roomFieldMemory: [], planRotation: 0, worldAngle: 93.5, rotateTarget: "world" });
+  const snap = s.snapshot();
+  assert.equal(snap.worldAngle, 93.5, "projectSnapshot кладёт угол мира");
+  assert.equal(snap.rotateTarget, "world", "projectSnapshot кладёт режим органов поворота");
+
+  s.store.value = snap;
+  await s.restore();
+  assert.equal(s.state.worldAngle, 93.5, "restoreProject поднимает угол мира");
+  assert.equal(s.state.rotateTarget, "world", "restoreProject поднимает режим");
+
+  /* старый проект без полей: угол мира 0, режим — поведение части 1 ("image") */
+  s.store.value = { devices: [], posts: [], rooms: [] };
+  await s.restore();
+  assert.equal(s.state.worldAngle, 0, "старый проект без worldAngle → 0");
+  assert.equal(s.state.rotateTarget, "image", "старый проект без rotateTarget → только чертёж");
+
+  /* битый угол мира из ручной правки снимка сворачивается к 0; чужой режим → image */
+  s.store.value = { worldAngle: "мусор", rotateTarget: "whatever" };
+  await s.restore();
+  assert.equal(s.state.worldAngle, 0, "нечисловой угол мира → 0 (не NaN)");
+  assert.equal(s.state.rotateTarget, "image", "незнакомый режим → image");
+});
+
+test("угол МИРА не двигает нарисованное: снимок до/после смены worldAngle совпадает во всём, кроме угла", () => {
+  const s = makeSession();
+  const posts = [{ id: "p1", number: 1, x: 100, y: 120 }, { id: "p2", number: 2, x: 400, y: 300 }];
+  const walls = [{ id: "w1", a: { x: 0, y: 0 }, b: { x: 500, y: 0 } }];
+  const rooms = [{ id: "r1", name: "Кухня", polygon: [{ x: 0, y: 0 }, { x: 500, y: 0 }, { x: 500, y: 400 }] }];
+  Object.assign(s.state, { devices: [], posts, rooms, walls, autoWalls: [], roomLines: [], roomFieldMemory: [],
+    planRotation: 0, worldAngle: 0, rotateTarget: "image" });
+
+  const a = s.snapshot();
+  s.state.worldAngle = 270;   /* меняем ТОЛЬКО угол мира — вид-подход, координаты неприкосновенны */
+  const b = s.snapshot();
+
+  delete a.savedAt; delete b.savedAt;
+  assert.equal(a.worldAngle, 0);
+  assert.equal(b.worldAngle, 270, "угол мира сменился");
+  const stripA = Object.assign({}, a), stripB = Object.assign({}, b);
+  delete stripA.worldAngle; delete stripB.worldAngle;
+  /* МУТАЦИЯ: если бы угол мира пересчитывал координаты объектов — этот deepEqual покраснел бы.
+     Это инвариант части 1 (tests/planRotate.test.js), распространённый на угол МИРА (§ решение оркестратора). */
+  assert.deepEqual(stripB, stripA, "смена угла мира не изменила НИ ОДНОЙ координаты нарисованного");
+});
+
 /* ---- 3. Документ: фон повёрнут тем же углом, бирки/контуры на местах ---- */
 
 test("planLabels: подложка в документе поворачивается тем же EPPlanRotate; бирки и контуры НЕ сдвигаются", () => {

@@ -1,0 +1,12 @@
+[
+  { "name": "A: знак угла в обратном преобразовании (screenToWorld)", "file": "js/viewport.js",
+    "from": "y: (-dx * s + dy * c) / view.scale", "to": "y: (dx * s + dy * c) / view.scale" },
+  { "name": "B: одна из 6 копий экран→мир вернулась на старую формулу (canvasEventPoint)", "file": "js/canvasInput.js",
+    "from": "  return clientToWorld(e.clientX,e.clientY);", "to": "  const r=canvas.getBoundingClientRect();return {x:(e.clientX-r.left)/state.scale,y:(e.clientY-r.top)/state.scale};" },
+  { "name": "C: контр-поворот подписи масштаба убран (renderScaleRuler)", "file": "js/app.js",
+    "from": "  const a=state.worldAngle||0;if(a)label.setAttribute(\"transform\",\"rotate(\"+(-a)+\" \"+lx+\" \"+ly+\")\");", "to": "  const a=state.worldAngle||0;" },
+  { "name": "D: сохранение угла мира в снимок убрано (projectSnapshot)", "file": "js/app.js",
+    "from": "worldAngle:state.worldAngle,rotateTarget:state.rotateTarget,", "to": "worldAngle:0,rotateTarget:state.rotateTarget," },
+  { "name": "E: гейт органов поворота без подложки убран (updatePlanUi)", "file": "js/app.js",
+    "from": "const rotEnabled=state.rotateTarget===\"world\"||loaded;", "to": "const rotEnabled=loaded;" }
+]

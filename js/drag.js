@@ -22,14 +22,17 @@ function beyondThreshold(dx, dy, threshold) {
 
 /* Новая МИРОВАЯ позиция объекта при переносе. base — мировые координаты объекта в
    момент нажатия; startClient — экранная точка нажатия; client — текущая экранная
-   точка курсора; scale — масштаб вида (screen = world*scale + pan). Экранную дельту
-   курсора переводим в мир делением на scale — та же формула, что в EPViewport. */
-function worldPosition(base, startClient, client, scale) {
+   точка курсора; scale — масштаб вида; angle — угол ПОВОРОТА ВСЕГО ВИДА в градусах (Б3, ч.2а,
+   опционально). Экранную дельту курсора переводим в мировую: снимаем поворот обратной матрицей
+   R(−angle) и делим на scale — та же обратная матрица, что в EPViewport.screenToWorld (§7.1).
+   angle отсутствует/0 — прежняя формула (перенос при невращёном виде не меняется). */
+function worldPosition(base, startClient, client, scale, angle) {
   const s = scale || 1;   /* страховка от нулевого масштаба (делить нельзя) */
-  return {
-    x: base.x + (client.x - startClient.x) / s,
-    y: base.y + (client.y - startClient.y) / s
-  };
+  const dxs = client.x - startClient.x, dys = client.y - startClient.y;   /* экранная дельта */
+  const a = angle ? angle * Math.PI / 180 : 0;
+  if (!a) return { x: base.x + dxs / s, y: base.y + dys / s };
+  const c = Math.cos(a), sn = Math.sin(a);
+  return { x: base.x + (dxs * c + dys * sn) / s, y: base.y + (-dxs * sn + dys * c) / s };
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),

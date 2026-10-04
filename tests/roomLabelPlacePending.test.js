@@ -13,6 +13,15 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
+const EPViewport = require("../js/viewport.js");
+/* clientToWorld — то же единое правило экран→мир, что в app.js (Б3 ч.2а): окно холста здесь
+   задаёт canvas.getBoundingClientRect, pan=0, масштаб/угол мира из state. canvasEventPoint теперь
+   зовёт его вместо своей копии формулы — при scale≠1 деление на масштаб сохраняется. */
+const makeClientToWorld = (canvas, state) => (cx, cy) => {
+  const r = canvas.getBoundingClientRect();
+  return EPViewport.screenToWorld({ x: cx - r.left, y: cy - r.top },
+    { panX: 0, panY: 0, scale: state.scale, angle: state.worldAngle || 0 });
+};
 
 function makeEvent(over) {
   return Object.assign(
@@ -27,7 +36,7 @@ function buildPlacer(state) {
   const calls = [];
   const canvas = { getBoundingClientRect: () => ({ left: 10, top: 20 }) };
   const fn = stand.run(["canvasEventPoint", "placePendingAtEvent"], {
-    state, canvas, addPending: (x, y) => calls.push([x, y])
+    state, canvas, clientToWorld: makeClientToWorld(canvas, state), addPending: (x, y) => calls.push([x, y])
   });
   return { fn, calls };
 }
@@ -72,7 +81,7 @@ function buildCanvasClick(state) {
   const spies = { place: 0, scale: [], sel: [] };
   const canvas = { getBoundingClientRect: () => ({ left: 10, top: 20 }) };
   const ctx = {
-    state, canvas,
+    state, canvas, clientToWorld: makeClientToWorld(canvas, state),
     placePendingAtEvent: () => { spies.place++; },
     addScalePoint: (x, y) => spies.scale.push([x, y]),
     addWallPoint: () => {}, addRoomLinePoint: () => {},

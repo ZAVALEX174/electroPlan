@@ -5,7 +5,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
-  worldToScreen, screenToWorld, clampScale, zoomAt, bounds, fitView, spaceGrid
+  worldToScreen, screenToWorld, clampScale, zoomAt, rotateAt, bounds, fitView, spaceGrid
 } = require("../js/viewport.js");
 
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${a} ≈ ${b}`);
@@ -24,6 +24,74 @@ test("round-trip экран↔мир возвращает исходную то�
       near(back.y, p.y, 1e-7);
     }
   }
+});
+
+/* ---- Б3, ч.2а: угол мира в экран↔мир ---- */
+
+test("round-trip экран↔мир с УГЛОМ МИРА 0/90/3.5 возвращает исходную точку", () => {
+  for (const angle of [0, 90, 180, 270, 3.5, -47]) {
+    const v = { panX: 137, panY: -84, scale: 1.75, angle };
+    for (const p of [{ x: 0, y: 0 }, { x: 512, y: 300 }, { x: -220, y: 1840 }]) {
+      const back = screenToWorld(worldToScreen(p, v), v);
+      near(back.x, p.x, 1e-7);
+      near(back.y, p.y, 1e-7);
+    }
+  }
+});
+
+test("угол 0 (и отсутствие angle) — та же формула, что без поворота (часть 1 не трогается)", () => {
+  const p = { x: 512, y: 300 };
+  const vNo = { panX: 40, panY: 20, scale: 2 };
+  const v0 = { panX: 40, panY: 20, scale: 2, angle: 0 };
+  assert.deepEqual(worldToScreen(p, v0), worldToScreen(p, vNo));
+  assert.deepEqual(screenToWorld(p, v0), screenToWorld(p, vNo));
+});
+
+test("worldToScreen при 90°: мир (x,y) ложится как (−y,x)·scale + pan (поворот по часовой на экране)", () => {
+  /* CSS rotate(90deg) при оси Y вниз поворачивает оси так, что world(1,0)→screen(0,1), world(0,1)→(−1,0) */
+  const v = { panX: 0, panY: 0, scale: 1, angle: 90 };
+  const a = worldToScreen({ x: 1, y: 0 }, v), b = worldToScreen({ x: 0, y: 1 }, v);
+  near(a.x, 0); near(a.y, 1);
+  near(b.x, -1); near(b.y, 0);
+});
+
+test("zoomAt держит точку экрана при УГЛЕ МИРА ≠ 0", () => {
+  const v = { panX: 50, panY: 30, scale: 1, angle: 37 };
+  const cursor = { x: 400, y: 250 };
+  const worldUnder = screenToWorld(cursor, v);
+  const nv = zoomAt(v, cursor, 1.5, { min: 0.1, max: 4 });
+  near(nv.scale, 1.5);
+  /* курсор указывает на ту же мировую точку и после зума — при том же угле */
+  const after = worldToScreen(worldUnder, { ...nv, angle: v.angle });
+  near(after.x, cursor.x, 1e-7);
+  near(after.y, cursor.y, 1e-7);
+});
+
+test("rotateAt: мировая точка под центром окна остаётся на месте экрана при смене угла", () => {
+  const v = { panX: 120, panY: -40, scale: 1.3, angle: 15 };
+  const center = { x: 500, y: 350 };
+  const worldAtCenter = screenToWorld(center, v);
+  const nv = rotateAt(v, center, 77);
+  assert.equal(nv.angle, 77, "новый угол записан");
+  near(nv.scale, v.scale, 1e-12, "масштаб rotateAt не трогает");
+  const after = worldToScreen(worldAtCenter, nv);
+  near(after.x, center.x, 1e-7);
+  near(after.y, center.y, 1e-7);
+});
+
+test("fitView с УГЛОМ: все углы bbox в полях окна, центр содержимого в центре окна", () => {
+  const b = { minX: 100, minY: 100, maxX: 900, maxY: 500 };
+  const viewW = 1000, viewH = 700, padding = 50, angle = 90;
+  const v = fitView(b, viewW, viewH, { padding, minScale: 0.01, maxScale: 40, angle });
+  const vv = { ...v, angle };
+  for (const c of [{ x: b.minX, y: b.minY }, { x: b.maxX, y: b.minY }, { x: b.minX, y: b.maxY }, { x: b.maxX, y: b.maxY }]) {
+    const s = worldToScreen(c, vv);
+    assert.ok(s.x >= padding - 1e-6 && s.x <= viewW - padding + 1e-6, `x ${s.x} в полях`);
+    assert.ok(s.y >= padding - 1e-6 && s.y <= viewH - padding + 1e-6, `y ${s.y} в полях`);
+  }
+  const center = worldToScreen({ x: (b.minX + b.maxX) / 2, y: (b.minY + b.maxY) / 2 }, vv);
+  near(center.x, viewW / 2, 1e-6);
+  near(center.y, viewH / 2, 1e-6);
 });
 
 test("объект приклеен к миру: при смене вида клик по его экранной точке даёт ту же мировую координату", () => {

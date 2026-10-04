@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261003.2">
+  <link rel="stylesheet" href="css/styles.css?v=20261004.1">
 </head>
 <body>
 <div class="app">
@@ -90,18 +90,28 @@
             <small class="hint-line" id="scaleHint">Масштаб не задан — площадь считается в пикселях</small>
             <button class="text-action" id="clearScaleBtn" hidden>Сбросить масштаб</button>
           </div>
-          <!-- ПОВОРОТ ПОДЛОЖКИ (Б3, часть 1): вращается только чертёж-фон, нарисованное остаётся
-               на месте. ↺/↻ — шаг 90° от текущего угла; поле «угол» принимает любое значение
-               (в т.ч. «3,5»), запятую и точку. Органы живут, пока есть подложка (updatePlanUi). -->
+          <!-- ПОВОРОТ (Б3): переключатель режима решает, что вращают органы ниже — «только чертёж»
+               (часть 1: вращается чертёж-фон, нарисованное на месте) или «весь план» (часть 2а:
+               весь холст как один лист — чертёж, стены, комнаты, посты; названия и значки остаются
+               прямыми; поворот сохраняется в проекте и выходит в КП). ↺/↻ — шаг 90° от текущего
+               угла режима; поле «угол» принимает любое значение (в т.ч. «3,5»), запятую и точку.
+               Переключатель активен всегда; ↺/↻/поле гейтит updatePlanUi (в «весь план» — и без
+               подложки). -->
           <div class="rotate-row" style="margin-top:8px">
-            <div style="display:flex;gap:6px">
-              <button class="btn" id="planRotateLeftBtn" type="button" disabled style="flex:1" title="Повернуть подложку на 90° против часовой">↺ 90°</button>
-              <button class="btn" id="planRotateRightBtn" type="button" disabled style="flex:1" title="Повернуть подложку на 90° по часовой">↻ 90°</button>
+            <label class="markup-step" title="Что поворачивать: только чертёж-фон или весь план целиком">Поворот
+              <select id="rotateTargetSelect">
+                <option value="image">только чертёж</option>
+                <option value="world">весь план</option>
+              </select>
+            </label>
+            <div style="display:flex;gap:6px;margin-top:6px">
+              <button class="btn" id="planRotateLeftBtn" type="button" disabled style="flex:1" title="Повернуть на 90° против часовой">↺ 90°</button>
+              <button class="btn" id="planRotateRightBtn" type="button" disabled style="flex:1" title="Повернуть на 90° по часовой">↻ 90°</button>
             </div>
-            <label class="markup-step" style="margin-top:6px" title="Угол поворота подложки в градусах (можно дробный, например 3,5)">Угол, °
+            <label class="markup-step" style="margin-top:6px" title="Угол поворота в градусах (можно дробный, например 3,5)">Угол, °
               <input id="planRotateInput" type="text" inputmode="decimal" value="0" disabled style="width:70px">
             </label>
-            <small class="hint-line">Поворачивается только чертёж-фон. Стены, комнаты и посты остаются на месте</small>
+            <small class="hint-line" id="rotateModeHint">Поворачивается только чертёж-фон. Стены, комнаты и посты остаются на месте</small>
           </div>
         </div>
       </section>
@@ -617,8 +627,8 @@
 <script src="js/planLabels.js?v=20261003.3"></script>
 <script src="js/rates.js?v=20260730.1"></script>
 <script src="js/geometry.js?v=20261003.3"></script>
-<script src="js/drag.js?v=20260801.1"></script>
-<script src="js/viewport.js?v=20260730.1"></script>
+<script src="js/drag.js?v=20261004.1"></script>
+<script src="js/viewport.js?v=20261004.1"></script>
 <script src="js/roomsFromLines.js?v=20260801.1"></script>
 <script src="js/roomDraft.js?v=20260828.2"></script>
 <script src="js/room.js?v=20260915.1"></script>
@@ -642,7 +652,7 @@
      подключает её через EPWallScope.create({$, WALL_STEP_LABEL}). -->
 <script src="js/wallScope.js?v=20260927.1"></script>
 <script src="js/postBuilder.js?v=20260927.2"></script>
-<script src="js/rooms.js?v=20261003.3"></script>
+<script src="js/rooms.js?v=20261004.1"></script>
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
@@ -651,12 +661,12 @@
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него
      makeDraggable и placePendingAtEvent). -->
-<script src="js/canvasInput.js?v=20261003.4"></script>
+<script src="js/canvasInput.js?v=20261004.1"></script>
 <!-- Распознавание и разметка помещений: инструмент «Разметка» (линии, магниты, сборка помещений
      buildRoomsFromLines) и автоопределение комнат (detectRooms/detectRoomsML), перенос ручных полей
      carryUserRoomFields. Вынесено из app.js (И1, последний кусок). Грузится ДО app.js, который зовёт
      EPRoomDetect.attach(ctx) ДО EPCanvasInput.attach (тот берёт из него addRoomLinePoint). -->
-<script src="js/roomDetect.js?v=20261003.3"></script>
-<script src="js/app.js?v=20261003.8"></script>
+<script src="js/roomDetect.js?v=20261004.1"></script>
+<script src="js/app.js?v=20261004.1"></script>
 </body>
 </html>

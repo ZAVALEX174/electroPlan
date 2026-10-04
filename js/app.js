@@ -31,6 +31,12 @@ const state={
   orthoMode:true,snapGrid:true,gridStep:EPConfig.gridDefault,
   planVisibility:"show",   /* видимость подложки: show | dim | hide (Этап 1) */
   planRotation:0,          /* угол поворота подложки, градусы [0,360) (Б3, ч.1): вращается только фон */
+  /* ВИД-подход к повороту всего плана (Б3, ч.2а): мировые координаты стен/комнат/постов/разметки
+     НЕ меняются никогда — вращается только ВИД холста. worldAngle — скаляр угла мира, градусы
+     [0,360); applyView домножает CSS-трансформацию #canvas на rotate(worldAngle). rotateTarget —
+     что вращают органы поворота: "image" (только чертёж-фон, поведение части 1) | "world" (весь
+     план). Старый проект без полей → worldAngle 0, rotateTarget "image" (обратная совместимость). */
+  worldAngle:0,rotateTarget:"image",
   pxPerMeter:null,scaleSegment:null,scalePoints:[],
   /* Конструктор поста. slots — механизм ВМЕСТЕ с группой света клавиши (js/builderSlots.js):
      параллельный массив групп разъехался бы на первой же перестановке или фильтрации набора.
@@ -341,6 +347,7 @@ async function init(){
   renderProjectBacklight();       /* подсветка клавиш — галочка и оба селектора из каталога */
   renderPostSlotCountSelect();    /* модульности рамки строим из каталога (разметка отдаёт пустой select) */
   applyGridStyle();syncMarkupControls();updateZoomUi();applyView();   /* сетка/переключатели/зум/вид — из state (в т.ч. восстановленного) */
+  syncRotateModeUi();   /* режим/поле/подсказка/гейт органов поворота — из восстановленного rotateTarget (Б3, ч.2а) */
   _autosaveOn=true;   /* включаем ПОСЛЕ восстановления, иначе пустой старт затрёт сохранённое */
   if(restored){
     const objects=state.devices.length+state.posts.length;
@@ -476,12 +483,19 @@ function renderGroupLinks(){
   /* Подпись группы у поста — как в КП: у всех постов с назначенной группой, независимо от того,
      есть ли пара (одиночная группа линии не даёт, но имя показать надо). Ниже иконки (y+половина
      +отступ), центр по X. SVG-текст масштабируется вместе с планом — как контуры комнат. */
+  const a=state.worldAngle||0,rad=a*Math.PI/180,off=POST_ICON_HALF+11;
   posts.forEach(p=>{
     const groups=p.groups||[];   /* пост без групп поле groups не несёт (см. postsForGroupLinks) */
     if(!groups.length)return;
+    /* Якорь подписи — «под иконкой НА ЭКРАНЕ» при любом угле (§ DoD п.4). Смещение off задаём в
+       направлении, которое поворот холста R(θ)·scale превратит ровно в «вниз на экране»: это
+       R(−θ)·(0,off) = (sinθ·off, cosθ·off). При θ=0 — прежние (0, off), подпись под иконкой. */
+    const ax=p.x+Math.sin(rad)*off, ay=p.y+Math.cos(rad)*off;
     const t=document.createElementNS(SVG_NS,"text");
-    t.setAttribute("x",p.x);t.setAttribute("y",p.y+POST_ICON_HALF+11);
+    t.setAttribute("x",ax);t.setAttribute("y",ay);
     t.setAttribute("class","group-link-label");
+    /* контр-поворот вокруг якоря — подпись остаётся прямой, не встаёт боком/вверх ногами */
+    if(a)t.setAttribute("transform","rotate("+(-a)+" "+ax+" "+ay+")");
     t.textContent=groups.map(g=>g.label).join(" · ");
     svg.appendChild(t);
   });
@@ -603,8 +617,11 @@ function renderScaleRuler(){
     cap.setAttribute("class","scale-cap");svg.appendChild(cap);
   });
   const label=document.createElementNS(SVG_NS,"text");
-  label.setAttribute("x",(seg.a.x+seg.b.x)/2);label.setAttribute("y",(seg.a.y+seg.b.y)/2-9);
+  const lx=(seg.a.x+seg.b.x)/2,ly=(seg.a.y+seg.b.y)/2-9;
+  label.setAttribute("x",lx);label.setAttribute("y",ly);
   label.setAttribute("text-anchor","middle");label.setAttribute("class","scale-text");
+  /* подпись масштаба остаётся прямой при повороте всего плана — контр-поворот вокруг её якоря (Б3, ч.2а) */
+  const a=state.worldAngle||0;if(a)label.setAttribute("transform","rotate("+(-a)+" "+lx+" "+ly+")");
   label.textContent=`${String(seg.meters).replace(".",",")} м`;
   svg.appendChild(label);
 }
@@ -1021,7 +1038,7 @@ function showHover(kind,obj,e){
   }
   hover.classList.add("show");positionHover(e);
 }
-function positionHover(e){const r=canvas.getBoundingClientRect();hover.style.left=Math.min(canvas.clientWidth-280,(e.clientX-r.left)/state.scale+18)+"px";hover.style.top=Math.max(8,(e.clientY-r.top)/state.scale-20)+"px"}
+function positionHover(e){const w=clientToWorld(e.clientX,e.clientY);hover.style.left=Math.min(canvas.clientWidth-280,w.x+18)+"px";hover.style.top=Math.max(8,w.y-20)+"px"}
 function hideHover(){hover.classList.remove("show")}
 
 /* Точечная синхронизация ВЫДЕЛЕНИЯ с DOM — без пересоздания объектов (корневой дефект:
@@ -2241,8 +2258,8 @@ function addPending(x,y){
    просил уметь менять его. Фолбэк на дефолт — для устойчивости, если поле пустое. */
 function snapToGrid(v){const g=state.gridStep||EPConfig.gridDefault;return Math.round(v/g)*g}
 function addWallPoint(e){
-  const r=canvas.getBoundingClientRect();
-  let x=snapToGrid((e.clientX-r.left)/state.scale),y=snapToGrid((e.clientY-r.top)/state.scale);
+  const w=clientToWorld(e.clientX,e.clientY);
+  let x=snapToGrid(w.x),y=snapToGrid(w.y);
   if(state.wallPoints.length){
     const a=state.wallPoints.at(-1);
     // ортогональность: выравниваем короткую ось, если сегмент почти горизонтальный/вертикальный
@@ -2328,11 +2345,13 @@ function applyPlanRotation(){
   img.style.transform=EPPlanRotate.cssTransform(state.planRotation,img.naturalWidth,img.naturalHeight,canvas.clientWidth,canvas.clientHeight);
   syncRotationUi();
 }
-/* Поле угла отражает state. Не трогаем, пока оно в фокусе: иначе переписали бы ввод под пальцами
-   (нормализация к [0,360) — после потери фокуса/Enter, а не на каждый символ). */
+/* Поле угла отражает УГОЛ ТЕКУЩЕГО РЕЖИМА (чертёж → planRotation, весь план → worldAngle). Не
+   трогаем, пока оно в фокусе: иначе переписали бы ввод под пальцами (нормализация к [0,360) —
+   после потери фокуса/Enter, а не на каждый символ). */
+function currentRotationAngle(){return state.rotateTarget==="world"?(state.worldAngle||0):state.planRotation}
 function syncRotationUi(){
   const inp=$("planRotateInput");
-  if(inp&&inp!==document.activeElement)inp.value=EPPlanRotate.formatAngle(state.planRotation);
+  if(inp&&inp!==document.activeElement)inp.value=EPPlanRotate.formatAngle(currentRotationAngle());
 }
 /* ЕДИНАЯ синхронизация UI подложки по state.planLoaded (образец — updateScaleUi): что дизейплить
    и что показывать, решает ОДНО место, а не каждый потребитель своей копией. Загрузка плана,
@@ -2353,8 +2372,12 @@ function updatePlanUi(){
      сменил, так что даже уцелей armed, подтверждение дало бы cancel, а не удаление. */
   const clearConfirm=$("clearPlanConfirmBtn");if(clearConfirm&&!loaded)clearConfirm.hidden=true;
   const vis=$("planVisibilityBtn");if(vis)vis.disabled=!loaded;
-  /* органы поворота подложки живут по тому же правилу — без чертежа вращать нечего (Б3, ч.1) */
-  ["planRotateLeftBtn","planRotateRightBtn","planRotateInput"].forEach(id=>{const e=$(id);if(e)e.disabled=!loaded});
+  /* Органы поворота (Б3, ч.2а — гейт в ОДНОМ месте, §7.1 п.2). В режиме «весь план» вращать есть что
+     всегда (сам холст с нарисованным) — живут и без подложки. В режиме «только чертёж» — как в части 1:
+     без фона вращать нечего. Переключатель режима активен ВСЕГДА (иначе из «только чертёж» без плана
+     не выбраться в «весь план»). */
+  const rotEnabled=state.rotateTarget==="world"||loaded;
+  ["planRotateLeftBtn","planRotateRightBtn","planRotateInput"].forEach(id=>{const e=$(id);if(e)e.disabled=!rotEnabled});
 }
 /* ЕДИНЫЙ предикат «подложка та же, что была в начале операции». Копий условия по коду
    быть не должно (HANDOFF §7.1 п.2). Меняет поколение только bumpPlanToken. */
@@ -2470,6 +2493,10 @@ function projectSnapshot(){
        Старый проект без поля откроется с 0 (restoreProject), поворот — чисто визуальный,
        координаты объектов он не трогает, смету не меняет. */
     planRotation:state.planRotation,
+    /* угол поворота ВСЕГО плана и режим органов поворота (Б3, ч.2а) — часть проекта. worldAngle
+       вращает лишь ВИД: координаты нарисованного не трогает (инвариант части 1 верен и для него),
+       в КП план выйдет повёрнутым. Старый проект без полей → worldAngle 0, rotateTarget "image". */
+    worldAngle:state.worldAngle,rotateTarget:state.rotateTarget,
     /* память полей исчезнувших комнат (В15) — часть проекта: без неё удалить стену, сохраниться и
        перезагрузиться значило бы навсегда потерять поля комнаты, которую ещё собирались вернуть */
     roomFieldMemory:state.roomFieldMemory,
@@ -2560,6 +2587,11 @@ async function restoreProject(){
   /* угол поворота подложки (Б3, ч.1): старый проект поля не несёт → normalizeAngle(undefined)=null
      → 0 (подложка без поворота). Битое значение из ручной правки тоже свернётся к 0. */
   state.planRotation=EPPlanRotate.normalizeAngle(p.planRotation)||0;
+  /* угол и режим поворота ВСЕГО плана (Б3, ч.2а): старый проект полей не несёт → worldAngle 0
+     (normalizeAngle(undefined)=null→0), режим "image" (поведение части 1). Битое значение угла
+     из ручной правки снимка тоже свернётся к 0. */
+  state.worldAngle=EPPlanRotate.normalizeAngle(p.worldAngle)||0;
+  state.rotateTarget=p.rotateTarget==="world"?"world":"image";
   /* память полей исчезнувших комнат (В15): старый проект её не несёт — открывается пустой */
   state.roomFieldMemory=Array.isArray(p.roomFieldMemory)?p.roomFieldMemory:[];
   /* режимы разметки с фолбэками: старый проект без этих полей открывается как
@@ -3203,17 +3235,46 @@ $("planVisibilityBtn").onclick=cyclePlanVisibility;
    Поле «угол» принимает любое число (в т.ч. «3,5» с запятой); мусор — откатываем к текущему углу,
    а не сбрасываем в 0 (потеря работы). Каждое изменение угла — настройка проекта, сохраняем сразу,
    как cyclePlanVisibility. */
+/* Поворот ВСЕГО плана (Б3, ч.2а): меняем УГОЛ МИРА вокруг центра окна холста, чтобы содержимое не
+   улетело за край (по образцу zoomAt — EPViewport.rotateAt подбирает pan под новый угол). Координаты
+   нарисованного НЕ трогаем — вращается только вид. Угол нормализуем (null→0), сохраняем в проект. */
+function setWorldAngle(a){
+  const n=EPPlanRotate.normalizeAngle(a),na=n==null?0:n;
+  /* rotateAt читает СТАРЫЙ угол из view() — зовём ДО записи нового worldAngle */
+  const nv=EPViewport.rotateAt(view(),viewportCenter(),na);
+  state.worldAngle=na;state.panX=nv.panX;state.panY=nv.panY;
+  applyView();syncRotationUi();
+  /* SVG-подписи (связи групп, масштаб) пересобираем — их контр-поворот зависит от угла */
+  renderGroupLinks();renderScaleRuler();
+  persistProject();
+}
 function rotatePlanBy(delta){
+  if(state.rotateTarget==="world"){setWorldAngle(EPPlanRotate.step(state.worldAngle,delta));return}
   if(!state.planLoaded){toast("Сначала загрузите план");return}
   state.planRotation=EPPlanRotate.step(state.planRotation,delta);
   applyPlanRotation();persistProject();
 }
 function applyRotationInput(){
-  if(!state.planLoaded)return;
   const a=EPPlanRotate.normalizeAngle($("planRotateInput").value);
   if(a==null){toast("Угол не распознан — введите число градусов");syncRotationUi();return}
+  if(state.rotateTarget==="world"){setWorldAngle(a);return}
+  if(!state.planLoaded)return;
   state.planRotation=a;applyPlanRotation();persistProject();
 }
+/* Переключение режима органов поворота (чертёж ↔ весь план). Поле показывает угол своего режима,
+   подсказка и гейт (updatePlanUi) перестраиваются под режим. Сам режим — настройка проекта. */
+function syncRotateModeUi(){
+  const sel=$("rotateTargetSelect");if(sel&&sel.value!==state.rotateTarget)sel.value=state.rotateTarget;
+  const hint=$("rotateModeHint");
+  if(hint)hint.textContent=state.rotateTarget==="world"
+    ?"Поворачивается весь план: чертёж, стены, комнаты, посты. Названия и значки остаются прямыми"
+    :"Поворачивается только чертёж-фон. Стены, комнаты и посты остаются на месте";
+  updatePlanUi();syncRotationUi();
+}
+$("rotateTargetSelect").onchange=e=>{
+  state.rotateTarget=e.target.value==="world"?"world":"image";
+  syncRotateModeUi();persistProject();
+};
 $("planRotateLeftBtn").onclick=()=>rotatePlanBy(-90);
 $("planRotateRightBtn").onclick=()=>rotatePlanBy(90);
 $("planRotateInput").onchange=applyRotationInput;
@@ -3279,10 +3340,27 @@ $("backlightVoltageSelect").onchange=e=>{
    CSS-трансформацию единого родителя .canvas. Поэтому слои, объекты, подложка и
    линейка остаются на местах друг относительно друга (главный критерий приёмки).
    Все пересчёты — в чистом EPViewport. ---- */
-function view(){return {panX:state.panX,panY:state.panY,scale:state.scale}}
+function view(){return {panX:state.panX,panY:state.panY,scale:state.scale,angle:state.worldAngle||0}}
+/* ЕДИНСТВЕННОЕ правило «точка курсора (clientX/clientY) → мировые координаты» с учётом угла мира.
+   Все инструменты (клик размещения, стены, разметка, правка вершин, подсказка у курсора) зовут ЕГО —
+   обратная матрица поворота живёт в EPViewport.screenToWorld, копий формулы по коду больше нет (§7.1).
+   Отсчёт — от окна холста (.canvas-scroll): его rect НЕ вращается, в отличие от #canvas, у которого
+   getBoundingClientRect при повороте вернул бы габарит повёрнутого прямоугольника (все 6 прежних копий
+   формулы на этом бы сломались). */
+function clientToWorld(clientX,clientY){
+  const r=canvasScroll.getBoundingClientRect();
+  return EPViewport.screenToWorld({x:clientX-r.left,y:clientY-r.top},view());
+}
 /* применить вид к DOM: одна дешёвая трансформация, без перерисовки слоёв и объектов —
-   поэтому панорама и зум не грузят интерфейс на каждое движение мыши */
-function applyView(){canvas.style.transform=`translate(${state.panX}px,${state.panY}px) scale(${state.scale})`}
+   поэтому панорама и зум не грузят интерфейс на каждое движение мыши. rotate(worldAngle) вращает
+   ВЕСЬ холст как один лист (Б3, ч.2а); порядок translate→rotate→scale совпадает с матрицей в
+   EPViewport, иначе экран↔мир разошлись бы с картинкой. --world-rot — КОНТР-угол для прямых подписей
+   комнат и значков постов: CSS-переменная наследуется детьми #canvas, те крутят себя обратно (§ DoD п.4). */
+function applyView(){
+  const a=state.worldAngle||0;
+  canvas.style.transform=`translate(${state.panX}px,${state.panY}px) rotate(${a}deg) scale(${state.scale})`;
+  canvas.style.setProperty("--world-rot",(-a)+"deg");
+}
 function setView(v){state.panX=v.panX;state.panY=v.panY;state.scale=v.scale;applyView()}
 /* Единый апдейт индикаторов масштаба: подпись на кнопке #zoomReset и (по флагу)
    строка статуса. Раньше три обработчика писали число врозь, а кнопку не трогали
@@ -3321,7 +3399,7 @@ function fitContentPoints(){
 function fitToScreen(){
   const r=canvasScroll.getBoundingClientRect();
   setView(EPViewport.fitView(EPViewport.bounds(fitContentPoints()),r.width,r.height,
-    {padding:EPConfig.viewFitPadding,minScale:EPConfig.viewMinScale,maxScale:EPConfig.viewMaxScale}));
+    {padding:EPConfig.viewFitPadding,minScale:EPConfig.viewMinScale,maxScale:EPConfig.viewMaxScale,angle:state.worldAngle||0}));
   updateZoomUi(true);scheduleSave();
 }
 $("zoomFit").onclick=fitToScreen;
@@ -3398,7 +3476,10 @@ $("planUpload").onchange=async e=>{
     showTraceProgress(false);input.value="";
   }
 };
-$("clearBtn").onclick=()=>{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.roomLines=[];state.roomFieldMemory=[];finishRoomLineChain();state.selected=null;clearAnnotations();renderAll();renderProperties();renderSummary()};
+/* «Очистить холст» сносит всё нарисованное — а с ним теряет смысл и угол мира: сбрасываем worldAngle
+   в 0 и применяем вид (Б3, ч.2а). Режим органов (rotateTarget) — предпочтение пользователя, не трогаем.
+   Угол ПОДЛОЖКИ (planRotation) сбросит clearPlan при «Убрать план», здесь плана не касаемся. */
+$("clearBtn").onclick=()=>{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.roomLines=[];state.roomFieldMemory=[];finishRoomLineChain();state.selected=null;state.worldAngle=0;applyView();syncRotationUi();clearAnnotations();renderAll();renderProperties();renderSummary();renderScaleRuler()};
 $("autoTraceBtn").onclick=autoTracePlan;
 $("annotateBtn").onclick=annotatePlan;
 $("clearAnnotateBtn").onclick=()=>{clearAnnotations();toast("Разметка убрана")};
@@ -3617,7 +3698,14 @@ document.onkeydown=e=>{
     if(e.key==="Enter"&&state.selected.kind==="post"){e.preventDefault();openPostBuilder({placedId:state.selected.id});return}
     const step=e.shiftKey?1:state.gridStep;
     const nudge={ArrowLeft:[-step,0],ArrowRight:[step,0],ArrowUp:[0,-step],ArrowDown:[0,step]}[e.key];
-    if(nudge&&moveSelectedBy(nudge[0],nudge[1])){e.preventDefault();return}
+    if(nudge){
+      /* Стрелки двигают объект в ЭКРАННЫХ направлениях (влево на экране = влево при любом угле мира):
+         экранное направление переводим в мировую дельту обратной матрицей R(−worldAngle). Длина шага —
+         шаг сетки в мире (поворот длину сохраняет). При worldAngle=0 — прежние (dx,dy) без изменений. */
+      const a=(state.worldAngle||0)*Math.PI/180,c=Math.cos(a),s=Math.sin(a);
+      const wx=nudge[0]*c+nudge[1]*s,wy=-nudge[0]*s+nudge[1]*c;
+      if(moveSelectedBy(wx,wy)){e.preventDefault();return}
+    }
   }
   /* Backspace во время рисования разметки — снять последнюю точку (Esc — выход из режима) */
   if(e.key==="Backspace"&&state.tool==="roomline"&&!typing&&!inBuilder&&state.roomLinePoints.length){e.preventDefault();removeLastRoomLinePoint()}
@@ -3692,7 +3780,7 @@ const {openPostBuilder,renderPostSlotCountSelect,requestClosePostBuilder,builder
    сам он — const из EPRooms.attach ниже, на момент вызова ещё не инициализирован; разметка зовёт его
    лишь при действии пользователя, когда const уже готов (TDZ нет). */
 const {addRoomLinePoint,drawRoomLines,finishRoomLineChain,removeLastRoomLinePoint,buildRoomsFromLines}=EPRoomDetect.attach({
-  $,SVG_NS,canvas,markCanvasUsed,persistProject,planLostDuringOp,refreshAfterRoomAssignments,
+  $,SVG_NS,canvas,clientToWorld,markCanvasUsed,persistProject,planLostDuringOp,refreshAfterRoomAssignments,
   renderAll,renderRooms:()=>renderRooms(),roomLabelPoint,roomNamePoint,scheduleRoomsFromLines,scheduleSave,
   showTraceProgress,state,toast,uid,updateStatus,wallRadiusFor
 });
@@ -3709,7 +3797,7 @@ const {addRoomLinePoint,drawRoomLines,finishRoomLineChain,removeLastRoomLinePoin
    когда const уже готов, поэтому стрелка вычисляет ссылку в момент вызова, а не сборки ctx (TDZ нет). */
 const {makeDraggable,placePendingAtEvent,onSpaceKeydown}=EPCanvasInput.attach({
   $,addPending,addRoomLinePoint,addScalePoint,addWallPoint,applySelectionClasses,applyView,
-  buildSpaceComponents,canvas,canvasScroll,ensureSelectTool,getRoomForPoint,hideHover,markCanvasUsed,
+  buildSpaceComponents,canvas,canvasScroll,clientToWorld,ensureSelectTool,getRoomForPoint,hideHover,markCanvasUsed,
   tightestRoomAtPoint,refreshAfterRoomAssignments,removeEntity,renderAll,renderGroupLinks,renderProperties,
   renderRooms:()=>renderRooms(),renderSummary,scheduleSave,selectEntity,setTool,state,toast,uid,
   updateObjectRoom,updateStatus,zoomBy
@@ -3722,7 +3810,7 @@ const {makeDraggable,placePendingAtEvent,onSpaceKeydown}=EPCanvasInput.attach({
    refreshAfterRoomAssignments), relabelContourRooms (restoreProject — миграция открываемого проекта),
    updateRoomLabelText (flushRoomDraft). Правку вершин attach держит внутри — её зовёт только renderRooms. */
 const {renderRooms,relabelContourRooms,updateRoomLabelText}=EPRooms.attach({
-  $,SVG_NS,canvas,esc,formatArea,getObjectsInRoom,makeDraggable,persistProject,placePendingAtEvent,
+  $,SVG_NS,canvas,clientToWorld,esc,formatArea,getObjectsInRoom,makeDraggable,persistProject,placePendingAtEvent,
   refreshAfterRoomAssignments,removeEntity,roomAreaM2,roomDisplayArea,roomLabelPoint,roomNamePoint,
   selectEntity,state,toast,updateStatus
 });

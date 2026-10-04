@@ -23,6 +23,7 @@ const assert = require("node:assert/strict");
 const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
 const { roomLabelPoint, roomNamePoint, pointInPolygon } = require("../js/geometry.js");
+const EPViewport = require("../js/viewport.js");
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -110,6 +111,11 @@ function buildRooms(state) {
     document: doc, SVG_NS, canvas, state,
     $: id => (id === "roomsSvg" ? svg : makeEl("div")),
     esc: String,
+    /* clientToWorld — то же правило, что в app.js (Б3 ч.2а): окно холста в тесте в (0,0), pan=0,
+       поэтому экран→мир через НАСТОЯЩИЙ EPViewport.screenToWorld с масштабом и углом мира из state.
+       При scale≠1 деление на масштаб сохраняется, при worldAngle≠0 работает обратная матрица. */
+    clientToWorld: (cx, cy) => EPViewport.screenToWorld({ x: cx, y: cy },
+      { panX: 0, panY: 0, scale: state.scale, angle: state.worldAngle || 0 }),
     roomLabelPoint, roomNamePoint,                         // НАСТОЯЩАЯ геометрия из js/geometry.js
     roomAreaM2: () => 0,                                    // площадь — лишь текст статуса, зависимость app.js
     formatArea: v => String(v),
@@ -168,6 +174,22 @@ test("перетаскивание ручки вершины переносит 
   /* остальные вершины перенос не трогает */
   assert.equal(room.polygon[0].x, 300, "соседняя вершина осталась на месте по X");
   assert.equal(room.polygon[0].y, 100, "соседняя вершина осталась на месте по Y");
+});
+
+/* --- Б3, ч.2а: правка вершины при ПОВЁРНУТОМ виде садится под курсор, не мимо ------------------ */
+test("перетаскивание вершины при угле мира 90° кладёт её в обратно-повёрнутую мировую точку", () => {
+  const room = { id: "r1", name: "Коридор", polygon: GAMMA(), autoPolygon: true, edited: false };
+  const state = makeState({ selected: { kind: "room", id: "r1" }, rooms: [room], scale: 1, worldAngle: 90 });
+  const built = buildRooms(state);
+  built.api.renderRooms();
+  const vhandles = built.svg.querySelectorAll(".vertex-handle");
+  /* окно холста в (0,0), pan=0, scale=1, угол 90°: экран→мир = R(−90)·(x,y) = (y, −x).
+     Ведём курсор в экранную (740,120) → мир (120, −740). */
+  vhandles[1].onpointerdown(pointer({ clientX: 700, clientY: 100 }));
+  built.doc.fire("pointermove", pointer({ clientX: 740, clientY: 120 }));
+  built.doc.fire("pointerup", pointer({}));
+  assert.ok(Math.abs(room.polygon[1].x - 120) < 1e-6, "world X = экранный Y (R(−90))");
+  assert.ok(Math.abs(room.polygon[1].y - (-740)) < 1e-6, "world Y = −экранный X (R(−90))");
 });
 
 /* --- Пометка «ручной» комнаты после отпускания (dragVertex.up → markRoomEdited) ---------------- */

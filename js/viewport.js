@@ -14,16 +14,30 @@
 (() => {
 "use strict";
 
-/* Мир → экран. view = {panX, panY, scale}; точки — относительно левого-верхнего
-   угла окна холста (того же, от которого отсчитывается CSS-трансформация). */
+/* Мир → экран. view = {panX, panY, scale, angle?}; точки — относительно левого-верхнего
+   угла окна холста (того же, от которого отсчитывается CSS-трансформация).
+   angle — угол ПОВОРОТА ВСЕГО ВИДА (Б3, ч.2а), в градусах; порядок как у CSS
+   `translate(pan) rotate(θ) scale(s)` с transform-origin в этом же углу: СНАЧАЛА масштаб,
+   ПОТОМ поворот, в конце сдвиг. angle отсутствует/0 — прежняя формула байт-в-байт (часть 1
+   и все старые проекты не трогаются). */
 function worldToScreen(pt, view) {
-  return { x: pt.x * view.scale + view.panX, y: pt.y * view.scale + view.panY };
+  const a = view.angle ? view.angle * Math.PI / 180 : 0;
+  if (!a) return { x: pt.x * view.scale + view.panX, y: pt.y * view.scale + view.panY };
+  const c = Math.cos(a), s = Math.sin(a);
+  const sx = pt.x * view.scale, sy = pt.y * view.scale;   /* масштаб применяем до поворота */
+  return { x: view.panX + sx * c - sy * s, y: view.panY + sx * s + sy * c };
 }
 
 /* Экран → мир. Строгая инверсия worldToScreen: round-trip обязан возвращать
-   исходную точку — на этом держится «ничего не поехало» при зуме/панораме. */
+   исходную точку — на этом держится «ничего не поехало» при зуме/панораме/повороте.
+   Обратная матрица: снимаем сдвиг, затем ПОВОРОТ R(−a), затем масштаб. Это ЕДИНСТВЕННОЕ место
+   правила «экран→мир с углом» — все инструменты зовут его, копий формулы по коду нет (§7.1). */
 function screenToWorld(pt, view) {
-  return { x: (pt.x - view.panX) / view.scale, y: (pt.y - view.panY) / view.scale };
+  const a = view.angle ? view.angle * Math.PI / 180 : 0;
+  if (!a) return { x: (pt.x - view.panX) / view.scale, y: (pt.y - view.panY) / view.scale };
+  const c = Math.cos(a), s = Math.sin(a);
+  const dx = pt.x - view.panX, dy = pt.y - view.panY;
+  return { x: (dx * c + dy * s) / view.scale, y: (-dx * s + dy * c) / view.scale };
 }
 
 /* Зажим масштаба в допустимый диапазон (границы вида задаёт вызывающий). */
@@ -39,9 +53,25 @@ function zoomAt(view, screenPt, factor, opts) {
   const min = opts.min != null ? opts.min : 0.1;
   const max = opts.max != null ? opts.max : 4;
   const newScale = clampScale(view.scale * factor, min, max);
-  /* мировая точка под курсором до зума; после зума требуем worldToScreen(w)=screenPt */
+  /* мировая точка под курсором до зума; после зума требуем worldToScreen(w)=screenPt при ТОМ ЖЕ угле */
   const w = screenToWorld(screenPt, view);
-  return { scale: newScale, panX: screenPt.x - w.x * newScale, panY: screenPt.y - w.y * newScale };
+  const a = view.angle ? view.angle * Math.PI / 180 : 0;
+  const c = Math.cos(a), s = Math.sin(a);
+  const sx = w.x * newScale, sy = w.y * newScale;
+  return { scale: newScale, panX: screenPt.x - (sx * c - sy * s), panY: screenPt.y - (sx * s + sy * c) };
+}
+
+/* Поворот вида ВОКРУГ точки экрана: угол мира меняется на newAngle (градусы), а мировая точка под
+   screenPt остаётся на том же месте экрана — ровно как zoomAt держит точку при зуме. Масштаб не
+   трогаем. Нужен при повороте всего плана кнопками/полем, чтобы содержимое не улетало за край окна.
+   Возвращает НОВЫЙ вид {scale, panX, panY, angle}. */
+function rotateAt(view, screenPt, newAngle) {
+  const w = screenToWorld(screenPt, view);
+  const a = newAngle ? newAngle * Math.PI / 180 : 0;
+  const c = Math.cos(a), s = Math.sin(a);
+  const sx = w.x * view.scale, sy = w.y * view.scale;
+  return { scale: view.scale, angle: newAngle || 0,
+    panX: screenPt.x - (sx * c - sy * s), panY: screenPt.y - (sx * s + sy * c) };
 }
 
 /* Прямоугольник, накрывающий набор точек: {minX,minY,maxX,maxY} или null, если
@@ -67,18 +97,26 @@ function fitView(b, viewW, viewH, opts) {
   const minScale = opts.minScale != null ? opts.minScale : 0.1;
   const maxScale = opts.maxScale != null ? opts.maxScale : 4;
   if (!b) return { panX: 0, panY: 0, scale: 1 };
+  /* Угол мира (Б3, ч.2а): содержимое на экране повёрнуто, поэтому вписываем ГАБАРИТ ПОВЁРНУТОГО
+     bbox, а не сам bbox. Стороны поворачиваются и складываются (|cos|/|sin|), как у подложки в
+     planRotate.fitScale. angle отсутствует/0 — rw=bw, rh=bh и формула совпадает со старой. */
+  const a = opts.angle ? opts.angle * Math.PI / 180 : 0;
+  const ac = Math.abs(Math.cos(a)), as = Math.abs(Math.sin(a));
   const bw = b.maxX - b.minX, bh = b.maxY - b.minY;
+  const rw = bw * ac + bh * as, rh = bw * as + bh * ac;   /* габарит повёрнутого bbox */
   const availW = Math.max(1, viewW - 2 * padding), availH = Math.max(1, viewH - 2 * padding);
   /* по нулевой стороне (точка/строго H- или V-линия) не делим — берём другую ось,
      а если вырождены обе, оставляем 100% */
   let scale;
-  if (bw <= 0 && bh <= 0) scale = 1;
-  else if (bw <= 0) scale = availH / bh;
-  else if (bh <= 0) scale = availW / bw;
-  else scale = Math.min(availW / bw, availH / bh);
+  if (rw <= 0 && rh <= 0) scale = 1;
+  else if (rw <= 0) scale = availH / rh;
+  else if (rh <= 0) scale = availW / rw;
+  else scale = Math.min(availW / rw, availH / rh);
   scale = clampScale(scale, minScale, maxScale);
+  /* центр содержимого — в центр окна: pan = центр_окна − R(a)·(scale·центр) */
   const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
-  return { scale, panX: viewW / 2 - cx * scale, panY: viewH / 2 - cy * scale };
+  const c = Math.cos(a), s = Math.sin(a), scx = cx * scale, scy = cy * scale;
+  return { scale, panX: viewW / 2 - (scx * c - scy * s), panY: viewH / 2 - (scx * s + scy * c) };
 }
 
 /* Подбор сетки свободного пространства ПОД ФАКТИЧЕСКИ НАРИСОВАННОЕ (пункт 6 плана).
@@ -117,7 +155,7 @@ function spaceGrid(b, opts) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { worldToScreen, screenToWorld, clampScale, zoomAt, bounds, fitView, spaceGrid };
+const api = { worldToScreen, screenToWorld, clampScale, zoomAt, rotateAt, bounds, fitView, spaceGrid };
 if (typeof window !== "undefined") window.EPViewport = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

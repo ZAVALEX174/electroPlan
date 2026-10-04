@@ -52,7 +52,7 @@
 function attach(ctx){
 const {
   $,addPending,addRoomLinePoint,addScalePoint,addWallPoint,applySelectionClasses,applyView,
-  buildSpaceComponents,canvas,canvasScroll,ensureSelectTool,getRoomForPoint,hideHover,markCanvasUsed,
+  buildSpaceComponents,canvas,canvasScroll,clientToWorld,ensureSelectTool,getRoomForPoint,hideHover,markCanvasUsed,
   tightestRoomAtPoint,refreshAfterRoomAssignments,removeEntity,renderAll,renderGroupLinks,renderProperties,
   renderRooms,renderSummary,scheduleSave,selectEntity,setTool,state,toast,uid,updateObjectRoom,
   updateStatus,zoomBy
@@ -139,7 +139,7 @@ function makeDraggable(el,obj,kind){
       /* карту областей для подсветки помещения снимаем один раз на старте переноса */
       dragMap=(kind!=="room"&&state.rooms.some(r=>!(r.polygon&&r.polygon.length>2)))?buildSpaceComponents():null;
     }
-    const p=EPDrag.worldPosition({x:bx,y:by},{x:sx,y:sy},{x:clientX,y:clientY},state.scale);
+    const p=EPDrag.worldPosition({x:bx,y:by},{x:sx,y:sy},{x:clientX,y:clientY},state.scale,state.worldAngle);
     obj.x=p.x;obj.y=p.y;el.style.left=obj.x+"px";el.style.top=obj.y+"px";
     if(kind!=="room"){const room=getRoomForPoint(obj.x+12,obj.y+12,dragMap);setRoomDropHighlight(room?room.id:null)}
     /* Связи групп ведём за постом ЖИВЬЁМ: пунктир не должен отставать от иконки при переносе.
@@ -190,12 +190,12 @@ function makeDraggable(el,obj,kind){
   /* долгое нажатие/ПКМ на объекте не должны звать системное контекстное меню (PLAN 2) */
   el.addEventListener("contextmenu",e=>e.preventDefault());
 }
-/* Формула «экранный клик → координаты плана» (с учётом масштаба), общая для canvas.onclick и
-   placePendingAtEvent (клик размещения). НЕ единственный источник: addWallPoint, addRoomLinePoint
-   и pointermove считают ту же формулу своей копией — сюда их пока не свели. */
+/* «Экранный клик → координаты плана» через ЕДИНОЕ правило clientToWorld (учитывает масштаб И угол
+   мира, Б3 ч.2а). Раньше формула жила здесь своей копией и ломалась при повороте холста
+   (getBoundingClientRect возвращал габарит повёрнутого прямоугольника); теперь обратная матрица —
+   одна, в EPViewport.screenToWorld (§7.1). Общая для canvas.onclick и placePendingAtEvent. */
 function canvasEventPoint(e){
-  const r=canvas.getBoundingClientRect();
-  return {x:(e.clientX-r.left)/state.scale,y:(e.clientY-r.top)/state.scale};
+  return clientToWorld(e.clientX,e.clientY);
 }
 /* Единое правило «клик в режиме размещения ставит объект в точку клика». Зовут и canvas.onclick
    (клик по пустому месту), и обработчики подписей комнат (клик прямо по табличке): расчёт координат

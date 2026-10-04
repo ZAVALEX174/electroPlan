@@ -226,16 +226,21 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .scheme-field--check input{margin:0}
 .hint-line{display:block;margin-top:4px;color:var(--muted);font-size:9px}
 .detect-box{fill-opacity:.10;stroke-width:2}
-.detect-legend{position:absolute;left:12px;bottom:12px;z-index:5;display:flex;flex-wrap:wrap;gap:6px 12px;max-width:60%;padding:9px 11px;border:1px solid #d3dce6;border-radius:9px;background:rgba(255,255,255,.94);box-shadow:0 8px 22px rgba(16,42,67,.14);font-size:10px}
+/* наложения-подсказки внутри #canvas (легенда/пустой холст/прогресс/карточка наведения) — НЕ мировые
+   узлы: их нельзя «класть боком» при повороте всего плана (Б3, ч.2а). Контр-вращаем тем же --world-rot. */
+.detect-legend{position:absolute;left:12px;bottom:12px;z-index:5;transform:rotate(var(--world-rot,0deg));display:flex;flex-wrap:wrap;gap:6px 12px;max-width:60%;padding:9px 11px;border:1px solid #d3dce6;border-radius:9px;background:rgba(255,255,255,.94);box-shadow:0 8px 22px rgba(16,42,67,.14);font-size:10px}
 .detect-legend .lg-item{display:flex;align-items:center;gap:5px;color:var(--text)}
 .detect-legend .lg-swatch{width:11px;height:11px;border-radius:3px;border:1px solid rgba(0,0,0,.15)}
 .detect-legend .lg-count{color:var(--muted)}
-.canvas-empty{position:absolute;inset:0;display:grid;place-content:center;gap:5px;text-align:center;color:var(--muted);pointer-events:none}.empty-icon{margin:auto;width:50px;height:50px;border-radius:15px;display:grid;place-items:center;color:var(--blue);background:var(--blue-soft);font-size:25px}
+.canvas-empty{position:absolute;inset:0;display:grid;place-content:center;gap:5px;text-align:center;color:var(--muted);pointer-events:none;transform:rotate(var(--world-rot,0deg))}.empty-icon{margin:auto;width:50px;height:50px;border-radius:15px;display:grid;place-items:center;color:var(--blue);background:var(--blue-soft);font-size:25px}
 /* touch-action:none — жест перетаскивания не прокручивает страницу на планшете;
    user-select/touch-callout none — при переносе не выделяется текст и не всплывает
    системное меню касания (PLAN 2). */
-.room-label{position:absolute;z-index:3;min-width:110px;padding:7px 10px;border:1px solid #b7d7f3;border-radius:9px;text-align:center;font-size:11px;font-weight:900;background:rgba(255,255,255,.9);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}.room-label small{display:block;margin-top:2px;color:var(--muted);font-size:9px}
-.plan-icon{position:absolute;z-index:6;width:24px;height:24px;border:2px solid #fff;border-radius:7px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue-dark));box-shadow:0 5px 12px rgba(30,104,171,.35);font-size:7px;font-weight:900;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+/* --world-rot — контр-угол поворота всего плана (Б3, ч.2а): выставляется в applyView на #canvas и
+   наследуется. Подпись комнаты и значок поста крутят себя обратно вокруг своего центра — остаются
+   ПРЯМЫМИ на экране (не боком/вверх ногами), хотя весь холст повёрнут. При угле 0 — rotate(0deg), no-op. */
+.room-label{position:absolute;z-index:3;min-width:110px;padding:7px 10px;border:1px solid #b7d7f3;border-radius:9px;text-align:center;font-size:11px;font-weight:900;background:rgba(255,255,255,.9);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transform:rotate(var(--world-rot,0deg))}.room-label small{display:block;margin-top:2px;color:var(--muted);font-size:9px}
+.plan-icon{position:absolute;z-index:6;width:24px;height:24px;border:2px solid #fff;border-radius:7px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue-dark));box-shadow:0 5px 12px rgba(30,104,171,.35);font-size:7px;font-weight:900;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transform:rotate(var(--world-rot,0deg))}
 /* прозрачная зона попадания вокруг мелкой иконки (сама иконка 24px, кликаемая область
    ~42px) — палец/курсор попадают легче, визуально иконка не растёт (PLAN 2) */
 .plan-icon::before{content:"";position:absolute;inset:-9px;border-radius:inherit}
@@ -255,7 +260,9 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .room-label:hover{border-color:var(--blue);box-shadow:0 4px 14px rgba(30,104,171,.25)}
 /* перенос: объект «взят» — приподнят (тень, лёгкая прозрачность), поверх соседей,
    курсор «сжатая рука» (PLAN 3) */
-.plan-icon.dragging,.room-label.dragging{cursor:grabbing;opacity:.9;z-index:20;box-shadow:0 12px 26px rgba(16,42,67,.42);transform:scale(1.08)}
+/* при переносе значок/подпись слегка подрастают (scale 1.08) — но контр-поворот должен сохраниться,
+   иначе взятый объект «ляжет боком» при повёрнутом плане; поэтому rotate(var) ВМЕСТЕ со scale (§ DoD п.4) */
+.plan-icon.dragging,.room-label.dragging{cursor:grabbing;opacity:.9;z-index:20;box-shadow:0 12px 26px rgba(16,42,67,.42);transform:rotate(var(--world-rot,0deg)) scale(1.08)}
 /* перенос объекта «вне помещений»: кольцо метки обязано пережить перенос (объект всё ещё вне
    комнат), И подъёмная тень обязана показать, что объект взят. По отдельности .dragging (0-2-0) и
    .no-room:hover (0-3-0) перебивали друг друга box-shadow'ом, и какая победит — зависело от того,
@@ -269,7 +276,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .room-label.drop-target{border-color:#2588ed;background:var(--blue-soft)}
 /* выделение: заметное сплошное кольцо со смещением — отличимо от подсветки наведения */
 .selected{outline:3px solid var(--blue)!important;outline-offset:2px}
-.hover-card{display:none;position:absolute;z-index:50;width:265px;padding:12px;border:1px solid var(--line-strong);border-radius:14px;background:rgba(255,255,255,.97);box-shadow:0 18px 45px rgba(20,77,128,.22);pointer-events:none}.hover-card.show{display:block}.hover-card h4{margin:0 0 7px;font-size:13px}.hover-card dl{display:grid;grid-template-columns:1fr auto;gap:5px;margin:0;font-size:10px}.hover-card dt{color:var(--muted)}.hover-card dd{margin:0;text-align:right;font-weight:800}.hover-composition{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}.hover-chip{padding:4px 6px;border-radius:7px;background:var(--blue-soft);font-size:9px;font-weight:800;color:var(--blue-dark)}
+.hover-card{display:none;position:absolute;z-index:50;width:265px;padding:12px;transform:rotate(var(--world-rot,0deg));transform-origin:top left;border:1px solid var(--line-strong);border-radius:14px;background:rgba(255,255,255,.97);box-shadow:0 18px 45px rgba(20,77,128,.22);pointer-events:none}.hover-card.show{display:block}.hover-card h4{margin:0 0 7px;font-size:13px}.hover-card dl{display:grid;grid-template-columns:1fr auto;gap:5px;margin:0;font-size:10px}.hover-card dt{color:var(--muted)}.hover-card dd{margin:0;text-align:right;font-weight:800}.hover-composition{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}.hover-chip{padding:4px 6px;border-radius:7px;background:var(--blue-soft);font-size:9px;font-weight:800;color:var(--blue-dark)}
 .empty-properties{padding:14px;border:1px dashed var(--line-strong);border-radius:12px;color:var(--muted);font-size:11px;text-align:center}
 .property-actions{display:flex;gap:7px;margin-top:10px}.property-actions button{flex:1}
 .price-card{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:11px}.price-card span{color:var(--muted)}.price-card strong{font-size:12px}.grand-total{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:13px;border-radius:12px;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue-dark))}.grand-total strong{font-size:18px}
@@ -536,7 +543,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .text-action{padding:0;border:0;background:transparent;color:var(--blue-dark);text-align:left;font-size:9px;font-weight:800}
 .text-action:hover{text-decoration:underline}
 .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
-.trace-progress{position:absolute;inset:0;z-index:80;display:grid;place-items:center;background:rgba(255,255,255,.82);backdrop-filter:blur(3px)}
+.trace-progress{position:absolute;inset:0;z-index:80;display:grid;place-items:center;background:rgba(255,255,255,.82);backdrop-filter:blur(3px);transform:rotate(var(--world-rot,0deg))}
 .trace-progress-box{padding:18px 22px;border:1px solid var(--line);border-radius:8px;background:#fff;box-shadow:var(--shadow);text-align:center}
 .trace-progress-box strong,.trace-progress-box span{display:block}.trace-progress-box span{margin-top:5px;color:var(--muted);font-size:10px}
 .auto-wall{stroke:#1872ad!important;stroke-dasharray:2 1}

@@ -1,0 +1,101 @@
+  // ============ Б3, ч.2а: ПОВОРОТ ВСЕГО ПЛАНА (глазами владельца) ============
+  // Режим «весь план»: ↺/↻ и поле «Угол» вращают ВЕСЬ холст как один лист (чертёж, стены, комнаты,
+  // посты). Мировые координаты нарисованного НЕ меняются (вид-подход) — проверяем по style.left/top
+  // иконок и атрибутам SVG-линии стены. Названия комнат и значки постов остаются ПРЯМЫМИ (контр-поворот,
+  // computed transform). Пост остаётся в своей комнате (класс no-room и координаты не меняются). Угол и
+  // режим переживают перезагрузку. «Весь план» работает и БЕЗ подложки. Перенос при угле попадает туда,
+  // куда тянут. В конце — КП (часть 2б) НЕ трогаем, здесь только холст.
+  n = 950;
+
+  const scrollRect = () => ev(`const r=document.querySelector(".canvas-scroll").getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height}`);
+  const spt = async (fx, fy) => { const r = await scrollRect(); return { x: r.x + r.w * fx, y: r.y + r.h * fy }; };
+  const canvasTransform = () => ev(`return document.getElementById("canvas").style.transform`);
+  const worldRotVar = () => ev(`return document.getElementById("canvas").style.getPropertyValue("--world-rot")`);
+  const postCoords = () => ev(`return [...document.querySelectorAll(".plan-icon.post")].map(e=>({left:e.style.left,top:e.style.top,noRoom:e.classList.contains("no-room")}))`);
+  const wallCoords = () => ev(`const l=document.querySelector("#wallsSvg line");return l?{x1:l.getAttribute("x1"),y1:l.getAttribute("y1"),x2:l.getAttribute("x2"),y2:l.getAttribute("y2")}:null`);
+  const field = () => ev(`return document.getElementById("planRotateInput").value`);
+  const savedWorld = () => ev(`return JSON.parse(localStorage.getItem(ProjectStore.key)||"{}").worldAngle`);
+  const savedTarget = () => ev(`return JSON.parse(localStorage.getItem(ProjectStore.key)||"{}").rotateTarget`);
+  const btnsDisabled = () => ev(`return [document.getElementById("planRotateLeftBtn").disabled,document.getElementById("planRotateRightBtn").disabled,document.getElementById("planRotateInput").disabled]`);
+  const iconMatrix = () => ev(`const e=document.querySelector(".plan-icon.post");return e?getComputedStyle(e).transform:null`);
+  const labelMatrix = () => ev(`const e=document.querySelector(".room-label");return e?getComputedStyle(e).transform:null`);
+  const iconCenter = () => ev(`const e=document.querySelector(".plan-icon.post");if(!e)return null;const r=e.getBoundingClientRect();return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)}`);
+  const grand = () => ev(`const e=document.querySelector(".grand-total strong");return e?e.textContent.trim():null`);
+
+  // --- ЧАСТЬ 0: «весь план» БЕЗ подложки --------------------------------------------------------
+  // переключаем режим органов на «весь план»
+  await setVal($("rotateTargetSelect"), "world"); await sleep(300);
+  log.push("0) режим «весь план», подложки нет: кнопки disabled=" + JSON.stringify(await btnsDisabled()) + " (ожидание [false,false,false] — живут без подложки)");
+  const postsNoPlanBefore = await postCoords();
+  log.push("0) пост[0] ДО: " + JSON.stringify(postsNoPlanBefore[0]));
+  await click($("planRotateRightBtn")); await sleep(500);   // ↻ 90°
+  log.push("0) после ↻90 без подложки: поле=" + JSON.stringify(await field()) + " canvas.transform=" + JSON.stringify(await canvasTransform()) + " --world-rot=" + JSON.stringify(await worldRotVar()));
+  const postsNoPlanAfter = await postCoords();
+  log.push("0) пост[0] ПОСЛЕ: " + JSON.stringify(postsNoPlanAfter[0]) + " — координаты и комната должны совпасть с ДО");
+  log.push("0) координаты поста НЕ изменились? " + (JSON.stringify(postsNoPlanBefore) === JSON.stringify(postsNoPlanAfter)));
+  await shot("rw0-noplan-90", [`document.querySelector(".plan-icon.post")`]);
+  // вернём угол мира в 0, чтобы дальше смотреть чистый эффект на подложке
+  await setVal($("planRotateInput"), "0"); await sleep(400);
+
+  // --- ЧАСТЬ 1: подложка + стена, затем поворот всего плана --------------------------------------
+  const chertezBuf = fs.readFileSync(path.join(ROOT, "chertez", "scale_1200.jpg"));
+  const planDataUrl = "data:image/jpeg;base64," + chertezBuf.toString("base64");
+  await ev(`const k=ProjectStore.key;const p=JSON.parse(localStorage.getItem(k)||"{}");p.plan=${JSON.stringify(planDataUrl)};p.planLabel="scale_1200.jpg";localStorage.setItem(k,JSON.stringify(p));return 1;`);
+  await c.send("Page.reload"); await sleep(5000);
+  await ev(`document.getElementById("canvas").scrollIntoView({block:"start"});return 1;`);
+  await sleep(300);
+
+  log.push("1) после перезагрузки: режим(сохранён)=" + JSON.stringify(await savedTarget()) + " поле режима=" + await ev(`return document.getElementById("rotateTargetSelect").value`) + " (ожидание world — режим пережил reload)");
+
+  // рисуем стену (инструмент «Стены», два клика по окну холста)
+  await click(`document.querySelector('[data-tool="wall"]')`); await sleep(300);
+  let wA = await spt(0.30, 0.25), wB = await spt(0.55, 0.25);
+  await clickAt(wA.x, wA.y); await clickAt(wB.x, wB.y); await sleep(400);
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(300);
+  await click(`document.querySelector('[data-tool="select"]')`); await sleep(200);
+
+  const wallBefore = await wallCoords(), postsBefore = await postCoords(), grandBefore = await grand();
+  log.push("1) ДО поворота: стена=" + JSON.stringify(wallBefore) + " пост[0]=" + JSON.stringify(postsBefore[0]) + " итог=" + JSON.stringify(grandBefore));
+  await shot("rw1-before", [`document.getElementById("wallsSvg")`, `document.querySelector(".plan-icon.post")`]);
+
+  // ↻ 90° — весь план как один лист
+  await click($("planRotateRightBtn")); await sleep(500);
+  log.push("1) после ↻90: поле=" + JSON.stringify(await field()) + " сохранён worldAngle=" + await savedWorld() + " canvas.transform=" + JSON.stringify(await canvasTransform()));
+  const wallAfter90 = await wallCoords(), postsAfter90 = await postCoords();
+  log.push("1) стена совпала ДО/ПОСЛЕ ↻90? " + (JSON.stringify(wallBefore) === JSON.stringify(wallAfter90)) + " | посты совпали? " + (JSON.stringify(postsBefore) === JSON.stringify(postsAfter90)));
+  log.push("1) значок поста computed transform=" + JSON.stringify(await iconMatrix()) + " (контр-поворот -90 → matrix(~0,-1,1,0))");
+  log.push("1) подпись комнаты computed transform=" + JSON.stringify(await labelMatrix()));
+  log.push("1) итог сметы ДО/ПОСЛЕ ↻90: " + JSON.stringify(grandBefore) + " / " + JSON.stringify(await grand()) + " (должны совпасть — цена не зависит от угла)");
+  await shot("rw2-world-90", [`document.getElementById("planImage")`, `document.querySelector(".plan-icon.post")`]);
+
+  // произвольный угол «3,5» через поле (запятая)
+  await setVal($("planRotateInput"), "3,5"); await sleep(500);
+  log.push("1) после «3,5»: поле=" + JSON.stringify(await field()) + " сохранён worldAngle=" + await savedWorld() + " canvas.transform=" + JSON.stringify(await canvasTransform()));
+  await shot("rw3-world-3p5", [`document.getElementById("planImage")`, `document.getElementById("planRotateInput")`], RIGHT);
+
+  // мусор в поле — угол 3.5 должен сохраниться, поле вернуться
+  await setVal($("planRotateInput"), "abc"); await sleep(400);
+  log.push("1) после мусора: сохранён worldAngle=" + await savedWorld() + " поле=" + JSON.stringify(await field()) + " (ожидание 3.5 и «3,5»)");
+
+  // --- ЧАСТЬ 2: перенос поста при повёрнутом плане попадает туда, куда тянут ----------------------
+  // ставим ровный угол 90 для предсказуемой проверки переноса
+  await setVal($("planRotateInput"), "90"); await sleep(500);
+  const dragFromCenter = await iconCenter();
+  log.push("2) центр иконки поста на экране ДО переноса: " + JSON.stringify(dragFromCenter));
+  const dxs = 120, dys = 60;   // тянем вправо-вниз по ЭКРАНУ на (120,60)
+  await drag(dragFromCenter.x, dragFromCenter.y, dxs, dys);
+  const dragToCenter = await iconCenter();
+  log.push("2) центр иконки ПОСЛЕ переноса: " + JSON.stringify(dragToCenter) + " ожидание ≈ (" + (dragFromCenter.x + dxs) + "," + (dragFromCenter.y + dys) + ")");
+  log.push("2) смещение по экрану dx/dy = " + (dragToCenter.x - dragFromCenter.x) + "/" + (dragToCenter.y - dragFromCenter.y) + " (цель 120/60 ± размер иконки) — пост идёт ЗА курсором");
+  log.push("2) значок остался прямым? computed transform=" + JSON.stringify(await iconMatrix()));
+  await shot("rw4-drag-at-90", [`document.querySelector(".plan-icon.post")`]);
+
+  // --- ЧАСТЬ 3: перезагрузка — угол мира и режим на месте ----------------------------------------
+  await sleep(1500);   // дать автосейву переноса записаться (поворот сохраняется сразу)
+  await c.send("Page.reload"); await sleep(5000);
+  await ev(`document.getElementById("canvas").scrollIntoView({block:"start"});return 1;`);
+  log.push("3) ПОСЛЕ reload: поле=" + JSON.stringify(await field()) + " сохранён worldAngle=" + await savedWorld() + " режим=" + JSON.stringify(await savedTarget()) + " canvas.transform=" + JSON.stringify(await canvasTransform()));
+  log.push("3) угол мира (90) и режим (world) пережили перезагрузку? " + ((await savedWorld()) === 90 && (await savedTarget()) === "world"));
+  await shot("rw5-reloaded", [`document.getElementById("planImage")`, `document.querySelector(".plan-icon.post")`]);
+
+  c.close();

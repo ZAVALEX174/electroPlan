@@ -56,7 +56,7 @@
    (см. граблю 1). */
 function attach(ctx){
 const {
-  $,SVG_NS,canvas,markCanvasUsed,persistProject,planLostDuringOp,refreshAfterRoomAssignments,
+  $,SVG_NS,canvas,clientToWorld,markCanvasUsed,persistProject,planLostDuringOp,refreshAfterRoomAssignments,
   renderAll,renderRooms,roomLabelPoint,roomNamePoint,scheduleRoomsFromLines,scheduleSave,
   showTraceProgress,state,toast,uid,updateStatus,wallRadiusFor
 }=ctx;
@@ -257,8 +257,7 @@ function resolveRoomLinePoint(rawX,rawY,shiftKey){
 }
 function finishRoomLineChain(){state.roomLinePoints=[];state.roomLineIds=[];state.roomLineHover=null}
 function addRoomLinePoint(e){
-  const r=canvas.getBoundingClientRect();
-  const raw={x:(e.clientX-r.left)/state.scale,y:(e.clientY-r.top)/state.scale};
+  const raw=clientToWorld(e.clientX,e.clientY);   /* единое правило экран→мир с углом мира (Б3 ч.2а) */
   const p=resolveRoomLinePoint(raw.x,raw.y,e.shiftKey);
   markCanvasUsed();
   if(p.closing){
@@ -417,8 +416,8 @@ function buildRoomsFromLines(opts){
 /* превью «резинки» и подсветка точки притяжения при рисовании разметки */
 canvas.addEventListener("pointermove",e=>{
   if(state.tool!=="roomline")return;
-  const r=canvas.getBoundingClientRect();
-  state.roomLineHover=resolveRoomLinePoint((e.clientX-r.left)/state.scale,(e.clientY-r.top)/state.scale,e.shiftKey);
+  const w=clientToWorld(e.clientX,e.clientY);   /* превью «резинки» — через единое правило экран→мир (Б3 ч.2а) */
+  state.roomLineHover=resolveRoomLinePoint(w.x,w.y,e.shiftKey);
   drawRoomLines();
 });
 $("clearRoomLinesBtn").onclick=clearRoomLines;

@@ -51,6 +51,10 @@ function buildStand(state) {
     EPGeom, EPConfig, EPViewport, EPRoomsFromLines, EPRoomCarry,
     roomLabelPoint: EPGeom.roomLabelPoint, roomNamePoint: EPGeom.roomNamePoint,
     state, canvas,
+    /* clientToWorld — то же единое правило экран→мир, что в app.js (Б3 ч.2а): окно холста в (0,0),
+       pan=0, масштаб и угол мира из state. При scale=1/angle=0 экранные координаты = мировым. */
+    clientToWorld: (cx, cy) => EPViewport.screenToWorld({ x: cx, y: cy },
+      { panX: 0, panY: 0, scale: state.scale, angle: state.worldAngle || 0 }),
     uid: prefix => prefix + ++uidN,
     wallRadiusFor: () => 7,
     markCanvasUsed() {},

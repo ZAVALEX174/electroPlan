@@ -198,7 +198,7 @@ test("D10: init создаёт поля до восстановления — п
   for (const name of ["loadCachedRate", "renderRequisitesInputs", "fillDocHeaderInputs", "renderDocImage", "renderCompanyTerms", "renderTemplates", "renderAll", "renderSummary",
     "updateScaleUi", "updateRateUi", "applyPlanVisibility", "applyPlanRotation", "renderLightingSchemeSelect", "renderProjectWallTypeSelect",
     "renderProjectBacklight",
-    "renderPostSlotCountSelect", "applyGridStyle", "syncMarkupControls", "updateZoomUi", "applyView"])
+    "renderPostSlotCountSelect", "applyGridStyle", "syncMarkupControls", "updateZoomUi", "applyView", "syncRotateModeUi"])
     ctx[name] = () => {};
   await stand.run(["customOfferPresets", "highlightActiveOfferPreset", "renderCustomOfferPresets", "syncOfferOptions", "renderOfferOptions", "init"], ctx)();
 });
