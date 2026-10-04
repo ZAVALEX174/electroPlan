@@ -162,7 +162,13 @@ function planLabelsSpec(){
         return {name:r.name,polygon:r.polygon,x:c.x,y:c.y};
       }
       return {name:r.name,x:r.seedX!=null?r.seedX:r.x+55,y:r.seedY!=null?r.seedY:r.y+18};
-    })
+    }),
+    /* угол поворота ВСЕГО плана (Б3, ч.2б): на холсте worldAngle вращает весь вид #canvas, значит
+       в КП и листе монтажника план обязан выйти повёрнутым так же. Поворот запекает в координаты
+       точек чистый EPPlanLabels.layout (поворот точки — EPViewport.rotatePoint, та же сторона, что
+       матрица вида). Отдаём ВСЕГДА, не только при подложке: угол вращает и голую разметку (контуры,
+       бирки). Старый проект без поля → undefined → layout трактует как 0 (документ как был). */
+    worldAngle:state.worldAngle
   };
   if(showImg){
     spec.imageUrl=planImageForDoc(img);

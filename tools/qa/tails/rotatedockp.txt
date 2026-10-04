@@ -1,0 +1,53 @@
+  // ============ Б3, ч.2б: КП С ПОВЁРНУТЫМ ПЛАНОМ (глазами владельца) ============
+  // Режим органов поворота — «весь план» (worldAngle). Грузим подложку, ставим угол 0/90/37 и для
+  // каждого открываем КП, снимая страницу «Расположение постов на плане». КП перехватываем тем же
+  // приёмом, что rotate.txt: window.open → window.__kp (строку HTML), затем в чистой вкладке
+  // Page.setDocumentContent + Page.captureScreenshot. Ожидание владельца: план в КП повёрнут так же,
+  // как на холсте (угол worldAngle), а номера постов и имена комнат — ПРЯМЫЕ, подложка не вылезает
+  // за рамку блока. Базовая сцена shoot.mjs уже дала проект с постом и хелперы ev/click/setVal/json/connect.
+  n = 980;
+
+  // подложка в проект + reload (реальный путь загрузки фона — как в rotate.txt/rotateworld.txt)
+  const chertezBuf = fs.readFileSync(path.join(ROOT, "chertez", "scale_1200.jpg"));
+  const planDataUrl = "data:image/jpeg;base64," + chertezBuf.toString("base64");
+  await ev(`const k=ProjectStore.key;const p=JSON.parse(localStorage.getItem(k)||"{}");p.plan=${JSON.stringify(planDataUrl)};p.planLabel="scale_1200.jpg";localStorage.setItem(k,JSON.stringify(p));return 1;`);
+  await c.send("Page.reload"); await sleep(5000);
+  await ev(`document.getElementById("canvas").scrollIntoView({block:"start"});return 1;`); await sleep(300);
+
+  // режим органов поворота — «весь план»: поле «Угол» и кнопки ↺/↻ теперь ведут worldAngle
+  await setVal($("rotateTargetSelect"), "world"); await sleep(300);
+
+  // снять страницу плана из КП при ТЕКУЩЕМ угле мира
+  async function kpPlanShot(tag) {
+    await ev('window.__kp="";window.open=()=>({closed:false,document:{open(){},write(h){window.__kp+=h},close(){},title:""},focus(){},print(){},close(){},addEventListener(){},location:{}});return 1;');
+    await click($("pdfBtn")); await sleep(1200);
+    const kpHtml = await ev("return window.__kp");
+    fs.writeFileSync(path.join(DIR, "kp-worldrot-" + tag + ".html"), kpHtml);
+    log.push("КП " + tag + ": transform подложки в документе = " + JSON.stringify((kpHtml.match(/transform:rotate\([^"]*/) || ["(нет)"])[0]));
+    const nt = await json("/json/new?about:blank", "PUT");
+    const k = connect(nt.webSocketDebuggerUrl); await k.ready; await k.send("Page.enable");
+    await k.send("Emulation.setDeviceMetricsOverride", { width: 1100, height: 1400, deviceScaleFactor: 1, mobile: false });
+    const ft = await k.send("Page.getFrameTree");
+    await k.send("Page.setDocumentContent", { frameId: ft.frameTree.frame.id, html: kpHtml }); await sleep(1500);
+    const r = await k.send("Page.captureScreenshot", { format: "png" });
+    fs.writeFileSync(path.join(SHOTS, String(++n).padStart(2, "0") + "-worldrot-kp-" + tag + ".png"), Buffer.from(r.data, "base64"));
+    k.close();
+    log.push("снят скрин КП " + tag + " (" + kpHtml.length + " байт html)");
+  }
+
+  // 0° — эталон для сравнения (план в КП НЕ повёрнут)
+  await setVal($("planRotateInput"), "0"); await sleep(400);
+  log.push("угол мира = " + await ev(`return JSON.parse(localStorage.getItem(ProjectStore.key)||"{}").worldAngle`) + " (ожидание 0)");
+  await kpPlanShot("0deg");
+
+  // ↻90° кнопкой — весь план как один лист
+  await click($("planRotateRightBtn")); await sleep(500);
+  log.push("угол мира после ↻90 = " + await ev(`return JSON.parse(localStorage.getItem(ProjectStore.key)||"{}").worldAngle`) + " (ожидание 90)");
+  await kpPlanShot("90deg");
+
+  // произвольный угол 37° полем
+  await setVal($("planRotateInput"), "37"); await sleep(500);
+  log.push("угол мира после «37» = " + await ev(`return JSON.parse(localStorage.getItem(ProjectStore.key)||"{}").worldAngle`) + " (ожидание 37)");
+  await kpPlanShot("37deg");
+
+  c.close();

@@ -184,3 +184,22 @@ test("одноимённые группы в РАЗНЫХ комнатах по�
   assert.equal(s.posts[0].groups[0].key, s.posts[1].groups[0].key, "имя группы одно — ключ группы совпал");
   assert.notEqual(s.posts[0].room, s.posts[1].room, "но комнаты разные — ключи комнат различаются");
 });
+
+/* Поворот ВСЕГО плана (Б3, ч.2б): planLabelsSpec обязан отдать state.worldAngle, иначе документ не
+   узнает, что холст повёрнут, и КП выйдет неповёрнутым. Проверяем ПОВЕДЕНЧЕСКИ — исполняя настоящий
+   текст planLabelsSpec в стенде. МУТАЦИЯ «spec не передаёт worldAngle» краснит первый assert. */
+test("угол поворота всего плана (worldAngle) уходит в spec как есть", () => {
+  const s = spec(makeCtx({ state: { worldAngle: 37, posts: [{ number: 1, x: 10, y: 20 }] } }));
+  assert.equal(s.worldAngle, 37, "worldAngle передан в spec — документ повернёт план тем же углом");
+});
+
+test("worldAngle отдаётся и БЕЗ подложки (угол вращает и голую разметку)", () => {
+  const s = spec(makeCtx({ state: { planLoaded: false, worldAngle: 90, rooms: [{ name: "Кухня", polygon: SQUARE }] } }));
+  assert.equal(s.imageUrl, undefined, "подложки нет");
+  assert.equal(s.worldAngle, 90, "но угол всё равно передан: контуры/бирки тоже поворачиваются");
+});
+
+test("старый проект без worldAngle: поле не появляется (layout трактует как 0)", () => {
+  const s = spec(makeCtx({ state: { posts: [{ number: 1, x: 10, y: 20 }] } }));
+  assert.equal(s.worldAngle, undefined, "нет поля — undefined, документ не поворачивается (совместимость)");
+});

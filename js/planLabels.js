@@ -170,14 +170,32 @@ function layout(spec) {
     img = { offX: (cw - dispW) / 2, offY: (ch - dispH) / 2, dispW, dispH };
   }
 
-  /* ПОВОРОТ ПОДЛОЖКИ (Б3, ч.1): тот же расчёт, что на холсте (EPPlanRotate), от тех же входов
-     (угол, натуральные размеры, мировой бокс natW/natH/cw/ch) — поэтому документ поворачивает фон
-     ровно как экран, а бирки/контуры остаются на местах (вращаем ТОЛЬКО картинку). Центр вращения —
-     центр её прямоугольника (L.image), он же центр бокса: это buildHtml задаёт transform-origin.
-     Нет поворота → пустая строка → в HTML transform не попадает (старый КП байт-в-байт как был). */
+  /* ПОВОРОТ ВСЕГО ПЛАНА (Б3, ч.2б). worldAngle на холсте вращает ВЕСЬ вид #canvas, поэтому документ
+     обязан вывести план повёрнутым так же: запекаем поворот в КООРДИНАТЫ всех мировых точек (посты,
+     контуры, якоря имён, точки линий групп, углы подложки) ДО расчёта кадра. Правило поворота точки
+     — одна чистая функция EPViewport.rotatePoint (тем же знаком, что матрица вида холста: копии нет).
+     Центр — центр мирового бокса, если подложка есть (вокруг него вращает и холст, и поворот чертежа
+     ч.1); без подложки берём (0,0): кадр считается по точкам, абсолютный центр на вывод не влияет —
+     его снимает вычитание x0/y0. worldAngle 0/нет → rotatePoint возвращает те же числа, и документ
+     остаётся байт-в-байт прежним. geo же отдаёт и bounds ниже — второго require не заводим. */
+  const geo = (typeof window !== "undefined" && window.EPViewport)
+    ? window.EPViewport : require("./viewport.js");
+  const wa = fin(s.worldAngle);
+  const worldAngle = isFinite(wa) ? wa : 0;
+  const rcx = hasImage ? cw / 2 : 0, rcy = hasImage ? ch / 2 : 0;
+  const rot = pt => geo.rotatePoint(pt, worldAngle, rcx, rcy);
+
+  /* ПОВОРОТ ПОДЛОЖКИ. Фон в документе крутится на СУММУ углов: поворот всего плана (worldAngle)
+     поверх поворота самого чертежа (planRotation, ч.1). УМЕНЬШАТЬ его под бокс надо только на
+     planRotation (fitAngle шестым аргументом): worldAngle крутит весь вид, кадр документа под его
+     углы расширяется сам (4 повёрнутых угла ниже). Центр трансформации — центр прямоугольника
+     подложки (= центр бокса), его задаёт buildHtml (transform-origin). worldAngle=0 → сумма равна
+     planRotation и вписывание по нему же → строка байт-в-байт прежняя (старый КП не меняется). */
   const rotate = (typeof window !== "undefined" && window.EPPlanRotate)
     ? window.EPPlanRotate : require("./planRotate.js");
-  const imageTransform = hasImage ? rotate.cssTransform(s.planRotation, natW, natH, cw, ch) : "";
+  const planAngle = rotate.normalizeAngle(s.planRotation) || 0;
+  const imageTransform = hasImage
+    ? rotate.cssTransform(planAngle + worldAngle, natW, natH, cw, ch, planAngle) : "";
 
   /* Пост без номера не роняет документ: на плане он рисуется знаком вопроса (compactIcon),
      здесь — тем же. Пост без координат печатать некуда — пропускаем. */
@@ -218,20 +236,40 @@ function layout(spec) {
     })
     .filter(r => r.polygon || r.label);
 
+  /* Запекаем поворот всего плана в координаты точек (см. комментарий у worldAngle выше): посты,
+     контуры и якоря имён крутятся вокруг того же центра, что и подложка, — на экране они едины.
+     Под угол 0 блок не входит: координаты не трогаются, документ байт-в-байт как был. */
+  if (worldAngle) {
+    pts.forEach(p => { const r = rot(p); p.x = r.x; p.y = r.y; });
+    rooms.forEach(r => {
+      if (r.polygon) r.polygon = r.polygon.map(rot);
+      if (r.label) r.label = rot(r.label);
+    });
+  }
+
   /* Блок исчезает, только когда печатать нечего совсем. Одна подложка без разметки блок НЕ
      поднимает — она лишь фон для обводки (замысел владельца). */
   if (!pts.length && !rooms.length) return null;
 
   /* Кадр = все печатаемые мировые точки ∪ прямоугольник подложки. bbox считаем ОБЩЕЙ
-     EPViewport.bounds — не заводим четвёртую копию min/max (браузеру — namespace, Node —
-     require, как в offerPdf.js). */
-  const bounds = (typeof window !== "undefined" && window.EPViewport)
-    ? window.EPViewport.bounds : require("./viewport.js").bounds;
+     EPViewport.bounds — не заводим четвёртую копию min/max (geo получен выше). */
+  const bounds = geo.bounds;
 
   /* Базовые точки (подложка, контуры, якоря подписей) в кадр входят БЕЗ поля: их край —
-     это и есть край чертежа. Поле нужно только биркам-кружкам (см. ниже). */
+     это и есть край чертежа. Поле нужно только биркам-кружкам (см. ниже).
+     Подложка входит в кадр ЧЕТЫРЬМЯ углами ВИДИМОЙ картинки после поворота (ч.1: planRotation +
+     вписывающий fitScale) и поворота всего плана (worldAngle), а не двумя углами неповёрнутого
+     прямоугольника: иначе повёрнутая на 90° картинка выходила бы за рамку блока (контейнер без
+     overflow:hidden) — дыра ч.1, чиним здесь. Полуразмеры ужаты тем же fitScale, что применит CSS,
+     и углы повёрнуты на сумму углов вокруг центра бокса — ровно туда они встанут после трансформации. */
   const base = [];
-  if (img) base.push({ x: img.offX, y: img.offY }, { x: img.offX + img.dispW, y: img.offY + img.dispH });
+  if (img) {
+    const fs2 = rotate.fitScale(planAngle, natW, natH, cw, ch);
+    const total = planAngle + worldAngle;
+    const hw = img.dispW / 2 * fs2, hh = img.dispH / 2 * fs2;
+    [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].forEach(o =>
+      base.push(geo.rotatePoint({ x: rcx + o[0], y: rcy + o[1] }, total, rcx, rcy)));
+  }
   rooms.forEach(r => {
     if (r.polygon) r.polygon.forEach(pt => base.push(pt));
     if (r.label) base.push(r.label);

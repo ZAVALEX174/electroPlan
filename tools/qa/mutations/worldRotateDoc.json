@@ -1,0 +1,26 @@
+[
+  {
+    "name": "M1 знак угла в повороте точки (viewport.rotatePoint)",
+    "file": "js/viewport.js",
+    "from": "return { x: cx + dx * c - dy * s, y: cy + dx * s + dy * c };",
+    "to": "return { x: cx + dx * c + dy * s, y: cy + dx * s + dy * c };"
+  },
+  {
+    "name": "M2 spec не передаёт worldAngle (docs.planLabelsSpec)",
+    "file": "js/docs.js",
+    "from": "    worldAngle:state.worldAngle\n  };",
+    "to": "    worldAngle:undefined\n  };"
+  },
+  {
+    "name": "M3 картинка без worldAngle (planLabels.imageTransform)",
+    "file": "js/planLabels.js",
+    "from": "? rotate.cssTransform(planAngle + worldAngle, natW, natH, cw, ch, planAngle) : \"\";",
+    "to": "? rotate.cssTransform(planAngle, natW, natH, cw, ch, planAngle) : \"\";"
+  },
+  {
+    "name": "M4 кадр из 2 неповёрнутых углов подложки (planLabels.base)",
+    "file": "js/planLabels.js",
+    "from": "  const base = [];\n  if (img) {\n    const fs2 = rotate.fitScale(planAngle, natW, natH, cw, ch);\n    const total = planAngle + worldAngle;\n    const hw = img.dispW / 2 * fs2, hh = img.dispH / 2 * fs2;\n    [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].forEach(o =>\n      base.push(geo.rotatePoint({ x: rcx + o[0], y: rcy + o[1] }, total, rcx, rcy)));\n  }",
+    "to": "  const base = [];\n  if (img) base.push({ x: img.offX, y: img.offY }, { x: img.offX + img.dispW, y: img.offY + img.dispH });"
+  }
+]

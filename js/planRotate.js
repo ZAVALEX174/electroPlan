@@ -65,11 +65,20 @@ const r5 = x => Math.round(x * 1e5) / 1e5;   /* масштаб — до 5 зна
 /* Готовая CSS-трансформация подложки: `rotate(θdeg) scale(s)`. Пустая строка — когда поворота нет
    (θ=0 и вписывать не нужно): потребитель тогда не ставит transform вовсе, и неповёрнутая подложка
    в документе выводится байт-в-байт как до правки (старые КП не меняются, их тесты зелены).
-   transform-origin центрирует потребитель — центр элемента = центр вписанной подложки = центр бокса. */
-function cssTransform(angleDeg, natW, natH, boxW, boxH) {
+   transform-origin центрирует потребитель — центр элемента = центр вписанной подложки = центр бокса.
+
+   fitAngleDeg — НЕОБЯЗАТЕЛЬНЫЙ угол, по которому берётся вписывающий scale, когда он ОТЛИЧАЕТСЯ от
+   угла поворота. Нужен документу (Б3, ч.2б): там подложка крутится на сумму углов (поворот всего
+   плана worldAngle + поворот чертежа planRotation), но УМЕНЬШАТЬ её под бокс надо только на
+   planRotation — worldAngle крутит весь вид, а не вписывает картинку в бокс (кадр документа сам
+   расширяется под повёрнутые углы). Не передан → scale берётся по углу поворота, как было (холст:
+   угол и вписывание — один и тот же planRotation, вызов пятиаргументный, поведение прежнее). */
+function cssTransform(angleDeg, natW, natH, boxW, boxH, fitAngleDeg) {
   const a = normalizeAngle(angleDeg);
   if (a == null) return "";
-  const s = fitScale(a, natW, natH, boxW, boxH);
+  let fa = a;
+  if (fitAngleDeg !== undefined) { const n = normalizeAngle(fitAngleDeg); if (n != null) fa = n; }
+  const s = fitScale(fa, natW, natH, boxW, boxH);
   if (a === 0 && s === 1) return "";
   return `rotate(${r4(a)}deg) scale(${r5(s)})`;
 }

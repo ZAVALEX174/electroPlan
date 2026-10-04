@@ -74,6 +74,20 @@ function rotateAt(view, screenPt, newAngle) {
     panX: screenPt.x - (sx * c - sy * s), panY: screenPt.y - (sx * s + sy * c) };
 }
 
+/* Повернуть мировую точку на angleDeg (градусы) вокруг центра (cx,cy). ЕДИНСТВЕННОЕ место
+   правила «повернуть точку» для документов (Б3, ч.2б): печатный план (planLabels.layout) запекает
+   поворот всего вида в координаты точек, тогда как холст тот же поворот делает матрицей вида
+   (worldToScreen). Знак совпадает с worldToScreen (x'=x·cos−y·sin, y'=x·sin+y·cos) — документ
+   поворачивает в ту же сторону, что экран. angle 0/нет → точка как есть (новый объект, те же числа):
+   при нулевом угле документ выходит байт-в-байт как прежде. */
+function rotatePoint(pt, angleDeg, cx, cy) {
+  const a = angleDeg ? angleDeg * Math.PI / 180 : 0;
+  if (!a) return { x: pt.x, y: pt.y };
+  const c = Math.cos(a), s = Math.sin(a);
+  const dx = pt.x - cx, dy = pt.y - cy;
+  return { x: cx + dx * c - dy * s, y: cy + dx * s + dy * c };
+}
+
 /* Прямоугольник, накрывающий набор точек: {minX,minY,maxX,maxY} или null, если
    точек нет. База и для «вписать в экран», и для подбора сетки свободного места. */
 function bounds(points) {
@@ -155,7 +169,7 @@ function spaceGrid(b, opts) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { worldToScreen, screenToWorld, clampScale, zoomAt, rotateAt, bounds, fitView, spaceGrid };
+const api = { worldToScreen, screenToWorld, clampScale, zoomAt, rotateAt, rotatePoint, bounds, fitView, spaceGrid };
 if (typeof window !== "undefined") window.EPViewport = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

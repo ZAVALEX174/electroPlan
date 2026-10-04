@@ -204,10 +204,26 @@ test("planLabels: подложка в документе поворачивае�
   assert.equal(L90.imageTransform, R.cssTransform(90, 1200, 800, 900, 650),
     "фон документа поворачивается ТЕМ ЖЕ расчётом, что холст (§7.1 — одна функция)");
 
-  /* §7.1: вращается ТОЛЬКО картинка. Бирки постов и контуры помещений — те же координаты. */
-  assert.deepEqual(L90.badges, L0.badges, "бирки постов не сдвинулись при повороте фона");
-  assert.deepEqual(L90.rooms, L0.rooms, "контуры/подписи помещений не сдвинулись");
-  assert.deepEqual(L90.image, L0.image, "прямоугольник подложки тот же — крутит его transform, а не раскладка");
+  /* §7.1: вращается ТОЛЬКО картинка — мировые координаты постов/контуров неизменны (это проверяет
+     блок «угол мира не двигает нарисованное» и инвариант ч.1). НО в ДОЛЯХ кадра бирки/контуры теперь
+     сдвигаются: кадр честно расширяется под повёрнутую картинку (починка дыры ч.1 — Б3 ч.2б). Прежний
+     deepEqual «доли те же» был следствием той дыры: кадр не замечал поворота, и повёрнутая на 90°
+     картинка вылезала за рамку блока. Теперь кадр включает 4 угла ПОВЁРНУТОЙ подложки — проверяем, что
+     все четыре легли внутрь [0,100]% (картинка целиком в блоке). Кадр восстанавливаем из L.image
+     (обратная к px/py), углы считаем от центра бокса тем же fitScale/углом, что применит CSS.
+     МУТАЦИЯ: верни кадр к 2 неповёрнутым углам — нижний угол повёрнутой картинки уедет за 100%. */
+  const disp = Math.min(900 / 1200, 650 / 800), dispW = 1200 * disp, dispH = 800 * disp;
+  const offX = (900 - dispW) / 2, offY = (650 - dispH) / 2;
+  const frameW = 100 * dispW / L90.image.width, frameH = 100 * dispH / L90.image.height;
+  const x0 = offX - L90.image.left * frameW / 100, y0 = offY - L90.image.top * frameH / 100;
+  const fscale = R.fitScale(90, 1200, 800, 900, 650), bcx = 450, bcy = 325;   /* центр бокса cw/2,ch/2 */
+  const hw = dispW / 2 * fscale, hh = dispH / 2 * fscale;
+  [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].forEach(([ox, oy]) => {
+    const wx = bcx - oy, wy = bcy + ox;                     /* поворот на 90°: (ox,oy)→(−oy,ox) */
+    const lx = 100 * (wx - x0) / frameW, ty = 100 * (wy - y0) / frameH;
+    assert.ok(lx >= -1e-6 && lx <= 100 + 1e-6 && ty >= -1e-6 && ty <= 100 + 1e-6,
+      `угол повёрнутой подложки внутри кадра: ${lx.toFixed(2)}% / ${ty.toFixed(2)}%`);
+  });
 
   const html = PL.buildHtml(Object.assign({}, base, { planRotation: 90 }), { esc: String });
   assert.match(html, /transform:rotate\(90deg\) scale\([0-9.]+\);transform-origin:center/,
