@@ -1,12 +1,30 @@
 [
   { "name": "A: знак угла в обратном преобразовании (screenToWorld)", "file": "js/viewport.js",
     "from": "y: (-dx * s + dy * c) / view.scale", "to": "y: (dx * s + dy * c) / view.scale" },
-  { "name": "B: одна из 6 копий экран→мир вернулась на старую формулу (canvasEventPoint)", "file": "js/canvasInput.js",
+  { "name": "B: одна из копий экран→мир вернулась на старую формулу (canvasEventPoint)", "file": "js/canvasInput.js",
     "from": "  return clientToWorld(e.clientX,e.clientY);", "to": "  const r=canvas.getBoundingClientRect();return {x:(e.clientX-r.left)/state.scale,y:(e.clientY-r.top)/state.scale};" },
   { "name": "C: контр-поворот подписи масштаба убран (renderScaleRuler)", "file": "js/app.js",
     "from": "  const a=state.worldAngle||0;if(a)label.setAttribute(\"transform\",\"rotate(\"+(-a)+\" \"+lx+\" \"+ly+\")\");", "to": "  const a=state.worldAngle||0;" },
   { "name": "D: сохранение угла мира в снимок убрано (projectSnapshot)", "file": "js/app.js",
     "from": "worldAngle:state.worldAngle,rotateTarget:state.rotateTarget,", "to": "worldAngle:0,rotateTarget:state.rotateTarget," },
   { "name": "E: гейт органов поворота без подложки убран (updatePlanUi)", "file": "js/app.js",
-    "from": "const rotEnabled=state.rotateTarget===\"world\"||loaded;", "to": "const rotEnabled=loaded;" }
+    "from": "const rotEnabled=state.rotateTarget===\"world\"||loaded;", "to": "const rotEnabled=loaded;" },
+
+  { "name": "M1: перенос без передачи угла мира в EPDrag.worldPosition (canvasInput.js)", "file": "js/canvasInput.js",
+    "from": "const p=EPDrag.worldPosition({x:bx,y:by},{x:sx,y:sy},{x:clientX,y:clientY},state.scale,state.worldAngle);",
+    "to": "const p=EPDrag.worldPosition({x:bx,y:by},{x:sx,y:sy},{x:clientX,y:clientY},state.scale);" },
+  { "name": "M2: знак угла в applyView (rotate(-a) вместо rotate(a))", "file": "js/app.js",
+    "from": "rotate(${a}deg) scale(${state.scale})", "to": "rotate(${-a}deg) scale(${state.scale})" },
+  { "name": "M4: стрелки без обратного поворота экранного направления", "file": "js/app.js",
+    "from": "const wx=nudge[0]*c+nudge[1]*s,wy=-nudge[0]*s+nudge[1]*c;", "to": "const wx=nudge[0],wy=nudge[1];" },
+  { "name": "M6: «Очистить холст» без сброса угла тем же правилом (прямая запись)", "file": "js/app.js",
+    "from": "renderSummary();setWorldAngle(0)}", "to": "renderSummary();state.worldAngle=0;applyView()}" },
+  { "name": "M7: setWorldAngle без подбора pan под новый угол", "file": "js/app.js",
+    "from": "state.worldAngle=na;state.panX=nv.panX;state.panY=nv.panY;", "to": "state.worldAngle=na;" },
+  { "name": "M8: поле «Угол» без ветки «весь план» (applyRotationInput)", "file": "js/app.js",
+    "from": "  if(state.rotateTarget===\"world\"){setWorldAngle(a);return}\n", "to": "" },
+  { "name": "M9: кнопки ↺/↻ без ветки «весь план» (rotatePlanBy)", "file": "js/app.js",
+    "from": "  if(state.rotateTarget===\"world\"){setWorldAngle(EPPlanRotate.step(state.worldAngle,delta));return}\n", "to": "" },
+  { "name": "CLICK: диспетчер клика снова только на #canvas (не на окне .canvas-scroll)", "file": "js/canvasInput.js",
+    "from": "canvasScroll.onclick=e=>{", "to": "canvas.onclick=e=>{" }
 ]

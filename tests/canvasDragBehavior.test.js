@@ -138,6 +138,24 @@ test("перенос сдвигает объект на экранную дел�
   assert.equal(spies.scheduleSave, 1, "завершённый перенос сохраняет новую позицию (scheduleSave)");
 });
 
+/* --- Перенос при повёрнутом холсте: экранная дельта → мировая обратной матрицей R(−угол) -------- */
+/* Б3, ч.2а. makeDraggable передаёт state.worldAngle в EPDrag.worldPosition; при угле 90° экранное
+   «вправо-вниз» становится другим направлением в мире. МУТАЦИЯ M1 (canvasInput.js): убрать
+   `,state.worldAngle` из вызова worldPosition — тогда дельта не повернётся, и объект поедет не туда. */
+test("перенос при угле мира 90° учитывает угол: экранные (+60,+42) → мировые (+42,−60)", () => {
+  const near = (a, b) => assert.ok(Math.abs(a - b) <= 1e-9, `${a} ≈ ${b}`);
+  const obj = { id: "p1", x: 100, y: 100 };
+  const { api } = buildDrag(makeState({ scale: 1, worldAngle: 90 }));
+  const el = makeNode();
+  api.makeDraggable(el, obj, "post");
+  el.fire("pointerdown", pointer({ clientX: 500, clientY: 500 }));
+  el.fire("pointermove", pointer({ clientX: 560, clientY: 542 }));   // экранные +60/+42
+  el.fire("pointerup", pointer({ clientX: 560, clientY: 542 }));
+  /* R(−90): wx=(dxs*c+dys*sn)/s, wy=(−dxs*sn+dys*c)/s при c≈0,sn=1 → (dys,−dxs)=(42,−60) */
+  near(obj.x, 142);   // без передачи угла (мутация M1) было бы 160
+  near(obj.y, 40);    // без угла было бы 142
+});
+
 /* --- Esc посреди переноса возвращает объект на место (onKey) ----------------------------------- */
 test("Esc во время переноса возвращает объект на исходные координаты и не сохраняет", () => {
   const obj = { id: "p1", x: 100, y: 100 };

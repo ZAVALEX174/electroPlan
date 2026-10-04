@@ -221,7 +221,14 @@ function onSpaceKeydown(){if(!spaceDown){spaceDown=true;setPanReady(true)}}
 
 /* ---- РЕГИСТРАЦИЯ обработчиков ввода на холсте (выполняется один раз при attach, на самом низу
    загрузки app.js — как provязка кнопок в postBuilder/docs; событий во время загрузки нет). ---- */
-canvas.onclick=e=>{
+/* Клик слушаем на ОКНЕ холста (.canvas-scroll), а не на #canvas (Б3, ч.2а, решение владельца 03.10
+   «клик работает по всему окну холста»). Коробка #canvas при повороте/отдалении не накрывает окно
+   целиком — при 90° полосы по краям это серый фон .canvas-scroll, и клик там (пост, стена, разметка,
+   масштаб, комната) не доходил до #canvas. Окно же неподвижно и всегда накрывает всю рабочую область.
+   Координаты по-прежнему через единое clientToWorld (оно и так считает от .canvas-scroll). Клики по
+   иконкам/табличкам/стенам гасят всплытие своим stopPropagation и сюда не доходят (выделение/перенос
+   не ломаются); панель инструментов и кнопки зума — вне .canvas-scroll в DOM, их клик пост не ставит. */
+canvasScroll.onclick=e=>{
   const {x,y}=canvasEventPoint(e);
   if(state.pending)placePendingAtEvent(e);
   else if(state.tool==="scale"){addScalePoint(x,y);return}
@@ -243,8 +250,10 @@ canvas.onclick=e=>{
     setTool("select");renderAll();renderProperties();renderSummary();
     toast("Комната создана. Оборудование внутри привязано автоматически");
   }
-  else if(e.target===canvas||e.target===$("wallsSvg")||e.target===$("roomsSvg")){
-    /* выбор/удаление комнаты кликом — ТЕСНЕЙШАЯ накрывающая (та же функция, что привязка, §7.1):
+  else if(e.target===canvasScroll||e.target===canvas||e.target===$("wallsSvg")||e.target===$("roomsSvg")){
+    /* пустое место — это и сам #canvas, и его SVG-слои, И серый фон окна .canvas-scroll вне коробки
+       #canvas (при повороте/отдалении): клик там тоже снимает/меняет выделение комнаты.
+       выбор/удаление комнаты кликом — ТЕСНЕЙШАЯ накрывающая (та же функция, что привязка, §7.1):
        «Удалить» внутри чулана берёт чулан, а не осиротит зал вокруг него (В20 п.2, потеря данных) */
     const room=tightestRoomAtPoint(x,y,state.rooms);
     if(room&&state.tool==="delete"){removeEntity("room",room.id)}

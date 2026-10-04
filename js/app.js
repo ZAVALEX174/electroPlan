@@ -3477,9 +3477,15 @@ $("planUpload").onchange=async e=>{
   }
 };
 /* «Очистить холст» сносит всё нарисованное — а с ним теряет смысл и угол мира: сбрасываем worldAngle
-   в 0 и применяем вид (Б3, ч.2а). Режим органов (rotateTarget) — предпочтение пользователя, не трогаем.
-   Угол ПОДЛОЖКИ (planRotation) сбросит clearPlan при «Убрать план», здесь плана не касаемся. */
-$("clearBtn").onclick=()=>{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.roomLines=[];state.roomFieldMemory=[];finishRoomLineChain();state.selected=null;state.worldAngle=0;applyView();syncRotationUi();clearAnnotations();renderAll();renderProperties();renderSummary();renderScaleRuler()};
+   в 0 (Б3, ч.2а). Сброс — ТЕМ ЖЕ правилом, что поворот (setWorldAngle → EPViewport.rotateAt вокруг
+   центра окна), а НЕ прямой записью worldAngle=0: прямая запись оставляла panX/panY подобранными под
+   старый угол, и пустой лист #canvas уезжал за край окна (при 270° целиком ниже окна), клики переставали
+   попадать в холст. setWorldAngle подбирает pan под угол 0, и лист остаётся на экране на месте.
+   Режим органов (rotateTarget) — предпочтение пользователя, не трогаем. Угол ПОДЛОЖКИ (planRotation)
+   сбросит clearPlan при «Убрать план», здесь плана не касаемся. setWorldAngle сам зовёт applyView/
+   syncRotationUi/renderScaleRuler/persistProject — вызываем его ПОСЛЕ очистки, чтобы снимок сохранил
+   уже пустой холст. */
+$("clearBtn").onclick=()=>{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.roomLines=[];state.roomFieldMemory=[];finishRoomLineChain();state.selected=null;clearAnnotations();renderAll();renderProperties();renderSummary();setWorldAngle(0)};
 $("autoTraceBtn").onclick=autoTracePlan;
 $("annotateBtn").onclick=annotatePlan;
 $("clearAnnotateBtn").onclick=()=>{clearAnnotations();toast("Разметка убрана")};
@@ -3780,7 +3786,7 @@ const {openPostBuilder,renderPostSlotCountSelect,requestClosePostBuilder,builder
    сам он — const из EPRooms.attach ниже, на момент вызова ещё не инициализирован; разметка зовёт его
    лишь при действии пользователя, когда const уже готов (TDZ нет). */
 const {addRoomLinePoint,drawRoomLines,finishRoomLineChain,removeLastRoomLinePoint,buildRoomsFromLines}=EPRoomDetect.attach({
-  $,SVG_NS,canvas,clientToWorld,markCanvasUsed,persistProject,planLostDuringOp,refreshAfterRoomAssignments,
+  $,SVG_NS,canvas,canvasScroll,clientToWorld,markCanvasUsed,persistProject,planLostDuringOp,refreshAfterRoomAssignments,
   renderAll,renderRooms:()=>renderRooms(),roomLabelPoint,roomNamePoint,scheduleRoomsFromLines,scheduleSave,
   showTraceProgress,state,toast,uid,updateStatus,wallRadiusFor
 });

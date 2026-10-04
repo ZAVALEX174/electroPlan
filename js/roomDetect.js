@@ -56,7 +56,7 @@
    (см. граблю 1). */
 function attach(ctx){
 const {
-  $,SVG_NS,canvas,clientToWorld,markCanvasUsed,persistProject,planLostDuringOp,refreshAfterRoomAssignments,
+  $,SVG_NS,canvas,canvasScroll,clientToWorld,markCanvasUsed,persistProject,planLostDuringOp,refreshAfterRoomAssignments,
   renderAll,renderRooms,roomLabelPoint,roomNamePoint,scheduleRoomsFromLines,scheduleSave,
   showTraceProgress,state,toast,uid,updateStatus,wallRadiusFor
 }=ctx;
@@ -413,8 +413,11 @@ function buildRoomsFromLines(opts){
 /* ---- РЕГИСТРАЦИЯ обработчика превью разметки и кнопок распознавания/сборки помещений
    (выполняется один раз при attach, на самом низу загрузки app.js — как canvas.onclick в
    canvasInput и кнопки в docs; событий во время загрузки нет). ---- */
-/* превью «резинки» и подсветка точки притяжения при рисовании разметки */
-canvas.addEventListener("pointermove",e=>{
+/* превью «резинки» и подсветка точки притяжения при рисовании разметки. Слушаем на ОКНЕ холста
+   (.canvas-scroll), а не на #canvas (Б3, ч.2а): коробка #canvas при повороте/отдалении не накрывает
+   окно целиком, и над серым фоном превью не рисовалось бы — как и клик в canvasInput. Координаты —
+   через единое clientToWorld (оно считает от .canvas-scroll), привязка точек не меняется. */
+canvasScroll.addEventListener("pointermove",e=>{
   if(state.tool!=="roomline")return;
   const w=clientToWorld(e.clientX,e.clientY);   /* превью «резинки» — через единое правило экран→мир (Б3 ч.2а) */
   state.roomLineHover=resolveRoomLinePoint(w.x,w.y,e.shiftKey);

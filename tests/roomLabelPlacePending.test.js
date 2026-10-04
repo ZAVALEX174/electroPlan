@@ -14,15 +14,11 @@ const assert = require("node:assert/strict");
 const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
 const EPViewport = require("../js/viewport.js");
-/* clientToWorld — то же единое правило экран→мир, что в app.js (Б3 ч.2а): окно холста здесь
-   задаёт canvas.getBoundingClientRect, pan=0, масштаб/угол мира из state. canvasEventPoint теперь
-   зовёт его вместо своей копии формулы — при scale≠1 деление на масштаб сохраняется. */
-const makeClientToWorld = (canvas, state) => (cx, cy) => {
-  const r = canvas.getBoundingClientRect();
-  return EPViewport.screenToWorld({ x: cx - r.left, y: cy - r.top },
-    { panX: 0, panY: 0, scale: state.scale, angle: state.worldAngle || 0 });
-};
-
+/* ВАЖНО (§7.1): clientToWorld НЕ копируем в тест — исполняем НАСТОЯЩИЙ view()+clientToWorld() из app.js
+   вместе с canvasEventPoint/placePendingAtEvent из canvasInput.js в одном vm-контексте. Раньше тут жила
+   рукописная копия формулы (makeClientToWorld), и она разошлась бы с продакшеном молча: ослабление
+   настоящего clientToWorld не покраснело бы. Окно холста (.canvas-scroll) задаёт getBoundingClientRect;
+   pan/масштаб/угол мира берутся из state через настоящий view(). */
 function makeEvent(over) {
   return Object.assign(
     { isPrimary: true, button: 0, clientX: 100, clientY: 60, pointerId: 1, _pd: 0, _sp: 0,
@@ -34,37 +30,39 @@ function makeEvent(over) {
 /* --- placePendingAtEvent: единое правило «клик в размещении → addPending в точку клика» -------- */
 function buildPlacer(state) {
   const calls = [];
-  const canvas = { getBoundingClientRect: () => ({ left: 10, top: 20 }) };
-  const fn = stand.run(["canvasEventPoint", "placePendingAtEvent"], {
-    state, canvas, clientToWorld: makeClientToWorld(canvas, state), addPending: (x, y) => calls.push([x, y])
+  const canvasScroll = { getBoundingClientRect: () => ({ left: 10, top: 20 }) };
+  /* view+clientToWorld из app.js, canvasEventPoint+placePendingAtEvent из canvasInput.js — в одном vm:
+     canvasEventPoint зовёт НАСТОЯЩИЙ clientToWorld (free-var-ссылка на соседнюю cut-функцию). */
+  const fn = stand.run(["view", "clientToWorld", "canvasEventPoint", "placePendingAtEvent"], {
+    state, canvasScroll, EPViewport, addPending: (x, y) => calls.push([x, y])
   });
   return { fn, calls };
 }
 
 test("placePendingAtEvent: пост встаёт в координаты клика с учётом масштаба", () => {
-  const { fn, calls } = buildPlacer({ pending: { type: "post" }, scale: 2 });
+  const { fn, calls } = buildPlacer({ pending: { type: "post" }, scale: 2, panX: 0, panY: 0, worldAngle: 0 });
   fn(makeEvent({ clientX: 110, clientY: 220 }));
-  // (110-10)/2 = 50, (220-20)/2 = 100 — та же формула, что у canvas.onclick
+  // (110-10)/2 = 50, (220-20)/2 = 100 — та же формула, что у диспетчера клика
   assert.deepEqual(calls, [[50, 100]]);
 });
 
 test("placePendingAtEvent: нет режима размещения — addPending не зовётся", () => {
-  const { fn, calls } = buildPlacer({ pending: null, scale: 1 });
+  const { fn, calls } = buildPlacer({ pending: null, scale: 1, panX: 0, panY: 0, worldAngle: 0 });
   fn(makeEvent());
   assert.deepEqual(calls, [], "без state.pending клик по табличке ничего не ставит");
 });
 
-/* --- canvas.onclick: маршрутизация клика по холсту -------------------------------------------- */
-/* canvas.onclick — это ПРИСВАИВАНИЕ стрелки (canvas.onclick=e=>…), а не function-декларация, поэтому
-   stand.run его не вырежет. Берём текст из js/canvasInput.js (куда диспетчер клика переехал по И1,
-   кусок 4 — раньше читали stand.SRC=app.js) от маркера `canvas.onclick=` до парной `}` (пропуская
-   строковые литералы, как constBlock в стенде) и исполняем ВМЕСТЕ с настоящим canvasEventPoint в vm —
-   так проверяем и ветку размещения, и что координаты идут через масштаб. Источник сменён, регэксп и
-   разбор те же: мутация ветки размещения или координатной строки по-прежнему краснит. */
+/* --- диспетчер клика по холсту: маршрутизация ------------------------------------------------- */
+/* Диспетчер — это ПРИСВАИВАНИЕ стрелки (canvasScroll.onclick=e=>…), а не function-декларация, поэтому
+   stand.run его не вырежет. Берём текст из js/canvasInput.js от маркера `canvasScroll.onclick=` до парной
+   `}` (пропуская строковые литералы, как constBlock в стенде) и исполняем ВМЕСТЕ с настоящими
+   view()+clientToWorld() (app.js) и canvasEventPoint (canvasInput.js) в одном vm. МАРКЕР `canvasScroll` —
+   это и проверка Б3-ч.2а «клик слушается на ОКНЕ холста»: верни регистрацию на #canvas (canvas.onclick=)
+   — маркер не найдётся, и все тесты диспетчера покраснеют. */
 function canvasOnclickSource() {
   const src = stand.sourceOf("canvasInput.js");
-  const start = src.indexOf("canvas.onclick=");
-  assert.ok(start >= 0, "в js/canvasInput.js должно быть присваивание canvas.onclick");
+  const start = src.indexOf("canvasScroll.onclick=");
+  assert.ok(start >= 0, "в js/canvasInput.js клик холста должен вешаться на canvasScroll (окно .canvas-scroll), а не на #canvas");
   let depth = 0, quote = null, i = src.indexOf("{", start);
   for (; i < src.length; i++) {
     const ch = src[i];
@@ -78,44 +76,67 @@ function canvasOnclickSource() {
 }
 
 function buildCanvasClick(state) {
-  const spies = { place: 0, scale: [], sel: [] };
-  const canvas = { getBoundingClientRect: () => ({ left: 10, top: 20 }) };
+  const spies = { place: 0, scale: [], wall: 0, sel: [] };
+  const canvasScroll = { getBoundingClientRect: () => ({ left: 10, top: 20 }) };
+  const canvas = {};   /* отдельный узел #canvas — только для сравнения e.target===canvas в диспетчере */
   const ctx = {
-    state, canvas, clientToWorld: makeClientToWorld(canvas, state),
+    state, canvas, canvasScroll, EPViewport,
     placePendingAtEvent: () => { spies.place++; },
     addScalePoint: (x, y) => spies.scale.push([x, y]),
-    addWallPoint: () => {}, addRoomLinePoint: () => {},
-    pointInPolygon: () => false,
+    addWallPoint: () => { spies.wall++; }, addRoomLinePoint: () => {},
+    tightestRoomAtPoint: () => null,
     selectEntity: (k, id) => spies.sel.push([k, id]),
     setTool: () => {}, renderAll: () => {}, renderProperties: () => {},
     markCanvasUsed: () => {}, uid: () => "id", renderSummary: () => {},
     toast: () => {}, removeEntity: () => {}, $: () => null
   };
-  /* canvasEventPoint берём настоящий: подмена координатной строки в onclick на «мимо масштаба»
-     тогда разойдётся с ним и покраснеет в тесте масштаба ниже. */
-  const code = stand.functionSource("canvasEventPoint") + "\n" + canvasOnclickSource() + "\n;canvas.onclick;";
+  /* view/clientToWorld/canvasEventPoint — настоящие: подмена координатной строки в диспетчере на «мимо
+     масштаба/угла» тогда разойдётся с ними и покраснеет в тесте масштаба ниже. */
+  const code = stand.functionSource("view") + "\n" + stand.functionSource("clientToWorld") + "\n"
+    + stand.functionSource("canvasEventPoint") + "\n" + canvasOnclickSource() + "\n;canvasScroll.onclick;";
   vm.createContext(ctx);
-  return { onclick: vm.runInContext(code, ctx), spies };
+  return { onclick: vm.runInContext(code, ctx), spies, canvasScroll };
 }
 
-test("canvas.onclick: в режиме размещения клик по холсту ставит объект (placePendingAtEvent)", () => {
-  const { onclick, spies } = buildCanvasClick({ pending: { type: "post" }, tool: "select", rooms: [], scale: 1 });
+test("диспетчер: в режиме размещения клик по холсту ставит объект (placePendingAtEvent)", () => {
+  const { onclick, spies } = buildCanvasClick({ pending: { type: "post" }, tool: "select", rooms: [], scale: 1, panX: 0, panY: 0, worldAngle: 0 });
   onclick(makeEvent());
   assert.equal(spies.place, 1, "в размещении клик по холсту обязан звать placePendingAtEvent");
   assert.equal(spies.sel.length, 0, "в размещении клик по холсту не выделяет комнату");
 });
 
-test("canvas.onclick: вне размещения placePendingAtEvent не зовётся", () => {
-  const { onclick, spies } = buildCanvasClick({ pending: null, tool: "select", rooms: [], scale: 1 });
+test("диспетчер: вне размещения placePendingAtEvent не зовётся", () => {
+  const { onclick, spies } = buildCanvasClick({ pending: null, tool: "select", rooms: [], scale: 1, panX: 0, panY: 0, worldAngle: 0 });
   onclick(makeEvent());
   assert.equal(spies.place, 0, "без state.pending клик по холсту ничего не размещает");
 });
 
-test("canvas.onclick: координаты инструмента идут через canvasEventPoint (с учётом масштаба)", () => {
-  const { onclick, spies } = buildCanvasClick({ pending: null, tool: "scale", rooms: [], scale: 2 });
+test("диспетчер: координаты инструмента идут через canvasEventPoint (с учётом масштаба)", () => {
+  const { onclick, spies } = buildCanvasClick({ pending: null, tool: "scale", rooms: [], scale: 2, panX: 0, panY: 0, worldAngle: 0 });
   onclick(makeEvent({ clientX: 110, clientY: 220 }));
   // (110-10)/2 = 50, (220-20)/2 = 100 — мимо масштаба в addScalePoint ушло бы 110,220
   assert.deepEqual(spies.scale, [[50, 100]]);
+});
+
+/* --- Б3, ч.2а / п.2: клик по ОКНУ холста вне коробки #canvas работает (цель — .canvas-scroll) ---- */
+test("клик по серому фону окна (цель .canvas-scroll) в размещении ставит объект", () => {
+  const { onclick, spies, canvasScroll } = buildCanvasClick({ pending: { type: "post" }, tool: "select", rooms: [], scale: 1, panX: 0, panY: 0, worldAngle: 0 });
+  onclick(makeEvent({ target: canvasScroll }));
+  assert.equal(spies.place, 1, "клик по окну вне #canvas в размещении обязан поставить объект");
+});
+
+test("клик по серому фону окна (цель .canvas-scroll) в режиме «Стены» добавляет точку стены", () => {
+  const { onclick, spies, canvasScroll } = buildCanvasClick({ pending: null, tool: "wall", rooms: [], scale: 1, panX: 0, panY: 0, worldAngle: 0 });
+  onclick(makeEvent({ target: canvasScroll }));
+  assert.equal(spies.wall, 1, "клик по окну вне #canvas в режиме стен обязан добавить точку стены");
+});
+
+test("клик по серому фону окна (цель .canvas-scroll) в режиме выбора снимает выделение (пустое место)", () => {
+  const state = { pending: null, tool: "select", rooms: [], scale: 1, panX: 0, panY: 0, worldAngle: 0, selected: { kind: "post", id: "x" } };
+  const { onclick, spies, canvasScroll } = buildCanvasClick(state);
+  onclick(makeEvent({ target: canvasScroll }));
+  assert.equal(spies.sel.length, 0, "клик по пустому окну комнату не выделяет");
+  assert.equal(state.selected, null, "клик по серому фону окна (.canvas-scroll) трактуется как пустое место и снимает выделение");
 });
 
 /* --- renderRooms: обработчики подписей подключены к placePendingAtEvent ------------------------ */

@@ -661,12 +661,12 @@
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него
      makeDraggable и placePendingAtEvent). -->
-<script src="js/canvasInput.js?v=20261004.1"></script>
+<script src="js/canvasInput.js?v=20261004.2"></script>
 <!-- Распознавание и разметка помещений: инструмент «Разметка» (линии, магниты, сборка помещений
      buildRoomsFromLines) и автоопределение комнат (detectRooms/detectRoomsML), перенос ручных полей
      carryUserRoomFields. Вынесено из app.js (И1, последний кусок). Грузится ДО app.js, который зовёт
      EPRoomDetect.attach(ctx) ДО EPCanvasInput.attach (тот берёт из него addRoomLinePoint). -->
-<script src="js/roomDetect.js?v=20261004.1"></script>
-<script src="js/app.js?v=20261004.1"></script>
+<script src="js/roomDetect.js?v=20261004.2"></script>
+<script src="js/app.js?v=20261004.2"></script>
 </body>
 </html>

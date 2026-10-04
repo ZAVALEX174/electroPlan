@@ -98,4 +98,60 @@
   log.push("3) угол мира (90) и режим (world) пережили перезагрузку? " + ((await savedWorld()) === 90 && (await savedTarget()) === "world"));
   await shot("rw5-reloaded", [`document.getElementById("planImage")`, `document.querySelector(".plan-icon.post")`]);
 
+  // ============ ЧАСТЬ 4: КЛИК ПО ВСЕМУ ОКНУ ХОЛСТА ПРИ ПОВОРОТЕ (решение владельца 03.10) ============
+  // Коробка #canvas при повороте не накрывает окно .canvas-scroll целиком — по краям серый фон.
+  // Проверяем: (а) «Очистить холст» при 270° возвращает лист на экран (сброс угла тем же правилом);
+  // (б) клик в серую полосу при 90° в режиме «Разместить» ставит пост туда, куда кликнули;
+  // (в) то же для двух кликов «Стены»; (г) клик по иконке поста при 90° выделяет, двойной открывает окно.
+  const canvasRect = () => ev(`const r=document.getElementById("canvas").getBoundingClientRect();return {x:Math.round(r.left),y:Math.round(r.top),w:Math.round(r.width),h:Math.round(r.height)}`);
+  // ширина/высота пересечения прямоугольника #canvas с окном (сколько окна реально накрыто листом)
+  const inter = (w, cr) => { const ax = Math.max(w.x, cr.x), ay = Math.max(w.y, cr.y), bx = Math.min(w.x + w.w, cr.x + cr.w), by = Math.min(w.y + w.h, cr.y + cr.h); return { w: Math.max(0, Math.round(bx - ax)), h: Math.max(0, Math.round(by - ay)) }; };
+  // точка ВНУТРИ окна, но ВНЕ коробки #canvas по горизонтали (серая полоса слева или справа)
+  const grayPoint = (fy) => ev(`const w=document.querySelector(".canvas-scroll").getBoundingClientRect();const cr=document.getElementById("canvas").getBoundingClientRect();let x;if(cr.left>w.left+12)x=Math.round((w.left+cr.left)/2);else if(cr.right<w.right-12)x=Math.round((cr.right+w.right)/2);else x=null;return {x,y:Math.round(w.top+w.height*${fy}),crL:Math.round(cr.left),crR:Math.round(cr.right),winL:Math.round(w.left),winR:Math.round(w.right)}`);
+  const lastPostCenter = () => ev(`const l=[...document.querySelectorAll(".plan-icon.post")];if(!l.length)return null;const e=l[l.length-1];const r=e.getBoundingClientRect();return {cx:Math.round(r.left+r.width/2),cy:Math.round(r.top+r.height/2),count:l.length}`);
+
+  // --- 4а: угол 270 → «Очистить холст» → лист снова накрывает окно ------------------------------
+  await setVal($("planRotateInput"), "270"); await sleep(500);
+  const win4 = await scrollRect();
+  const crBefore = await canvasRect();
+  log.push("4а) угол 270 ДО очистки: окно=" + JSON.stringify(win4) + " #canvas=" + JSON.stringify(crBefore) + " ∩ окно=" + JSON.stringify(inter(win4, crBefore)) + " (лист накрывает окно НЕ целиком)");
+  await shot("rw6-before-clear-270", [], { x: Math.round(win4.x), y: Math.round(win4.y), width: Math.round(win4.w), height: Math.round(win4.h) });
+  await click($("clearBtn")); await sleep(600);
+  const crAfter = await canvasRect();
+  const cov = inter(win4, crAfter);
+  log.push("4а) ПОСЛЕ очистки: поле=" + JSON.stringify(await field()) + " сохранён worldAngle=" + await savedWorld() + " #canvas=" + JSON.stringify(crAfter));
+  log.push("4а) #canvas ∩ окно ПОСЛЕ=" + JSON.stringify(cov) + " из окна " + Math.round(win4.w) + "×" + Math.round(win4.h) + " → лист накрывает окно на всю площадь? " + (cov.w >= Math.round(win4.w) - 1 && cov.h >= Math.round(win4.h) - 1));
+  await shot("rw7-after-clear-0", [], { x: Math.round(win4.x), y: Math.round(win4.y), width: Math.round(win4.w), height: Math.round(win4.h) });
+
+  // --- 4б: угол 90 → «Разместить» → клик в серую полосу → пост в точку клика --------------------
+  await setVal($("planRotateInput"), "90"); await sleep(500);
+  const g1 = await grayPoint(0.5);
+  log.push("4б) угол 90: #canvas по X [" + g1.crL + "," + g1.crR + "], окно по X [" + g1.winL + "," + g1.winR + "] → серая точка=" + JSON.stringify({ x: g1.x, y: g1.y }));
+  await click(`document.querySelector('[data-place-template]')`); await sleep(400);
+  await clickAt(g1.x, g1.y);
+  const placed = await lastPostCenter();
+  log.push("4б) клик в серую полосу (" + g1.x + "," + g1.y + ") → пост центр=" + JSON.stringify(placed) + " ожидание ≈ (" + g1.x + "," + g1.y + ") ± размер иконки; постов на холсте=" + (placed ? placed.count : 0));
+  await shot("rw8-place-gray-90", [], { x: Math.round(win4.x), y: Math.round(win4.y), width: Math.round(win4.w), height: Math.round(win4.h) });
+
+  // --- 4в: угол 90 → «Стены» → два клика в серую полосу → стена построена ------------------------
+  await click(`document.querySelector('[data-tool="wall"]')`); await sleep(300);
+  const gw1 = await grayPoint(0.35), gw2 = await grayPoint(0.65);
+  await clickAt(gw1.x, gw1.y); await clickAt(gw2.x, gw2.y); await sleep(400);
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(300);
+  await click(`document.querySelector('[data-tool="select"]')`); await sleep(200);
+  const wall4 = await wallCoords();
+  log.push("4в) две точки стены в серой полосе (" + gw1.x + "," + gw1.y + ")→(" + gw2.x + "," + gw2.y + ") → стена=" + JSON.stringify(wall4) + " (не null — построена по кликам вне коробки #canvas)");
+  await shot("rw9-wall-gray-90", [], { x: Math.round(win4.x), y: Math.round(win4.y), width: Math.round(win4.w), height: Math.round(win4.h) });
+
+  // --- 4г: угол 90 → клик по иконке поста выделяет, двойной открывает окно поста -----------------
+  const postC = await lastPostCenter();
+  await clickAt(postC.cx, postC.cy); await sleep(400);
+  const selected = await ev(`return document.querySelectorAll(".plan-icon.post.selected").length`);
+  log.push("4г) клик по иконке поста при 90° (" + postC.cx + "," + postC.cy + ") → выделенных иконок=" + selected + " (ожидание 1 — В19: клик выделяет)");
+  await ev(`const e=document.querySelector(".plan-icon.post");e.dispatchEvent(new MouseEvent("dblclick",{bubbles:true}));return 1;`); await sleep(700);
+  const modalOpen = await ev(`return document.getElementById("postModal").classList.contains("open")`);
+  log.push("4г) двойной клик по посту при 90° открыл окно поста? " + modalOpen + " (В19: двойной открывает старый пост)");
+  await shot("rw10-post-dblclick-90", [`document.getElementById("postModal")`]);
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(300);
+
   c.close();
