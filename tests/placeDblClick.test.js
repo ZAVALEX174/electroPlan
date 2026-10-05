@@ -68,7 +68,7 @@ test("resolve: часы уехали назад (elapsed<0) — не откат�
 /* Исполняем НАСТОЯЩИЙ текст openPostOnDblClick в vm: _lastIconPlacement — глобал контекста (как
    top-level let в app.js), EPPlaceDblClick — настоящий модуль, остальное — шпионы. */
 function runDblClick(seedPlacement, postId, now) {
-  const calls = { remove: [], persist: 0, open: [] };
+  const calls = { remove: [], persist: 0, open: [], drop: 0 };
   const toast = {
     textContent: "Объект добавлен в комнату «Кухня»",
     classList: { _removed: [], remove(c) { this._removed.push(c); } }
@@ -80,7 +80,11 @@ function runDblClick(seedPlacement, postId, now) {
     $: id => (id === "toast" ? toast : null),
     removeEntity: (kind, id) => calls.remove.push([kind, id]),
     persistProject: () => calls.persist++,
-    openPostBuilder: o => calls.open.push(o)
+    openPostBuilder: o => calls.open.push(o),
+    /* Б4: В19 снимает шаг «поставил» (dropHead) и глушит запись «убрал» замком применения */
+    _applyingSnapshot: false,
+    _history: { dropHead: () => { calls.drop++; } },
+    syncHistoryUi() {}
   };
   const fn = stand.run("openPostOnDblClick", ctx);
   fn(postId);
@@ -96,6 +100,7 @@ test("openPostOnDblClick: продолжение двойного клика —
   assert.equal(calls.open[0].placedId, "post_old", "открыт конструктор СТАРОГО поста");
   assert.ok(toast.classList._removed.includes("show") && toast.textContent === "", "тост «Объект добавлен…» погашен");
   assert.equal(ctx._lastIconPlacement, null, "маркер постановки снят — повторно не сработает");
+  assert.equal(calls.drop, 1, "Б4: шаг «поставил» снят из истории (dropHead) — двойного клика в истории нет");
 });
 
 test("openPostOnDblClick: обычный двойной клик (маркера нет) — ничего не удаляем, открываем этот пост", () => {

@@ -13,6 +13,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
+const EPHistory = require("../js/history.js");
 
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${a} ≈ ${b}`);
 
@@ -47,8 +48,9 @@ function buildKeydown(state) {
      этого хватает всем веткам до нужной нам (стрелки). */
   const node = { classList: { contains: () => false }, value: "" };
   const ctx = {
-    document: {}, state,
+    document: {}, state, EPHistory,
     $: () => node,
+    undoPlan() {}, redoPlan() {},   /* Б4: keydown решает хоткей через EPHistory и зовёт эти функции */
     moveSelectedBy: (x, y) => { moves.push([x, y]); return true; },
     uploadPopover: { hidden: true },
     trapBuilderFocus() {}, closeFramePicker() {}, finishPdfPageSelection() {}, finishWallScope() {},

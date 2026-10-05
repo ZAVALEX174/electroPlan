@@ -161,6 +161,10 @@
           <button class="icon-btn" id="zoomIn">+</button>
           <button class="btn ghost small" id="zoomFit" title="Показать весь план: пробел + перетаскивание или средняя кнопка — панорама, колесо — зум">Вписать в экран</button>
         </div>
+        <!-- Отмена/возврат изменений плана (Б4, ч.А). Рядом с зумом; классы как у соседних кнопок.
+             disabled, когда отменять/возвращать нечего (syncHistoryUi). -->
+        <button class="btn ghost small" id="undoBtn" title="Отменить последнее изменение плана (Ctrl+Z)" disabled>↶ Отменить</button>
+        <button class="btn ghost small" id="redoBtn" title="Вернуть отменённое изменение (Ctrl+Y)" disabled>↷ Вернуть</button>
         <div class="status" id="status">Выберите инструмент или элемент</div>
         <button class="btn ghost small" id="renumberPostsBtn" title="Перенумеровать посты по расположению на плане (1, 2, 3…)">Перенумеровать посты</button>
         <!-- ⚠️ ОТДЕЛЬНАЯ КНОПКА ПОДТВЕРЖДЕНИЯ, А НЕ ПОВТОРНОЕ НАЖАТИЕ ПЕРВОЙ. Перенумерация
@@ -587,7 +591,7 @@
   <script src="js/catalog-vimar-faces.js?v=20260801.2"></script>
   <script src="js/data.js?v=20260926.3"></script>
 <script src="js/store.js?v=20260723"></script>
-<script src="js/config.js?v=20260902.1"></script>
+<script src="js/config.js?v=20261005.1"></script>
 <!-- Подтверждение необратимой команды повтором того же действия (у окна есть и нижняя, и
      верхняя граница). Общий модуль: им пользуются и перенумерация постов, и закрытие
      конструктора с несохранёнными правками. -->
@@ -667,6 +671,7 @@
      carryUserRoomFields. Вынесено из app.js (И1, последний кусок). Грузится ДО app.js, который зовёт
      EPRoomDetect.attach(ctx) ДО EPCanvasInput.attach (тот берёт из него addRoomLinePoint). -->
 <script src="js/roomDetect.js?v=20261004.2"></script>
-<script src="js/app.js?v=20261004.2"></script>
+<script src="js/history.js?v=20261005.1"></script>
+<script src="js/app.js?v=20261005.1"></script>
 </body>
 </html>

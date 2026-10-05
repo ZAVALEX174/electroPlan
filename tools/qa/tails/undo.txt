@@ -1,0 +1,77 @@
+  // ============ Б4, ч.А: «Отменить/Вернуть» план (Ctrl+Z / Ctrl+Y) ============
+  // На входе в хвост: 2 комнаты, пост в немецкой кухне, шаблон post4 в библиотеке. Проверяем:
+  // сумма сметы ДО → поставить пост → сумма ВЫРОСЛА → Ctrl+Z (настоящее нажатие через CDP,
+  // modifiers:2=Ctrl, code KeyZ) → сумма КАК ДО, пост исчез → Ctrl+Y → снова как после; две стены
+  // подряд → две отмены по одной; кнопки disabled в начале (после перезагрузки) и когда отменять
+  // нечего; скриншоты холста (клип .canvas-scroll) до/после.
+  n = 600;
+  const grand = () => ev(`const e=document.getElementById("grandTotal");return e?e.textContent.trim():null`);
+  const cntPosts = () => ev(`return document.querySelectorAll(".plan-icon.post").length`);
+  const cntWalls = () => ev(`return Array.from(document.querySelectorAll("#wallsSvg line")).filter(l=>l.style.pointerEvents==="none").length`);
+  const undoDis = () => ev(`return document.getElementById("undoBtn").disabled`);
+  const redoDis = () => ev(`return document.getElementById("redoBtn").disabled`);
+  const blur = () => ev(`document.activeElement&&document.activeElement.blur&&document.activeElement.blur();return 1;`);
+  const scrollClip = async () => { const r = await rect(`document.querySelector(".canvas-scroll")`); return { x: r.x, y: r.y, width: r.w, height: r.h }; };
+  // Настоящее нажатие комбинации через CDP (modifiers:2 = Ctrl). code/vk — физическая клавиша.
+  const hotkey = async (code, vk, keyChar) => {
+    await c.send("Input.dispatchKeyEvent", { type: "keyDown", modifiers: 2, code, key: keyChar, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
+    await c.send("Input.dispatchKeyEvent", { type: "keyUp",   modifiers: 2, code, key: keyChar, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
+    await sleep(500);
+  };
+  const ctrlZ = () => hotkey("KeyZ", 90, "z");
+  const ctrlY = () => hotkey("KeyY", 89, "y");
+
+  // привести холст к известному состоянию
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(300);
+  await blur();
+
+  const sum0 = await grand(), posts0 = await cntPosts();
+  log.push("ДО: сумма=" + sum0 + ", постов=" + posts0 + ", undo.disabled=" + await undoDis() + ", redo.disabled=" + await redoDis());
+  await shot("undo-before-panel", [`document.getElementById("undoBtn")`, `document.getElementById("redoBtn")`, `document.querySelector(".grand-total")`]);
+  await shot("undo-before-canvas", [], await scrollClip());
+
+  // --- поставить пост (шаблон post4 в немецкую кухню) ---
+  await click(`document.querySelector("[data-place-template]")`); await sleep(300);
+  const kl = await rect(`Array.from(document.querySelectorAll(".room-label")).find(e=>e.textContent.includes("Кухня"))`);
+  await clickAt(kl.x + kl.w / 2, kl.y + kl.h + 45); await sleep(700);
+  const sum1 = await grand(), posts1 = await cntPosts();
+  log.push("ПОСТАВИЛ: сумма " + sum0 + "→" + sum1 + ", постов " + posts0 + "→" + posts1 + ", undo.disabled=" + await undoDis());
+  await shot("undo-after-place-canvas", [], await scrollClip());
+
+  // --- Ctrl+Z: сумма как ДО, пост исчез ---
+  await blur();
+  await ctrlZ();
+  const sum2 = await grand(), posts2 = await cntPosts();
+  log.push("Ctrl+Z: сумма " + sum1 + "→" + sum2 + " (ждём " + sum0 + "), постов " + posts1 + "→" + posts2 + " (ждём " + posts0 + ")");
+  await shot("undo-after-ctrlz-canvas", [], await scrollClip());
+
+  // --- Ctrl+Y: повторяет отменённое ---
+  await ctrlY();
+  const sum3 = await grand(), posts3 = await cntPosts();
+  log.push("Ctrl+Y: сумма " + sum2 + "→" + sum3 + " (ждём " + sum1 + "), постов " + posts2 + "→" + posts3 + " (ждём " + posts1 + ")");
+  await shot("undo-after-ctrly-canvas", [], await scrollClip());
+
+  // --- две стены подряд → две отмены по одной ---
+  await click(`document.querySelector('[data-tool="wall"]')`); await sleep(300);
+  const a1 = await canvasPt(0.12, 0.12), b1 = await canvasPt(0.24, 0.12), b2 = await canvasPt(0.24, 0.24);
+  await clickAt(a1.x, a1.y); await clickAt(b1.x, b1.y);   // стена 1
+  await clickAt(b2.x, b2.y);                               // стена 2
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(300);
+  const w0 = await cntWalls();
+  log.push("ДВЕ СТЕНЫ: стен стало " + w0);
+  await blur();
+  await ctrlZ(); const w1 = await cntWalls();
+  await ctrlZ(); const w2 = await cntWalls();
+  log.push("ДВЕ ОТМЕНЫ стен: " + w0 + "→" + w1 + "→" + w2 + " (каждая отмена снимает одну стену)");
+
+  // --- отменить всё до базы: кнопка «Отменить» гаснет ---
+  for (let i = 0; i < 80 && !(await undoDis()); i++) await ctrlZ();
+  log.push("ПОСЛЕ ВСЕХ ОТМЕН: undo.disabled=" + await undoDis() + ", redo.disabled=" + await redoDis() + ", сумма=" + await grand() + ", постов=" + await cntPosts());
+  await shot("undo-exhausted-panel", [`document.getElementById("undoBtn")`, `document.getElementById("redoBtn")`]);
+
+  // --- перезагрузка: история НЕ переживает F5, обе кнопки disabled в начале ---
+  await c.send("Page.reload"); await sleep(4500);
+  const uFresh = await ev(`return document.getElementById("undoBtn").disabled`);
+  const rFresh = await ev(`return document.getElementById("redoBtn").disabled`);
+  log.push("ПОСЛЕ ПЕРЕЗАГРУЗКИ (история не переживает F5): undo.disabled=" + uFresh + ", redo.disabled=" + rFresh);
+  await shot("undo-fresh-load-panel", [`document.getElementById("undoBtn")`, `document.getElementById("redoBtn")`]);

@@ -76,6 +76,7 @@ function buildClear(state) {
   const ctx = {
     state, canvasScroll, EPViewport, EPPlanRotate,
     $: () => el,   // $("clearBtn") — куда вешается onclick
+    _applyingSnapshot: false,   // Б4: очистка глушит промежуточные сейвы замком применения
     finishRoomLineChain() {}, clearAnnotations() {},
     renderAll() {}, renderProperties() {}, renderSummary() {},
     applyView() {}, syncRotationUi() {}, renderGroupLinks() {}, renderScaleRuler() {}, persistProject() {}

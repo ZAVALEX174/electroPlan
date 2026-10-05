@@ -189,6 +189,9 @@ test("D10: init создаёт поля до восстановления — п
   const ctx = { $: dom.$, esc, EPOfferOptions, EP_DATA: { settings: {} }, state: {},
     EPPrefs: { get: (k, fb) => fb, set: () => {} },   /* свои наборы КП — из EPPrefs; здесь пусто */
     DataService: { getProducts: async () => [], getSavedPosts: async () => [] },
+    /* Б4: init ставит базовую точку истории после восстановления — шпионы на стек и снимок */
+    _history: { reset: () => {}, canUndo: () => false, canRedo: () => false },
+    projectSnapshot: () => ({}),
     restoreProject: async () => {
       assert.match(dom.$("offerOptionsFields").innerHTML, /id="offer-layout-box"/,
         "restoreProject вызывает syncOfferOptions: к этому моменту поля должны быть созданы");
@@ -198,7 +201,7 @@ test("D10: init создаёт поля до восстановления — п
   for (const name of ["loadCachedRate", "renderRequisitesInputs", "fillDocHeaderInputs", "renderDocImage", "renderCompanyTerms", "renderTemplates", "renderAll", "renderSummary",
     "updateScaleUi", "updateRateUi", "applyPlanVisibility", "applyPlanRotation", "renderLightingSchemeSelect", "renderProjectWallTypeSelect",
     "renderProjectBacklight",
-    "renderPostSlotCountSelect", "applyGridStyle", "syncMarkupControls", "updateZoomUi", "applyView", "syncRotateModeUi"])
+    "renderPostSlotCountSelect", "applyGridStyle", "syncMarkupControls", "updateZoomUi", "applyView", "syncRotateModeUi", "syncHistoryUi"])
     ctx[name] = () => {};
   await stand.run(["customOfferPresets", "highlightActiveOfferPreset", "renderCustomOfferPresets", "syncOfferOptions", "renderOfferOptions", "init"], ctx)();
 });

@@ -349,6 +349,9 @@ async function init(){
   applyGridStyle();syncMarkupControls();updateZoomUi();applyView();   /* сетка/переключатели/зум/вид — из state (в т.ч. восстановленного) */
   syncRotateModeUi();   /* режим/поле/подсказка/гейт органов поворота — из восстановленного rotateTarget (Б3, ч.2а) */
   _autosaveOn=true;   /* включаем ПОСЛЕ восстановления, иначе пустой старт затрёт сохранённое */
+  /* Базовая точка истории — восстановленный (или пустой) план. История НЕ переживает перезагрузку
+     (решение владельца): отсчёт «Отменить» начинается здесь, с открытого состояния. */
+  _history.reset(projectSnapshot());syncHistoryUi();
   if(restored){
     const objects=state.devices.length+state.posts.length;
     const when=restored.savedAt?new Date(restored.savedAt).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
@@ -452,8 +455,13 @@ function openPostOnDblClick(postId){
     /* Новый пост убираем ЦЕЛИКОМ тем же путём, что «Удалить» (state.posts, выделение, смета,
        автосохранение). Номер не «сгорает»: nextPostNumber считает максимум+1, снятие последнего
        поста возвращает тот же номер следующему. Групп у нового поста нет (placementFields их
-       очищает) — осиротевших связей не остаётся. */
-    removeEntity("post",d.removeId);persistProject();
+       очищает) — осиротевших связей не остаётся.
+       В ИСТОРИИ ЭТОГО «НЕ БЫЛО» (Б4, решение владельца): первый клик уже записал шаг «поставил»;
+       снимаем его (dropHead) и глушим запись шага «убрал» замком применения — иначе двойной клик
+       оставил бы в истории пару мусорных шагов «поставил»/«убрал». */
+    _applyingSnapshot=true;
+    try{removeEntity("post",d.removeId);persistProject()}finally{_applyingSnapshot=false}
+    _history.dropHead();syncHistoryUi();
     /* Тост «Объект добавлен…», показанный первым кликом, теперь вводил бы в заблуждение (ничего не
        добавили) — гасим до открытия конструктора старого поста. */
     const t=$("toast");if(t){t.classList.remove("show");t.textContent=""}
@@ -2527,6 +2535,7 @@ function projectSnapshot(){
    пометив, что чертёж придётся загрузить заново, — это лучше полной потери работы. */
 function persistProject(){
   const snap=projectSnapshot();
+  captureHistory(snap);   /* прямые сохранения (перенос, правка поста, поворот, очистка) — тоже шаги */
   try{ProjectStore.save(snap);return "full"}
   catch(e){
     try{ProjectStore.save(Object.assign({},snap,{plan:null,planTooBig:true}));return "noplan"}
@@ -2539,8 +2548,92 @@ var _saveTimer=null,_autosaveOn=false;
 /* автосохранение с задержкой: правки идут пачками (перетаскивание, правка вершин) */
 function scheduleSave(){
   if(!_autosaveOn)return;
+  /* ШАГ ИСТОРИИ ФИКСИРУЕМ СРАЗУ, А СОХРАНЕНИЕ В localStorage — ПО-ПРЕЖНЕМУ С ЗАДЕРЖКОЙ. Решение
+     владельца: «каждый клик — отдельный шаг», и дебаунс автосохранения (700 мс) НЕ должен склеивать
+     две быстрые правки в один шаг. Поэтому запись в стек идёт в момент изменения (здесь), а запись
+     на диск остаётся отложенной. captureHistory дедуплицирует по плану — вызовы без правки плана
+     (зум, выделение, клик по пустому) шага не создают. */
+  captureHistory();
   clearTimeout(_saveTimer);
   _saveTimer=setTimeout(persistProject,EPConfig.autosaveDelay);   /* задержка — из EPConfig (было 700 мс) */
+}
+/* ---- Отмена/Возврат изменений плана (Б4, ч.А) ----
+   Стек истории — чистый EPHistory (лимит, сброс «Вернуть», amend, ключ сравнения без производных
+   полей). app.js только снимает снимки (projectSnapshot) и применяет их (applyPlanSnapshot). Замки:
+   _applyingSnapshot — «идёт применение»: промежуточные рендеры/сейвы во время отката не должны стать
+   новыми шагами и стереть «Вернуть» (R4); _historyAmend — автопересборка комнат из разметки дополняет
+   текущий шаг, а не плодит новый; _histBusy — защита undo/redo от повторного входа при удержании.
+   var — те же причины, что у _saveTimer: эти имена читаются из scheduleSave/persistProject, объявленных
+   выше по тексту, чем первый вызов из init. */
+var _history=EPHistory.create(EPConfig.historyLimit);
+var _applyingSnapshot=false,_historyAmend=false,_histBusy=false;
+/* Зафиксировать шаг. snap необязателен — persistProject передаёт уже построенный, scheduleSave строит
+   свой. Во время применения снимка (R4) и до включения автосейва шага не пишем. Дедупликация по плану —
+   внутри EPHistory.push (одинаковый план → не шаг). */
+function captureHistory(snap){
+  if(_applyingSnapshot)return;
+  if(!_autosaveOn)return;
+  const s=snap||projectSnapshot();
+  if(_historyAmend)_history.amend(s);else _history.push(s);
+  syncHistoryUi();
+}
+/* Доступность кнопок «Отменить»/«Вернуть» — одно место (§7.1), зовётся после каждого изменения стека. */
+function syncHistoryUi(){
+  const u=$("undoBtn"),r=$("redoBtn");
+  if(u)u.disabled=!_history.canUndo();
+  if(r)r.disabled=!_history.canRedo();
+}
+/* Применить снимок плана (откат/возврат). Пишем ТОЛЬКО поля плана (EPHistory.planOf); настройки, вид и
+   подложку не трогаем — они не отменяются. worldAngle — через setWorldAngle (прямая запись оставила бы
+   pan под старым углом и увела лист за край окна, см. §«Очистить холст»). Эфемерное состояние холста
+   сбрасываем (R7): незаконченные стена/разметка/масштаб, режим размещения, маркер двойного клика.
+   mountedRoomId гасим ДО перерисовки (R1): иначе renderProperties→flushRoomDraft прочитал бы старое имя
+   комнаты из полей и записал бы его обратно, откатив откат. Всё под замком _applyingSnapshot, чтобы ни
+   один промежуточный сейв не стал новым шагом; один persistProject в конце пишет результат на диск. */
+function applyPlanSnapshot(snap){
+  _applyingSnapshot=true;
+  try{
+    const plan=EPHistory.planOf(snap);
+    state.devices=plan.devices;state.posts=plan.posts;state.rooms=plan.rooms;
+    state.walls=plan.walls;state.autoWalls=plan.autoWalls;state.roomLines=plan.roomLines;
+    state.roomFieldMemory=plan.roomFieldMemory;
+    state.pxPerMeter=plan.pxPerMeter;state.scaleSegment=plan.scaleSegment;
+    state.planRotation=EPPlanRotate.normalizeAngle(plan.planRotation)||0;
+    /* R7: эфемерное состояние холста — не часть снимка, но осталось бы висеть после отката */
+    state.selected=null;state.pending=null;state.wallPoints=[];state.scalePoints=[];
+    canvas.classList.remove("placing");
+    finishRoomLineChain();            /* незаконченная цепочка разметки (roomLinePoints/ids/hover) */
+    _lastIconPlacement=null;_placeOnPostIcon=null;
+    mountedRoomId=null;               /* R1: flushRoomDraft не должен вернуть старое имя комнаты */
+    setWorldAngle(plan.worldAngle);   /* угол мира — только так (подбирает pan, лист остаётся на экране) */
+    renderAll();renderProperties();renderSummary();updateScaleUi();applyPlanRotation();renderScaleRuler();
+    persistProject();                 /* один сейв на диск; шаг не пишем — замок ещё держит */
+  }finally{_applyingSnapshot=false}
+  syncHistoryUi();
+}
+/* Перед откатом/возвратом: если ждёт отложенная автопересборка комнат из разметки — выполнить её СЕЙЧАС
+   (дополнив текущий шаг), иначе таймер сработает уже ПОСЛЕ отката, на откаченных линиях, и сотрёт
+   «Вернуть» (R). */
+function flushPendingRoomBuild(){
+  if(!_roomsTimer)return;
+  clearTimeout(_roomsTimer);_roomsTimer=null;
+  _historyAmend=true;try{buildRoomsFromLines({silent:true})}finally{_historyAmend=false}
+}
+function undoPlan(){
+  if(_histBusy)return;              /* повторный вход при удержании Ctrl+Z */
+  flushPendingRoomBuild();
+  if(!_history.canUndo()){syncHistoryUi();return}
+  _histBusy=true;
+  try{applyPlanSnapshot(_history.undo())}finally{_histBusy=false}
+  syncHistoryUi();
+}
+function redoPlan(){
+  if(_histBusy)return;
+  flushPendingRoomBuild();
+  if(!_history.canRedo()){syncHistoryUi();return}
+  _histBusy=true;
+  try{applyPlanSnapshot(_history.redo())}finally{_histBusy=false}
+  syncHistoryUi();
 }
 function saveProject(){
   const r=persistProject();
@@ -3484,8 +3577,14 @@ $("planUpload").onchange=async e=>{
    Режим органов (rotateTarget) — предпочтение пользователя, не трогаем. Угол ПОДЛОЖКИ (planRotation)
    сбросит clearPlan при «Убрать план», здесь плана не касаемся. setWorldAngle сам зовёт applyView/
    syncRotationUi/renderScaleRuler/persistProject — вызываем его ПОСЛЕ очистки, чтобы снимок сохранил
-   уже пустой холст. */
-$("clearBtn").onclick=()=>{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.roomLines=[];state.roomFieldMemory=[];finishRoomLineChain();state.selected=null;clearAnnotations();renderAll();renderProperties();renderSummary();setWorldAngle(0)};
+   уже пустой холст.
+   Б4: очистка — ОДИН шаг отмены. Внутри два сохранения (renderAll→scheduleSave сносит нарисованное,
+   setWorldAngle→persistProject сбрасывает угол) на РАЗНЫХ промежуточных состояниях плана — без защиты
+   они дали бы два шага. Глушим обе записи замком применения и фиксируем ОДИН шаг завершающим
+   persistProject: отмена возвращает и нарисованное, и угол разом. */
+$("clearBtn").onclick=()=>{_applyingSnapshot=true;try{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.roomLines=[];state.roomFieldMemory=[];finishRoomLineChain();state.selected=null;clearAnnotations();renderAll();renderProperties();renderSummary();setWorldAngle(0)}finally{_applyingSnapshot=false}persistProject()};
+$("undoBtn").onclick=undoPlan;   /* кнопки «Отменить»/«Вернуть» над планом (Б4, ч.А) */
+$("redoBtn").onclick=redoPlan;
 $("autoTraceBtn").onclick=autoTracePlan;
 $("annotateBtn").onclick=annotatePlan;
 $("clearAnnotateBtn").onclick=()=>{clearAnnotations();toast("Разметка убрана")};
@@ -3654,6 +3753,13 @@ document.onkeydown=e=>{
      группы света удалил бы выделенный на плане объект, а пробел на карточке товара вместо
      нажатия включил бы панораму. */
   const inBuilder=$("postModal").classList.contains("open");
+  /* Отмена/возврат плана (Б4, ч.А). Решение по нажатию — чистый EPHistory.hotkeyAction: он сам
+     пропускает текстовые поля (там Ctrl+Z — браузерная отмена ввода), разбирает Ctrl/⌘+Z/Y/Shift+Z и
+     молчит при открытой модалке. Модалки, при которых не работаем, — те же пять окон, что и везде. */
+  const anyModalOpen=["postModal","framePickerModal","scaleModal","pdfPageModal","wallScopeModal"]
+    .some(id=>{const m=$(id);return m&&m.classList.contains("open")});
+  const histAction=EPHistory.hotkeyAction(e,{modalOpen:anyModalOpen});
+  if(histAction){e.preventDefault();histAction==="undo"?undoPlan():redoPlan();return}
   /* Ловушку Tab снимаем, пока поверх конструктора висит вопрос об охвате правки типа стены:
      иначе Tab утаскивал бы фокус обратно в окно поста, а по кнопкам самого вопроса пройти
      было бы нельзя. return остаётся в обоих случаях — горячим клавишам холста под модалкой

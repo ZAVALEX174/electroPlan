@@ -1,0 +1,25 @@
+[
+  { "name": "U1: фиксация шага не вызывается из scheduleSave (шаг не пишется в момент правки)", "file": "js/app.js",
+    "from": "  captureHistory();\n  clearTimeout(_saveTimer);", "to": "  clearTimeout(_saveTimer);" },
+
+  { "name": "U2: сравнение плана отключено (каждый persist — отдельный шаг)", "file": "js/history.js",
+    "from": "    if (e.key === entries[pos].key) return false;", "to": "    if (false && e.key === entries[pos].key) return false;" },
+
+  { "name": "U3: flushRoomDraft не погашен — mountedRoomId не обнуляется перед перерисовкой (R1)", "file": "js/app.js",
+    "from": "    mountedRoomId=null;               /* R1: flushRoomDraft не должен вернуть старое имя комнаты */\n", "to": "" },
+
+  { "name": "U4: угол мира восстанавливается прямой записью вместо setWorldAngle", "file": "js/app.js",
+    "from": "    setWorldAngle(plan.worldAngle);   /* угол мира — только так (подбирает pan, лист остаётся на экране) */", "to": "    state.worldAngle=EPPlanRotate.normalizeAngle(plan.worldAngle)||0;" },
+
+  { "name": "U5: замок применения снят (промежуточные сейвы отката/очистки становятся шагами)", "file": "js/app.js",
+    "from": "  if(_applyingSnapshot)return;\n", "to": "" },
+
+  { "name": "U6: лимит истории не применяется (стек растёт без ограничения)", "file": "js/history.js",
+    "from": "    if (entries.length > cap + 1) entries = entries.slice(entries.length - (cap + 1));\n", "to": "" },
+
+  { "name": "U7: «Вернуть» не сбрасывается новым действием (хвост redo не срезается)", "file": "js/history.js",
+    "from": "    entries = entries.slice(0, pos + 1);\n", "to": "" },
+
+  { "name": "U8: хоткей перехватывает текстовое поле (ломает браузерную отмену ввода)", "file": "js/history.js",
+    "from": "  if (isTextTarget(ev.target)) return null;\n", "to": "" }
+]
