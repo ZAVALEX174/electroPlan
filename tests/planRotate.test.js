@@ -15,6 +15,20 @@ const EPEstimate = require("../js/estimate.js");
 const EPPosts = require("../js/posts.js");
 const EPOfferOptions = require("../js/offerOptions.js");
 
+/* Восстановление МИРОВЫХ координат точки из долей кадра документа. Кадр при разных углах
+   РАЗНЫЙ (он расширяется под повёрнутый фон), поэтому сравнивать проценты напрямую нельзя —
+   их надо вернуть в мир. L.image — неповёрнутый леттербокс-прямоугольник подложки (offX/offY/
+   dispW/dispH в долях кадра); он однозначно восстанавливает frameW/H и левый-верхний угол кадра,
+   после чего любую долю (бирку, вершину контура) переводим обратно в мировую точку. */
+function recoverFrame(spec, L) {
+  const disp = Math.min(spec.canvasW / spec.natW, spec.canvasH / spec.natH);
+  const dispW = spec.natW * disp, dispH = spec.natH * disp;
+  const offX = (spec.canvasW - dispW) / 2, offY = (spec.canvasH - dispH) / 2;
+  const frameW = 100 * dispW / L.image.width, frameH = 100 * dispH / L.image.height;
+  return { x0: offX - L.image.left * frameW / 100, y0: offY - L.image.top * frameH / 100, frameW, frameH };
+}
+const toWorld = (fr, left, top) => ({ x: fr.x0 + left * fr.frameW / 100, y: fr.y0 + top * fr.frameH / 100 });
+
 /* ---- 1. Чистый расчёт ---- */
 
 test("normalizeAngle: нормализует к [0,360), запятую читает, мусор отвергает (null — а не 0)", () => {
@@ -59,6 +73,22 @@ test("cssTransform: нет поворота → пустая строка (ст�
   assert.equal(R.cssTransform(undefined, 1200, 800, 900, 650), "", "битый угол → пусто (не трогаем фон)");
   assert.match(R.cssTransform(90, 1200, 800, 900, 650), /^rotate\(90deg\) scale\(0\.72222\)$/, "90°: rotate+вписывающий scale");
   assert.match(R.cssTransform(3.5, 1200, 800, 900, 650), /^rotate\(3\.5deg\) scale\(0\./, "дробный угол сохраняется в CSS");
+});
+
+test("cssTransform: 6-й аргумент fitAngle задаёт УГОЛ вписывания ОТДЕЛЬНО от угла поворота (контракт ч.2б)", () => {
+  /* Прямой контракт ЧИСЛАМИ, а не через саму cssTransform: иначе мутация «игнорировать fitAngle»
+     сдвинула бы и ожидание (тавтология). Повернуть на 90°, но вписывать по углу 0 → вписывать не
+     надо, scale(1). МУТАЦИЯ (удалить ветку if(fitAngleDeg!==undefined)): fa останется 90, scale
+     станет 0.72222 — assert краснеет. */
+  assert.equal(R.cssTransform(90, 1200, 800, 900, 650, 0), "rotate(90deg) scale(1)",
+    "fitAngle=0 → scale(1), хотя поворот 90° (мутация даёт scale(0.72222))");
+  /* Документный случай: угол поворота 180° (planRotation+worldAngle), вписывание по planRotation=90°.
+     fitScale(90)=650/900=0.72222, а fitScale(180)=1 — числа заведомо разные, мутация их спутает. */
+  assert.equal(R.cssTransform(180, 1200, 800, 900, 650, 90), "rotate(180deg) scale(0.72222)",
+    "scale по fitAngle=90° (0.72222), а не по углу поворота 180° (у которого fitScale=1)");
+  /* Пятиаргументный вызов (холст): вписывание по углу поворота — поведение прежнее. */
+  assert.equal(R.cssTransform(90, 1200, 800, 900, 650), "rotate(90deg) scale(0.72222)",
+    "без 6-го аргумента scale берётся по углу поворота (холст: угол = вписывание)");
 });
 
 test("formatAngle: число с запятой для поля ввода", () => {
@@ -191,7 +221,7 @@ test("угол МИРА не двигает нарисованное: снимо
 
 /* ---- 3. Документ: фон повёрнут тем же углом, бирки/контуры на местах ---- */
 
-test("planLabels: подложка в документе поворачивается тем же EPPlanRotate; бирки и контуры НЕ сдвигаются", () => {
+test("planLabels: поворот ТОЛЬКО чертежа (planRotation) крутит фон, но НЕ двигает мировые координаты бирок/контуров", () => {
   const base = {
     imageUrl: "data:image/png;base64,AAAA", natW: 1200, natH: 800, canvasW: 900, canvasH: 650,
     posts: [{ number: 1, x: 100, y: 120 }, { number: 2, x: 400, y: 300 }],
@@ -203,6 +233,32 @@ test("planLabels: подложка в документе поворачивае�
   assert.equal(L0.imageTransform, "", "без угла — фон без трансформации (старый КП не меняется)");
   assert.equal(L90.imageTransform, R.cssTransform(90, 1200, 800, 900, 650),
     "фон документа поворачивается ТЕМ ЖЕ расчётом, что холст (§7.1 — одна функция)");
+
+  /* ГЛАВНОЕ — восстановленный инвариант «разметка НЕ сдвигается» (прежний deepEqual по долям кадра
+     устарел: кадр теперь честно расширяется под повёрнутый фон, доли при planRotation=90 другие).
+     Поворот чертежа крутит ЛИШЬ фон (imageTransform), а мировые координаты бирок, вершин контура и
+     якоря имени от planRotation НЕ зависят. Проверяем это, вернув мир из долей каждого кадра: при
+     planRotation 0/90/37 восстановленный мир обязан совпасть с ИСХОДНЫМИ координатами входа.
+     МУТАЦИЯ (разметка крутится вслед за чертежом: rot на worldAngle+planAngle, гейт
+     if(worldAngle||planAngle)) уводит восстановленный мир прочь от входа → этот блок краснеет. */
+  const meanX = (0 + 500 + 500) / 3, meanY = (0 + 0 + 400) / 3;   /* якорь имени = среднее вершин */
+  [0, 90, 37].forEach(pr => {
+    const L = pr === 0 ? L0 : PL.layout(Object.assign({}, base, { planRotation: pr }));
+    const fr = recoverFrame(base, L);
+    base.posts.forEach((p, i) => {
+      const w = toWorld(fr, L.badges[i].left, L.badges[i].top);
+      assert.ok(Math.abs(w.x - p.x) < 1e-6 && Math.abs(w.y - p.y) < 1e-6,
+        `planRotation=${pr}: бирка ${p.number} в мире (${w.x.toFixed(2)},${w.y.toFixed(2)}) ≈ (${p.x},${p.y})`);
+    });
+    base.rooms[0].polygon.forEach((v, i) => {
+      const w = toWorld(fr, L.rooms[0].polygon[i].left, L.rooms[0].polygon[i].top);
+      assert.ok(Math.abs(w.x - v.x) < 1e-6 && Math.abs(w.y - v.y) < 1e-6,
+        `planRotation=${pr}: вершина контура ${i} в мире не сдвинулась`);
+    });
+    const wl = toWorld(fr, L.rooms[0].label.left, L.rooms[0].label.top);
+    assert.ok(Math.abs(wl.x - meanX) < 1e-6 && Math.abs(wl.y - meanY) < 1e-6,
+      `planRotation=${pr}: якорь имени комнаты в мире не сдвинулся`);
+  });
 
   /* §7.1: вращается ТОЛЬКО картинка — мировые координаты постов/контуров неизменны (это проверяет
      блок «угол мира не двигает нарисованное» и инвариант ч.1). НО в ДОЛЯХ кадра бирки/контуры теперь

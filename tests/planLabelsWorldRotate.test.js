@@ -28,6 +28,24 @@ const base = extra => Object.assign({
 
 const sign = v => (v > 1e-9 ? 1 : v < -1e-9 ? -1 : 0);
 
+/* Поворот точки вокруг ЦЕНТРА БОКСА — НЕЗАВИСИМАЯ плейн-математика (не через EPViewport.rotatePoint
+   и не через layout): иначе мутация центра/знака в layout сдвинула бы ожидание вместе с фактом. */
+function rotAround(p, angle, cx, cy) {
+  const r = angle * Math.PI / 180, c = Math.cos(r), s = Math.sin(r), dx = p.x - cx, dy = p.y - cy;
+  return { x: cx + dx * c - dy * s, y: cy + dx * s + dy * c };
+}
+/* Возврат доли кадра документа обратно в МИРОВУЮ точку. L.image — неповёрнутый леттербокс подложки;
+   из него восстанавливаем кадр (frameW/H и его левый-верхний угол), затем переводим долю в мир. */
+function recoverFrame(spec, L) {
+  const disp = Math.min(spec.canvasW / spec.natW, spec.canvasH / spec.natH);
+  const dispW = spec.natW * disp, dispH = spec.natH * disp;
+  const offX = (spec.canvasW - dispW) / 2, offY = (spec.canvasH - dispH) / 2;
+  const frameW = 100 * dispW / L.image.width, frameH = 100 * dispH / L.image.height;
+  return { x0: offX - L.image.left * frameW / 100, y0: offY - L.image.top * frameH / 100, frameW, frameH };
+}
+const toWorld = (fr, left, top) => ({ x: fr.x0 + left * fr.frameW / 100, y: fr.y0 + top * fr.frameH / 100 });
+const near = (a, b) => Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6;
+
 /* --- 1. Угол 0 (и отсутствие поля) — вывод БАЙТ-В-БАЙТ как прежде: старые КП не меняются --- */
 
 test("worldAngle=0 и отсутствие поля дают тот же layout/HTML, что было (совместимость)", () => {
@@ -120,8 +138,10 @@ test("planRotation=90 + worldAngle=90: фон крутится на сумму (
   const L = layout(spec);
   /* сумма углов, а УМЕНЬШЕНИЕ под бокс — только по planRotation (worldAngle крутит весь вид, кадр сам
      расширяется). МУТАЦИЯ «картинка без worldAngle» → остался бы rotate(90deg), а не 180. */
-  assert.equal(L.imageTransform, R.cssTransform(180, spec.natW, spec.natH, spec.canvasW, spec.canvasH, 90),
-    "transform = rotate(180deg) scale(fitScale(90)) — сумма углов, вписывание по чертежу");
+  /* Ожидание ЧИСЛОМ, а не через ту же cssTransform: иначе мутация «игнорировать fitAngle» в
+     cssTransform сдвинула бы и ожидание (тавтология). 0.72222 = fitScale(90°) для 1200×800 в 900×650. */
+  assert.equal(L.imageTransform, "rotate(180deg) scale(0.72222)",
+    "transform = rotate(180deg) scale(fitScale(90)=0.72222) — сумма углов, вписывание по чертежу");
   assert.match(L.imageTransform, /^rotate\(180deg\) scale\(/, "итоговый угол подложки — 180°");
   /* и повёрнутая подложка по-прежнему в кадре */
   displayedCornersPct(spec, L).forEach((c, i) =>
@@ -140,4 +160,62 @@ test("worldAngle=90 без подложки: контуры и бирки пов
   const s0 = screenPt(spec.posts[0], 90), s1 = screenPt(spec.posts[1], 90);
   assert.equal(sign(L.badges[0].top - L.badges[1].top), sign(s0.y - s1.y),
     "без подложки посты всё равно повёрнуты (угол 90 меняет их порядок по вертикали)");
+});
+
+/* --- 7. Бирки повёрнуты вокруг ЦЕНТРА БОКСА — совмещение с подложкой, а не только порядок --- */
+
+/* Порядок бирок (блок 2) сохраняется при повороте вокруг ЛЮБОГО центра — он не ловит сдвиг центра.
+   Здесь сверяем АБСОЛЮТНОЕ положение: возвращаем бирку из долей кадра в мир и сравниваем с
+   независимым поворотом поста вокруг центра бокса (cw/2,ch/2). Центр бокса = центр подложки, вокруг
+   него же крутится фон (transform-origin:center) — значит бирка и подложка совмещены и в документе.
+   МУТАЦИЯ (center 0,0 в planLabels.rot: geo.rotatePoint(pt, worldAngle, 0, 0)) сдвигает ВСЕ бирки на
+   фиксированный вектор относительно подложки — восстановленный мир разойдётся с ожиданием → красный. */
+[{ wa: 90, pr: 0 }, { wa: 37, pr: 0 }, { wa: 90, pr: 90 }, { wa: 37, pr: 90 }].forEach(({ wa, pr }) => {
+  test(`worldAngle=${wa}, planRotation=${pr}: бирки повёрнуты вокруг ЦЕНТРА подложки (совмещение с фоном)`, () => {
+    const spec = base({ worldAngle: wa, planRotation: pr });
+    const L = layout(spec);
+    const fr = recoverFrame(spec, L);
+    const cx = spec.canvasW / 2, cy = spec.canvasH / 2;
+    spec.posts.forEach((p, i) => {
+      const got = toWorld(fr, L.badges[i].left, L.badges[i].top);
+      const exp = rotAround(p, wa, cx, cy);   /* НЕЗАВИСИМО: поворот вокруг центра бокса */
+      assert.ok(near(got, exp),
+        `бирка ${p.number}: мир (${got.x.toFixed(2)},${got.y.toFixed(2)}) vs ожидание (${exp.x.toFixed(2)},${exp.y.toFixed(2)})`);
+    });
+  });
+});
+
+/* --- 8. Якорь имени комнаты повёрнут вместе с планом (контурная и бесконтурная комната) --- */
+
+test("worldAngle=90: якорь имени комнаты повёрнут вместе с планом — с контуром и без контура", () => {
+  const spec = {
+    imageUrl: PLAN, natW: 1200, natH: 800, canvasW: 900, canvasH: 650, worldAngle: 90,
+    rooms: [
+      { name: "С контуром", polygon: [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 200 }, { x: 0, y: 200 }] },
+      { name: "Без контура", x: 600, y: 100 }   /* комната инструмента «T»: только точка-якорь */
+    ]
+  };
+  const L = layout(spec);
+  const fr = recoverFrame(spec, L);
+  const cx = 450, cy = 325;
+
+  /* Контурная: якорь имени = центр (среднее вершин) ПОВЁРНУТОГО контура. Независимо считаем поворот
+     среднего исходных вершин вокруг центра бокса — и сверяем с восстановленным якорем; плюс якорь
+     обязан лечь в центр восстановленных вершин (т.е. ВНУТРИ своего повёрнутого контура). */
+  const mean0 = { x: (0 + 200 + 200 + 0) / 4, y: (0 + 0 + 200 + 200) / 4 };
+  const expContour = rotAround(mean0, 90, cx, cy);
+  const gotContour = toWorld(fr, L.rooms[0].label.left, L.rooms[0].label.top);
+  assert.ok(near(gotContour, expContour),
+    `якорь контурной комнаты (${gotContour.x.toFixed(2)},${gotContour.y.toFixed(2)}) = поворот центра (${expContour.x.toFixed(2)},${expContour.y.toFixed(2)})`);
+  const verts = L.rooms[0].polygon.map(v => toWorld(fr, v.left, v.top));
+  const vc = { x: verts.reduce((a, v) => a + v.x, 0) / verts.length, y: verts.reduce((a, v) => a + v.y, 0) / verts.length };
+  assert.ok(near(gotContour, vc), "якорь имени лежит в центре ПОВЁРНУТОГО контура (внутри комнаты)");
+
+  /* Бесконтурная: якорь — та же точка (x,y), тоже повёрнутая вокруг центра бокса. */
+  const gotPoint = toWorld(fr, L.rooms[1].label.left, L.rooms[1].label.top);
+  const expPoint = rotAround({ x: 600, y: 100 }, 90, cx, cy);
+  assert.ok(near(gotPoint, expPoint),
+    `якорь бесконтурной комнаты (${gotPoint.x.toFixed(2)},${gotPoint.y.toFixed(2)}) = поворот точки (${expPoint.x.toFixed(2)},${expPoint.y.toFixed(2)})`);
+  /* МУТАЦИЯ (убрать `if (r.label) r.label = rot(r.label);`): оба якоря останутся НЕповёрнутыми —
+     контурный уедет из своего повёрнутого контура, бесконтурный разойдётся с ожиданием → красный. */
 });

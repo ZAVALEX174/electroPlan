@@ -22,5 +22,29 @@
     "file": "js/planLabels.js",
     "from": "  const base = [];\n  if (img) {\n    const fs2 = rotate.fitScale(planAngle, natW, natH, cw, ch);\n    const total = planAngle + worldAngle;\n    const hw = img.dispW / 2 * fs2, hh = img.dispH / 2 * fs2;\n    [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].forEach(o =>\n      base.push(geo.rotatePoint({ x: rcx + o[0], y: rcy + o[1] }, total, rcx, rcy)));\n  }",
     "to": "  const base = [];\n  if (img) base.push({ x: img.offX, y: img.offY }, { x: img.offX + img.dispW, y: img.offY + img.dispH });"
+  },
+  {
+    "name": "M5 разметка крутится вслед за чертежом (planLabels: rot на сумму углов + гейт planAngle)",
+    "file": "js/planLabels.js",
+    "from": "  if (worldAngle) {\n    pts.forEach(p => { const r = rot(p); p.x = r.x; p.y = r.y; });\n    rooms.forEach(r => {\n      if (r.polygon) r.polygon = r.polygon.map(rot);\n      if (r.label) r.label = rot(r.label);\n    });\n  }",
+    "to": "  if (worldAngle || planAngle) {\n    const rot2 = pt => geo.rotatePoint(pt, worldAngle + planAngle, rcx, rcy);\n    pts.forEach(p => { const r = rot2(p); p.x = r.x; p.y = r.y; });\n    rooms.forEach(r => {\n      if (r.polygon) r.polygon = r.polygon.map(rot2);\n      if (r.label) r.label = rot2(r.label);\n    });\n  }"
+  },
+  {
+    "name": "M6 центр поворота разметки (0,0) вместо центра бокса (planLabels.rot)",
+    "file": "js/planLabels.js",
+    "from": "  const rot = pt => geo.rotatePoint(pt, worldAngle, rcx, rcy);",
+    "to": "  const rot = pt => geo.rotatePoint(pt, worldAngle, 0, 0);"
+  },
+  {
+    "name": "M7 якорь имени комнаты НЕ поворачивается (planLabels)",
+    "file": "js/planLabels.js",
+    "from": "      if (r.label) r.label = rot(r.label);",
+    "to": "      ;"
+  },
+  {
+    "name": "M8 6-й аргумент fitAngle игнорируется (planRotate.cssTransform)",
+    "file": "js/planRotate.js",
+    "from": "  if (fitAngleDeg !== undefined) { const n = normalizeAngle(fitAngleDeg); if (n != null) fa = n; }",
+    "to": "  "
   }
 ]
