@@ -3,7 +3,7 @@
     "from": "  captureHistory();\n  clearTimeout(_saveTimer);", "to": "  clearTimeout(_saveTimer);" },
 
   { "name": "U2: сравнение плана отключено (каждый persist — отдельный шаг)", "file": "js/history.js",
-    "from": "    if (e.key === entries[pos].key) return false;", "to": "    if (false && e.key === entries[pos].key) return false;" },
+    "from": "    if (e.key === entries[pos].key) { entries[pos] = e; return false; }", "to": "    if (false && e.key === entries[pos].key) { entries[pos] = e; return false; }" },
 
   { "name": "U3: flushRoomDraft не погашен — mountedRoomId не обнуляется перед перерисовкой (R1)", "file": "js/app.js",
     "from": "    mountedRoomId=null;               /* R1: flushRoomDraft не должен вернуть старое имя комнаты */\n", "to": "" },
@@ -21,5 +21,20 @@
     "from": "    entries = entries.slice(0, pos + 1);\n", "to": "" },
 
   { "name": "U8: хоткей перехватывает текстовое поле (ломает браузерную отмену ввода)", "file": "js/history.js",
-    "from": "  if (isTextTarget(ev.target)) return null;\n", "to": "" }
+    "from": "  if (isTextTarget(ev.target)) return null;\n", "to": "" },
+
+  { "name": "U9 (ч.Б): подложка plan/planLabel убрана из PLAN_FIELDS (выпала из классификации отмены)", "file": "js/history.js",
+    "from": ", \"worldAngle\", \"plan\", \"planLabel\"];", "to": ", \"worldAngle\"];" },
+
+  { "name": "U10 (ч.Б): applyImportedPlan не вызывает persistProject (загрузка чертежа не шаг и не переживает F5)", "file": "js/app.js",
+    "from": "      persistProject();\n      const suffix=", "to": "      const suffix=" },
+
+  { "name": "U11 (ч.Б): img.src присваивается и при НЕизменной подложке (лишняя перезагрузка растра на каждом откате)", "file": "js/app.js",
+    "from": "if(EPHistory.planFp(targetSrc)===EPHistory.planFp(curSrc))return;", "to": "if(false)return;" },
+
+  { "name": "U12 (ч.Б): bumpPlanToken не вызывается при смене подложки (идущее распознавание не гасится)", "file": "js/app.js",
+    "from": "  bumpPlanToken();\n  state.planLabel=plan.planLabel||\"\";", "to": "  state.planLabel=plan.planLabel||\"\";" },
+
+  { "name": "U13 (ч.Б): planVisibility не восстанавливается при откате «Убрать план»", "file": "js/app.js",
+    "from": "  state.planVisibility=plan.planVisibility||\"show\";\n", "to": "" }
 ]

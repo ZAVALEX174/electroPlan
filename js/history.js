@@ -19,13 +19,18 @@
 
 /* БЕЛЫЙ СПИСОК ПОЛЕЙ ПЛАНА — единственный источник правды «что отменяется». Совпадает с решением
    владельца: нарисованное (devices/posts/rooms/walls/autoWalls/roomLines), память полей исчезнувших
-   комнат, масштаб (pxPerMeter/scaleSegment) и оба угла (подложки planRotation и всего плана worldAngle).
-   НЕ входят: terms/docHeader/offerOptions/assemblyView (настройки сделки), view/planVisibility/orthoMode/
-   snapGrid/gridStep/rotateTarget (вид и режимы), plan/planLabel (подложка-чертёж — часть Б), name/savedAt
-   (метаданные снимка). Поля поста (скидка позиции, тип стены, подсветка, группы/номера проходных) едут
-   внутри самих объектов posts — отдельно перечислять не нужно. */
+   комнат, масштаб (pxPerMeter/scaleSegment), оба угла (подложки planRotation и всего плана worldAngle)
+   и сама ПОДЛОЖКА-ЧЕРТЁЖ (plan — data-URL растра, planLabel — имя файла; часть Б): загрузка чертежа,
+   «Убрать план» и «Очистить холст» отменяются по шагу назад.
+   НЕ входят: terms/docHeader/offerOptions/assemblyView (настройки сделки), view/orthoMode/snapGrid/
+   gridStep/rotateTarget (вид и режимы), name/savedAt (метаданные снимка). ОСОБЫЙ СЛУЧАЙ planVisibility
+   («показана/бледная/скрыта», клавиша B): отдельным шагом НЕ является (переключение видимости не
+   отменяется — решение владельца), поэтому в классификации остаётся «видом» и в ключ сравнения НЕ
+   входит; но planOf всё же переносит её, а app.js восстанавливает ТОЛЬКО вместе со сменой подложки —
+   так откат «Убрать план» возвращает ту видимость, что была до удаления. Поля поста (скидка позиции,
+   тип стены, подсветка, группы/номера проходных) едут внутри самих объектов posts. */
 const PLAN_FIELDS = ["devices", "posts", "rooms", "walls", "autoWalls", "roomLines",
-  "roomFieldMemory", "pxPerMeter", "scaleSegment", "planRotation", "worldAngle"];
+  "roomFieldMemory", "pxPerMeter", "scaleSegment", "planRotation", "worldAngle", "plan", "planLabel"];
 
 /* ПРОИЗВОДНЫЕ ПОЛЯ, которые renderAll пересчитывает САМ из геометрии и поэтому НЕ считаются
    изменением плана. Иначе каждый renderAll после применения снимка менял бы их заново и порождал
@@ -38,8 +43,20 @@ const DERIVED_DEVICE = ["roomId"];
 const DERIVED_POST = ["roomId"];
 const DERIVED_ROOM = ["componentId", "seedX", "seedY"];
 
+/* ДЕШЁВЫЙ ОТПЕЧАТОК ПОДЛОЖКИ — для ключа сравнения и для переиспользования строки (ниже). Подложка —
+   data-URL растра в десятки МБ; сериализовать её целиком в ключ или сравнивать побайтно на каждом шаге
+   недопустимо (память/время). Берём длину и по 48 символов с краёв: у двух РАЗНЫХ картинок совпасть разом
+   и длина, и оба края практически невозможно, а стоит это O(1), не O(размера). Нет подложки → "". */
+function planFp(src) {
+  if (!src) return "";
+  const s = String(src);
+  return s.length + "|" + s.slice(0, 48) + "|" + s.slice(-48);
+}
+
 /* Поля плана из снимка — ровно PLAN_FIELDS, с фолбэками под пустой/битый снимок. Их записывает
-   applyPlanSnapshot в app.js: массивы — копией из снимка, углы/масштаб — как есть. */
+   applyPlanSnapshot в app.js: массивы — копией из снимка, углы/масштаб — как есть, подложку (plan/
+   planLabel) — ссылкой на строку data-URL. planVisibility переносим вместе с подложкой (app.js применит
+   её только при смене чертежа, см. PLAN_FIELDS), иначе откат «Убрать план» не вернул бы её значение. */
 function planOf(snapshot) {
   const s = snapshot || {};
   return {
@@ -53,7 +70,10 @@ function planOf(snapshot) {
     pxPerMeter: s.pxPerMeter == null ? null : s.pxPerMeter,
     scaleSegment: s.scaleSegment || null,
     planRotation: s.planRotation == null ? 0 : s.planRotation,
-    worldAngle: s.worldAngle == null ? 0 : s.worldAngle
+    worldAngle: s.worldAngle == null ? 0 : s.worldAngle,
+    plan: s.plan == null ? null : s.plan,
+    planLabel: s.planLabel || "",
+    planVisibility: s.planVisibility || "show"
   };
 }
 
@@ -83,7 +103,12 @@ function planKey(snapshot) {
     pxPerMeter: s.pxPerMeter == null ? null : s.pxPerMeter,
     scaleSegment: s.scaleSegment || null,
     planRotation: s.planRotation == null ? 0 : s.planRotation,
-    worldAngle: s.worldAngle == null ? 0 : s.worldAngle
+    worldAngle: s.worldAngle == null ? 0 : s.worldAngle,
+    /* подложку в ключ кладём ОТПЕЧАТКОМ, а не самой строкой: смена/загрузка/сброс чертежа обязаны быть
+       шагом (отпечаток сменится), но держать десятки МБ в ключе сравнения нельзя. planVisibility в ключ
+       НЕ входит — её переключение шагом не является. */
+    planFp: planFp(s.plan),
+    planLabel: s.planLabel || ""
   };
   return JSON.stringify(norm);
 }
@@ -104,9 +129,25 @@ function create(limit) {
      строки, массивы, простые объекты), поэтому копируем тем же JSON-кругом, что и хранилище проекта.
      На отдаче (undo/redo) отдаём ЕЩЁ одну копию — чтобы последующие правки живого state не портили
      запись в стеке. */
-  const clonePlan = snap => JSON.parse(JSON.stringify(planOf(snap)));
-  const mk = snap => ({ plan: clonePlan(snap), key: planKey(snap) });
-  const give = plan => JSON.parse(JSON.stringify(plan));
+  /* ⚠️ КЛОН ПОЛЕЙ ПЛАНА БЕЗ КОПИИ ПОДЛОЖКИ. Всё, кроме plan, — чистые данные (числа, строки, массивы,
+     простые объекты): копируем JSON-кругом, как хранилище проекта. Строку data-URL (plan) через JSON НЕ
+     гоняем — она в десятки МБ, а строки в JS неизменяемы: достаточно сохранить ТУ ЖЕ ссылку. */
+  const clonePlanFields = p => {
+    const url = p.plan;
+    const c = JSON.parse(JSON.stringify(Object.assign({}, p, { plan: null })));
+    c.plan = url == null ? null : url;
+    return c;
+  };
+  /* Запись шага. prevPlan — план предыдущей головы: если подложка не изменилась (совпал отпечаток),
+     ПЕРЕИСПОЛЬЗУЕМ её строку из прошлой записи вместо свежей из снимка. Так 50 шагов с одним чертежом
+     держат ОДНУ строку: img.src отдаёт новый экземпляр строки на каждом чтении, иначе в стеке осело бы
+     50 копий многомегабайтного data-URL. */
+  const mk = (snap, prevPlan) => {
+    const p = planOf(snap);
+    if (prevPlan && planFp(p.plan) === planFp(prevPlan.plan)) p.plan = prevPlan.plan;
+    return { plan: clonePlanFields(p), key: planKey(snap) };
+  };
+  const give = plan => clonePlanFields(plan);
 
   /* Базовая точка: единственная запись, в которую пока нельзя ни отменить, ни вернуть. Зовётся в init
      после восстановления проекта — от неё отсчитываются все последующие шаги. */
@@ -118,8 +159,13 @@ function create(limit) {
      лимиту (теряем самые старые шаги, не новые). */
   function push(snap) {
     if (pos < 0) { reset(snap); return true; }
-    const e = mk(snap);
-    if (e.key === entries[pos].key) return false;
+    const e = mk(snap, entries[pos].plan);
+    /* Тот же шаг (ключ совпал) → НЕ создаём шаг, но ОСВЕЖАЕМ голову: единственное не-ключевое поле
+       плана — planVisibility (видимость подложки не отменяется, поэтому её нет в ключе). Без обновления
+       головы её текущее значение терялось бы для истории — и откат «Убрать план», восстанавливающий
+       видимость из шага ДО удаления, вернул бы устаревшее значение, а не то, что было в момент удаления.
+       Геометрия/углы/подложка у равного ключа тождественны, так что замена меняет только видимость. */
+    if (e.key === entries[pos].key) { entries[pos] = e; return false; }
     entries = entries.slice(0, pos + 1);
     entries.push(e);
     if (entries.length > cap + 1) entries = entries.slice(entries.length - (cap + 1));
@@ -132,7 +178,7 @@ function create(limit) {
      шага), а не самостоятельное действие человека. */
   function amend(snap) {
     if (pos < 0) { reset(snap); return; }
-    entries[pos] = mk(snap);
+    entries[pos] = mk(snap, entries[pos].plan);
   }
 
   /* Снять голову-шаг (В19: «поставил и тут же убрал» двойным кликом не должен оставить ни «поставил»,
@@ -183,7 +229,7 @@ function hotkeyAction(ev, ctx) {
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
-const api = { PLAN_FIELDS, planOf, planKey, create, hotkeyAction, isTextTarget };
+const api = { PLAN_FIELDS, planOf, planKey, planFp, create, hotkeyAction, isTextTarget };
 if (typeof window !== "undefined") window.EPHistory = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

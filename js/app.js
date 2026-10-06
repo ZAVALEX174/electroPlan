@@ -2583,13 +2583,45 @@ function syncHistoryUi(){
   if(u)u.disabled=!_history.canUndo();
   if(r)r.disabled=!_history.canRedo();
 }
-/* Применить снимок плана (откат/возврат). Пишем ТОЛЬКО поля плана (EPHistory.planOf); настройки, вид и
-   подложку не трогаем — они не отменяются. worldAngle — через setWorldAngle (прямая запись оставила бы
-   pan под старым углом и увела лист за край окна, см. §«Очистить холст»). Эфемерное состояние холста
-   сбрасываем (R7): незаконченные стена/разметка/масштаб, режим размещения, маркер двойного клика.
-   mountedRoomId гасим ДО перерисовки (R1): иначе renderProperties→flushRoomDraft прочитал бы старое имя
-   комнаты из полей и записал бы его обратно, откатив откат. Всё под замком _applyingSnapshot, чтобы ни
-   один промежуточный сейв не стал новым шагом; один persistProject в конце пишет результат на диск. */
+/* ПОДЛОЖКА В ОТКАТЕ/ВОЗВРАТЕ (Б4, ч.Б). ОДНО правило «та же ли подложка, что сейчас»: дешёвый отпечаток
+   EPHistory.planFp (data-URL в десятки МБ целиком не сравниваем). НЕ изменилась → не трогаем ни img.src
+   (лишняя перезагрузка растра и мигание), ни видимость (её переключение отдельным шагом не является —
+   решение владельца). Изменилась → bumpPlanToken (гасит идущие распознавания, § planToken), подпись и
+   видимость берём ИЗ шага: видимость восстанавливается ТОЛЬКО здесь, при смене подложки, поэтому откат
+   «Убрать план» возвращает ту видимость, что была до удаления, а обычное переключение B не откатывается.
+   Растр грузим/снимаем, НЕ блокируя откат: состояние применяется синхронно, а стартовавшую загрузку
+   обезвреживает planToken — быстрый повторный откат/очистка сменят токен, и устаревший onload сам себя
+   отменит (так undo не замирает на декодировании многомегабайтной картинки, и повторный Ctrl+Z
+   безопасен). applyPlanRotation для нового растра зовём в onload: вписывающий угол считается от
+   naturalWidth, доступного лишь ПОСЛЕ загрузки (как в restoreProject). */
+function applyPlanUnderlay(plan){
+  const img=$("planImage");if(!img)return;
+  const targetSrc=plan.plan||null;
+  const curSrc=(state.planLoaded&&/^data:/.test(img.src||""))?img.src:null;
+  if(EPHistory.planFp(targetSrc)===EPHistory.planFp(curSrc))return;   /* подложка та же — ничего не трогаем */
+  bumpPlanToken();
+  state.planLabel=plan.planLabel||"";
+  state.planVisibility=plan.planVisibility||"show";
+  if(targetSrc){
+    state.planLoaded=true;
+    const token=state.planToken;
+    img.onload=()=>{img.onload=null;img.onerror=null;if(state.planToken===token)applyPlanRotation()};
+    img.onerror=()=>{img.onload=null;img.onerror=null};
+    img.src=targetSrc;
+  }else{
+    img.removeAttribute("src");   /* как clearPlan: пустая "" ушла бы лишним запросом на URL страницы */
+    state.planLoaded=false;
+  }
+  updatePlanUi();applyPlanVisibility();
+}
+/* Применить снимок плана (откат/возврат). Пишем ТОЛЬКО поля плана (EPHistory.planOf); настройки и вид не
+   трогаем — они не отменяются; подложку-чертёж восстанавливает applyPlanUnderlay (выше). worldAngle —
+   через setWorldAngle (прямая запись оставила бы pan под старым углом и увела лист за край окна, см.
+   §«Очистить холст»). Эфемерное состояние холста сбрасываем (R7): незаконченные стена/разметка/масштаб,
+   режим размещения, маркер двойного клика. mountedRoomId гасим ДО перерисовки (R1): иначе
+   renderProperties→flushRoomDraft прочитал бы старое имя комнаты из полей и записал бы его обратно,
+   откатив откат. Всё под замком _applyingSnapshot, чтобы ни один промежуточный сейв не стал новым шагом;
+   один persistProject в конце пишет результат на диск. */
 function applyPlanSnapshot(snap){
   _applyingSnapshot=true;
   try{
@@ -2606,6 +2638,7 @@ function applyPlanSnapshot(snap){
     _lastIconPlacement=null;_placeOnPostIcon=null;
     mountedRoomId=null;               /* R1: flushRoomDraft не должен вернуть старое имя комнаты */
     setWorldAngle(plan.worldAngle);   /* угол мира — только так (подбирает pan, лист остаётся на экране) */
+    applyPlanUnderlay(plan);          /* подложка: восстановить/снять растр и видимость при смене чертежа */
     renderAll();renderProperties();renderSummary();updateScaleUi();applyPlanRotation();renderScaleRuler();
     persistProject();                 /* один сейв на диск; шаг не пишем — замок ещё держит */
   }finally{_applyingSnapshot=false}
@@ -3537,6 +3570,11 @@ function applyImportedPlan(file,result){
       /* новый чертёж — без поворота: прежний угол к чужой картинке не относится (Б3, ч.1) */
       state.planRotation=0;applyPlanRotation();
       markCanvasUsed();
+      /* Б4, ч.Б: загрузка чертежа — ОТДЕЛЬНЫЙ шаг отмены и СРАЗУ сохраняется (переживает F5). Раньше
+         applyImportedPlan не звал ни persistProject, ни scheduleSave — чертёж пропадал при перезагрузке
+         до следующего действия, а откат его не видел. Ошибочная загрузка сюда не доходит (onerror ниже
+         восстанавливает прежний src и reject — шага нет). */
+      persistProject();
       const suffix=result.detail?` · ${result.detail}`:"";
       updateStatus(`План загружен (${result.format}): ${file.name}${suffix}`);resolve();
     };

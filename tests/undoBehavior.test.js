@@ -28,15 +28,25 @@ function freshDefaults() {
    важен сам угол и ФАКТ, что откат идёт через него). */
 function makeApp() {
   const dom = stand.makeDom();
+  /* #planImage со шпионом: считаем ЛЮБОЕ касание src (присвоение и removeAttribute) — ч.Б должна не
+     трогать растр, когда подложка шага та же. onload в node не стреляет (нет движка изображений) —
+     поэтому applyPlanRotation из onload в юнит-тестах не выполняется; его проверяет браузерный хвост. */
+  const planImage = {
+    _src: "", onload: null, onerror: null, style: {}, naturalWidth: 10, naturalHeight: 10, touches: 0,
+    get src() { return this._src; },
+    set src(v) { this._src = String(v); this.touches++; },
+    removeAttribute(name) { if (name === "src") { this._src = ""; this.touches++; } }
+  };
+  dom.els.planImage = planImage;
   const state = {
     devices: [], posts: [], rooms: [], walls: [], autoWalls: [], roomLines: [],
     roomLinePoints: [], roomLineIds: [], roomLineHover: null, roomFieldMemory: [],
     pxPerMeter: null, scaleSegment: null, planRotation: 0, worldAngle: 0, rotateTarget: "image",
-    planVisibility: "show", orthoMode: true, snapGrid: true, gridStep: 10,
+    planVisibility: "show", orthoMode: true, snapGrid: true, gridStep: 10, planToken: 0,
     panX: 0, panY: 0, scale: 1, planLoaded: false, planLabel: "", selected: null, pending: null,
     wallPoints: [], scalePoints: []
   };
-  const spies = { setWorldAngle: [], store: null };
+  const spies = { setWorldAngle: [], store: null, bump: 0 };
   const ctx = {
     state, EP_DATA: { settings: freshDefaults() }, EPEstimate, EPOfferOptions,
     EPHistory, EPPlanRotate, EPConfig: { historyLimit: 50, autosaveDelay: 700 },
@@ -58,6 +68,12 @@ function makeApp() {
       }
     },
     renderSummary() {}, updateScaleUi() {}, applyPlanRotation() {}, renderScaleRuler() {},
+    /* подложка (ч.Б): bumpPlanToken со счётчиком — проверяем, что токен дёргается ТОЛЬКО при смене
+       подложки; updatePlanUi/applyPlanVisibility — заглушки (их эффект на DOM здесь не предмет) */
+    bumpPlanToken() { spies.bump++; state.planToken = (state.planToken || 0) + 1; },
+    updatePlanUi() {}, applyPlanVisibility() {},
+    /* соседи clearPlan/applyImportedPlan, не относящиеся к истории */
+    clearAnnotations() { state.detections = null; }, markCanvasUsed() {}, updateStatus() {}, toast() {},
     /* buildRoomsFromLines заглушка: автопересборка добавляет комнату и сохраняет (как настоящая через
        refreshAfterRoomAssignments → persistProject) */
     buildRoomsFromLines() { state.rooms.push({ id: "auto1", name: "Помещение 1", polygon: [], autoPolygon: true }); ctx.persistProject(); },
@@ -69,7 +85,8 @@ function makeApp() {
   };
   ctx.renderAll = () => ctx.scheduleSave();   /* последняя строка настоящего renderAll */
   const code = ["projectSnapshot", "captureHistory", "syncHistoryUi", "persistProject", "scheduleSave",
-    "applyPlanSnapshot", "flushPendingRoomBuild", "undoPlan", "redoPlan"].map(stand.functionSource).join("\n")
+    "applyPlanUnderlay", "applyPlanSnapshot", "flushPendingRoomBuild", "undoPlan", "redoPlan",
+    "clearPlan"].map(stand.functionSource).join("\n")
     + "\n;({});";
   require("node:vm").createContext(ctx);
   require("node:vm").runInContext(code, ctx);
@@ -206,4 +223,135 @@ test("автопересборка комнат из разметки ДОПОЛ
   a.ctx.undoPlan();                               // один шаг назад — и линии, и комнаты ушли вместе
   assert.equal(a.state.roomLines.length, 0, "линия откатилась");
   assert.equal(a.state.rooms.length, 0, "комната откатилась ТЕМ ЖЕ шагом");
+});
+
+/* ======================= Б4, ч.Б: подложка-чертёж в отмене/возврате =======================
+   loadChart воспроизводит РЕЗУЛЬТАТ успешной загрузки чертежа (то, что applyImportedPlan делает в
+   onload: bumpPlanToken, флаги, подпись, img.src), а ШАГ истории создаёт НАСТОЯЩИЙ persistProject —
+   именно его откат/возврат и applyPlanUnderlay здесь предмет проверки. Что applyImportedPlan вообще
+   зовёт persistProject (а значит, загрузка — отдельный шаг и переживает F5), сторожит отдельный
+   структурный тест ниже: саму функцию в node не исполнить (её onload стреляет только в браузере, а
+   вырезка тела тянет за собой обработчики загрузки файла). */
+const URL_A = "data:image/png;base64," + "QUJD".repeat(40);
+const URL_B = "data:image/jpeg;base64," + "Z".repeat(200) + "end";
+function loadChart(a, url, name) {
+  a.ctx.bumpPlanToken();
+  a.state.planLoaded = true; a.state.planLabel = name;
+  a.state.planVisibility = "show"; a.state.planRotation = 0;
+  a.dom.els.planImage.src = url;
+  a.ctx.persistProject();   // как applyImportedPlan в конце onload — отдельный шаг
+}
+
+test("загрузка чертежа — отдельный шаг; undo убирает чертёж, redo возвращает", () => {
+  const a = makeApp();
+  loadChart(a, URL_A, "plan1.png");
+  assert.equal(a.state.planLoaded, true, "после загрузки чертёж на месте");
+  assert.equal(a.dom.els.planImage.src, URL_A, "растр в #planImage");
+  assert.ok(a.ctx._history.canUndo(), "загрузка записалась ОТДЕЛЬНЫМ шагом");
+  a.ctx.undoPlan();
+  assert.equal(a.state.planLoaded, false, "undo убрал чертёж");
+  assert.equal(a.dom.els.planImage.src, "", "img.src снят");
+  a.ctx.redoPlan();
+  assert.equal(a.state.planLoaded, true, "redo вернул чертёж");
+  assert.equal(a.dom.els.planImage.src, URL_A, "тот же растр");
+});
+
+test("applyImportedPlan зовёт persistProject после загрузки (загрузка = шаг и переживает F5)", () => {
+  /* Структурный сторож (как roomFieldMemoryWiring): привязываем persistProject к ЕДИНСТВЕННОМУ месту
+     в onload — между markCanvasUsed() и updateStatus('План загружен…'). Мутация, снявшая этот вызов,
+     рвёт цепочку. Якоря уникальны для applyImportedPlan, поэтому persistProject из соседних обработчиков
+     (clearBtn и т.п.) совпадение не даст. Источник — стрипнутый (комментарии убраны). */
+  assert.match(stand.SRC,
+    /markCanvasUsed\(\);\s*persistProject\(\);\s*const suffix=result\.detail/,
+    "в onload applyImportedPlan между markCanvasUsed и updateStatus должен стоять persistProject()");
+});
+
+test("загрузка второго чертежа поверх первого → undo → первый чертёж", async () => {
+  const a = makeApp();
+  await loadChart(a, URL_A, "a.png");
+  await loadChart(a, URL_B, "b.png");
+  assert.equal(a.dom.els.planImage.src, URL_B, "виден второй");
+  assert.equal(a.state.planLabel, "b.png");
+  a.ctx.undoPlan();
+  assert.equal(a.dom.els.planImage.src, URL_A, "undo вернул ПЕРВЫЙ чертёж");
+  assert.equal(a.state.planLabel, "a.png", "и его подпись");
+});
+
+test("«Убрать план» → undo → растр, подпись, угол и видимость вернулись; redo → снова убран; посты не задеты", async () => {
+  const a = makeApp();
+  a.state.posts.push({ id: "p1", x: 1, y: 2, number: 1 });   // пост должен пережить clear+undo
+  await loadChart(a, URL_A, "plan1.png");                     // шаг: загрузка (rot 0, vis show)
+  a.state.planRotation = 90; a.ctx.persistProject();          // шаг: повернули подложку
+  a.state.planVisibility = "dim"; a.ctx.persistProject();     // не шаг, но голова освежается видимостью «dim»
+  const touchesBeforeClear = a.dom.els.planImage.touches;
+  a.ctx.clearPlan();                                          // «Убрать план» — ОДИН шаг
+  assert.equal(a.state.planLoaded, false, "план убран");
+  assert.equal(a.dom.els.planImage.src, "", "растр снят");
+  a.ctx.undoPlan();
+  assert.equal(a.state.planLoaded, true, "undo вернул подложку");
+  assert.equal(a.dom.els.planImage.src, URL_A, "тот же растр (та же строка)");
+  assert.equal(a.state.planLabel, "plan1.png", "подпись вернулась");
+  assert.equal(a.state.planRotation, 90, "угол подложки вернулся");
+  assert.equal(a.state.planVisibility, "dim", "видимость, что была ДО удаления, вернулась");
+  assert.equal(a.state.posts.length, 1, "посты clear/undo не задели");
+  assert.ok(a.dom.els.planImage.touches > touchesBeforeClear, "возврат растра реально тронул img.src");
+  a.ctx.redoPlan();
+  assert.equal(a.state.planLoaded, false, "redo снова убрал план");
+  assert.equal(a.dom.els.planImage.src, "", "растр снова снят");
+});
+
+test("шаг БЕЗ смены подложки не трогает img.src и не дёргает bumpPlanToken (шпион)", async () => {
+  const a = makeApp();
+  await loadChart(a, URL_A, "a.png");
+  a.state.walls.push({ id: "w1", a: { x: 0, y: 0 }, b: { x: 1, y: 0 } });
+  a.ctx.renderAll();                                // шаг: стена (подложка та же)
+  const touches0 = a.dom.els.planImage.touches, bump0 = a.spies.bump;
+  a.ctx.undoPlan();                                 // откат стены — подложка не меняется
+  assert.equal(a.state.walls.length, 0, "стена откатилась");
+  assert.equal(a.dom.els.planImage.touches, touches0, "img.src не трогали (та же подложка)");
+  assert.equal(a.spies.bump, bump0, "bumpPlanToken не вызывали (та же подложка)");
+  a.ctx.redoPlan();
+  assert.equal(a.dom.els.planImage.touches, touches0, "и при возврате стены img.src не трогали");
+  assert.equal(a.spies.bump, bump0, "и bumpPlanToken не вызывали");
+});
+
+test("bumpPlanToken дёргается ТОЛЬКО при смене подложки (не на обычном откате)", async () => {
+  const a = makeApp();
+  await loadChart(a, URL_A, "a.png");
+  a.state.posts.push({ id: "p1", x: 1, y: 2, number: 1 }); a.ctx.renderAll();   // не-подложечный шаг
+  const b0 = a.spies.bump;
+  a.ctx.undoPlan(); a.ctx.redoPlan();               // подложка та же
+  assert.equal(a.spies.bump, b0, "откат/возврат без смены подложки токен не трогают");
+  a.ctx.clearPlan();                                // смена подложки (убрали) — токен дёрнулся
+  const b1 = a.spies.bump;
+  assert.ok(b1 > b0, "clearPlan дёрнул токен");
+  a.ctx.undoPlan();                                 // возврат подложки — снова смена → токен дёрнулся
+  assert.ok(a.spies.bump > b1, "возврат растра дёрнул токен");
+});
+
+test("50 шагов с одной подложкой держат ОДНУ строку (а не 50 копий)", () => {
+  /* ⚠️ Модель БРАУЗЕРА: там img.src отдаёт РАЗНЫЙ экземпляр одного и того же data-URL на каждом чтении,
+     и без переиспользования в стеке осело бы 50 копий многомегабайтной строки. В node V8 дедуплицирует
+     равные строковые ПРИМИТИВЫ (любые две равные по содержимому строки оказываются ===), поэтому
+     «копия/ссылка» на примитивах неразличима. Чтобы идентичность стала наблюдаемой — используем обёртки
+     new String(url): это разные ОБЪЕКТЫ равного содержимого (как разные экземпляры из img.src). planFp
+     видит их содержимое (String(src)), а стек обязан вернуть ПЕРВУЮ обёртку, а не свои копии. */
+  const url = "data:image/png;base64," + "Q".repeat(600);
+  const S0 = new String(url);
+  const base = {
+    devices: [], posts: [], rooms: [], walls: [], autoWalls: [], roomLines: [], roomFieldMemory: [],
+    pxPerMeter: null, scaleSegment: null, planRotation: 0, worldAngle: 0, planVisibility: "show", planLabel: "a.png"
+  };
+  const h = EPHistory.create(50);
+  h.reset(Object.assign({}, base, { plan: S0 }));
+  for (let i = 1; i <= 50; i++) {
+    const fresh = new String(url);                  // отдельный объект того же содержимого (как свежий img.src)
+    assert.ok(fresh !== S0, "фикстура честная: экземпляры строки разные");
+    h.push(Object.assign({}, base, { plan: fresh, walls: Array.from({ length: i }, (_, k) => ({ id: "w" + k })) }));
+  }
+  const refs = [];
+  let p;
+  while ((p = h.undo())) refs.push(p.plan);
+  assert.equal(refs.length, 50, "накопили 50 шагов");
+  for (const r of refs) assert.ok(r === S0, "каждый шаг отдаёт ПЕРВУЮ строку (переиспользование по ссылке), а не свою копию");
 });

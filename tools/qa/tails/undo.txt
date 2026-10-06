@@ -75,3 +75,59 @@
   const rFresh = await ev(`return document.getElementById("redoBtn").disabled`);
   log.push("ПОСЛЕ ПЕРЕЗАГРУЗКИ (история не переживает F5): undo.disabled=" + uFresh + ", redo.disabled=" + rFresh);
   await shot("undo-fresh-load-panel", [`document.getElementById("undoBtn")`, `document.getElementById("redoBtn")`]);
+
+  // ============ Б4, ч.Б: ПОДЛОЖКА-ЧЕРТЁЖ в «Отменить/Вернуть» ============
+  // Сцена 1: чертёж + пост на холсте → «Убрать план» с подтверждением → чертежа нет → Ctrl+Z →
+  //          чертёж и посты на месте (+числа: длина img.src, planLoaded). Сцена 2: загрузка чертежа
+  //          настоящим <input> (applyImportedPlan) → F5 → чертёж на месте (сохранился сразу, без правок).
+  // Чертёж кладём в УЖЕ существующий проект (с постом) через localStorage + reload — как в rotate.txt.
+  n = 700;
+  const srcLen = () => ev(`const s=document.getElementById("planImage").src||"";return /^data:/.test(s)?s.length:0`);
+  const planLoadedB = () => ev(`return !document.getElementById("clearPlanBtn").hidden`);   // updatePlanUi ведёт hidden по planLoaded
+  const chertezBuf = fs.readFileSync(path.join(ROOT, "chertez", "c81e728d9d4c2f636f067f89cc14862c-12.png"));
+  const planDataUrl = "data:image/png;base64," + chertezBuf.toString("base64");
+
+  await ev(`const k=ProjectStore.key;const p=JSON.parse(localStorage.getItem(k)||"{}");p.plan=${JSON.stringify(planDataUrl)};p.planLabel="chertez.png";p.planVisibility="show";localStorage.setItem(k,JSON.stringify(p));return 1;`);
+  await c.send("Page.reload"); await sleep(5000);
+  await ev(`document.getElementById("canvas").scrollIntoView({block:"start"});return 1;`); await sleep(300);
+
+  // ставим пост на холст (шаблон → клик по чертежу): «Убрать план» и его откат не должны его задеть
+  await click(`document.querySelector("[data-place-template]")`); await sleep(300);
+  const ptB = await canvasPt(0.45, 0.5);
+  await clickAt(ptB.x, ptB.y); await sleep(700);
+
+  const lenB0 = await srcLen(), postsB0 = await cntPosts();
+  log.push("Б.1 ДО: img.src длина=" + lenB0 + ", planLoaded=" + await planLoadedB() + ", постов=" + postsB0);
+  await shot("partB-loaded-canvas", [], await scrollClip());
+
+  // «Убрать план» (задаёт вопрос) → «Точно убрать план?» (подтверждает). Пауза между ними снимает
+  // анти-промах «wait» (клик в тот же миг, когда появилась кнопка).
+  await click(`document.getElementById("clearPlanBtn")`); await sleep(800);
+  await click(`document.getElementById("clearPlanConfirmBtn")`); await sleep(800);
+  const lenB1 = await srcLen(), postsB1 = await cntPosts();
+  log.push("Б.1 «Убрать план» подтверждён: img.src длина " + lenB0 + "→" + lenB1 + ", planLoaded=" + await planLoadedB() + ", постов " + postsB0 + "→" + postsB1);
+  await shot("partB-cleared-canvas", [], await scrollClip());
+
+  // Ctrl+Z → чертёж и посты возвращаются
+  await blur(); await ctrlZ();
+  const lenB2 = await srcLen(), postsB2 = await cntPosts();
+  log.push("Б.1 Ctrl+Z: img.src длина " + lenB1 + "→" + lenB2 + " (ждём " + lenB0 + "), planLoaded=" + await planLoadedB() + ", постов " + postsB1 + "→" + postsB2 + " (ждём " + postsB0 + ")");
+  await shot("partB-undo-canvas", [], await scrollClip());
+
+  // Сцена 2: убираем план из localStorage, перезагружаемся (чертежа нет), затем грузим файл настоящим
+  // <input type=file> — срабатывает onchange → EPPlanImport → applyImportedPlan → persistProject.
+  await ev(`const k=ProjectStore.key;const p=JSON.parse(localStorage.getItem(k)||"{}");delete p.plan;p.planLabel="";localStorage.setItem(k,JSON.stringify(p));return 1;`);
+  await c.send("Page.reload"); await sleep(5000);
+  log.push("Б.2 перед загрузкой через input: planLoaded=" + await planLoadedB() + ", img.src длина=" + await srcLen());
+  const docB = await c.send("DOM.getDocument");
+  const inputB = await c.send("DOM.querySelector", { nodeId: docB.root.nodeId, selector: "#planUpload" });
+  await c.send("DOM.setFileInputFiles", { files: [path.join(ROOT, "chertez", "c81e728d9d4c2f636f067f89cc14862c-12.png")], nodeId: inputB.nodeId });
+  await sleep(5000);   // importFile + applyImportedPlan (+ persistProject внутри onload)
+  log.push("Б.2 после загрузки через input (applyImportedPlan): planLoaded=" + await planLoadedB() + ", img.src длина=" + await srcLen());
+
+  // F5 БЕЗ единой ручной правки: чертёж обязан остаться — его сохранил persistProject из applyImportedPlan
+  await c.send("Page.reload"); await sleep(5000);
+  await ev(`document.getElementById("canvas").scrollIntoView({block:"start"});return 1;`); await sleep(300);
+  const lenF5 = await srcLen(), loadedF5 = await planLoadedB();
+  log.push("Б.2 ПОСЛЕ F5 (сохранился сразу applyImportedPlan): planLoaded=" + loadedF5 + ", img.src длина=" + lenF5);
+  await shot("partB-reload-canvas", [], await scrollClip());

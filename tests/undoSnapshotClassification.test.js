@@ -26,9 +26,13 @@ function freshDefaults() {
 
 /* НАСТРОЙКИ сделки/документа — не часть плана (отмена поста не трогает курс/скидку/реквизиты). */
 const SETTINGS_FIELDS = ["terms", "docHeader", "offerOptions", "assemblyView"];
-/* ВИД холста, режимы разметки, подложка-чертёж (часть Б) и метаданные снимка — тоже не отменяются. */
+/* ВИД холста, режимы разметки и метаданные снимка — не отменяются. planVisibility («показана/бледная/
+   скрыта») тоже здесь: переключение видимости отдельным шагом не является (решение владельца), поэтому
+   она НЕ в PLAN_FIELDS и не в ключе сравнения; её значение восстанавливается только вместе со сменой
+   подложки при откате «Убрать план» (см. applyPlanUnderlay). Сама подложка plan/planLabel (часть Б)
+   переехала в ПЛАН. */
 const VIEW_FIELDS = ["view", "planVisibility", "orthoMode", "snapGrid", "gridStep", "rotateTarget",
-  "plan", "planLabel", "name", "savedAt"];
+  "name", "savedAt"];
 
 /* Состояние с непустыми полями плана — чтобы снимок заведомо содержал все ключи. */
 function makeState() {
@@ -82,6 +86,6 @@ test("каждое поле projectSnapshot классифицировано р�
 
 test("PLAN_FIELDS совпадает с ожидаемым набором плана (ревью при изменении границы отмены)", () => {
   assert.deepEqual([...EPHistory.PLAN_FIELDS].sort(),
-    ["autoWalls", "devices", "planRotation", "posts", "pxPerMeter", "roomFieldMemory",
-      "roomLines", "rooms", "scaleSegment", "walls", "worldAngle"].sort());
+    ["autoWalls", "devices", "plan", "planLabel", "planRotation", "posts", "pxPerMeter",
+      "roomFieldMemory", "roomLines", "rooms", "scaleSegment", "walls", "worldAngle"].sort());
 });
