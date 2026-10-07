@@ -264,8 +264,11 @@ function addRoomLinePoint(e){
     const first=state.roomLinePoints[0],last=state.roomLinePoints.at(-1);
     if(last&&(last.x!==first.x||last.y!==first.y))state.roomLines.push(makeRoomLine(last,first));
     finishRoomLineChain();
-    refreshAfterRoomAssignments(()=>{drawRoomLines();renderRooms()}, scheduleSave);
+    /* scheduleRoomsFromLines — ДО фиксации шага (scheduleSave внутри refreshAfterRoomAssignments): он
+       помечает шаг как правку линий, чтобы captureHistory не выполнил пересборку раньше времени, а
+       отдал её таймеру (Б4 п.1). Порядок обязателен — иначе scheduleSave флашит пересборку досрочно. */
     scheduleRoomsFromLines();   /* контур замкнулся — авто-пересчёт помещений с задержкой */
+    refreshAfterRoomAssignments(()=>{drawRoomLines();renderRooms()}, scheduleSave);
     updateStatus("Контур замкнут — линии разметки готовы для определения помещений");
     return;
   }
@@ -275,8 +278,8 @@ function addRoomLinePoint(e){
   if(state.roomLinePoints.length>1){
     const line=makeRoomLine(state.roomLinePoints.at(-2),p);
     state.roomLines.push(line);state.roomLineIds.push(line.id);
+    scheduleRoomsFromLines();   /* до фиксации шага (см. ветку p.closing): помечает правку линий (Б4 п.1) */
     refreshAfterRoomAssignments(renderRooms, scheduleSave);
-    scheduleRoomsFromLines();   /* линия добавлена — авто-пересчёт (сработает, когда контур замкнётся) */
   }
   state.roomLineHover=null;
   drawRoomLines();
@@ -287,14 +290,14 @@ function removeLastRoomLinePoint(){
   state.roomLinePoints.pop();
   const id=state.roomLineIds.pop();
   if(id)state.roomLines=state.roomLines.filter(l=>l.id!==id);
+  scheduleRoomsFromLines();   /* до фиксации шага (см. addRoomLinePoint): помечает правку линий (Б4 п.1) */
   refreshAfterRoomAssignments(()=>{drawRoomLines();renderRooms()}, scheduleSave);
-  scheduleRoomsFromLines();   /* линия снята — авто-пересчёт помещений */
   updateStatus(state.roomLinePoints.length?`Точка снята · в цепочке ${state.roomLinePoints.length}`:"Цепочка очищена — поставьте первую точку");
 }
 function removeRoomLine(id){
   state.roomLines=state.roomLines.filter(l=>l.id!==id);
+  scheduleRoomsFromLines();   /* до фиксации шага (см. addRoomLinePoint): помечает правку линий (Б4 п.1) */
   refreshAfterRoomAssignments(()=>{drawRoomLines();renderRooms()}, scheduleSave);
-  scheduleRoomsFromLines();   /* отдельная линия удалена — авто-пересчёт помещений */
 }
 function clearRoomLines(){
   /* «Очистить разметку» — явный сброс всей планировки по линиям: вместе с линиями забываем и память

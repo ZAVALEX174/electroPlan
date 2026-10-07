@@ -122,6 +122,9 @@ function buildRooms(state) {
     getObjectsInRoom: () => [],
     roomDisplayArea: () => "",
     placePendingAtEvent() {}, selectEntity() {}, removeEntity() {}, makeDraggable() {},
+    /* Б4 п.3: перетаскивание вершины помечает жест (шаг фиксируется на отпускании). История тут не
+       под тестом — тихие заглушки, чтобы dragVertex нашёл их в контексте. */
+    beginGesture() {}, endGesture() {},
     persistProject() { spies.persist++; },
     refreshAfterRoomAssignments() { spies.refreshAssign++; },   // перерисовку app.js в тесте не гоняем
     updateStatus(m) { spies.status.push(m); },

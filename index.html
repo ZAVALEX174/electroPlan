@@ -656,7 +656,7 @@
      подключает её через EPWallScope.create({$, WALL_STEP_LABEL}). -->
 <script src="js/wallScope.js?v=20260927.1"></script>
 <script src="js/postBuilder.js?v=20260927.2"></script>
-<script src="js/rooms.js?v=20261004.1"></script>
+<script src="js/rooms.js?v=20261006.1"></script>
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
@@ -665,13 +665,13 @@
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него
      makeDraggable и placePendingAtEvent). -->
-<script src="js/canvasInput.js?v=20261004.2"></script>
+<script src="js/canvasInput.js?v=20261006.1"></script>
 <!-- Распознавание и разметка помещений: инструмент «Разметка» (линии, магниты, сборка помещений
      buildRoomsFromLines) и автоопределение комнат (detectRooms/detectRoomsML), перенос ручных полей
      carryUserRoomFields. Вынесено из app.js (И1, последний кусок). Грузится ДО app.js, который зовёт
      EPRoomDetect.attach(ctx) ДО EPCanvasInput.attach (тот берёт из него addRoomLinePoint). -->
-<script src="js/roomDetect.js?v=20261004.2"></script>
+<script src="js/roomDetect.js?v=20261006.1"></script>
 <script src="js/history.js?v=20261005.2"></script>
-<script src="js/app.js?v=20261005.2"></script>
+<script src="js/app.js?v=20261006.1"></script>
 </body>
 </html>

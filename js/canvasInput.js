@@ -51,8 +51,8 @@
    имени. Вызывается один раз из app.js — ДО EPRooms.attach (см. граблю 1). */
 function attach(ctx){
 const {
-  $,addPending,addRoomLinePoint,addScalePoint,addWallPoint,applySelectionClasses,applyView,
-  buildSpaceComponents,canvas,canvasScroll,clientToWorld,ensureSelectTool,getRoomForPoint,hideHover,markCanvasUsed,
+  $,addPending,addRoomLinePoint,addScalePoint,addWallPoint,applySelectionClasses,applyView,beginGesture,
+  buildSpaceComponents,canvas,canvasScroll,clientToWorld,endGesture,ensureSelectTool,getRoomForPoint,hideHover,markCanvasUsed,
   tightestRoomAtPoint,refreshAfterRoomAssignments,removeEntity,renderAll,renderGroupLinks,renderProperties,
   renderRooms,renderSummary,scheduleSave,selectEntity,setTool,state,toast,uid,updateObjectRoom,
   updateStatus,zoomBy
@@ -136,6 +136,7 @@ function makeDraggable(el,obj,kind){
     if(mode==="pending"){
       if(!EPDrag.beyondThreshold(clientX-sx,clientY-sy,EPConfig.dragThreshold))return;   /* ещё клик */
       mode="dragging";el.classList.add("dragging");hideHover();
+      beginGesture();   /* Б4 п.3: пошёл перенос — промежуточные положения в историю не пишем, шаг зафиксирует finishDrag */
       /* карту областей для подсветки помещения снимаем один раз на старте переноса */
       dragMap=(kind!=="room"&&state.rooms.some(r=>!(r.polygon&&r.polygon.length>2)))?buildSpaceComponents():null;
     }
@@ -162,6 +163,7 @@ function makeDraggable(el,obj,kind){
     if(stop){stop();stop=null}
     document.removeEventListener("keydown",onKey,true);
     el.classList.remove("dragging");clearRoomDropHighlight();
+    endGesture();   /* Б4 п.3: жест завершён (отпускание или Esc) — снова разрешаем фиксировать шаг; finishDrag его и зафиксирует */
     mode="idle";dragMap=null;switched=false;
   }
   function finishDrag(){

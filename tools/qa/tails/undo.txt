@@ -131,3 +131,65 @@
   const lenF5 = await srcLen(), loadedF5 = await planLoadedB();
   log.push("Б.2 ПОСЛЕ F5 (сохранился сразу applyImportedPlan): planLoaded=" + loadedF5 + ", img.src длина=" + lenF5);
   await shot("partB-reload-canvas", [], await scrollClip());
+
+  // ============ Б4 довод (п.1–3, п.6): пересборка комнат, жест переноса, удержание стрелки ============
+  // Числа читаем из сохранённого проекта (localStorage, ProjectStore.key): roomLines/rooms/posts.
+  n = 800;
+  const roomLinesN = () => ev(`return (JSON.parse(localStorage.getItem(ProjectStore.key)||"{}").roomLines||[]).length`);
+  const roomsN = () => ev(`return (JSON.parse(localStorage.getItem(ProjectStore.key)||"{}").rooms||[]).length`);
+  const postXs = () => ev(`return (JSON.parse(localStorage.getItem(ProjectStore.key)||"{}").posts||[]).map(p=>Math.round(p.x))`);
+
+  // --- п.1: контур разметки 4 клика + пересборка (>600 мс) = 4 шага; 1-й Ctrl+Z снимает последнюю линию ---
+  await click(`document.getElementById("clearBtn")`); await sleep(800);   // чистый холст для детерминизма
+  await click(`document.querySelector('[data-tool="roomline"]')`); await sleep(300);
+  const q1 = await canvasPt(0.30, 0.30), q2 = await canvasPt(0.55, 0.30), q3 = await canvasPt(0.55, 0.55), q4 = await canvasPt(0.30, 0.55);
+  await clickAt(q1.x, q1.y); await clickAt(q2.x, q2.y); await clickAt(q3.x, q3.y); await clickAt(q4.x, q4.y);
+  await clickAt(q1.x, q1.y);   // замыкание на первую точку → 4-я линия контура
+  await sleep(900);            // >600 мс: автопересборка помещений
+  log.push("Б4-1 контур нарисован: линий=" + await roomLinesN() + ", комнат=" + await roomsN() + " (ждём линий=4, комнат≥1)");
+  await shot("b4-contour-built", [], await scrollClip());
+  await blur();
+  let contourSteps = 0, firstZlines = null, firstZrooms = null;
+  for (let i = 0; i < 10 && (await roomLinesN()) > 0; i++) {
+    await ctrlZ(); contourSteps++;
+    if (i === 0) { firstZlines = await roomLinesN(); firstZrooms = await roomsN(); }
+  }
+  log.push("Б4-1 1-й Ctrl+Z: линий=" + firstZlines + " (ждём 3), комнат=" + firstZrooms + " (ждём 0 — комната не осталась призраком)");
+  log.push("Б4-1 шагов до снятия всех линий контура = " + contourSteps + " (ждём 4, не 5)");
+
+  // --- п.2: удалить авто-комнату → Z → Y → комнат как после удаления ---
+  // заново строим контур (его только что отменили)
+  await click(`document.querySelector('[data-tool="roomline"]')`); await sleep(300);
+  await clickAt(q1.x, q1.y); await clickAt(q2.x, q2.y); await clickAt(q3.x, q3.y); await clickAt(q4.x, q4.y); await clickAt(q1.x, q1.y);
+  await sleep(900);
+  const roomsBuilt = await roomsN();
+  // удаляем комнату: инструмент «Удалить» + клик по центру контура
+  await click(`document.querySelector('[data-tool="delete"]')`); await sleep(300);
+  const qc = await canvasPt(0.425, 0.425); await clickAt(qc.x, qc.y); await sleep(800);
+  const roomsDeleted = await roomsN();
+  await blur(); await ctrlZ(); const roomsAfterZ = await roomsN();
+  await ctrlY(); const roomsAfterY = await roomsN();
+  log.push("Б4-2 авто-комната: построено=" + roomsBuilt + " → удалено=" + roomsDeleted + " → Ctrl+Z=" + roomsAfterZ + " → Ctrl+Y=" + roomsAfterY + " (ждём Y = как после удаления = " + roomsDeleted + ")");
+  await shot("b4-room-delete-redo", [], await scrollClip());
+
+  // --- п.3: поставить пост и сразу перетащить → Ctrl+Z возвращает точку ПОСТАНОВКИ ---
+  await click(`document.getElementById("clearBtn")`); await sleep(800);
+  await click(`document.querySelector("[data-place-template]")`); await sleep(300);
+  const pp = await canvasPt(0.45, 0.5); await clickAt(pp.x, pp.y); await sleep(300);   // поставлен (дебаунс 700 мс взведён)
+  const xPlaced = await postXs();
+  await drag(pp.x, pp.y, 160, 90);   // сразу тащим (мышь down→move→up), затем пауза
+  const xDragged = await postXs();
+  await blur(); await ctrlZ(); const xAfterZ = await postXs();
+  log.push("Б4-3 пост: поставлен x=" + JSON.stringify(xPlaced) + " → перенесён x=" + JSON.stringify(xDragged) + " → Ctrl+Z x=" + JSON.stringify(xAfterZ) + " (ждём = точка постановки " + JSON.stringify(xPlaced) + ", НЕ промежуточная)");
+  await shot("b4-drag-undo", [], await scrollClip());
+
+  // --- п.6: 60 автоповторов зажатой стрелки = ОДИН шаг (Ctrl+Z возвращает исходную точку) ---
+  await click(`document.querySelector(".plan-icon.post")`); await sleep(300);   // выделяем пост
+  const xBeforeArrow = await postXs();
+  for (let i = 0; i < 60; i++) await c.send("Input.dispatchKeyEvent", { type: "rawKeyDown", code: "ArrowRight", key: "ArrowRight", windowsVirtualKeyCode: 39, nativeVirtualKeyCode: 39, autoRepeat: i > 0 });
+  await c.send("Input.dispatchKeyEvent", { type: "keyUp", code: "ArrowRight", key: "ArrowRight", windowsVirtualKeyCode: 39, nativeVirtualKeyCode: 39 });
+  await sleep(900);
+  const xAfterArrow = await postXs();
+  await blur(); await ctrlZ(); const xAfterArrowZ = await postXs();
+  log.push("Б4-6 удержание стрелки: до=" + JSON.stringify(xBeforeArrow) + " → после 60 автоповторов=" + JSON.stringify(xAfterArrow) + " → 1×Ctrl+Z=" + JSON.stringify(xAfterArrowZ) + " (ждём один Ctrl+Z вернул к " + JSON.stringify(xBeforeArrow) + ")");
+  await shot("b4-arrow-hold-undo", [], await scrollClip());

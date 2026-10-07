@@ -1110,6 +1110,25 @@ function moveSelectedBy(dx,dy){
   }
   return false;
 }
+/* Сдвиг выделенного стрелкой (PLAN 4). Вынесен из document.onkeydown ОТДЕЛЬНОЙ функцией, чтобы правило
+   истории при удержании проверялось автотестом (тело onkeydown стенд не режет). Возвращает true, если
+   сдвиг произошёл (handler тогда гасит стрелку preventDefault).
+   УДЕРЖАНИЕ = ОДИН ШАГ (решение владельца 06.10): первое нажатие (e.repeat=false) открывает шаг,
+   автоповторы (e.repeat=true) дополняют его через _historyAmend. Отдельные нажатия без удержания
+   приходят с e.repeat=false и остаются отдельными шагами; отпускание клавиши ничего не закрывает —
+   следующее обычное нажатие снова push. */
+function moveSelectedByKey(e){
+  const step=e.shiftKey?1:state.gridStep;
+  const nudge={ArrowLeft:[-step,0],ArrowRight:[step,0],ArrowUp:[0,-step],ArrowDown:[0,step]}[e.key];
+  if(!nudge)return false;
+  /* Стрелки двигают объект в ЭКРАННЫХ направлениях (влево на экране = влево при любом угле мира):
+     экранное направление переводим в мировую дельту обратной матрицей R(−worldAngle). Длина шага —
+     шаг сетки в мире (поворот длину сохраняет). При worldAngle=0 — прежние (dx,dy) без изменений. */
+  const a=(state.worldAngle||0)*Math.PI/180,c=Math.cos(a),s=Math.sin(a);
+  const wx=nudge[0]*c+nudge[1]*s,wy=-nudge[0]*s+nudge[1]*c;
+  _historyAmend=e.repeat;
+  try{return moveSelectedBy(wx,wy)}finally{_historyAmend=false}
+}
 function removeEntity(kind,id){
   if(kind==="wall"){removeWall(id);return}
   const key={device:"devices",post:"posts",room:"rooms"}[kind];state[key]=state[key].filter(x=>x.id!==id);state.selected=null;renderAll();renderProperties();renderSummary();
@@ -1212,7 +1231,10 @@ function renderProperties(){
        в подсказку и в лист монтажника, но исчезала при перезагрузке страницы, если после неё
        ничего больше не двигали. Кнопки «Сохранить» у одиночного элемента нет — поле одно, —
        поэтому сохраняем отложенно, прямо по вводу (scheduleSave склеивает поток нажатий). */
-    $("propHeight").oninput=e=>{d.height=e.target.value;scheduleSave()};
+    /* Поток ввода высоты — ОДИН шаг истории (решение владельца 06.10): fieldInputSave открывает шаг
+       первым символом и дополняет его дальше, endFieldEdit (потеря фокуса) закрывает поток. */
+    $("propHeight").oninput=e=>{d.height=e.target.value;fieldInputSave(e.target)};
+    $("propHeight").onblur=endFieldEdit;
     $("removeSelected").onclick=()=>removeEntity(kind,id);
   }else if(kind==="post"){
     const p=entity;
@@ -2318,10 +2340,22 @@ function drawWalls(){
    авто, чтобы не мешало рисовать»). Гейт _autosaveOn — тот же, что у scheduleSave:
    не дёргаем во время восстановления проекта. Авто-режим молчалив. */
 var _roomsTimer=null;
+/* Пометка «последний зафиксированный шаг — правка линий разметки» (Б4 п.1-2). Правку линий ВСЕГДА
+   сопровождает scheduleRoomsFromLines ПЕРЕД её scheduleSave (порядок в addRoomLinePoint и соседях):
+   флаг говорит captureHistory НЕ выполнять ожидающую пересборку прямо сейчас — её дополнит таймер,
+   когда рисование остановится, и дополнит ИМЕННО этот шаг-линию. Любое ДРУГОЕ действие флага не
+   ставит, поэтому его captureHistory сначала флашит пересборку (дополняя предыдущий шаг-линию), а
+   уже потом фиксирует себя. Флаг одноразовый: captureHistory снимает его на первом же шаге. */
+var _roomsJustScheduled=false;
 function scheduleRoomsFromLines(){
   if(!_autosaveOn)return;
   clearTimeout(_roomsTimer);
-  _roomsTimer=setTimeout(()=>buildRoomsFromLines({silent:true}),EPConfig.roomAutoDelay);
+  /* таймер зовёт flushPendingRoomBuild, а НЕ buildRoomsFromLines напрямую: пересборка обязана
+     дополнить шаг-источник (amend), а _roomsTimer — обнулиться при срабатывании, иначе
+     flushPendingRoomBuild сочтёт пересборку всё ещё ждущей и повторит её на текущей голове при
+     первом же Ctrl+Z/Ctrl+Y (Б4 п.2). */
+  _roomsTimer=setTimeout(flushPendingRoomBuild,EPConfig.roomAutoDelay);
+  _roomsJustScheduled=true;
 }
 
 /* ---- Видимость подложки (Этап 1): показать → бледная → скрыть.
@@ -2566,13 +2600,42 @@ function scheduleSave(){
    var — те же причины, что у _saveTimer: эти имена читаются из scheduleSave/persistProject, объявленных
    выше по тексту, чем первый вызов из init. */
 var _history=EPHistory.create(EPConfig.historyLimit);
-var _applyingSnapshot=false,_historyAmend=false,_histBusy=false;
+var _applyingSnapshot=false,_historyAmend=false,_histBusy=false,_gestureActive=false;
+/* ИДЁТ НЕПРЕРЫВНЫЙ ЖЕСТ (Б4 п.3): перенос поста/элемента/подписи или перетаскивание вершины. Объект
+   мутируется ПО ХОДУ движения, а шаг истории должен зафиксироваться ОДИН — на отпускании. Пока флаг
+   поднят, captureHistory не пишет шаг: это глушит и отложенный от предыдущего действия автосейв
+   (дебаунс 700 мс), если он сработает посреди жеста и зафиксировал бы промежуточное положение.
+   Фиксацию делает завершающий scheduleSave самого жеста (finishDrag / up), уже при снятом флаге. */
+function beginGesture(){_gestureActive=true}
+function endGesture(){_gestureActive=false}
+/* ПОТОК ВВОДА В ОДНО ПОЛЕ — ОДИН ШАГ (решение владельца 06.10). oninput-поля, пишущие план (высота
+   элемента и т.п.), зовут это вместо scheduleSave: первая правка открывает шаг (push), последующие
+   символы его дополняют (amend), пока фокус в том же поле; смена поля или потеря фокуса (endFieldEdit)
+   закрывает поток, и следующая правка снова будет отдельным шагом. */
+var _fieldEditEl=null;
+function fieldInputSave(el){
+  _historyAmend=(_fieldEditEl===el);
+  _fieldEditEl=el;
+  try{scheduleSave()}finally{_historyAmend=false}
+}
+function endFieldEdit(){_fieldEditEl=null}
 /* Зафиксировать шаг. snap необязателен — persistProject передаёт уже построенный, scheduleSave строит
-   свой. Во время применения снимка (R4) и до включения автосейва шага не пишем. Дедупликация по плану —
-   внутри EPHistory.push (одинаковый план → не шаг). */
+   свой. Во время применения снимка (R4), идущего жеста (п.3) и до включения автосейва шага не пишем.
+   Дедупликация по плану — внутри EPHistory.push (одинаковый план → не шаг). */
 function captureHistory(snap){
   if(_applyingSnapshot)return;
+  if(_gestureActive)return;   /* п.3: шаг фиксируется на отпускании, не в движении */
   if(!_autosaveOn)return;
+  /* Ожидающая автопересборка комнат — следствие ПРЕДЫДУЩЕГО клика по разметке. Если текущий шаг сам
+     является правкой линий (_roomsJustScheduled), пересборку НЕ трогаем — её дополнит таймер, когда
+     рисование остановится (иначе она вписалась бы в соседний шаг, см. _roomsJustScheduled). Для любого
+     другого действия выполняем пересборку СЕЙЧАС, ДО фиксации этого шага, чтобы она дополнила шаг-
+     источник (клик по линии), а не текущее действие — иначе Ctrl+Z снял бы и его, и комнату (Б4 п.1).
+     Под amend не флашим: мы и так внутри пересборки (flushPendingRoomBuild ставит _historyAmend). */
+  if(!_historyAmend){
+    if(_roomsJustScheduled)_roomsJustScheduled=false;
+    else flushPendingRoomBuild();
+  }
   const s=snap||projectSnapshot();
   if(_historyAmend)_history.amend(s);else _history.push(s);
   syncHistoryUi();
@@ -2598,10 +2661,14 @@ function applyPlanUnderlay(plan){
   const img=$("planImage");if(!img)return;
   const targetSrc=plan.plan||null;
   const curSrc=(state.planLoaded&&/^data:/.test(img.src||""))?img.src:null;
-  if(EPHistory.planFp(targetSrc)===EPHistory.planFp(curSrc))return;   /* подложка та же — ничего не трогаем */
-  bumpPlanToken();
+  /* ПОДПИСЬ И ВИДИМОСТЬ — ЧАСТЬ ШАГА ПЛАНА: применяем ВСЕГДА, даже если растр совпал (тот же файл,
+     загруженный повторно под другим именем, — «plan.png» и «plan (1).png»). Иначе подпись не
+     откатилась бы, а отложенный автосейв через 700 мс увидел бы другой planLabel и стёр «Вернуть»
+     (Б4 п.4). planVisibility тоже отсюда — её откат («Убрать план» → undo) живёт только здесь. */
   state.planLabel=plan.planLabel||"";
   state.planVisibility=plan.planVisibility||"show";
+  if(EPHistory.planFp(targetSrc)===EPHistory.planFp(curSrc)){updatePlanUi();applyPlanVisibility();return}   /* растр тот же — img.src/bumpPlanToken не трогаем (лишняя перезагрузка и мигание) */
+  bumpPlanToken();
   if(targetSrc){
     state.planLoaded=true;
     const token=state.planToken;
@@ -2649,8 +2716,18 @@ function applyPlanSnapshot(snap){
    «Вернуть» (R). */
 function flushPendingRoomBuild(){
   if(!_roomsTimer)return;
-  clearTimeout(_roomsTimer);_roomsTimer=null;
-  _historyAmend=true;try{buildRoomsFromLines({silent:true})}finally{_historyAmend=false}
+  /* ОБНУЛЯЕМ таймер ДО пересборки: buildRoomsFromLines сам идёт через renderAll/persistProject →
+     captureHistory, и без обнуления вложенный вызов снова счёл бы пересборку ждущей (Б4 п.2). Флаг
+     «шаг-линия» тоже снимаем — пересборка уже выполняется, откладывать нечего. */
+  clearTimeout(_roomsTimer);_roomsTimer=null;_roomsJustScheduled=false;
+  /* Пересборку (меняет ТОЛЬКО комнаты) проводим под замком применения, чтобы её внутренние
+     renderAll/persistProject не записали собственный шаг. Затем дополняем шаг-источник amendRooms —
+     ТОЛЬКО полями комнат: flush мог настать уже после того, как следующее действие вошло в состояние
+     (пост поставлен <600 мс, s4), и полный снимок втянул бы пост в шаг-линию (Б4 п.1). */
+  _applyingSnapshot=true;
+  try{buildRoomsFromLines({silent:true})}finally{_applyingSnapshot=false}
+  _history.amendRooms(projectSnapshot());
+  syncHistoryUi();
 }
 function undoPlan(){
   if(_histBusy)return;              /* повторный вход при удержании Ctrl+Z */
@@ -3620,7 +3697,8 @@ $("planUpload").onchange=async e=>{
    setWorldAngle→persistProject сбрасывает угол) на РАЗНЫХ промежуточных состояниях плана — без защиты
    они дали бы два шага. Глушим обе записи замком применения и фиксируем ОДИН шаг завершающим
    persistProject: отмена возвращает и нарисованное, и угол разом. */
-$("clearBtn").onclick=()=>{_applyingSnapshot=true;try{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.roomLines=[];state.roomFieldMemory=[];finishRoomLineChain();state.selected=null;clearAnnotations();renderAll();renderProperties();renderSummary();setWorldAngle(0)}finally{_applyingSnapshot=false}persistProject()};
+function clearCanvas(){_applyingSnapshot=true;try{state.devices=[];state.posts=[];state.rooms=[];state.walls=[];state.autoWalls=[];state.wallPoints=[];state.roomLines=[];state.roomFieldMemory=[];finishRoomLineChain();state.selected=null;clearAnnotations();renderAll();renderProperties();renderSummary();setWorldAngle(0)}finally{_applyingSnapshot=false}persistProject()}
+$("clearBtn").onclick=clearCanvas;
 $("undoBtn").onclick=undoPlan;   /* кнопки «Отменить»/«Вернуть» над планом (Б4, ч.А) */
 $("redoBtn").onclick=redoPlan;
 $("autoTraceBtn").onclick=autoTracePlan;
@@ -3846,16 +3924,7 @@ document.onkeydown=e=>{
      сдвиг на шаг сетки (Shift — на 1px). Только вне ввода и при закрытом конструкторе. */
   if(!typing&&state.selected&&!inBuilder){
     if(e.key==="Enter"&&state.selected.kind==="post"){e.preventDefault();openPostBuilder({placedId:state.selected.id});return}
-    const step=e.shiftKey?1:state.gridStep;
-    const nudge={ArrowLeft:[-step,0],ArrowRight:[step,0],ArrowUp:[0,-step],ArrowDown:[0,step]}[e.key];
-    if(nudge){
-      /* Стрелки двигают объект в ЭКРАННЫХ направлениях (влево на экране = влево при любом угле мира):
-         экранное направление переводим в мировую дельту обратной матрицей R(−worldAngle). Длина шага —
-         шаг сетки в мире (поворот длину сохраняет). При worldAngle=0 — прежние (dx,dy) без изменений. */
-      const a=(state.worldAngle||0)*Math.PI/180,c=Math.cos(a),s=Math.sin(a);
-      const wx=nudge[0]*c+nudge[1]*s,wy=-nudge[0]*s+nudge[1]*c;
-      if(moveSelectedBy(wx,wy)){e.preventDefault();return}
-    }
+    if(moveSelectedByKey(e)){e.preventDefault();return}
   }
   /* Backspace во время рисования разметки — снять последнюю точку (Esc — выход из режима) */
   if(e.key==="Backspace"&&state.tool==="roomline"&&!typing&&!inBuilder&&state.roomLinePoints.length){e.preventDefault();removeLastRoomLinePoint()}
@@ -3946,8 +4015,8 @@ const {addRoomLinePoint,drawRoomLines,finishRoomLineChain,removeLastRoomLinePoin
    на момент этого вызова ещё не инициализирован; makeDraggable зовёт его лишь при переносе (finishDrag),
    когда const уже готов, поэтому стрелка вычисляет ссылку в момент вызова, а не сборки ctx (TDZ нет). */
 const {makeDraggable,placePendingAtEvent,onSpaceKeydown}=EPCanvasInput.attach({
-  $,addPending,addRoomLinePoint,addScalePoint,addWallPoint,applySelectionClasses,applyView,
-  buildSpaceComponents,canvas,canvasScroll,clientToWorld,ensureSelectTool,getRoomForPoint,hideHover,markCanvasUsed,
+  $,addPending,addRoomLinePoint,addScalePoint,addWallPoint,applySelectionClasses,applyView,beginGesture,
+  buildSpaceComponents,canvas,canvasScroll,clientToWorld,endGesture,ensureSelectTool,getRoomForPoint,hideHover,markCanvasUsed,
   tightestRoomAtPoint,refreshAfterRoomAssignments,removeEntity,renderAll,renderGroupLinks,renderProperties,
   renderRooms:()=>renderRooms(),renderSummary,scheduleSave,selectEntity,setTool,state,toast,uid,
   updateObjectRoom,updateStatus,zoomBy
@@ -3960,7 +4029,7 @@ const {makeDraggable,placePendingAtEvent,onSpaceKeydown}=EPCanvasInput.attach({
    refreshAfterRoomAssignments), relabelContourRooms (restoreProject — миграция открываемого проекта),
    updateRoomLabelText (flushRoomDraft). Правку вершин attach держит внутри — её зовёт только renderRooms. */
 const {renderRooms,relabelContourRooms,updateRoomLabelText}=EPRooms.attach({
-  $,SVG_NS,canvas,clientToWorld,esc,formatArea,getObjectsInRoom,makeDraggable,persistProject,placePendingAtEvent,
+  $,SVG_NS,beginGesture,canvas,clientToWorld,endGesture,esc,formatArea,getObjectsInRoom,makeDraggable,persistProject,placePendingAtEvent,
   refreshAfterRoomAssignments,removeEntity,roomAreaM2,roomDisplayArea,roomLabelPoint,roomNamePoint,
   selectEntity,state,toast,updateStatus
 });

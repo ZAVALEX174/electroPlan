@@ -42,25 +42,41 @@ function keyEvent(key) {
     _pd: 0, preventDefault() { this._pd++; }, stopPropagation() {} };
 }
 
-function buildKeydown(state) {
+function buildKeydown(state, openModal) {
   const moves = [];
-  /* $ отдаёт один и тот же узел на id — у всех модалок classList.contains → false (ничего не открыто),
-     этого хватает всем веткам до нужной нам (стрелки). */
-  const node = { classList: { contains: () => false }, value: "" };
+  const hist = { undo: 0, redo: 0 };
+  /* $ отдаёт узел по id; classList.contains("open") истинно только для openModal (по умолчанию — ничего
+     не открыто). Так проверяется и стрелочная ветка, и список модалок, при которых Ctrl+Z молчит. */
+  const nodeFor = id => ({ classList: { contains: () => id === openModal }, value: "", contains: () => false });
   const ctx = {
     document: {}, state, EPHistory,
-    $: () => node,
-    undoPlan() {}, redoPlan() {},   /* Б4: keydown решает хоткей через EPHistory и зовёт эти функции */
+    $: id => nodeFor(id),
+    undoPlan() { hist.undo++; }, redoPlan() { hist.redo++; },   /* Б4: keydown решает хоткей через EPHistory и зовёт эти функции */
     moveSelectedBy: (x, y) => { moves.push([x, y]); return true; },
     uploadPopover: { hidden: true },
     trapBuilderFocus() {}, closeFramePicker() {}, finishPdfPageSelection() {}, finishWallScope() {},
     setUploadPopover() {}, requestClosePostBuilder() {}, setTool() {}, removeEntity() {},
-    openPostBuilder() {}, removeLastRoomLinePoint() {}, cyclePlanVisibility() {}, onSpaceKeydown() {}
+    openPostBuilder() {}, removeLastRoomLinePoint() {}, cyclePlanVisibility() {}, onSpaceKeydown() {},
+    /* стрелочный сдвиг вынесен из onkeydown в отдельную функцию moveSelectedByKey (Б4 п.6) — режем её
+       рядом; _historyAmend она переключает (удержание = один шаг), здесь это лишь приёмник флага. */
+    _historyAmend: false
   };
-  const code = onkeydownSource() + "\n;document.onkeydown;";
+  const code = stand.functionSource("moveSelectedByKey") + "\n" + onkeydownSource() + "\n;document.onkeydown;";
   vm.createContext(ctx);
-  return { onkeydown: vm.runInContext(code, ctx), moves };
+  return { onkeydown: vm.runInContext(code, ctx), moves, hist };
 }
+
+const ctrlZ = () => ({ key: "z", code: "KeyZ", shiftKey: false, ctrlKey: true, metaKey: false, altKey: false,
+  repeat: false, target: { tagName: "DIV", isContentEditable: false }, _pd: 0, preventDefault() { this._pd++; }, stopPropagation() {} });
+
+test("U21: при открытом wallScopeModal Ctrl+Z НЕ отменяет (модалка в списке блокирующих хоткей)", () => {
+  const blocked = buildKeydown(baseState({}), "wallScopeModal");
+  blocked.onkeydown(ctrlZ());
+  assert.equal(blocked.hist.undo, 0, "под вопросом охвата правки стены Ctrl+Z не трогает историю плана");
+  const open = buildKeydown(baseState({}), null);   // ни одна модалка не открыта — хоткей работает
+  open.onkeydown(ctrlZ());
+  assert.equal(open.hist.undo, 1, "без модалок Ctrl+Z отменяет (контроль чувствительности теста)");
+});
 
 function baseState(over) {
   return Object.assign(

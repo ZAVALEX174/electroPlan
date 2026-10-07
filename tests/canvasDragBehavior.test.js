@@ -92,6 +92,9 @@ function buildDrag(state) {
     updateObjectRoom() { return null; },
     updateStatus(m) { spies.updateStatus.push(m); },
     scheduleSave() { spies.scheduleSave++; },
+    /* Б4 п.3: перенос помечает начало/конец жеста (шаг истории фиксируется на отпускании). Здесь
+       история не под тестом — тихие заглушки, лишь бы makeDraggable их нашёл в контексте. */
+    beginGesture() {}, endGesture() {},
     refreshAfterRoomAssignments() {},
     removeEntity() {}
   };

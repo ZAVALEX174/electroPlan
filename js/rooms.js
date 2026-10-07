@@ -33,7 +33,7 @@
    правку вершин, возвращает то, что app.js продолжает звать по имени. Вызывается один раз из app.js. */
 function attach(ctx){
 const {
-  $,SVG_NS,canvas,clientToWorld,esc,formatArea,getObjectsInRoom,makeDraggable,persistProject,placePendingAtEvent,
+  $,SVG_NS,beginGesture,canvas,clientToWorld,endGesture,esc,formatArea,getObjectsInRoom,makeDraggable,persistProject,placePendingAtEvent,
   refreshAfterRoomAssignments,removeEntity,roomAreaM2,roomDisplayArea,roomLabelPoint,roomNamePoint,
   selectEntity,state,toast,updateStatus
 }=ctx;
@@ -175,10 +175,12 @@ function dragVertex(room,index,startEvent){
   };
   const up=()=>{
     document.removeEventListener("pointermove",move);document.removeEventListener("pointerup",up);
+    endGesture();   /* Б4 п.3: вершину отпустили — снова разрешаем шаг; refreshRoomAfterEdit его и зафиксирует */
     markRoomEdited(room);refreshRoomAfterEdit(room);
     const m2=roomAreaM2(room);
     updateStatus(m2?`Контур изменён · площадь ${formatArea(m2)}`:"Контур комнаты изменён");
   };
+  beginGesture();   /* Б4 п.3: пошло перетаскивание вершины — промежуточные положения в историю не пишем */
   document.addEventListener("pointermove",move);document.addEventListener("pointerup",up);
   move(startEvent);
 }

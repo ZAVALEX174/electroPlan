@@ -181,6 +181,22 @@ function create(limit) {
     entries[pos] = mk(snap, entries[pos].plan);
   }
 
+  /* Дополнить голову ТОЛЬКО полями комнат (rooms + память полей), сохранив остальное (посты, стены,
+     линии, подложку), как оно лежало в этом шаге. Нужно автопересборке комнат, когда её флаш настал уже
+     ПОСЛЕ того, как следующее действие (например, поставленный пост) успело войти в состояние: дополняй
+     мы голову ПОЛНЫМ снимком — пост просочился бы в шаг-линию, и Ctrl+Z снял бы и пост, и комнату
+     (Б4 п.1, s4). rooms/roomFieldMemory берём из снимка (их пересобрал buildRoomsFromLines), прочие
+     поля — из уже сохранённого плана головы (там посты в том виде, что были на момент шага-линии). */
+  function amendRooms(snap) {
+    if (pos < 0) { reset(snap); return; }
+    const s = snap || {};
+    const merged = Object.assign({}, entries[pos].plan, {
+      rooms: Array.isArray(s.rooms) ? s.rooms : [],
+      roomFieldMemory: Array.isArray(s.roomFieldMemory) ? s.roomFieldMemory : []
+    });
+    entries[pos] = mk(merged, entries[pos].plan);
+  }
+
   /* Снять голову-шаг (В19: «поставил и тут же убрал» двойным кликом не должен оставить ни «поставил»,
      ни «убрал»). Срезает текущую запись и сдвигает позицию назад — план возвращается к тому, что было
      ДО зафиксированного шага. Базовую точку (pos=0) не трогаем. */
@@ -193,7 +209,7 @@ function create(limit) {
   function size() { return entries.length; }
   function position() { return pos; }
 
-  return { reset, push, amend, dropHead, undo, redo, canUndo, canRedo, size, position };
+  return { reset, push, amend, amendRooms, dropHead, undo, redo, canUndo, canRedo, size, position };
 }
 
 /* КАКИЕ ПОЛЯ ЦЕЛЬ НАЖАТИЯ СЧИТАЕМ ТЕКСТОВЫМИ. В них Ctrl+Z обязан остаться БРАУЗЕРНОЙ отменой ввода, а

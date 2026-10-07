@@ -53,11 +53,14 @@ test("setWorldAngle(90) из 37° подбирает pan — мировая то
   near(after.y, before.y);
 });
 
-/* --- M6: «Очистить холст» сбрасывает угол в 0 тем же правилом (лист остаётся на экране) --------- */
-function clearBtnSource() {
+/* --- M6: «Очистить холст» сбрасывает угол в 0 тем же правилом (лист остаётся на экране) ---------
+   Исполняем НАСТОЯЩУЮ функцию clearCanvas (на неё повешен $("clearBtn").onclick в app.js, Б4 п.5).
+   Режем по БАЛАНСУ СКОБОК: за объявлением идут не function-соседи, а строки $("…").onclick=…, и
+   stand.functionSource прихватил бы их (ссылки на undoPlan и прочее). */
+function clearCanvasSource() {
   const src = stand.sourceOf("app.js");
-  const start = src.indexOf('$("clearBtn").onclick=');
-  assert.ok(start >= 0, 'в js/app.js должно быть присваивание $("clearBtn").onclick');
+  const start = src.indexOf("function clearCanvas(");
+  assert.ok(start >= 0, "в js/app.js должна быть функция clearCanvas (Б4 п.5)");
   let depth = 0, quote = null, i = src.indexOf("{", start);
   for (; i < src.length; i++) {
     const ch = src[i];
@@ -66,7 +69,6 @@ function clearBtnSource() {
     if (ch === "{") depth++;
     else if (ch === "}" && --depth === 0) { i++; break; }
   }
-  if (src[i] === ";") i++;
   return src.slice(start, i);
 }
 
@@ -75,14 +77,14 @@ function buildClear(state) {
   const el = {};
   const ctx = {
     state, canvasScroll, EPViewport, EPPlanRotate,
-    $: () => el,   // $("clearBtn") — куда вешается onclick
+    $: () => el,   // $() внутри clearCanvas не вызывается, но зависимость должна существовать
     _applyingSnapshot: false,   // Б4: очистка глушит промежуточные сейвы замком применения
     finishRoomLineChain() {}, clearAnnotations() {},
     renderAll() {}, renderProperties() {}, renderSummary() {},
     applyView() {}, syncRotationUi() {}, renderGroupLinks() {}, renderScaleRuler() {}, persistProject() {}
   };
   const code = stand.functionSource("view") + "\n" + stand.functionSource("viewportCenter") + "\n"
-    + stand.functionSource("setWorldAngle") + "\n" + clearBtnSource() + '\n;$("clearBtn").onclick;';
+    + stand.functionSource("setWorldAngle") + "\n" + clearCanvasSource() + '\n;clearCanvas;';
   vm.createContext(ctx);
   return vm.runInContext(code, ctx);
 }

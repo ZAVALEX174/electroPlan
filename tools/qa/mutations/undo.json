@@ -30,11 +30,56 @@
     "from": "      persistProject();\n      const suffix=", "to": "      const suffix=" },
 
   { "name": "U11 (ч.Б): img.src присваивается и при НЕизменной подложке (лишняя перезагрузка растра на каждом откате)", "file": "js/app.js",
-    "from": "if(EPHistory.planFp(targetSrc)===EPHistory.planFp(curSrc))return;", "to": "if(false)return;" },
+    "from": "if(EPHistory.planFp(targetSrc)===EPHistory.planFp(curSrc)){updatePlanUi();applyPlanVisibility();return}", "to": "if(false){updatePlanUi();applyPlanVisibility();return}" },
 
   { "name": "U12 (ч.Б): bumpPlanToken не вызывается при смене подложки (идущее распознавание не гасится)", "file": "js/app.js",
-    "from": "  bumpPlanToken();\n  state.planLabel=plan.planLabel||\"\";", "to": "  state.planLabel=plan.planLabel||\"\";" },
+    "from": "  bumpPlanToken();\n  if(targetSrc){", "to": "  if(targetSrc){" },
 
   { "name": "U13 (ч.Б): planVisibility не восстанавливается при откате «Убрать план»", "file": "js/app.js",
-    "from": "  state.planVisibility=plan.planVisibility||\"show\";\n", "to": "" }
+    "from": "  state.planVisibility=plan.planVisibility||\"show\";\n", "to": "" },
+
+  { "name": "U14 (п.1): «Очистить холст» без замка применения — внутренние сейвы становятся лишними шагами", "file": "js/app.js",
+    "from": "function clearCanvas(){_applyingSnapshot=true;try{", "to": "function clearCanvas(){try{" },
+
+  { "name": "U15 (п.5): «Очистить холст» без завершающего persistProject — шаг не фиксируется", "file": "js/app.js",
+    "from": "finally{_applyingSnapshot=false}persistProject()}", "to": "finally{_applyingSnapshot=false}}" },
+
+  { "name": "U16 (В19): двойной клик снимает постановку БЕЗ замка — остаётся мусорный шаг «убрал»", "file": "js/app.js",
+    "from": "    _applyingSnapshot=true;\n    try{removeEntity(\"post\",d.removeId);persistProject()}finally{_applyingSnapshot=false}", "to": "    removeEntity(\"post\",d.removeId);persistProject();" },
+
+  { "name": "U17 (п.1): undoPlan не доводит отложенную пересборку — таймер срабатывает уже после отката", "file": "js/app.js",
+    "from": "  flushPendingRoomBuild();\n  if(!_history.canUndo()){syncHistoryUi();return}", "to": "  if(!_history.canUndo()){syncHistoryUi();return}" },
+
+  { "name": "U18 (ч.Б): onload подложки без проверки planToken — устаревшая загрузка перетирает текущую", "file": "js/app.js",
+    "from": "    img.onload=()=>{img.onload=null;img.onerror=null;if(state.planToken===token)applyPlanRotation()};", "to": "    img.onload=()=>{img.onload=null;img.onerror=null;applyPlanRotation()};" },
+
+  { "name": "U19 (R7): применение снимка не сбрасывает эфемерное (выделение/стена/размещение)", "file": "js/app.js",
+    "from": "    state.selected=null;state.pending=null;state.wallPoints=[];state.scalePoints=[];\n", "to": "" },
+
+  { "name": "U20: undo без _histBusy — повторный вход при удержании откатывает лишний шаг", "file": "js/app.js",
+    "from": "  _histBusy=true;\n  try{applyPlanSnapshot(_history.undo())}finally{_histBusy=false}", "to": "  applyPlanSnapshot(_history.undo())" },
+
+  { "name": "U21: wallScopeModal убран из списка модалок — Ctrl+Z работает под вопросом охвата", "file": "js/app.js",
+    "from": "[\"postModal\",\"framePickerModal\",\"scaleModal\",\"pdfPageModal\",\"wallScopeModal\"]", "to": "[\"postModal\",\"framePickerModal\",\"scaleModal\",\"pdfPageModal\"]" },
+
+  { "name": "U22 (п.2): roomFieldMemory не применяется при откате — память полей комнат не возвращается", "file": "js/app.js",
+    "from": "    state.roomFieldMemory=plan.roomFieldMemory;\n", "to": "" },
+
+  { "name": "U23 (п.1): пересборка дополняет шаг ПОЛНЫМ снимком (amend вместо amendRooms) — соседнее действие течёт в шаг-линию", "file": "js/app.js",
+    "from": "  _history.amendRooms(projectSnapshot());", "to": "  _history.amend(projectSnapshot());" },
+
+  { "name": "U24 (п.2): таймер пересборки не обнуляется при срабатывании — первый Ctrl+Z оживляет комнату на текущей голове", "file": "js/app.js",
+    "from": "  clearTimeout(_roomsTimer);_roomsTimer=null;_roomsJustScheduled=false;", "to": "  clearTimeout(_roomsTimer);_roomsJustScheduled=false;" },
+
+  { "name": "U25 (п.3): шаг фиксируется во время жеста — перенос пишет промежуточное положение", "file": "js/app.js",
+    "from": "  if(_gestureActive)return;   /* п.3: шаг фиксируется на отпускании, не в движении */\n", "to": "" },
+
+  { "name": "U26 (п.4): planLabel/видимость не применяются при совпадении растра — подпись не откатывается", "file": "js/app.js",
+    "from": "  state.planLabel=plan.planLabel||\"\";\n  state.planVisibility=plan.planVisibility||\"show\";\n  if(EPHistory.planFp(targetSrc)===EPHistory.planFp(curSrc)){updatePlanUi();applyPlanVisibility();return}", "to": "  if(EPHistory.planFp(targetSrc)===EPHistory.planFp(curSrc)){updatePlanUi();applyPlanVisibility();return}\n  state.planLabel=plan.planLabel||\"\";\n  state.planVisibility=plan.planVisibility||\"show\";" },
+
+  { "name": "U27 (п.6): удержание стрелки — каждый автоповтор новый шаг (amend отключён)", "file": "js/app.js",
+    "from": "  _historyAmend=e.repeat;", "to": "  _historyAmend=false;" },
+
+  { "name": "U28 (п.6): поток ввода в поле — каждый символ новый шаг (amend отключён)", "file": "js/app.js",
+    "from": "  _historyAmend=(_fieldEditEl===el);", "to": "  _historyAmend=false;" }
 ]

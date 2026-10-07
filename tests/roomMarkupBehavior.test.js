@@ -66,10 +66,16 @@ function buildStand(state) {
     persistProject() { spies.persist++; },
     toast(m) { spies.toast.push(m); },
     updateStatus(m) { spies.status.push(m); },
-    /* гейт автосейва и таймер автопересчёта — те же имена, что в app.js */
+    /* гейт автосейва, таймер и флаги истории автопересчёта — те же имена, что в app.js. setTimeout
+       синхронный, но _roomsTimer выставляем ДО вызова fn: scheduleRoomsFromLines теперь зовёт через
+       таймер flushPendingRoomBuild, а тот охраняется `if(!_roomsTimer)return` (Б4 п.2) — без раннего
+       присваивания id пересчёт не доводился бы до конца. */
     _autosaveOn: true,
-    _roomsTimer: null,
-    setTimeout: fn => { spies.reschedules++; fn(); return 1; },
+    _roomsTimer: null, _roomsJustScheduled: false, _historyAmend: false, _applyingSnapshot: false,
+    /* flushPendingRoomBuild теперь дополняет шаг-источник ТОЛЬКО комнатами (amendRooms) под замком
+       применения — история здесь не под тестом, стеку и снимку хватает тихих заглушек. */
+    _history: { amendRooms() {} }, syncHistoryUi() {}, projectSnapshot: () => ({ rooms: state.rooms, roomFieldMemory: state.roomFieldMemory }),
+    setTimeout: fn => { spies.reschedules++; ctx._roomsTimer = 1; fn(); return 1; },
     clearTimeout() {}
   };
   const code = [
@@ -82,6 +88,7 @@ function buildStand(state) {
     stand.functionSource("removeRoomLine"),
     stand.functionSource("clearRoomLines"),
     stand.functionSource("buildRoomsFromLines"),
+    stand.functionSource("flushPendingRoomBuild"),    // из app.js — пересборку теперь зовёт таймер через него (amend)
     stand.functionSource("scheduleRoomsFromLines"),   // из app.js — настоящий путь автопересчёта
     ";({ resolveRoomLinePoint, addRoomLinePoint, removeRoomLine, clearRoomLines, buildRoomsFromLines, finishRoomLineChain });"
   ].join("\n");
