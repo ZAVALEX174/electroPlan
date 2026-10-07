@@ -59,6 +59,7 @@ test("§1 селектор «Коллекция комнаты» (renderProperti
     getObjectsInRoom: () => [],
     roomAutoAreaText: () => "18 м²",
     flushRoomDraft: () => {},
+    updateSelectionCount: () => {},   /* Б5: «Выделено: N» — здесь не проверяется */
     renderTemplates: () => {},   /* renderProperties синхронит библиотеку готовых постов; здесь не проверяется */
     /* Вид отделки из EPPrefs — заглушка отдаёт fallback «списком»: тест про содержимое селектора. */
     EPPrefs: { get: (k, fb) => fb, set: () => {} },

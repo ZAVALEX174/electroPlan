@@ -57,6 +57,7 @@ function renderRoomView(view, room) {
     state, props, $: dom.$, esc: String,
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
     flushRoomDraft: spy(),
+    updateSelectionCount: () => {},   /* Б5: «Выделено: N» — здесь не проверяется */
     renderTemplates: () => {},   /* renderProperties синхронит библиотеку готовых постов; здесь не проверяется */
     findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
     applySelectionClasses: spy(),
@@ -161,7 +162,7 @@ function makeLive(room, view) {
   const ctx = {
     state, props, $: dom.$, esc: String,
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
-    flushRoomDraft: spy(), renderTemplates: () => {},
+    flushRoomDraft: spy(), updateSelectionCount: () => {}, renderTemplates: () => {},
     findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
     applySelectionClasses: spy(), getObjectsInRoom: () => [], roomAutoAreaText: () => "",
     polygonAreaPx: () => 0, lightingScheme: () => "classic",

@@ -76,6 +76,8 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .canvas-orphan-status{padding:7px 9px;border-radius:8px;line-height:1.4;color:#8a4a12;background:#fdf1e2;border:1px solid #f0cfa2}
 .zoom-controls{display:flex;gap:5px}.icon-btn,.zoom-value{height:32px;border:1px solid var(--line);background:#fff}.icon-btn{width:32px;border-radius:9px;font-size:18px}.zoom-value{min-width:56px;border-radius:9px;font-size:11px;font-weight:800}
 .status{margin:auto;color:var(--muted);font-size:11px}
+/* «Выделено: N» над планом (Б5): компактный бейдж рядом со статусом; скрывается hidden-атрибутом при N<2 */
+.selection-count{padding:3px 9px;border-radius:9px;font-size:11px;font-weight:800;color:#fff;background:var(--blue)}
 /* Бесконечный холст: .canvas-scroll — ОКНО вида (клипует), нативный скролл выключен,
    панораму/зум даёт CSS-трансформация .canvas (translate+scale из applyView).
    pan-ready — зажат пробел (курсор «рука»), panning — идёт перетаскивание вида. */
@@ -276,6 +278,9 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .room-label.drop-target{border-color:#2588ed;background:var(--blue-soft)}
 /* выделение: заметное сплошное кольцо со смещением — отличимо от подсветки наведения */
 .selected{outline:3px solid var(--blue)!important;outline-offset:2px}
+/* Рамка группового выделения (Б5): рисуется position:fixed в клиентских координатах ПОВЕРХ плана,
+   не внутри вращающегося #canvas; событий не перехватывает (отбор идёт по координатам, не по DOM). */
+.selection-rect{position:fixed;z-index:50;border:1px solid var(--blue);background:rgba(30,104,171,.12);pointer-events:none}
 .hover-card{display:none;position:absolute;z-index:50;width:265px;padding:12px;transform:rotate(var(--world-rot,0deg));transform-origin:top left;border:1px solid var(--line-strong);border-radius:14px;background:rgba(255,255,255,.97);box-shadow:0 18px 45px rgba(20,77,128,.22);pointer-events:none}.hover-card.show{display:block}.hover-card h4{margin:0 0 7px;font-size:13px}.hover-card dl{display:grid;grid-template-columns:1fr auto;gap:5px;margin:0;font-size:10px}.hover-card dt{color:var(--muted)}.hover-card dd{margin:0;text-align:right;font-weight:800}.hover-composition{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}.hover-chip{padding:4px 6px;border-radius:7px;background:var(--blue-soft);font-size:9px;font-weight:800;color:var(--blue-dark)}
 .empty-properties{padding:14px;border:1px dashed var(--line-strong);border-radius:12px;color:var(--muted);font-size:11px;text-align:center}
 .property-actions{display:flex;gap:7px;margin-top:10px}.property-actions button{flex:1}

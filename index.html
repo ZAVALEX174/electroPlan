@@ -166,6 +166,9 @@
         <button class="btn ghost small" id="undoBtn" title="Отменить последнее изменение плана (Ctrl+Z)" disabled>↶ Отменить</button>
         <button class="btn ghost small" id="redoBtn" title="Вернуть отменённое изменение (Ctrl+Y)" disabled>↷ Вернуть</button>
         <div class="status" id="status">Выберите инструмент или элемент</div>
+        <!-- Групповое выделение постов (Б5): «Выделено: N» над планом. Отдельный канал (не #status,
+             его перетирает updateStatus); скрыт при N<2 — пишет updateSelectionCount. -->
+        <div class="selection-count" id="selectionCount" role="status" aria-live="polite" hidden></div>
         <button class="btn ghost small" id="renumberPostsBtn" title="Перенумеровать посты по расположению на плане (1, 2, 3…)">Перенумеровать посты</button>
         <!-- ⚠️ ОТДЕЛЬНАЯ КНОПКА ПОДТВЕРЖДЕНИЯ, А НЕ ПОВТОРНОЕ НАЖАТИЕ ПЕРВОЙ. Перенумерация
              пересобирает механизмы групп света, и подтверждать её повтором того же нажатия
@@ -633,6 +636,7 @@
 <script src="js/geometry.js?v=20261003.3"></script>
 <script src="js/drag.js?v=20261004.1"></script>
 <script src="js/viewport.js?v=20261004.2"></script>
+<script src="js/selection.js?v=20261007.1"></script>
 <script src="js/roomsFromLines.js?v=20260801.1"></script>
 <script src="js/roomDraft.js?v=20260828.2"></script>
 <script src="js/room.js?v=20260915.1"></script>
@@ -665,13 +669,13 @@
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него
      makeDraggable и placePendingAtEvent). -->
-<script src="js/canvasInput.js?v=20261006.1"></script>
+<script src="js/canvasInput.js?v=20261007.1"></script>
 <!-- Распознавание и разметка помещений: инструмент «Разметка» (линии, магниты, сборка помещений
      buildRoomsFromLines) и автоопределение комнат (detectRooms/detectRoomsML), перенос ручных полей
      carryUserRoomFields. Вынесено из app.js (И1, последний кусок). Грузится ДО app.js, который зовёт
      EPRoomDetect.attach(ctx) ДО EPCanvasInput.attach (тот берёт из него addRoomLinePoint). -->
 <script src="js/roomDetect.js?v=20261006.1"></script>
 <script src="js/history.js?v=20261005.2"></script>
-<script src="js/app.js?v=20261006.1"></script>
+<script src="js/app.js?v=20261007.1"></script>
 </body>
 </html>

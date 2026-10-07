@@ -1,0 +1,73 @@
+  // --- Б5, ч.1: ГРУППОВОЕ ВЫДЕЛЕНИЕ ПОСТОВ --------------------------------------------------------
+  // На холсте уже 1 пост (post4 в кухне). Доставим ещё 3 поста в пустую зону НАД комнатами и проверим:
+  // рамка по пустому месту выделяет посты, чьи ЦЕНТРЫ внутри; Ctrl+клик переключает член набора;
+  // простой клик по пустому снимает; при повороте ВСЕГО плана на 90° рамка берёт те же посты, что
+  // видны внутри неё на экране. Числа и скриншоты — в отчёт.
+  n = 50;
+  const cntPosts = () => ev(`return document.querySelectorAll(".plan-icon.post").length`);
+  const cntSel   = () => ev(`return document.querySelectorAll(".plan-icon.post.selected").length`);
+  const selText  = () => ev(`const e=document.getElementById("selectionCount");return e.hidden?"(скрыто)":e.textContent`);
+  const postInfo = () => ev(`return Array.from(document.querySelectorAll(".plan-icon.post")).map(e=>{const r=e.getBoundingClientRect();return {id:e.dataset.id,num:e.textContent,cx:Math.round(r.left+r.width/2),cy:Math.round(r.top+r.height/2),sel:e.classList.contains("selected")}})`);
+  const clip = async () => { const r = await rect(`document.querySelector(".canvas-scroll")`); return { x: r.x, y: r.y, width: r.w, height: r.h }; };
+  const ctrlClickAt = async (x, y) => {
+    await mouse(x, y, "mouseMoved");
+    await c.send("Input.dispatchMouseEvent", { type: "mousePressed",  x, y, button: "left", clickCount: 1, modifiers: 2 });
+    await c.send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1, modifiers: 2 });
+    await sleep(400);
+  };
+  const place = async (fx, fy) => {
+    await click(`document.querySelector("[data-place-template]")`); await sleep(300);
+    const q = await canvasPt(fx, fy); await clickAt(q.x, q.y); await sleep(400);
+  };
+
+  // сброс режима/выделения и три поста в пустой зоне над комнатами (fy 0.12 — выше обеих комнат)
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(200);
+  await place(0.20, 0.12);
+  await place(0.33, 0.12);
+  await place(0.46, 0.12);
+  log.push("Б5: постов на плане " + await cntPosts());
+  await shot("sel-setup", [], await clip());
+
+  // (1) РАМКА по пустому месту вокруг трёх верхних постов
+  let aa = await canvasPt(0.14, 0.06), bb = await canvasPt(0.52, 0.18);
+  await drag(aa.x, aa.y, bb.x - aa.x, bb.y - aa.y);
+  log.push("(1) рамка: .selected=" + await cntSel() + ", надпись=«" + await selText() + "»");
+  log.push("(1) посты: " + JSON.stringify(await postInfo()));
+  await shot("sel-rubber", [], await clip());
+
+  // (2) Ctrl+клик по выделенному посту → убрать из набора; ещё раз → вернуть
+  let info = await postInfo();
+  let selOne = info.find(p => p.sel);
+  if (selOne) {
+    await ctrlClickAt(selOne.cx, selOne.cy);
+    log.push("(2) Ctrl+клик убрал пост №" + selOne.num + ": .selected=" + await cntSel() + ", надпись=«" + await selText() + "»");
+    await shot("sel-ctrl-remove", [], await clip());
+    await ctrlClickAt(selOne.cx, selOne.cy);
+    log.push("(2) Ctrl+клик вернул: .selected=" + await cntSel() + ", надпись=«" + await selText() + "»");
+    await shot("sel-ctrl-add", [], await clip());
+  } else log.push("(2) ПРОПУСК: рамка никого не выделила");
+
+  // (3) простой клик по пустому месту снимает выделение
+  let emp = await canvasPt(0.14, 0.45);
+  await clickAt(emp.x, emp.y);
+  log.push("(3) клик по пустому: .selected=" + await cntSel() + ", надпись=«" + await selText() + "»");
+
+  // (4) поворот ВСЕГО плана на 90° и рамка — берёт те же посты, что видны внутри неё на экране
+  await setVal(`document.getElementById("rotateTargetSelect")`, "world");
+  await click(`document.getElementById("planRotateRightBtn")`); await sleep(700);
+  log.push("(4) transform холста: " + await ev(`return getComputedStyle(document.getElementById("canvas")).transform`));
+  let before = await postInfo();
+  log.push("(4) экранные центры постов после поворота: " + JSON.stringify(before.map(p => ({ num: p.num, cx: p.cx, cy: p.cy }))));
+  // ТЕСНУЮ рамку строим вокруг экранных центров двух постов с наименьшим cy (соседних по вертикали),
+  // чтобы показать РАЗЛИЧЕНИЕ: прочие посты должны остаться невыделенными. Старт — на 45px выше-левее
+  // верхнего центра (заведомо пустое место, не иконка).
+  let sorted = before.slice().sort((p, q) => p.cy - q.cy);
+  let pick = sorted.slice(0, 2);
+  let minx = Math.min(...pick.map(p => p.cx)) - 45, maxx = Math.max(...pick.map(p => p.cx)) + 28;
+  let miny = Math.min(...pick.map(p => p.cy)) - 45, maxy = Math.max(...pick.map(p => p.cy)) + 28;
+  await drag(minx, miny, maxx - minx, maxy - miny);
+  let after = await postInfo();
+  log.push("(4) рамка при 90°: ждём внутри " + JSON.stringify(pick.map(p => p.num).sort())
+    + ", выделены " + JSON.stringify(after.filter(p => p.sel).map(p => p.num).sort())
+    + ", .selected=" + await cntSel() + ", надпись=«" + await selText() + "»");
+  await shot("sel-rubber-rot90", [], await clip());

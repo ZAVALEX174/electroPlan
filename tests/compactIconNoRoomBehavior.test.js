@@ -27,6 +27,7 @@ const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
 
 const EPRoomAssign = require("../js/roomAssign.js");
+const EPSelection = require("../js/selection.js");   /* compactIcon спрашивает EPSelection.isSelected (Б5) */
 
 /* Живой compactIcon на общем стенде: document-шим (createElement отдаёт узел с настоящим classList
    поверх Set), state и настоящий EPRoomAssign (критерий — из реального модуля). Класс no-room
@@ -38,6 +39,7 @@ function buildCompactIcon(state) {
     document: stand.makeDocument(),
     state: state,
     EPRoomAssign: EPRoomAssign,
+    EPSelection: EPSelection,
     product: () => null,          // kind==="device": product(...)?.icon || "?" → "?"
     makeDraggable: () => {},
     showHover: () => {}, positionHover: () => {}, hideHover: () => {}

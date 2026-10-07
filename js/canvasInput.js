@@ -55,7 +55,7 @@ const {
   buildSpaceComponents,canvas,canvasScroll,clientToWorld,endGesture,ensureSelectTool,getRoomForPoint,hideHover,markCanvasUsed,
   tightestRoomAtPoint,refreshAfterRoomAssignments,removeEntity,renderAll,renderGroupLinks,renderProperties,
   renderRooms,renderSummary,scheduleSave,selectEntity,setTool,state,toast,uid,updateObjectRoom,
-  updateStatus,zoomBy
+  updateStatus,view,zoomBy
 }=ctx;
 
 /* PointerEvent есть у всех браузеров нижней границы проекта (Chrome 80/FF 72/Safari 13.4).
@@ -113,7 +113,7 @@ function trackDrag(el,pointerId,onMove,onUp){
 function makeDraggable(el,obj,kind){
   el.dataset.kind=kind;el.dataset.id=obj.id;
   let mode="idle",sx=0,sy=0,bx=0,by=0,stop=null,dragMap=null,switched=false;
-  function beginPress(clientX,clientY,pointerId){
+  function beginPress(clientX,clientY,pointerId,additive){
     /* В11 (решение владельца 03.10): в режиме размещения НИ ОДИН объект на холсте не перехватывает
        нажатие — ни табличка комнаты, ни иконка поста/элемента. Иначе нажатие выделило бы объект и
        начало его перенос, а при инструменте «Удалить» — удалило бы его (потеря данных), и пост в
@@ -124,6 +124,17 @@ function makeDraggable(el,obj,kind){
     if(state.pending)return;
     if(state.tool==="delete"){removeEntity(kind,obj.id);return}   /* в режиме удаления нажатие удаляет */
     if(spaceDown)return;   /* зажат пробел — жест забирает панорама холста, объект не трогаем */
+    /* Ctrl(⌘)+клик по ПОСТУ — групповое выделение (Б5, ч.1): переключаем пост в наборе и ВЫХОДИМ,
+       перенос не начинаем (решение владельца). Только для постов — устройства/комнаты в группу не
+       входят, для них Ctrl игнорируем (падаем в обычный путь). Переключение/карточку/счётчик делает
+       EPSelection.toggle + renderProperties, подсветку членов — applySelectionClasses. */
+    if(additive&&kind==="post"){
+      switched=ensureSelectTool();
+      state.selected=EPSelection.toggle(state.selected,obj.id,state.posts.map(p=>p.id));
+      applySelectionClasses();renderProperties();
+      if(switched)renderRooms();   /* сменили инструмент кликом — привести таблички комнат в порядок */
+      return;
+    }
     switched=ensureSelectTool();
     state.selected={kind,id:obj.id};
     applySelectionClasses();renderProperties();   /* выделяем точечно, без renderAll */
@@ -183,11 +194,12 @@ function makeDraggable(el,obj,kind){
     el.addEventListener("pointerdown",e=>{
       if(!e.isPrimary||e.button>0)return;   /* основной указатель, левая кнопка/касание (средняя/правая — не сюда) */
       e.preventDefault();e.stopPropagation();
-      beginPress(e.clientX,e.clientY,e.pointerId);
+      beginPress(e.clientX,e.clientY,e.pointerId,e.ctrlKey||e.metaKey);
     });
   }else{
-    el.addEventListener("mousedown",e=>{if(e.button!==0)return;e.preventDefault();e.stopPropagation();beginPress(e.clientX,e.clientY,null)});
-    el.addEventListener("touchstart",e=>{const t=e.touches[0];if(!t)return;e.preventDefault();e.stopPropagation();beginPress(t.clientX,t.clientY,null)},{passive:false});
+    el.addEventListener("mousedown",e=>{if(e.button!==0)return;e.preventDefault();e.stopPropagation();beginPress(e.clientX,e.clientY,null,e.ctrlKey||e.metaKey)});
+    /* касание (без Ctrl): рамка/набор пальцем не делаем (решение владельца) — модификатор всегда false */
+    el.addEventListener("touchstart",e=>{const t=e.touches[0];if(!t)return;e.preventDefault();e.stopPropagation();beginPress(t.clientX,t.clientY,null,false)},{passive:false});
   }
   /* долгое нажатие/ПКМ на объекте не должны звать системное контекстное меню (PLAN 2) */
   el.addEventListener("contextmenu",e=>e.preventDefault());
@@ -220,6 +232,70 @@ function endPan(e){
 /* Нажатие пробела приходит из глобального keydown-диспетчера app.js (там же !typing&&!inBuilder и
    preventDefault). Здесь — только переход в режим «рука»: писатель spaceDown живёт в этом файле. */
 function onSpaceKeydown(){if(!spaceDown){spaceDown=true;setPanReady(true)}}
+
+/* ---- РАМКА ВЫДЕЛЕНИЯ (Б5, ч.1). Протяжка мышью по ПУСТОМУ месту плана в режиме «Выбор» выделяет
+   посты, чьи центры попали в рамку (решение владельца). Рамка рисуется в ЭКРАННЫХ (клиентских)
+   координатах position:fixed, а НЕ внутри #canvas: #canvas вращается при worldAngle, и рамка внутри
+   него перекосилась бы. Посты внутри считает EPSelection.postsInRect через EPViewport.worldToScreen
+   (учитывает масштаб и угол мира) — координаты сводим к окну холста (.canvas-scroll), от которого
+   worldToScreen и отсчитывает. Новая рамка ЗАМЕНЯЕТ выделение, пустая — снимает (обе ветки даёт
+   EPSelection.normalize). Функции — на нулевой колонке (их вырезает поведенческий стенд). ---- */
+let rbStartX=0,rbStartY=0,rbLastX=0,rbLastY=0,rbMoved=false,rbEl=null,rbStop=null,rbSuppressClick=false;
+/* Нажатие на пустом месте: порог ещё не пройден — просто запоминаем старт и подписываемся на жест.
+   Стартуем ТОЛЬКО в «Выбор», без размещения и без зажатого пробела (панорама), и лишь если цель —
+   пустое место (тот же whitelist, что ветка пустого клика: сам .canvas-scroll, #canvas и его SVG-слои).
+   Клик по иконке/стене/табличке сюда не доходит (их обработчики гасят всплытие своим stopPropagation). */
+function beginRubberBand(e){
+  if(!e.isPrimary||e.button!==0)return;
+  if(state.tool!=="select"||state.pending||spaceDown)return;
+  const t=e.target;
+  if(!(t===canvasScroll||t===canvas||t===$("wallsSvg")||t===$("roomsSvg")))return;
+  rbStartX=e.clientX;rbStartY=e.clientY;rbLastX=e.clientX;rbLastY=e.clientY;rbMoved=false;
+  rbStop=trackDrag(canvasScroll,e.pointerId,rubberMove,rubberUp);
+}
+/* Движение: пока не пройден порог — это ещё клик (простой клик по пустому должен сработать как
+   раньше — снять выделение). За порогом рисуем рамку и ведём её за курсором. */
+function rubberMove(clientX,clientY){
+  rbLastX=clientX;rbLastY=clientY;
+  if(!rbMoved){
+    if(!EPDrag.beyondThreshold(clientX-rbStartX,clientY-rbStartY,EPConfig.dragThreshold))return;
+    rbMoved=true;hideHover();
+    rbEl=document.createElement("div");rbEl.className="selection-rect";document.body.appendChild(rbEl);
+  }
+  const r=EPSelection.rectFromPoints({x:rbStartX,y:rbStartY},{x:clientX,y:clientY});
+  rbEl.style.left=r.left+"px";rbEl.style.top=r.top+"px";
+  rbEl.style.width=(r.right-r.left)+"px";rbEl.style.height=(r.bottom-r.top)+"px";
+}
+/* Отпускание: порог не пройден — был простой клик, рамки не было, ничего не трогаем (обычный
+   click-обработчик снимет выделение). Пройден — применяем выделение, убираем рамку и ГАСИМ
+   последующий click (иначе ветка пустого места сбросит только что собранное выделение). */
+function rubberUp(){
+  if(rbStop){rbStop();rbStop=null}
+  if(!rbMoved)return;
+  applyRubberSelection();
+  if(rbEl){rbEl.remove();rbEl=null}
+  rbMoved=false;
+  rbSuppressClick=true;   /* снимается на следующем pointerdown — ровно один click погашен */
+}
+/* Собственно отбор: рамку (клиентские координаты) и центры постов сводим к системе окна холста
+   (worldToScreen отсчитывает от его левого-верхнего угла — как clientToWorld). normalize заменяет
+   выделение целиком: ≥2 → группа, 1 → один пост, 0 → снято. */
+function applyRubberSelection(){
+  const cr=canvasScroll.getBoundingClientRect();
+  const r=EPSelection.rectFromPoints({x:rbStartX-cr.left,y:rbStartY-cr.top},{x:rbLastX-cr.left,y:rbLastY-cr.top});
+  const v=view();
+  const ids=EPSelection.postsInRect(state.posts,r,pt=>EPViewport.worldToScreen(pt,v));
+  state.selected=EPSelection.normalize(ids,state.posts.map(p=>p.id));
+  applySelectionClasses();renderProperties();
+}
+/* Гашение «синтетического» клика в фазе перехвата: после панорамы (panMoved/spaceDown) или только что
+   протянутой рамки (rbSuppressClick). Иначе этот клик дойдёт до canvas.onclick и либо поставит объект
+   там, где просто отпустили кнопку, либо сбросит собранное рамкой выделение. panMoved гасим тут же;
+   rbSuppressClick снимает следующий pointerdown — ровно один клик гасится. Именованной функцией (не
+   инлайном) — чтобы поведенческий стенд мог её вырезать и проверить. */
+function suppressSyntheticClick(e){
+  if(panMoved||spaceDown||rbSuppressClick){panMoved=false;e.stopPropagation();e.preventDefault()}
+}
 
 /* ---- РЕГИСТРАЦИЯ обработчиков ввода на холсте (выполняется один раз при attach, на самом низу
    загрузки app.js — как provязка кнопок в postBuilder/docs; событий во время загрузки нет). ---- */
@@ -270,6 +346,7 @@ canvasScroll.onclick=e=>{
    в пикселях экрана 1:1 с мышью: двигаем сам вид, масштаб тут не делим. ---- */
 let spaceDown=false,panning=false,panLX=0,panLY=0,panMoved=false;
 canvasScroll.addEventListener("pointerdown",e=>{
+  rbSuppressClick=false;   /* новый жест: гашение клика от ПРЕДЫДУЩЕЙ рамки уже отработало, снимаем флаг */
   if(!((spaceDown&&e.button===0)||e.button===1))return;   /* пробел+ЛКМ или средняя кнопка */
   e.preventDefault();e.stopPropagation();
   panning=true;panMoved=false;panLX=e.clientX;panLY=e.clientY;
@@ -285,10 +362,15 @@ canvasScroll.addEventListener("pointermove",e=>{
 },true);
 canvasScroll.addEventListener("pointerup",endPan,true);
 canvasScroll.addEventListener("pointercancel",endPan,true);
-/* панорама сдвинула вид (или зажат пробел) — гасим последующий клик по холсту в фазе
-   перехвата на окне вида (до canvas.onclick), иначе он поставил бы точку/объект там,
-   где пользователь просто отпустил кнопку */
-canvasScroll.addEventListener("click",e=>{if(panMoved||spaceDown){panMoved=false;e.stopPropagation();e.preventDefault()}},true);
+/* Рамку выделения слушаем в фазе ВСПЛЫТИЯ (панорама выше — в перехвате со stopPropagation; задвоения
+   нет: при пробеле/средней кнопке её pointerdown гасит всплытие, сюда событие не доходит). beginRubberBand
+   сам проверяет инструмент/пустое место. */
+canvasScroll.addEventListener("pointerdown",beginRubberBand);
+/* панорама сдвинула вид (или зажат пробел), ЛИБО только что протянули рамку — гасим последующий клик
+   по холсту в фазе перехвата (до canvas.onclick), иначе он поставил бы точку/объект там, где
+   пользователь просто отпустил кнопку, либо СБРОСИЛ бы собранное рамкой выделение (ветка пустого
+   места). rbSuppressClick не снимаем здесь — его снимает следующий pointerdown (ровно один клик). */
+canvasScroll.addEventListener("click",suppressSyntheticClick,true);
 /* средняя кнопка на части ОС включает автоскролл — глушим */
 canvasScroll.addEventListener("auxclick",e=>{if(e.button===1)e.preventDefault()});
 

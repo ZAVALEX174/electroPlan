@@ -177,6 +177,7 @@ function renderPropertiesHtml(comp) {
   const ctx = {
     props,
     flushRoomDraft: () => {},
+    updateSelectionCount: () => {},   /* Б5: «Выделено: N» — здесь не проверяется */
     renderTemplates: () => {},   /* renderProperties синхронит библиотеку готовых постов; здесь не проверяется */
     applySelectionClasses: () => {},
     state: { selected: { kind: "post", id: "p1" }, rooms: [] },

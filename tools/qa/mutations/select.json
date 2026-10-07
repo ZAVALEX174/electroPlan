@@ -1,0 +1,19 @@
+[
+  { "name": "S1: предикат в compactIcon забыл про группу (член группы не получает .selected)", "file": "js/app.js",
+    "from": "EPSelection.isSelected(state.selected,kind,entity.id)?\"selected\":\"\"", "to": "(state.selected?.kind===kind&&state.selected.id===entity.id)?\"selected\":\"\"" },
+
+  { "name": "S2: клик после рамки не гасится — ветка пустого места сбросит собранное выделение", "file": "js/canvasInput.js",
+    "from": "if(panMoved||spaceDown||rbSuppressClick){panMoved=false;", "to": "if(panMoved||spaceDown){panMoved=false;" },
+
+  { "name": "S3: рамка считает посты БЕЗ угла мира (worldToScreen без angle) — при повороте берёт не те", "file": "js/canvasInput.js",
+    "from": "EPViewport.worldToScreen(pt,v)", "to": "EPViewport.worldToScreen(pt,{panX:v.panX,panY:v.panY,scale:v.scale})" },
+
+  { "name": "S4: Ctrl+клик начинает новый набор вместо переключения члена", "file": "js/canvasInput.js",
+    "from": "state.selected=EPSelection.toggle(state.selected,obj.id,state.posts.map(p=>p.id));", "to": "state.selected={kind:\"post\",id:obj.id};" },
+
+  { "name": "S5: renderProperties без ветки группы — карточка группы не рисуется, выделение сбрасывается", "file": "js/app.js",
+    "from": "if(state.selected&&state.selected.kind===\"posts\"){", "to": "if(false&&state.selected&&state.selected.kind===\"posts\"){" },
+
+  { "name": "S6: «Выделено: N» показывается уже при N=1 (порог сбит на >=1)", "file": "js/selection.js",
+    "from": "return n >= 2 ?", "to": "return n >= 1 ?" }
+]

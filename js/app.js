@@ -329,6 +329,14 @@ function setTool(tool){
    видно. Чистая функция от чисел: без state/DOM, тестируется без шима. */
 const statusCountsText=(devices,posts,rooms)=>`${devices>0?`Элементов: ${devices} · `:""}Постов: ${posts} · Комнат: ${rooms}`;
 function updateStatus(text){$("status").textContent=text||statusCountsText(state.devices.length,state.posts.length,state.rooms.length)}
+/* Надпись «Выделено: N» над планом (Б5, ч.1). ОТДЕЛЬНЫЙ узел, НЕ через updateStatus: строку статуса
+   перетирают десятки вызовов (renderSummary всегда зовёт updateStatus()), и счётчик выделения в ней
+   не удержался бы. Канал — как у #outsideRoomsStatus: свой узел, скрыт когда пусто. Текст и порог N≥2
+   считает чистый EPSelection.countText — одно правило на весь проект. */
+function updateSelectionCount(){
+  const el=$("selectionCount"),text=EPSelection.countText(state.selected);
+  el.textContent=text;el.hidden=!text;
+}
 function markCanvasUsed(){$("canvasEmpty").style.display="none"}
 
 async function init(){
@@ -410,7 +418,7 @@ function renderTemplates(){
 
 function compactIcon(entity,kind){
   const el=document.createElement("div");
-  el.className="plan-icon "+(kind==="post"?"post ":"")+(state.selected?.kind===kind&&state.selected.id===entity.id?"selected":"");
+  el.className="plan-icon "+(kind==="post"?"post ":"")+(EPSelection.isSelected(state.selected,kind,entity.id)?"selected":"");
   /* kind/id на узле — чтобы выделение и клавиатура находили этот элемент точечно,
      без пересоздания сцены (корневой дефект: renderAll на нажатии) */
   el.dataset.kind=kind;el.dataset.id=entity.id;
@@ -441,7 +449,7 @@ function compactIcon(entity,kind){
   makeDraggable(el,entity,kind);return el;
 }
 function renderDevices(){canvas.querySelectorAll(".plan-icon.device-only").forEach(e=>e.remove());state.devices.forEach(d=>{const el=compactIcon(d,"device");el.classList.add("device-only");canvas.appendChild(el)})}
-function renderPosts(){canvas.querySelectorAll(".plan-icon.post").forEach(e=>e.remove());state.posts.forEach(p=>{const el=compactIcon(p,"post");el.ondblclick=e=>{e.stopPropagation();openPostOnDblClick(p.id)};canvas.appendChild(el)})}
+function renderPosts(){canvas.querySelectorAll(".plan-icon.post").forEach(e=>e.remove());state.posts.forEach(p=>{const el=compactIcon(p,"post");el.ondblclick=e=>{e.stopPropagation();if(e.ctrlKey||e.metaKey)return;openPostOnDblClick(p.id)};canvas.appendChild(el)})}
 /* В19: двойной клик по иконке поста. Обычно — открыть ЭТОТ пост (как и было). Но если это тот
    самый новый пост, что первый клик двойного только что поставил ПОВЕРХ старого в режиме
    «Разместить» (см. _placeOnPostIcon/_lastIconPlacement в addPending), — откатываем постановку и
@@ -1056,7 +1064,9 @@ function hideHover(){hover.classList.remove("show")}
    (он рисуется инлайн-атрибутами по state.selected — это дёшево, не пересоздание сцены). */
 function applySelectionClasses(){
   const sel=state.selected;
-  const isSel=(kind,id)=>!!sel&&sel.kind===kind&&String(sel.id)===String(id);
+  /* §7.1: тот же предикат isSelected, что в compactIcon — одно правило «выделен ли объект», в т.ч.
+     член группы постов {kind:"posts"}, а не вторая копия сравнения kind+id. */
+  const isSel=(kind,id)=>EPSelection.isSelected(sel,kind,id);
   canvas.querySelectorAll(".plan-icon").forEach(el=>el.classList.toggle("selected",isSel(el.dataset.kind,el.dataset.id)));
   canvas.querySelectorAll(".room-label").forEach(el=>el.classList.toggle("selected",isSel("room",el.dataset.id)));
   const rsvg=$("roomsSvg");
@@ -1207,6 +1217,26 @@ function renderProperties(){
      этим местам значило бы снова забыть одно из них. Стоит ДО ранних return — иначе снятие выделения
      (пустой selected / удалённая сущность) не сбросило бы фильтр обратно на «показать всё». */
   renderTemplates();
+  /* Группа постов (Б5, ч.1). СНАЧАЛА нормализуем: пост мог быть удалён пересчётом контуров, пока
+     группа выбрана, — EPSelection.normalize отсевает мёртвые id и схлопывает набор до одного поста
+     ({kind:"post"}) или до null. Поэтому ниже обычные ветки получают уже действительное выделение.
+     updateSelectionCount стоит ПОСЛЕ нормализации и ДО ранних return — надпись показывает итоговое N. */
+  if(state.selected&&state.selected.kind==="posts")
+    state.selected=EPSelection.normalize(state.selected.ids,state.posts.map(p=>p.id));
+  updateSelectionCount();
+  if(state.selected&&state.selected.kind==="posts"){
+    applySelectionClasses();   /* подсветить членов группы точечно, без пересоздания сцены */
+    /* Карточка группы: заголовок «Выделено постов: N» и СУММАРНАЯ стоимость (та же postTotalCost и
+       money, что в карточке одного поста — второго правила цены не заводим). Без «Редактировать»
+       (правка нескольких постов разом смысла не имеет) и без «Удалить N» — удаление группы это ч.2. */
+    const light=projectLighting();
+    const total=state.selected.ids.reduce((s,id)=>{const p=state.posts.find(x=>x.id===id);return p?s+postTotalCost(p,light):s},0);
+    props.className="";
+    props.innerHTML=`<label>Выделено постов<input value="${esc(String(state.selected.ids.length))}" disabled></label>
+    <label>Суммарная стоимость<input value="${esc(money(total))}" disabled></label>
+    <small class="prop-hint">Выделено несколько постов. Разом перетащить, сдвинуть стрелками или удалить — в следующих частях.</small>`;
+    return;
+  }
   if(!state.selected){props.className="empty-properties";props.innerHTML="Выберите объект на плане";return}
   const {kind,id}=state.selected;
   /* §7.1: одна проверка «выделенная сущность ещё жива» ДО входа в ветки. Пересчёт контуров
@@ -3919,7 +3949,9 @@ document.onkeydown=e=>{
     setTool("select");
   }
   if(e.key==="Enter"&&(state.tool==="wall"||state.tool==="roomline"))setTool("select");
-  if(e.key==="Delete"&&state.selected&&!typing&&!inBuilder)removeEntity(state.selected.kind,state.selected.id);
+  /* Delete — только по ОДИНОЧНОМУ выделению (у него есть .id). У группы {kind:"posts"} поля id нет:
+     removeEntity("posts",undefined) упал бы TypeError. Удаление группы — часть 2 (сейчас ничего). */
+  if(e.key==="Delete"&&state.selected&&state.selected.id!=null&&!typing&&!inBuilder)removeEntity(state.selected.kind,state.selected.id);
   /* Клавиатура для выделенного объекта (PLAN 4): Enter — конструктор поста, стрелки —
      сдвиг на шаг сетки (Shift — на 1px). Только вне ввода и при закрытом конструкторе. */
   if(!typing&&state.selected&&!inBuilder){
@@ -4019,7 +4051,7 @@ const {makeDraggable,placePendingAtEvent,onSpaceKeydown}=EPCanvasInput.attach({
   buildSpaceComponents,canvas,canvasScroll,clientToWorld,endGesture,ensureSelectTool,getRoomForPoint,hideHover,markCanvasUsed,
   tightestRoomAtPoint,refreshAfterRoomAssignments,removeEntity,renderAll,renderGroupLinks,renderProperties,
   renderRooms:()=>renderRooms(),renderSummary,scheduleSave,selectEntity,setTool,state,toast,uid,
-  updateObjectRoom,updateStatus,zoomBy
+  updateObjectRoom,updateStatus,view,zoomBy
 });
 
 /* Слой комнат (таблички, контуры, правка вершин) вынесен в js/rooms.js (И1, кусок 2). Поднимаем его

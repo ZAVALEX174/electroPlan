@@ -18,6 +18,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
+const EPSelection = require("../js/selection.js");   /* compactIcon спрашивает EPSelection.isSelected (Б5) */
 
 /* Клик-событие: счётчик stopPropagation (его зовут перехватчики вне размещения; в размещении зваться
    НЕ должен — тогда событие всплывёт к canvas.onclick) + координаты (для placePendingAtEvent). */
@@ -134,6 +135,7 @@ function runIcon(state) {
     state,
     document: makeDoc(),
     EPRoomAssign: { isOutsideRooms: () => false },
+    EPSelection,
     product: () => ({ icon: "?" }),
     showHover() {}, positionHover() {}, hideHover() {},
     makeDraggable() {}

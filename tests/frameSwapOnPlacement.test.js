@@ -287,7 +287,7 @@ function renderPropsLibrary(state, dom) {
     frameSlotCount: EPCatalog.frameSlotCount, moduleWord: EPCatalog.moduleWord,
     mechanismModulesTotal: ids => (ids || []).reduce((s, id) => s + EPCatalog.mechanismSpan(product(id)), 0),
     assembledPostHtml: () => "<post-preview>", document: { querySelectorAll: () => [] },
-    flushRoomDraft: () => {}, findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
+    flushRoomDraft: () => {}, updateSelectionCount: () => {}, findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
     applySelectionClasses: () => {}, getObjectsInRoom: () => [], roomAutoAreaText: () => "",
     polygonAreaPx: () => 0, lightingScheme: () => "classic",
     EPPrefs: { get: (k, fb) => fb, set: () => {} },

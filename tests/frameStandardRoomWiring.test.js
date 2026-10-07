@@ -93,7 +93,7 @@ function renderList(room) {
   const props = stand.makeElement();
   const ctx = {
     state, props, $: dom.$, esc: String,
-    byKind: byKindOf, flushRoomDraft: spy(), renderTemplates: () => {},
+    byKind: byKindOf, flushRoomDraft: spy(), updateSelectionCount: () => {}, renderTemplates: () => {},
     findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
     applySelectionClasses: spy(), getObjectsInRoom: () => [], roomAutoAreaText: () => "",
     polygonAreaPx: () => 0, lightingScheme: () => "classic",
