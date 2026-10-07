@@ -136,28 +136,41 @@ test("compactIcon: иконки членов группы получают .sele
 /* ====================================================================================
    3. renderProperties: карточка группы; мёртвые id отсеиваются; выделение не сбрасывается
    ==================================================================================== */
-function buildProps(state, props) {
-  return stand.run("renderProperties", {
-    state, props, EPSelection, esc: String, money: v => "m" + v,
-    projectLighting: () => ({}), postTotalCost: () => 10,
-    flushRoomDraft() {}, renderTemplates() {}, updateSelectionCount() {}, applySelectionClasses() {},
-    findSelectedEntity() { return null; }
-  });
+function buildProps(state, props, spies) {
+  const dom = stand.makeDom();
+  dom.els.props = props;
+  return {
+    render: stand.run("renderProperties", {
+      state, props, EPSelection, esc: String, money: v => "m" + v, $: dom.$,
+      projectLighting: () => ({}), postTotalCost: () => 10,
+      flushRoomDraft() {}, renderTemplates() {}, updateSelectionCount() {}, applySelectionClasses() {},
+      findSelectedEntity() { return null; },
+      /* removePosts зовётся только из onclick кнопки — спай фиксирует, что кнопка на него провязана */
+      removePosts(ids) { if (spies) spies.removed = ids; }
+    }),
+    dom
+  };
 }
-test("renderProperties: группа постов → карточка «Выделено постов: N» + суммарная цена, без правки/удаления", () => {
+test("renderProperties: группа постов → карточка «Выделено постов: N» + суммарная цена + «Удалить выделенные (N)» (Б5 ч.2)", () => {
   const state = { posts: [{ id: "p1" }, { id: "p2" }], selected: { kind: "posts", ids: ["p1", "p2"] } };
   const props = stand.makeElement();
-  buildProps(state, props)();
+  const spies = {};
+  const { render, dom } = buildProps(state, props, spies);
+  render();
   assert.match(props.innerHTML, /Выделено постов/);
   assert.match(props.innerHTML, /value="2"/);
   assert.match(props.innerHTML, /m20/, "суммарная стоимость = 10+10 через money");
-  assert.ok(!/editSelected|removeSelected/.test(props.innerHTML), "в ч.1 ни «Редактировать», ни «Удалить»");
+  assert.ok(!/editSelected/.test(props.innerHTML), "«Редактировать» у группы нет (правка набора разом смысла не имеет)");
+  assert.match(props.innerHTML, /Удалить выделенные \(2\)/, "Б5 ч.2: кнопка удаления набора с числом");
+  /* кнопка провязана на removePosts с тем же составом, что показан (та же функция, что и Delete) */
+  dom.$("removeSelectedPosts").onclick();
+  assert.deepEqual(spies.removed, ["p1", "p2"], "кнопка карточки зовёт removePosts с id набора");
   assert.deepEqual(plain(state.selected), { kind: "posts", ids: ["p1", "p2"] }, "карточка не сбрасывает выделение группы");
 });
 test("renderProperties: все id группы мертвы → нормализация в null, пустая панель, без падения", () => {
   const state = { posts: [], selected: { kind: "posts", ids: ["zz", "yy"] } };
   const props = stand.makeElement();
-  buildProps(state, props)();
+  buildProps(state, props).render();
   assert.equal(state.selected, null, "мёртвые id отсеяны, группа схлопнута в null");
   assert.match(props.innerHTML, /Выберите объект/);
 });
@@ -255,16 +268,35 @@ test("рамка не стартует вне инструмента «Выбо�
 });
 
 /* ====================================================================================
-   6. Безопасность при группе: стрелки (moveSelectedBy) не двигают и не падают
+   6. Сдвиг ГРУППЫ постов стрелками (moveSelectedBy, Б5 ч.2): все на одну мировую дельту,
+      пересчёт привязки — через единую точку контракта refreshAfterRoomAssignments
    ==================================================================================== */
-test("moveSelectedBy при группе постов возвращает false и ничего не меняет (стрелки — но-оп)", () => {
-  const state = { selected: { kind: "posts", ids: ["p1", "p2"] }, posts: [{ id: "p1", x: 0, y: 0 }], devices: [], rooms: [] };
-  const move = stand.run("moveSelectedBy", {
-    state, updateObjectRoom() {}, renderRooms() {}, renderProperties() {}, renderSummary() {},
-    scheduleSave() {}, refreshAfterRoomAssignments() {}, findEntityNode() { return null; }
+function buildGroupMove(state, spies) {
+  return stand.run("moveSelectedBy", {
+    state, updateObjectRoom() {}, renderRooms() { if (spies) spies.renderRooms++; },
+    renderProperties() {}, renderSummary() {}, scheduleSave() { if (spies) spies.save++; },
+    /* ядро контракта заглушено спаем: тест ловит, что сдвиг группы идёт ИМЕННО через него
+       (а не мимо — иначе roomId не пересчитался бы) и зовёт его РОВНО один раз на сдвиг */
+    refreshAfterRoomAssignments(paint, save) { if (spies) spies.refresh++; if (paint) paint(); if (save) save(); },
+    findEntityNode() { return null; }
   });
-  assert.equal(move(5, 0), false);
-  assert.equal(state.posts[0].x, 0, "пост не сдвинут");
+}
+test("moveSelectedBy при группе сдвигает ВСЕ выделенные посты на одну дельту и возвращает true", () => {
+  const state = { selected: { kind: "posts", ids: ["p1", "p2"] },
+    posts: [{ id: "p1", x: 0, y: 0 }, { id: "p2", x: 50, y: 20 }, { id: "p3", x: 100, y: 100 }], devices: [], rooms: [] };
+  const spies = { refresh: 0, renderRooms: 0, save: 0 };
+  assert.equal(buildGroupMove(state, spies)(5, -3), true);
+  assert.deepEqual([state.posts[0].x, state.posts[0].y], [5, -3], "p1 сдвинут на (5,-3)");
+  assert.deepEqual([state.posts[1].x, state.posts[1].y], [55, 17], "p2 сдвинут на ту же дельту");
+  assert.deepEqual([state.posts[2].x, state.posts[2].y], [100, 100], "p3 вне группы — не сдвинут");
+  assert.equal(spies.refresh, 1, "привязка к комнатам пересчитана ОДИН раз через контракт (roomId перешедших границу обновится)");
+});
+test("moveSelectedBy при группе, где все id мертвы, возвращает false и контракт не зовёт", () => {
+  const state = { selected: { kind: "posts", ids: ["zz", "yy"] }, posts: [{ id: "p1", x: 0, y: 0 }], devices: [], rooms: [] };
+  const spies = { refresh: 0, renderRooms: 0, save: 0 };
+  assert.equal(buildGroupMove(state, spies)(5, 0), false);
+  assert.equal(state.posts[0].x, 0, "посторонний пост не тронут");
+  assert.equal(spies.refresh, 0, "нечего двигать — контракт не зовётся");
 });
 
 /* ====================================================================================

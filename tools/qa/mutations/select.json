@@ -15,5 +15,22 @@
     "from": "if(state.selected&&state.selected.kind===\"posts\"){", "to": "if(false&&state.selected&&state.selected.kind===\"posts\"){" },
 
   { "name": "S6: «Выделено: N» показывается уже при N=1 (порог сбит на >=1)", "file": "js/selection.js",
-    "from": "return n >= 2 ?", "to": "return n >= 1 ?" }
+    "from": "return n >= 2 ?", "to": "return n >= 1 ?" },
+
+  { "name": "S7 (Б5 ч.2): удаление группы ЦИКЛОМ removeEntity вместо одного фильтра — N шагов истории", "file": "js/app.js",
+    "from": "state.posts=state.posts.filter(p=>!kill.has(String(p.id)));", "to": "kill.forEach(id=>removeEntity(\"post\",id));" },
+
+  { "name": "S8 (Б5 ч.2): removePosts удаляет только ПЕРВЫЙ id набора", "file": "js/app.js",
+    "from": "state.posts=state.posts.filter(p=>!kill.has(String(p.id)));", "to": "state.posts=state.posts.filter(p=>String(p.id)!==String((ids||[])[0]));" },
+
+  { "name": "S9 (Б5 ч.2): стрелка при группе двигает только ПЕРВЫЙ выделенный пост", "file": "js/app.js",
+    "from": "    moved.forEach(p=>{\n      p.x+=dx;p.y+=dy;\n      const node=findEntityNode(\"post\",p.id);if(node){node.style.left=p.x+\"px\";node.style.top=p.y+\"px\"}\n    });",
+    "to": "    {const p=moved[0];p.x+=dx;p.y+=dy;const node=findEntityNode(\"post\",p.id);if(node){node.style.left=p.x+\"px\";node.style.top=p.y+\"px\"}}" },
+
+  { "name": "S10 (Б5 ч.2): после сдвига группы НЕТ пересчёта привязки к комнатам (мимо контракта)", "file": "js/app.js",
+    "from": "    });\n    refreshAfterRoomAssignments(renderRooms, scheduleSave);",
+    "to": "    });\n    renderRooms();scheduleSave();" },
+
+  { "name": "S11 (Б5 ч.2): удержание стрелки при группе — каждый автоповтор отдельный шаг (_historyAmend сбит)", "file": "js/app.js",
+    "from": "_historyAmend=e.repeat;", "to": "_historyAmend=false;" }
 ]

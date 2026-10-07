@@ -117,7 +117,9 @@ function makeApp() {
   /* clearCanvas и removeEntity режем ПО СКОБКАМ: за ними идут не function-соседи (clearCanvas → строки
      onclick=…; removeEntity → `let mountedRoomId=null;`), и functionSource прихватил бы лишнее — в т.ч.
      второе объявление mountedRoomId, которое перекрыло бы контекстный глобал и сломало бы R1. */
-  const code = fnByBraces("clearCanvas") + "\n" + fnByBraces("removeEntity") + "\n"
+  /* removePosts (Б5 ч.2) режем ПО СКОБКАМ по той же причине, что removeEntity: за ним идёт
+     `let mountedRoomId=null;`, и functionSource прихватил бы это второе объявление, перекрыв глобал R1. */
+  const code = fnByBraces("clearCanvas") + "\n" + fnByBraces("removeEntity") + "\n" + fnByBraces("removePosts") + "\n"
     + ["projectSnapshot", "captureHistory", "syncHistoryUi", "persistProject", "scheduleSave",
     "applyPlanUnderlay", "applyPlanSnapshot", "flushPendingRoomBuild", "undoPlan", "redoPlan",
     "clearPlan", "moveSelectedBy", "moveSelectedByKey", "openPostOnDblClick",
@@ -391,6 +393,69 @@ test("Б4 п.6: поток ввода в поле высоты — один ша
   a.ctx.endFieldEdit();                 // blur закрыл поток
   a.state.devices[0].height = "1100 мм!"; a.ctx.fieldInputSave(el);   // тот же el, но поток закрыт → отдельный шаг
   assert.equal(a.undoDepth(), before + 1, "после потери фокуса правка того же поля — новый шаг");
+});
+
+/* ======================= Б5 ч.2: удаление и сдвиг стрелками ГРУППЫ постов =======================
+   Деньги проверяем на уровне плана (как и весь файл): равный planKey ⇒ равная сумма. Литеральные ₽ и
+   пересчёт roomId у перешедшего границу поста проверяет браузерный хвост tools/qa/tails/select.txt. */
+test("Б5 ч.2: Delete по группе — removePosts удаляет ВСЕ выделенные ОДНИМ шагом; Ctrl+Z возвращает все", () => {
+  const a = makeApp();
+  const keyBefore = a.key();
+  a.state.posts.push({ id: "p1", x: 0, y: 0, number: 1, frameId: "f", mechanismIds: ["m"] },
+    { id: "p2", x: 10, y: 0, number: 2, frameId: "f", mechanismIds: ["m"] },
+    { id: "p3", x: 20, y: 0, number: 3, frameId: "f", mechanismIds: ["m"] });
+  a.ctx.renderAll();                                   // базовый шаг: три поста
+  const keyThree = a.key();
+  const depth0 = a.undoDepth();
+  a.state.selected = { kind: "posts", ids: ["p1", "p3"] };
+  a.ctx.removePosts(a.state.selected.ids);
+  assert.deepEqual(a.state.posts.map(p => p.id), ["p2"], "оба выделенных поста удалены, невыделенный остался");
+  assert.equal(a.state.selected, null, "выделение снято после удаления");
+  assert.equal(a.undoDepth(), depth0 + 1, "удаление группы — РОВНО один шаг истории (не N)");
+  a.ctx.undoPlan();
+  assert.deepEqual(a.state.posts.map(p => p.id).sort(), ["p1", "p2", "p3"], "один Ctrl+Z вернул все удалённые посты");
+  assert.equal(a.key(), keyThree, "план (а значит и сумма сметы) вернулся к состоянию из трёх постов");
+  assert.notEqual(keyThree, keyBefore, "контроль: три поста — это другой план, чем пустой");
+});
+
+test("Б5 ч.2: одиночный Delete поста по-прежнему один шаг (removeEntity не изменён)", () => {
+  const a = makeApp();
+  a.state.posts.push({ id: "p1", x: 0, y: 0, number: 1 }, { id: "p2", x: 10, y: 0, number: 2 });
+  a.ctx.renderAll();
+  const depth0 = a.undoDepth();
+  a.ctx.removeEntity("post", "p1");
+  assert.deepEqual(a.state.posts.map(p => p.id), ["p2"], "удалён только выбранный пост");
+  assert.equal(a.undoDepth(), depth0 + 1, "одиночное удаление — один шаг");
+  a.ctx.undoPlan();
+  assert.equal(a.state.posts.length, 2, "Ctrl+Z вернул пост");
+});
+
+test("Б5 ч.2: стрелка при группе сдвигает ВСЕ посты на одну дельту ОДНИМ шагом; Ctrl+Z возвращает все", () => {
+  const a = makeApp();
+  a.state.posts.push({ id: "p1", x: 0, y: 0, number: 1 }, { id: "p2", x: 100, y: 50, number: 2 });
+  a.state.selected = { kind: "posts", ids: ["p1", "p2"] };
+  a.ctx.renderAll();
+  const depth0 = a.undoDepth();
+  a.ctx.moveSelectedByKey({ key: "ArrowRight", shiftKey: false, repeat: false });   // шаг сетки 10, угол 0 → (+10,0)
+  assert.deepEqual([a.state.posts[0].x, a.state.posts[1].x], [10, 110], "оба поста сдвинуты на +10 по X");
+  assert.deepEqual([a.state.posts[0].y, a.state.posts[1].y], [0, 50], "Y не изменился");
+  assert.equal(a.undoDepth(), depth0 + 1, "одно нажатие стрелки по группе — один шаг");
+  a.ctx.undoPlan();
+  assert.deepEqual([a.state.posts[0].x, a.state.posts[1].x], [0, 100], "Ctrl+Z вернул оба поста в исходные точки");
+});
+
+test("Б5 ч.2: УДЕРЖАНИЕ стрелки при группе — один шаг (автоповторы дополняют первый, как у одиночного)", () => {
+  const a = makeApp();
+  a.state.posts.push({ id: "p1", x: 0, y: 0, number: 1 }, { id: "p2", x: 100, y: 0, number: 2 });
+  a.state.selected = { kind: "posts", ids: ["p1", "p2"] };
+  a.ctx.renderAll();
+  const depth0 = a.undoDepth();
+  a.ctx.moveSelectedByKey({ key: "ArrowRight", shiftKey: false, repeat: false });          // открывает шаг
+  for (let i = 0; i < 59; i++) a.ctx.moveSelectedByKey({ key: "ArrowRight", shiftKey: false, repeat: true });   // автоповторы
+  assert.deepEqual([a.state.posts[0].x, a.state.posts[1].x], [600, 700], "60 сдвигов по 10 = +600 у каждого");
+  assert.equal(a.undoDepth(), depth0 + 1, "удержание стрелки по группе = ОДИН шаг");
+  a.ctx.undoPlan();
+  assert.deepEqual([a.state.posts[0].x, a.state.posts[1].x], [0, 100], "один Ctrl+Z вернул оба поста");
 });
 
 /* ======================= Б4, ч.Б: подложка-чертёж в отмене/возврате =======================

@@ -1118,6 +1118,25 @@ function moveSelectedBy(dx,dy){
     refreshAfterRoomAssignments(renderRooms, scheduleSave);
     return true;
   }
+  /* Группа постов (Б5 ч.2): двигаем ВСЕ выделенные посты на одну и ту же мировую дельту (экранное
+     направление в мировую уже перевёл moveSelectedByKey — сигнатуру (dx,dy) не трогаем, она общая с
+     одиночным сдвигом). Узлы иконок сдвигаем точечно, как у одиночного поста, затем ЕДИНОЙ точкой
+     контракта пересчитываем привязку к комнатам, связи групп, карточку и смету и сохраняем — так
+     каждый пост попадает в ту комнату, куда переехал его центр, а сумма сметы ей соответствует.
+     Шаг истории один на нажатие; удержание дополняет его через _historyAmend (как у одиночного —
+     флаг ставит moveSelectedByKey). Карточка группы в renderProperties заново подсветит членов
+     (applySelectionClasses), поэтому выделение на холсте сохраняется. */
+  if(sel.kind==="posts"){
+    const ids=new Set(sel.ids.map(String));
+    const moved=state.posts.filter(p=>ids.has(String(p.id)));
+    if(!moved.length)return false;
+    moved.forEach(p=>{
+      p.x+=dx;p.y+=dy;
+      const node=findEntityNode("post",p.id);if(node){node.style.left=p.x+"px";node.style.top=p.y+"px"}
+    });
+    refreshAfterRoomAssignments(renderRooms, scheduleSave);
+    return true;
+  }
   return false;
 }
 /* Сдвиг выделенного стрелкой (PLAN 4). Вынесен из document.onkeydown ОТДЕЛЬНОЙ функцией, чтобы правило
@@ -1142,6 +1161,17 @@ function moveSelectedByKey(e){
 function removeEntity(kind,id){
   if(kind==="wall"){removeWall(id);return}
   const key={device:"devices",post:"posts",room:"rooms"}[kind];state[key]=state[key].filter(x=>x.id!==id);state.selected=null;renderAll();renderProperties();renderSummary();
+}
+/* Удалить НАБОР выделенных постов (Б5 ч.2) — ОДНА точка правила «удалить посты»: и клавиша Delete по
+   группе, и кнопка карточки зовут её. ОДИН фильтр по множеству id → один renderAll → ОДИН шаг истории
+   (Ctrl+Z возвращает все разом); цикл removeEntity дал бы N шагов. Снимаем выделение, renderAll
+   пересчитывает привязку к комнатам и планирует сохранение, карточка и смета — следом (как у removeEntity).
+   Одиночное удаление поста (removeEntity) не трогаем: у него своя ветка и свой одиночный шаг. */
+function removePosts(ids){
+  const kill=new Set((ids||[]).map(String));
+  if(!kill.size)return;
+  state.posts=state.posts.filter(p=>!kill.has(String(p.id)));
+  state.selected=null;renderAll();renderProperties();renderSummary();
 }
 /* Какой комнате принадлежат СМОНТИРОВАННЫЕ сейчас поля #roomName/#roomArea. Нужен flushRoomDraft:
    поля читаются из DOM, но по одному DOM не понять, чью комнату они правят, — а панель может уже
@@ -1228,13 +1258,17 @@ function renderProperties(){
     applySelectionClasses();   /* подсветить членов группы точечно, без пересоздания сцены */
     /* Карточка группы: заголовок «Выделено постов: N» и СУММАРНАЯ стоимость (та же postTotalCost и
        money, что в карточке одного поста — второго правила цены не заводим). Без «Редактировать»
-       (правка нескольких постов разом смысла не имеет) и без «Удалить N» — удаление группы это ч.2. */
+       (правка нескольких постов разом смысла не имеет). «Удалить выделенные (N)» (Б5 ч.2) зовёт ту же
+       removePosts, что и клавиша Delete, — одно правило удаления набора и один шаг истории. */
+    const ids=state.selected.ids.slice();   /* фиксируем состав ДО возможной перерисовки — для обработчика кнопки */
     const light=projectLighting();
-    const total=state.selected.ids.reduce((s,id)=>{const p=state.posts.find(x=>x.id===id);return p?s+postTotalCost(p,light):s},0);
+    const total=ids.reduce((s,id)=>{const p=state.posts.find(x=>x.id===id);return p?s+postTotalCost(p,light):s},0);
     props.className="";
-    props.innerHTML=`<label>Выделено постов<input value="${esc(String(state.selected.ids.length))}" disabled></label>
+    props.innerHTML=`<label>Выделено постов<input value="${esc(String(ids.length))}" disabled></label>
     <label>Суммарная стоимость<input value="${esc(money(total))}" disabled></label>
-    <small class="prop-hint">Выделено несколько постов. Разом перетащить, сдвинуть стрелками или удалить — в следующих частях.</small>`;
+    <small class="prop-hint">Выделено несколько постов. Сдвинуть стрелками или удалить клавишей Delete; разом перетащить — в следующей части.</small>
+    <div class="property-actions"><button class="btn ghost" id="removeSelectedPosts">Удалить выделенные (${esc(String(ids.length))})</button></div>`;
+    $("removeSelectedPosts").onclick=()=>removePosts(ids);
     return;
   }
   if(!state.selected){props.className="empty-properties";props.innerHTML="Выберите объект на плане";return}
@@ -3949,9 +3983,14 @@ document.onkeydown=e=>{
     setTool("select");
   }
   if(e.key==="Enter"&&(state.tool==="wall"||state.tool==="roomline"))setTool("select");
-  /* Delete — только по ОДИНОЧНОМУ выделению (у него есть .id). У группы {kind:"posts"} поля id нет:
-     removeEntity("posts",undefined) упал бы TypeError. Удаление группы — часть 2 (сейчас ничего). */
-  if(e.key==="Delete"&&state.selected&&state.selected.id!=null&&!typing&&!inBuilder)removeEntity(state.selected.kind,state.selected.id);
+  /* Delete удаляет выделенное вне ввода и конструктора. Группа {kind:"posts"} (поля id у неё нет) —
+     одним removePosts (один шаг истории, Ctrl+Z вернёт все); одиночное выделение (.id есть) — прежним
+     removeEntity. Backspace здесь НЕ удаляет намеренно: в проекте одиночного удаления на Backspace нет,
+     а в ветке «Разметка» ниже он снимает последнюю точку контура — поведение не меняем. */
+  if(e.key==="Delete"&&!typing&&!inBuilder){
+    if(state.selected&&state.selected.kind==="posts")removePosts(state.selected.ids);
+    else if(state.selected&&state.selected.id!=null)removeEntity(state.selected.kind,state.selected.id);
+  }
   /* Клавиатура для выделенного объекта (PLAN 4): Enter — конструктор поста, стрелки —
      сдвиг на шаг сетки (Shift — на 1px). Только вне ввода и при закрытом конструкторе. */
   if(!typing&&state.selected&&!inBuilder){

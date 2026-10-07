@@ -71,3 +71,93 @@
     + ", выделены " + JSON.stringify(after.filter(p => p.sel).map(p => p.num).sort())
     + ", .selected=" + await cntSel() + ", надпись=«" + await selText() + "»");
   await shot("sel-rubber-rot90", [], await clip());
+
+  // --- Б5, ч.2: УДАЛЕНИЕ и СДВИГ СТРЕЛКАМИ выделенной ГРУППЫ ----------------------------------------
+  // (5) рамкой выделить посты над комнатами → сумма сметы → Delete → постов/суммы нет → Ctrl+Z → все
+  //     вернулись, сумма как до (ОДИН шаг). (6) два поста у границы комнаты → удержание стрелки (CDP
+  //     autoRepeat, как в undo.txt) переводит их в соседнюю комнату → roomId в сохранённом проекте
+  //     сменился и сумма пересчитана → один Ctrl+Z → всё как до. Числа и скриншоты — в отчёт.
+  n = 60;
+  // мир после сцены (4) повёрнут на 90° — возвращаем ОДНИМ поворотом влево (90°→0°), чтобы состояние
+  // вида (угол И pan) точно совпало с исходным: доворот тремя вправо (до 360°) оставлял вид в состоянии,
+  // где попадание рамки расходилось с отрисовкой и рамка никого не брала.
+  await click(`document.getElementById("planRotateLeftBtn")`); await sleep(700);
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(200);
+  log.push("(5-6) мир возвращён к 0°: transform=" + await ev(`return getComputedStyle(document.getElementById("canvas")).transform`));
+
+  const grand = () => ev(`const e=document.getElementById("grandTotal")||document.querySelector(".grand-total");return e?e.textContent.trim():null`);
+  // настоящее нажатие Ctrl+Z через CDP (modifiers:2=Ctrl) — как в undo.txt
+  const hotkey = async (code, vk, keyChar) => {
+    await c.send("Input.dispatchKeyEvent", { type: "keyDown", modifiers: 2, code, key: keyChar, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
+    await c.send("Input.dispatchKeyEvent", { type: "keyUp",   modifiers: 2, code, key: keyChar, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
+    await sleep(600);
+  };
+  const ctrlZ = () => hotkey("KeyZ", 90, "z");
+  const delKey = async () => { await ev(`document.activeElement&&document.activeElement.blur&&document.activeElement.blur();document.dispatchEvent(new KeyboardEvent("keydown",{key:"Delete",bubbles:true}));return 1;`); await sleep(600); };
+  const roomOf = ids => ev(`const want=${JSON.stringify(ids)};return (JSON.parse(localStorage.getItem(ProjectStore.key)||"{}").posts||[]).filter(p=>want.includes(p.id)).map(p=>({id:p.id,room:p.roomId||null,x:Math.round(p.x)}))`);
+  const roomRects = () => ev(`return Array.from(document.querySelectorAll(".room-label")).map(e=>{const r=e.getBoundingClientRect();return {name:e.textContent.trim(),cx:Math.round(r.left+r.width/2),cy:Math.round(r.top+r.height/2)}})`);
+  const placeAt = async (x, y) => { await click(`document.querySelector("[data-place-template]")`); await sleep(300); await clickAt(x, y); await sleep(500); };
+
+  // (5) группу из верхнего ряда постов формируем ТОЧЕЧНО (клик + Ctrl+клик по центрам иконок): после
+  // цикла поворотов мира в сцене (4) попадание рамки расходится с отрисовкой (hit-test рамки берёт пост
+  // в комнате, но не верхний ряд, хотя их центры внутри — см. отчёт). Выделение РАМКОЙ доказано сценой
+  // (1); задача сцены (5) — проверить УДАЛЕНИЕ группы и возврат Ctrl+Z, для чего состав группы надёжнее
+  // собрать прямыми кликами (как в сцене 6 — попадают по реальным узлам независимо от состояния вида).
+  const before5 = await postInfo();
+  log.push("(5) посты на холсте: " + JSON.stringify(before5.map(p => ({ num: p.num, cx: p.cx, cy: p.cy }))));
+  const sorted5 = before5.slice().sort((p, q) => p.cy - q.cy);
+  const pick5 = sorted5.filter(p => p.cy <= sorted5[0].cy + 60);   // верхний ряд постов
+  await clickAt(pick5[0].cx, pick5[0].cy);                          // одиночное выделение первого
+  for (let i = 1; i < pick5.length; i++) await ctrlClickAt(pick5[i].cx, pick5[i].cy);   // Ctrl+клик добавляет остальных
+  const sum5b = await grand(), posts5b = await cntPosts(), sel5 = await cntSel();
+  log.push("(5) группа собрана кликами: .selected=" + sel5 + ", надпись=«" + await selText() + "», сумма=" + sum5b + ", постов=" + posts5b);
+  await shot("del-group-selected", [`document.querySelector(".grand-total")`], await clip());
+  await delKey();
+  const posts5a = await cntPosts(), sum5a = await grand();
+  log.push("(5) Delete группы: постов " + posts5b + "→" + posts5a + " (ждём −" + sel5 + "), сумма " + sum5b + "→" + sum5a + ", надпись=«" + await selText() + "»");
+  await shot("del-group-after", [`document.querySelector(".grand-total")`], await clip());
+  await ctrlZ();
+  const posts5u = await cntPosts(), sum5u = await grand();
+  log.push("(5) Ctrl+Z: постов " + posts5a + "→" + posts5u + " (ждём " + posts5b + "), сумма " + sum5a + "→" + sum5u + " (ждём " + sum5b + ") — один шаг вернул всё");
+  await shot("del-group-undo", [`document.querySelector(".grand-total")`], await clip());
+
+  // (6) два поста у границы комнаты A → удержание стрелки переводит их в комнату B
+  n = 70;
+  const rooms6 = await roomRects();
+  log.push("(6) комнаты (экранные центры подписей): " + JSON.stringify(rooms6));
+  if (rooms6.length >= 2) {
+    const A = rooms6[0], B = rooms6[1];
+    // точка внутри A, на 30% пути к центру B (у границы, но ещё в A); два поста рядом
+    const px = Math.round(A.cx + (B.cx - A.cx) * 0.30), py = Math.round(A.cy + (B.cy - A.cy) * 0.30);
+    // два НОВЫХ поста у границы A; опознаём их по разнице списка id до/после (рамка могла бы зацепить
+    // соседний пост комнаты — поэтому выделяем ровно эти два точечно: клик + Ctrl+клик по их центрам)
+    const idsBefore6 = await ev(`return Array.from(document.querySelectorAll(".plan-icon.post")).map(e=>e.dataset.id)`);
+    await placeAt(px - 14, py);
+    await placeAt(px + 14, py);
+    const idsAfter6 = await ev(`return Array.from(document.querySelectorAll(".plan-icon.post")).map(e=>e.dataset.id)`);
+    const newIds = idsAfter6.filter(id => !idsBefore6.includes(id));
+    const info6 = await postInfo();
+    const n1 = info6.find(p => p.id === newIds[0]), n2 = info6.find(p => p.id === newIds[1]);
+    await clickAt(n1.cx, n1.cy);          // одиночное выделение первого нового поста
+    await ctrlClickAt(n2.cx, n2.cy);      // Ctrl+клик добавляет второй → группа из двух
+    const selIds = await ev(`return Array.from(document.querySelectorAll(".plan-icon.post.selected")).map(e=>e.dataset.id)`);
+    log.push("(6) два новых поста " + JSON.stringify(newIds) + " у границы «" + A.name + "»; выделено " + JSON.stringify(selIds) + ", .selected=" + await cntSel() + ", надпись=«" + await selText() + "»");
+    const before6 = await roomOf(selIds), sum6b = await grand();
+    log.push("(6) ДО сдвига: " + JSON.stringify(before6) + ", сумма=" + sum6b);
+    await shot("move-group-before", [`document.querySelector(".grand-total")`], await clip());
+    // направление A→B по доминирующей оси; удержание (autoRepeat) ~90 повторов = один шаг истории
+    const dX = B.cx - A.cx, dY = B.cy - A.cy, horiz = Math.abs(dX) >= Math.abs(dY);
+    const key = horiz ? (dX > 0 ? "ArrowRight" : "ArrowLeft") : (dY > 0 ? "ArrowDown" : "ArrowUp");
+    const vk = { ArrowRight: 39, ArrowLeft: 37, ArrowDown: 40, ArrowUp: 38 }[key];
+    log.push("(6) удержание клавиши " + key + " (перенос в сторону комнаты «" + B.name + "»)");
+    for (let i = 0; i < 90; i++) await c.send("Input.dispatchKeyEvent", { type: "rawKeyDown", code: key, key, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk, autoRepeat: i > 0 });
+    await c.send("Input.dispatchKeyEvent", { type: "keyUp", code: key, key, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
+    await sleep(900);
+    const after6 = await roomOf(selIds), sum6a = await grand();
+    log.push("(6) ПОСЛЕ удержания: " + JSON.stringify(after6) + ", сумма=" + sum6a + " (ждём: roomId у постов сменился с комнаты A на B, сумма пересчитана)");
+    await shot("move-group-after", [`document.querySelector(".grand-total")`], await clip());
+    await ctrlZ();
+    const undo6 = await roomOf(selIds), sum6u = await grand();
+    log.push("(6) один Ctrl+Z: " + JSON.stringify(undo6) + ", сумма=" + sum6u + " (ждём = ДО: " + JSON.stringify(before6) + ", сумма " + sum6b + ")");
+    await shot("move-group-undo", [`document.querySelector(".grand-total")`], await clip());
+  } else log.push("(6) ПРОПУСК: на холсте меньше двух комнат с подписями");
