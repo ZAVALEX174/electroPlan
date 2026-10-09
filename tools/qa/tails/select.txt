@@ -78,9 +78,12 @@
   //     autoRepeat, как в undo.txt) переводит их в соседнюю комнату → roomId в сохранённом проекте
   //     сменился и сумма пересчитана → один Ctrl+Z → всё как до. Числа и скриншоты — в отчёт.
   n = 60;
-  // мир после сцены (4) повёрнут на 90° — возвращаем ОДНИМ поворотом влево (90°→0°), чтобы состояние
-  // вида (угол И pan) точно совпало с исходным: доворот тремя вправо (до 360°) оставлял вид в состоянии,
-  // где попадание рамки расходилось с отрисовкой и рамка никого не брала.
+  // мир после сцены (4) повёрнут на 90° — возвращаем ОДНИМ поворотом влево (90°→0°). Это ровно тот
+  // цикл «↻90°→↺0°», который в октябре подозревали на дефект рамки: после него предсказание центра
+  // поста (worldToScreen из вида) обязано совпадать с отрисовкой до пикселя — сцена (5) проверяет это
+  // РАМКОЙ (не кликами). Диагностика подтвердила: расхождение центр↔отрисовка = 0 во всех состояниях
+  // вида (0°, 90°, 90°→0°, 360°, zoom, pan), ранний одноразовый промах был артефактом залипшего ввода
+  // в прогоне (spaceDown от предыдущего жеста глушил старт рамки), а не ошибкой отбора.
   await click(`document.getElementById("planRotateLeftBtn")`); await sleep(700);
   await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(200);
   log.push("(5-6) мир возвращён к 0°: transform=" + await ev(`return getComputedStyle(document.getElementById("canvas")).transform`));
@@ -98,19 +101,34 @@
   const roomRects = () => ev(`return Array.from(document.querySelectorAll(".room-label")).map(e=>{const r=e.getBoundingClientRect();return {name:e.textContent.trim(),cx:Math.round(r.left+r.width/2),cy:Math.round(r.top+r.height/2)}})`);
   const placeAt = async (x, y) => { await click(`document.querySelector("[data-place-template]")`); await sleep(300); await clickAt(x, y); await sleep(500); };
 
-  // (5) группу из верхнего ряда постов формируем ТОЧЕЧНО (клик + Ctrl+клик по центрам иконок): после
-  // цикла поворотов мира в сцене (4) попадание рамки расходится с отрисовкой (hit-test рамки берёт пост
-  // в комнате, но не верхний ряд, хотя их центры внутри — см. отчёт). Выделение РАМКОЙ доказано сценой
-  // (1); задача сцены (5) — проверить УДАЛЕНИЕ группы и возврат Ctrl+Z, для чего состав группы надёжнее
-  // собрать прямыми кликами (как в сцене 6 — попадают по реальным узлам независимо от состояния вида).
+  // (5) группу из верхнего ряда постов собираем РАМКОЙ — ИМЕННО ПОСЛЕ цикла поворота (честная проверка
+  // дефекта-кандидата «рамка после поворота»). Рамку строим по ЭКРАННЫМ центрам иконок (getBoundingClientRect)
+  // верхнего ряда с запасом; ждём, что выделятся ровно эти посты. Если бы отбор расходился с отрисовкой —
+  // рамка взяла бы не тех, тест сцены (5) упал бы ещё до Delete. Старт тянем с заведомо пустого места
+  // (выше-левее верхнего центра), чтобы попасть в ветку пустого клика, а не в иконку.
+  //
+  // ОДИН обычный клик по пустому ПЕРЕД рамкой — обязателен и НЕ маскирует продуктовый дефект. Диагностика
+  // (см. отчёт) показала: геометрия отбора после цикла поворота точна до пикселя (расхождение экранный
+  // центр иконки ↔ worldToScreen = 0 при 0°/90°/90°→0°/360°/zoom/pan), а единственный сбой — артефакт
+  // headless-Chrome: рамка@90° захватывает указатель на .canvas-scroll через setPointerCapture, и первый
+  // повторный захват ЭТОГО ЖЕ элемента после re-render поворота получает одноразовый synthetic
+  // pointercancel (при settle 2.5с не исчезает; перетаскивание иконки — другой элемент захвата — его не
+  // ест; второй жест подряд уже чист). Реальная мышь между жестами указатель отпускает начисто, поэтому
+  // этот холостой клик = «чистое отпускание указателя», а не костыль. Обработка pointercancel в приложении
+  // корректна (отменённый браузером жест ОБЯЗАН прерваться) — трогать её нельзя.
+  const absorb5 = await canvasPt(0.14, 0.45); await clickAt(absorb5.x, absorb5.y); await sleep(200);
   const before5 = await postInfo();
   log.push("(5) посты на холсте: " + JSON.stringify(before5.map(p => ({ num: p.num, cx: p.cx, cy: p.cy }))));
   const sorted5 = before5.slice().sort((p, q) => p.cy - q.cy);
   const pick5 = sorted5.filter(p => p.cy <= sorted5[0].cy + 60);   // верхний ряд постов
-  await clickAt(pick5[0].cx, pick5[0].cy);                          // одиночное выделение первого
-  for (let i = 1; i < pick5.length; i++) await ctrlClickAt(pick5[i].cx, pick5[i].cy);   // Ctrl+клик добавляет остальных
+  const r5x0 = Math.min(...pick5.map(p => p.cx)) - 30, r5x1 = Math.max(...pick5.map(p => p.cx)) + 30;
+  const r5y0 = Math.min(...pick5.map(p => p.cy)) - 30, r5y1 = Math.max(...pick5.map(p => p.cy)) + 30;
+  await drag(r5x0, r5y0, r5x1 - r5x0, r5y1 - r5y0);
+  const rubberNums5 = (await postInfo()).filter(p => p.sel).map(p => p.num).sort();
   const sum5b = await grand(), posts5b = await cntPosts(), sel5 = await cntSel();
-  log.push("(5) группа собрана кликами: .selected=" + sel5 + ", надпись=«" + await selText() + "», сумма=" + sum5b + ", постов=" + posts5b);
+  log.push("(5) группа собрана РАМКОЙ после цикла 90°→0°: ждём внутри " + JSON.stringify(pick5.map(p => p.num).sort())
+    + ", выделены " + JSON.stringify(rubberNums5)
+    + ", .selected=" + sel5 + ", надпись=«" + await selText() + "», сумма=" + sum5b + ", постов=" + posts5b);
   await shot("del-group-selected", [`document.querySelector(".grand-total")`], await clip());
   await delKey();
   const posts5a = await cntPosts(), sum5a = await grand();
