@@ -68,15 +68,24 @@ const HAS_POINTER=typeof window!=="undefined"&&"PointerEvent" in window;
    отпускании — привязка всё равно пересчитается, пусть будет видна заранее). map —
    карта областей, снятая на старте жеста: стены при переносе объекта не двигаются,
    поэтому строить её на каждом движении (дорогой флуд-фолл) не нужно. */
-let _dropRoomId=null;
-function setRoomDropHighlight(roomId){
-  if(_dropRoomId===roomId)return;   /* не дёргаем DOM, пока цель не сменилась */
-  _dropRoomId=roomId;
+let _dropKey="";
+/* МНОЖЕСТВО комнат-приёмников. При одиночном переносе в нём одна комната (или пусто), при переносе
+   ГРУППЫ (Б5 ч.3) — все комнаты, куда попадут центры членов (их может быть несколько сразу). ОДНА
+   точка «что подсвечено» и ОДНА очистка на оба случая (§7.1): раньше хранился один _dropRoomId, и
+   группа физически не смогла бы показать несколько приёмников. Сигнатуру набора кэшируем — DOM не
+   трогаем, пока множество целей не изменилось (прежняя защита от флуда на каждом движении сохранена). */
+function applyDropHighlight(ids){
+  const set=new Set(Array.from(ids||[],String));
+  const key=[...set].sort().join("|");
+  if(_dropKey===key)return;   /* цель не сменилась — DOM не дёргаем */
+  _dropKey=key;
   const rsvg=$("roomsSvg");
-  if(rsvg)rsvg.querySelectorAll(".room-poly").forEach(pg=>pg.classList.toggle("drop-target",pg.dataset.roomId===String(roomId)));
-  canvas.querySelectorAll(".room-label").forEach(el=>el.classList.toggle("drop-target",el.dataset.id===String(roomId)));
+  if(rsvg)rsvg.querySelectorAll(".room-poly").forEach(pg=>pg.classList.toggle("drop-target",set.has(String(pg.dataset.roomId))));
+  canvas.querySelectorAll(".room-label").forEach(el=>el.classList.toggle("drop-target",set.has(String(el.dataset.id))));
 }
-function clearRoomDropHighlight(){setRoomDropHighlight(null)}
+/* Одиночный перенос: подсветить одну комнату (пусто при roomId==null). */
+function setRoomDropHighlight(roomId){applyDropHighlight(roomId==null?[]:[roomId])}
+function clearRoomDropHighlight(){applyDropHighlight([])}
 
 /* Единый источник событий переноса. PointerEvent (с захватом указателя — перенос не
    рвётся, если курсор ушёл за край окна) там, где он есть; иначе — mouse+touch на
@@ -112,7 +121,7 @@ function trackDrag(el,pointerId,onMove,onUp){
    перерисовка — только на завершении, когда состав/привязка реально изменились. */
 function makeDraggable(el,obj,kind){
   el.dataset.kind=kind;el.dataset.id=obj.id;
-  let mode="idle",sx=0,sy=0,bx=0,by=0,stop=null,dragMap=null,switched=false;
+  let mode="idle",sx=0,sy=0,bx=0,by=0,stop=null,dragMap=null,switched=false,group=null;
   function beginPress(clientX,clientY,pointerId,additive){
     /* В11 (решение владельца 03.10): в режиме размещения НИ ОДИН объект на холсте не перехватывает
        нажатие — ни табличка комнаты, ни иконка поста/элемента. Иначе нажатие выделило бы объект и
@@ -136,8 +145,25 @@ function makeDraggable(el,obj,kind){
       return;
     }
     switched=ensureSelectTool();
-    state.selected={kind,id:obj.id};
-    applySelectionClasses();renderProperties();   /* выделяем точечно, без renderAll */
+    group=null;
+    /* Нажатие (без Ctrl) на член ВЫДЕЛЕННОЙ ГРУППЫ (Б5 ч.3): группу НЕ сворачиваем на нажатии. Потянут
+       за порог — поедет ВСЯ группа (onMove); отпустят без переноса — свернётся до этого поста (onUp,
+       решение владельца). Группу читаем ЛЕНИВО: только когда выделение — набор постов
+       (state.selected.kind==="posts"), иначе ветка состава не трогает state.posts (тесты одиночного
+       переноса собирают ctx без state.posts). */
+    const grpMember=kind==="post"&&state.selected&&state.selected.kind==="posts"
+      &&state.selected.ids.some(x=>String(x)===String(obj.id));
+    if(grpMember){
+      /* Снимок членов с их узлами и БАЗОВЫМИ координатами на момент нажатия: дельту переноса прибавляем
+         к базе КАЖДОГО, поэтому все едут на одну мировую дельту, а взаимное расположение сохраняется.
+         Узел ведущего — это el, остальные ищем по глобально уникальному data-id. Выделение не трогаем. */
+      const idset=new Set(state.selected.ids.map(String));
+      group=state.posts.filter(p=>idset.has(String(p.id)))
+        .map(p=>({obj:p,el:String(p.id)===String(obj.id)?el:canvas.querySelector('.plan-icon[data-id="'+p.id+'"]'),bx:p.x,by:p.y}));
+    }else{
+      state.selected={kind,id:obj.id};
+      applySelectionClasses();renderProperties();   /* выделяем точечно, без renderAll */
+    }
     mode="pending";sx=clientX;sy=clientY;bx=obj.x;by=obj.y;dragMap=null;
     document.addEventListener("keydown",onKey,true);   /* Esc отменяет перенос (capture — раньше глобального) */
     stop=trackDrag(el,pointerId,onMove,onUp);
@@ -152,6 +178,18 @@ function makeDraggable(el,obj,kind){
       dragMap=(kind!=="room"&&state.rooms.some(r=>!(r.polygon&&r.polygon.length>2)))?buildSpaceComponents():null;
     }
     const p=EPDrag.worldPosition({x:bx,y:by},{x:sx,y:sy},{x:clientX,y:clientY},state.scale,state.worldAngle);
+    if(group){
+      /* Группа (Б5 ч.3): та же мировая дельта (p − база ведущего) — ВСЕМ членам от их баз. Подсветка —
+         НАБОР комнат-приёмников (у членов они могут различаться). Связи групп света — один раз за кадр. */
+      const ddx=p.x-bx,ddy=p.y-by,drop=new Set();
+      group.forEach(m=>{
+        m.obj.x=m.bx+ddx;m.obj.y=m.by+ddy;
+        if(m.el){m.el.style.left=m.obj.x+"px";m.el.style.top=m.obj.y+"px"}
+        const r=getRoomForPoint(m.obj.x+12,m.obj.y+12,dragMap);if(r)drop.add(r.id);
+      });
+      applyDropHighlight(drop);renderGroupLinks();
+      return;
+    }
     obj.x=p.x;obj.y=p.y;el.style.left=obj.x+"px";el.style.top=obj.y+"px";
     if(kind!=="room"){const room=getRoomForPoint(obj.x+12,obj.y+12,dragMap);setRoomDropHighlight(room?room.id:null)}
     /* Связи групп ведём за постом ЖИВЬЁМ: пунктир не должен отставать от иконки при переносе.
@@ -159,15 +197,29 @@ function makeDraggable(el,obj,kind){
     if(kind==="post")renderGroupLinks();
   }
   function onUp(){
-    const dragged=mode==="dragging",wasSwitched=switched;
+    const dragged=mode==="dragging",wasSwitched=switched,wasGroup=!!group;
     endInteraction();
     if(dragged)finishDrag();
+    else if(wasGroup){
+      /* Клик по члену группы БЕЗ переноса → выделен только этот пост (решение владельца): группу не
+         свернули на нажатии, сворачиваем здесь — когда ясно, что это клик, а не начало переноса. */
+      state.selected={kind,id:obj.id};applySelectionClasses();renderProperties();
+      if(wasSwitched)renderRooms();
+    }
     else if(wasSwitched)renderRooms();   /* сменили инструмент кликом — привести сцену в порядок */
   }
   function onKey(e){
     if(e.key!=="Escape")return;
     e.preventDefault();e.stopPropagation();   /* не даём глобальному Esc (setTool) перерисовать сцену */
-    if(mode==="dragging"){obj.x=bx;obj.y=by;el.style.left=bx+"px";el.style.top=by+"px";updateStatus("Перенос отменён")}
+    if(mode==="dragging"){
+      if(group){
+        /* Esc при переносе ГРУППЫ (Б5 ч.3): ВСЕ члены возвращаются в исходные точки, связи групп
+           перерисовываются; шага истории нет — finishDrag не зовём. */
+        group.forEach(m=>{m.obj.x=m.bx;m.obj.y=m.by;if(m.el){m.el.style.left=m.bx+"px";m.el.style.top=m.by+"px"}});
+        renderGroupLinks();
+      }else{obj.x=bx;obj.y=by;el.style.left=bx+"px";el.style.top=by+"px"}
+      updateStatus("Перенос отменён");
+    }
     endInteraction();
   }
   function endInteraction(){
@@ -181,6 +233,15 @@ function makeDraggable(el,obj,kind){
     if(kind==="room"){
       obj.seedX=obj.x+55;obj.seedY=obj.y+18;
       refreshAfterRoomAssignments(renderRooms);
+    }else if(group){
+      /* Перенос ГРУППЫ (Б5 ч.3): ОДНА карта на всех — привязку всех членов к комнатам, связи, карточку,
+         смету и сохранение пересчитываем ЕДИНОЙ точкой контракта (не цикл updateObjectRoom), поэтому
+         каждый пост попадает в комнату, куда переехал его центр, и сумма сметы ей соответствует. Шаг
+         истории один: beginGesture глушил промежуточные фиксации, endGesture снят (endInteraction),
+         а save-параметр даёт РОВНО один scheduleSave — второго в конце не нужно (ранний return). */
+      refreshAfterRoomAssignments(renderRooms, scheduleSave);
+      updateStatus("Группа постов перенесена");
+      return;
     }else{
       /* финальную привязку считаем свежей картой (updateObjectRoom): объект мог уехать за
          габарит превью-карты; она годится только для подсветки на лету, не для итога */

@@ -32,5 +32,25 @@
     "to": "    });\n    renderRooms();scheduleSave();" },
 
   { "name": "S11 (Б5 ч.2): удержание стрелки при группе — каждый автоповтор отдельный шаг (_historyAmend сбит)", "file": "js/app.js",
-    "from": "_historyAmend=e.repeat;", "to": "_historyAmend=false;" }
+    "from": "_historyAmend=e.repeat;", "to": "_historyAmend=false;" },
+
+  { "name": "S12 (Б5 ч.3): перенос группы мышью двигает только ВЕДУЩИЙ член, остальные стоят", "file": "js/canvasInput.js",
+    "from": "      group.forEach(m=>{\n        m.obj.x=m.bx+ddx;m.obj.y=m.by+ddy;\n        if(m.el){m.el.style.left=m.obj.x+\"px\";m.el.style.top=m.obj.y+\"px\"}\n        const r=getRoomForPoint(m.obj.x+12,m.obj.y+12,dragMap);if(r)drop.add(r.id);\n      });",
+    "to": "      {const m=group[0];m.obj.x=m.bx+ddx;m.obj.y=m.by+ddy;if(m.el){m.el.style.left=m.obj.x+\"px\";m.el.style.top=m.obj.y+\"px\"}const r=getRoomForPoint(m.obj.x+12,m.obj.y+12,dragMap);if(r)drop.add(r.id);}" },
+
+  { "name": "S13 (Б5 ч.3): дельта переноса группы БЕЗ угла вида (worldPosition без worldAngle) — едут не туда при повороте", "file": "js/canvasInput.js",
+    "from": "state.scale,state.worldAngle)", "to": "state.scale)" },
+
+  { "name": "S14 (Б5 ч.3): нажатие на член группы СВОРАЧИВАЕТ её сразу (как в ч.1) — перенос группы невозможен", "file": "js/canvasInput.js",
+    "from": "&&state.selected.ids.some(x=>String(x)===String(obj.id));", "to": "&&false;" },
+
+  { "name": "S15 (Б5 ч.3): Esc при переносе группы возвращает только ВЕДУЩИЙ член, остальные остаются сдвинутыми", "file": "js/canvasInput.js",
+    "from": "        group.forEach(m=>{m.obj.x=m.bx;m.obj.y=m.by;if(m.el){m.el.style.left=m.bx+\"px\";m.el.style.top=m.by+\"px\"}});",
+    "to": "        {const m=group[0];m.obj.x=m.bx;m.obj.y=m.by;if(m.el){m.el.style.left=m.bx+\"px\";m.el.style.top=m.by+\"px\"}}" },
+
+  { "name": "S16 (Б5 ч.3): отпускание группы сохраняет ПОКОМАНДНО (цикл updateObjectRoom+scheduleSave) — N шагов истории", "file": "js/canvasInput.js",
+    "from": "refreshAfterRoomAssignments(renderRooms, scheduleSave);", "to": "group.forEach(m=>{updateObjectRoom(m.obj);scheduleSave();});" },
+
+  { "name": "S17 (Б5 ч.3): после отпускания группы НЕТ пересчёта привязки к комнатам (мимо контракта)", "file": "js/canvasInput.js",
+    "from": "refreshAfterRoomAssignments(renderRooms, scheduleSave);", "to": "renderRooms();scheduleSave();" }
 ]

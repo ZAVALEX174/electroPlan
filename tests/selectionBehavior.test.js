@@ -49,7 +49,10 @@ function buildDrag(state) {
   const spies = { renderProps: 0, applyCls: 0, save: 0 };
   const ctx = {
     HAS_POINTER: true, document: makeDoc(), EPDrag, EPConfig, EPSelection, state,
-    spaceDown: false, setPanReady() {}, setRoomDropHighlight() {}, clearRoomDropHighlight() {},
+    /* canvas нужен групповой ветке beginPress (ищет узлы прочих членов по data-id); в тестах секции 1
+       перенос группы не проверяется — узлы не важны, querySelector возвращает null (член без узла). */
+    canvas: { querySelector() { return null; } },
+    spaceDown: false, setPanReady() {}, setRoomDropHighlight() {}, clearRoomDropHighlight() {}, applyDropHighlight() {},
     ensureSelectTool() { return false; },
     applySelectionClasses() { spies.applyCls++; }, renderProperties() { spies.renderProps++; },
     hideHover() {}, buildSpaceComponents() { return null; }, getRoomForPoint() { return null; },
@@ -318,4 +321,150 @@ test("renderPosts: Ctrl(⌘)+двойной клик по иконке пост�
   assert.deepEqual(opened, [], "Ctrl+двойной клик окно не открывает");
   el.ondblclick({ ctrlKey: false, metaKey: false, stopPropagation() {} });
   assert.deepEqual(opened, ["p1"], "обычный двойной клик открывает пост");
+});
+
+/* ====================================================================================
+   8. Перетаскивание ВЫДЕЛЕННОЙ ГРУППЫ постов мышью (makeDraggable, Б5 ч.3). Исполняем настоящий
+      текст trackDrag+makeDraggable: нажатие на член группы не сворачивает её, протяжка за порог
+      двигает ВСЕХ на одну мировую дельту, отпускание пересчитывает привязку ОДНОЙ точкой контракта
+      (один шаг истории), клик без переноса сворачивает до одного поста, Esc возвращает всех.
+   ==================================================================================== */
+/* Узел иконки поста: как makeNode, но с готовым dataset.id — его ищет canvas.querySelector по data-id
+   (ведущего makeDraggable держит сам, остальных членов группы находит через canvas). */
+function iconNode(id) { const n = makeNode(); n.dataset.id = String(id); return n; }
+function buildGroupDrag(state, nodes) {
+  const spies = { refresh: 0, save: 0, renderProps: 0, renderRooms: 0, drop: [] };
+  /* canvas.querySelector('.plan-icon[data-id="X"]') → узел X (или null). Разбираем только data-id —
+     этого хватает makeDraggable для членов группы. */
+  const canvas = {
+    querySelector(sel) { const m = sel.match(/data-id="([^"]*)"/); return (m && nodes[m[1]]) || null; }
+  };
+  const ctx = {
+    HAS_POINTER: true, document: makeDoc(), EPDrag, EPConfig, EPSelection, state, canvas,
+    spaceDown: false, setPanReady() {},
+    setRoomDropHighlight() {}, clearRoomDropHighlight() {}, applyDropHighlight(ids) { spies.drop.push([...(ids || [])]); },
+    ensureSelectTool() { return false; },
+    applySelectionClasses() {}, renderProperties() { spies.renderProps++; },
+    hideHover() {}, buildSpaceComponents() { return null; },
+    /* комната центра поста по X: x<100 → r1, иначе r2 (граница на x=100) — проверяем пересчёт у перешедших */
+    getRoomForPoint(x) { return { id: x < 100 ? "r1" : "r2" }; },
+    renderGroupLinks() {}, renderRooms() { spies.renderRooms++; }, renderSummary() {},
+    updateObjectRoom() { return null; }, updateStatus() {},
+    scheduleSave() { spies.save++; }, beginGesture() {}, endGesture() {},
+    refreshAfterRoomAssignments(paint, save) { spies.refresh++; if (paint) paint(); if (save) save(); },
+    removeEntity() {}
+  };
+  const code = [stand.functionSource("trackDrag"), stand.functionSource("makeDraggable"),
+    ";({ makeDraggable });"].join("\n");
+  vm.createContext(ctx);
+  return { api: vm.runInContext(code, ctx), spies, nodes };
+}
+/* Состояние с группой из p1,p2 (оба в r1, x<100) и посторонним p3. worldAngle/scale задаются сверху. */
+function groupState(over) {
+  return Object.assign(
+    { pending: null, tool: "select", scale: 1, worldAngle: 0, rooms: [],
+      selected: { kind: "posts", ids: ["p1", "p2"] },
+      posts: [{ id: "p1", x: 0, y: 0 }, { id: "p2", x: 40, y: 10 }, { id: "p3", x: 200, y: 200 }] }, over);
+}
+/* Нажать на member по его узлу и протянуть на (sxpx,sypx) экранных пикселей за порог. */
+function dragMember(api, nodes, memberId, state, dxScreen, dyScreen) {
+  const el = nodes[memberId];
+  const obj = state.posts.find(p => String(p.id) === String(memberId));
+  api.makeDraggable(el, obj, "post");
+  el.fire("pointerdown", pointer({ clientX: 500, clientY: 500 }));
+  el.fire("pointermove", pointer({ clientX: 500 + dxScreen, clientY: 500 + dyScreen }));
+  return el;
+}
+
+test("группа: протяжка члена двигает ВСЕХ на одну мировую дельту (угол 0), p3 вне группы не тронут", () => {
+  const state = groupState();
+  const nodes = { p1: iconNode("p1"), p2: iconNode("p2"), p3: iconNode("p3") };
+  const { api } = buildGroupDrag(state, nodes);
+  const el = dragMember(api, nodes, "p1", state, 60, 42);   // scale 1, угол 0 → мировая дельта (+60,+42)
+  el.fire("pointerup", pointer({ clientX: 560, clientY: 542 }));
+  assert.deepEqual([state.posts[0].x, state.posts[0].y], [60, 42], "ведущий p1 сдвинут на (60,42)");
+  assert.deepEqual([state.posts[1].x, state.posts[1].y], [100, 52], "p2 сдвинут на ту же дельту");
+  assert.deepEqual([state.posts[2].x, state.posts[2].y], [200, 200], "p3 вне группы не сдвинут");
+  assert.equal(nodes.p2.style.left, "100px", "узел p2 сдвинут точечно (style.left)");
+});
+
+test("группа: протяжка при scale=2 и угле 90° — экранные (+60,+42) → мировые (+21,−30) всем членам", () => {
+  const near = (a, b) => assert.ok(Math.abs(a - b) <= 1e-9, `${a} ≈ ${b}`);
+  const state = groupState({ scale: 2, worldAngle: 90 });
+  const nodes = { p1: iconNode("p1"), p2: iconNode("p2"), p3: iconNode("p3") };
+  const { api } = buildGroupDrag(state, nodes);
+  const el = dragMember(api, nodes, "p2", state, 60, 42);   // тянем НЕ ведущего набора — едут всё равно все
+  el.fire("pointerup", pointer({ clientX: 560, clientY: 542 }));
+  /* R(−90)/scale2: dx=(dxs*c+dys*sn)/2=42/2=21, dy=(−dxs*sn+dys*c)/2=−60/2=−30 */
+  near(state.posts[0].x, 21); near(state.posts[0].y, -30);   // p1 от базы (0,0)
+  near(state.posts[1].x, 61); near(state.posts[1].y, -20);   // p2 от базы (40,10)
+  assert.deepEqual([state.posts[2].x, state.posts[2].y], [200, 200], "p3 не тронут");
+});
+
+test("группа: отпускание зовёт контракт refreshAfterRoomAssignments РОВНО один раз и один scheduleSave (один шаг истории)", () => {
+  const state = groupState();
+  const nodes = { p1: iconNode("p1"), p2: iconNode("p2"), p3: iconNode("p3") };
+  const { api, spies } = buildGroupDrag(state, nodes);
+  const el = dragMember(api, nodes, "p1", state, 120, 0);   // p1 (0,0)→(120,0) пересёк границу x=100 в r2
+  el.fire("pointerup", pointer({ clientX: 620, clientY: 500 }));
+  assert.equal(spies.refresh, 1, "привязка пересчитана ОДИН раз через контракт (roomId перешедших сменится)");
+  assert.equal(spies.save, 1, "ровно один scheduleSave → один шаг истории");
+  assert.deepEqual(plain(state.selected), { kind: "posts", ids: ["p1", "p2"] }, "группа осталась выделенной");
+});
+
+test("группа: нажатие на члена НЕ сворачивает группу; клик без переноса сворачивает до одного поста", () => {
+  const state = groupState();
+  const nodes = { p1: iconNode("p1"), p2: iconNode("p2"), p3: iconNode("p3") };
+  const { api } = buildGroupDrag(state, nodes);
+  const el = nodes.p1;
+  api.makeDraggable(el, state.posts[0], "post");
+  el.fire("pointerdown", pointer({ clientX: 500, clientY: 500 }));
+  assert.deepEqual(plain(state.selected), { kind: "posts", ids: ["p1", "p2"] }, "на нажатии группа цела");
+  el.fire("pointermove", pointer({ clientX: 502, clientY: 500 }));   // Δ=2px < порог → клик
+  el.fire("pointerup", pointer({ clientX: 502, clientY: 500 }));
+  assert.deepEqual(plain(state.selected), { kind: "post", id: "p1" }, "клик без переноса → выделен только p1");
+  assert.deepEqual([state.posts[1].x, state.posts[1].y], [40, 10], "p2 не двигался");
+});
+
+test("группа: Esc посреди переноса возвращает ВСЕХ членов и шага истории нет", () => {
+  const state = groupState();
+  const nodes = { p1: iconNode("p1"), p2: iconNode("p2"), p3: iconNode("p3") };
+  /* нужен доступ к document-шиму (обработчик Esc навешан на него, capture) — собираем ctx тут */
+  const doc = makeDoc();
+  const canvas = { querySelector(sel) { const m = sel.match(/data-id="([^"]*)"/); return (m && nodes[m[1]]) || null; } };
+  const spies = { save: 0 };
+  const ctx = {
+    HAS_POINTER: true, document: doc, EPDrag, EPConfig, EPSelection, state, canvas,
+    spaceDown: false, setPanReady() {}, setRoomDropHighlight() {}, clearRoomDropHighlight() {}, applyDropHighlight() {},
+    ensureSelectTool() { return false; }, applySelectionClasses() {}, renderProperties() {}, hideHover() {},
+    buildSpaceComponents() { return null; }, getRoomForPoint() { return null; }, renderGroupLinks() {},
+    renderRooms() {}, renderSummary() {}, updateObjectRoom() { return null; }, updateStatus() {},
+    scheduleSave() { spies.save++; }, beginGesture() {}, endGesture() {},
+    refreshAfterRoomAssignments() { spies.save++; }, removeEntity() {}
+  };
+  const code = [stand.functionSource("trackDrag"), stand.functionSource("makeDraggable"), ";({ makeDraggable });"].join("\n");
+  vm.createContext(ctx);
+  const api = vm.runInContext(code, ctx);
+  const el = nodes.p1;
+  api.makeDraggable(el, state.posts[0], "post");
+  el.fire("pointerdown", pointer({ clientX: 500, clientY: 500 }));
+  el.fire("pointermove", pointer({ clientX: 570, clientY: 570 }));   // перенос пошёл
+  assert.deepEqual([state.posts[0].x, state.posts[0].y], [70, 70], "предусловие: p1 поехал");
+  assert.deepEqual([state.posts[1].x, state.posts[1].y], [110, 80], "предусловие: p2 тоже поехал");
+  doc.fire("keydown", { key: "Escape", preventDefault() {}, stopPropagation() {} });
+  assert.deepEqual([state.posts[0].x, state.posts[0].y], [0, 0], "Esc вернул p1 в исходную точку");
+  assert.deepEqual([state.posts[1].x, state.posts[1].y], [40, 10], "Esc вернул p2 в исходную точку");
+  assert.equal(spies.save, 0, "Esc не сохраняет и не пишет шаг истории");
+});
+
+test("одиночный перенос поста (выделение не группа) НЕ трогает групповую ветку", () => {
+  const state = groupState({ selected: { kind: "post", id: "p1" } });
+  const nodes = { p1: iconNode("p1"), p2: iconNode("p2"), p3: iconNode("p3") };
+  const { api, spies } = buildGroupDrag(state, nodes);
+  const el = dragMember(api, nodes, "p1", state, 60, 42);
+  el.fire("pointerup", pointer({ clientX: 560, clientY: 542 }));
+  assert.deepEqual([state.posts[0].x, state.posts[0].y], [60, 42], "одиночный p1 сдвинут");
+  assert.deepEqual([state.posts[1].x, state.posts[1].y], [40, 10], "p2 (не выбран) не сдвинут — групповая ветка не сработала");
+  assert.equal(spies.refresh, 0, "одиночный перенос идёт через updateObjectRoom, а не контракт группы");
+  assert.equal(spies.save, 1, "одиночный перенос сохраняет один раз");
 });

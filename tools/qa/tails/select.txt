@@ -179,3 +179,99 @@
     log.push("(6) один Ctrl+Z: " + JSON.stringify(undo6) + ", сумма=" + sum6u + " (ждём = ДО: " + JSON.stringify(before6) + ", сумма " + sum6b + ")");
     await shot("move-group-undo", [`document.querySelector(".grand-total")`], await clip());
   } else log.push("(6) ПРОПУСК: на холсте меньше двух комнат с подписями");
+
+  // --- Б5, ч.3: ПЕРЕТАСКИВАНИЕ выделенной ГРУППЫ постов МЫШЬЮ --------------------------------------
+  // (7) выделить 2 поста в комнате A → потянуть МЫШЬЮ один из них в соседнюю B → у всех roomId сменился
+  //     на B, мировые координаты сдвинуты на ОДНУ дельту → один Ctrl+Z → всё как до. (7b) простой клик
+  //     по члену группы (без переноса) → «Выделено» исчезло, выделен один. (7c) Esc посреди переноса →
+  //     все на месте. (8) то же перетаскивание при worldAngle=90°. Числа и скриншоты — в отчёт.
+  n = 80;
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(200);
+  // полные координаты (мир x,y + roomId) членов из сохранённого проекта — для проверки «одна дельта на всех»
+  const coordsOf = ids => ev(`const want=${JSON.stringify(ids)};return (JSON.parse(localStorage.getItem(ProjectStore.key)||"{}").posts||[]).filter(p=>want.includes(p.id)).map(p=>({id:p.id,x:Math.round(p.x),y:Math.round(p.y),room:p.roomId||null}))`);
+  // МЫШИНЫЙ перенос с Esc посреди жеста: нажать на иконку, сдвинуть за порог, послать Escape, отпустить
+  const dragIconWithEsc = async (cx, cy, dx, dy) => {
+    await mouse(cx, cy, "mouseMoved"); await mouse(cx, cy, "mousePressed");
+    await c.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: cx + dx, y: cy + dy, button: "left", buttons: 1 }); await sleep(120);
+    await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(120);
+    await mouse(cx + dx, cy + dy, "mouseReleased"); await sleep(500);
+  };
+  // собрать группу из ДВУХ новых постов в глубине комнаты rr.A: клик + Ctrl+клик по их центрам
+  const buildGroupInRoomA = async (rr) => {
+    const ax = Math.round(rr.cx), ay = Math.round(rr.cy);
+    const idsB = await ev(`return Array.from(document.querySelectorAll(".plan-icon.post")).map(e=>e.dataset.id)`);
+    await placeAt(ax - 16, ay); await placeAt(ax + 16, ay);
+    const idsA = await ev(`return Array.from(document.querySelectorAll(".plan-icon.post")).map(e=>e.dataset.id)`);
+    const nw = idsA.filter(id => !idsB.includes(id));
+    const info = await postInfo();
+    const g1 = info.find(p => p.id === nw[0]), g2 = info.find(p => p.id === nw[1]);
+    await clickAt(g1.cx, g1.cy); await ctrlClickAt(g2.cx, g2.cy);
+    const sel = await ev(`return Array.from(document.querySelectorAll(".plan-icon.post.selected")).map(e=>e.dataset.id)`);
+    return { g1, g2, sel };
+  };
+
+  const rooms7 = await roomRects();
+  log.push("(7) комнаты: " + JSON.stringify(rooms7));
+  if (rooms7.length >= 2) {
+    const A7 = rooms7[0], B7 = rooms7[1];
+    const grp7 = await buildGroupInRoomA(A7);
+    log.push("(7) группа из двух в «" + A7.name + "»: выделено " + JSON.stringify(grp7.sel) + ", .selected=" + await cntSel() + ", надпись=«" + await selText() + "»");
+    const before7 = await coordsOf(grp7.sel), sum7b = await grand();
+    log.push("(7) ДО переноса: " + JSON.stringify(before7) + ", сумма=" + sum7b);
+    await shot("drag-group-before", [`document.querySelector(".grand-total")`], await clip());
+    // тянем МЫШЬЮ ведущий пост к центру B на 0.9 пути (чтобы оба центра попали в B)
+    const info7 = await postInfo(), lead7 = info7.find(p => p.id === grp7.g1.id);
+    const dx7 = Math.round((B7.cx - lead7.cx) * 0.9), dy7 = Math.round((B7.cy - lead7.cy) * 0.9);
+    log.push("(7) тянем мышью пост №" + lead7.num + " на экранные (" + dx7 + "," + dy7 + ") к комнате «" + B7.name + "»");
+    await drag(lead7.cx, lead7.cy, dx7, dy7);
+    const after7 = await coordsOf(grp7.sel), sum7a = await grand();
+    const d7 = after7.map((p, i) => ({ id: p.id, dx: p.x - before7[i].x, dy: p.y - before7[i].y, room: p.room }));
+    log.push("(7) ПОСЛЕ переноса: " + JSON.stringify(after7) + ", сумма=" + sum7a);
+    log.push("(7) дельты по членам (ждём ОДИНАКОВЫЕ dx,dy и room=B у всех): " + JSON.stringify(d7) + ", .selected=" + await cntSel());
+    await shot("drag-group-after", [`document.querySelector(".grand-total")`], await clip());
+    await ctrlZ();
+    const undo7 = await coordsOf(grp7.sel), sum7u = await grand();
+    log.push("(7) один Ctrl+Z: " + JSON.stringify(undo7) + ", сумма=" + sum7u + " (ждём = ДО: " + JSON.stringify(before7) + ", сумма " + sum7b + ")");
+    await shot("drag-group-undo", [`document.querySelector(".grand-total")`], await clip());
+
+    // (7b) простой клик (без переноса) по члену группы → выделен только он
+    const grp7b = await buildGroupInRoomA(A7);
+    log.push("(7b) собрана группа: .selected=" + await cntSel() + ", надпись=«" + await selText() + "»");
+    const info7b = await postInfo(), one7 = info7b.find(p => p.id === grp7b.g1.id);
+    await clickAt(one7.cx, one7.cy);   // короткий клик без переноса
+    const selAfter7b = await ev(`return Array.from(document.querySelectorAll(".plan-icon.post.selected")).map(e=>e.dataset.id)`);
+    log.push("(7b) клик по члену без переноса: .selected=" + await cntSel() + " (ждём 1), выделен " + JSON.stringify(selAfter7b) + " (ждём [" + grp7b.g1.id + "]), надпись=«" + await selText() + "» (ждём пусто)");
+
+    // (7c) Esc посреди переноса группы → все на месте
+    const grp7c = await buildGroupInRoomA(A7);
+    const before7c = await coordsOf(grp7c.sel);
+    const info7c = await postInfo(), lead7c = info7c.find(p => p.id === grp7c.g1.id);
+    await dragIconWithEsc(lead7c.cx, lead7c.cy, Math.round((B7.cx - lead7c.cx) * 0.6), Math.round((B7.cy - lead7c.cy) * 0.6));
+    const after7c = await coordsOf(grp7c.sel);
+    log.push("(7c) Esc посреди переноса: ДО=" + JSON.stringify(before7c) + " ПОСЛЕ=" + JSON.stringify(after7c) + " (ждём совпадение — все вернулись)");
+    await shot("drag-group-esc", [], await clip());
+
+    // (8) то же перетаскивание при worldAngle=90°
+    n = 90;
+    await setVal(`document.getElementById("rotateTargetSelect")`, "world");
+    await click(`document.getElementById("planRotateRightBtn")`); await sleep(700);
+    log.push("(8) мир повёрнут: transform=" + await ev(`return getComputedStyle(document.getElementById("canvas")).transform`));
+    const rooms8 = await roomRects();
+    const A8 = rooms8[0], B8 = rooms8[1];
+    const grp8 = await buildGroupInRoomA(A8);
+    log.push("(8) группа из двух в «" + A8.name + "» при 90°: выделено " + JSON.stringify(grp8.sel) + ", .selected=" + await cntSel());
+    const before8 = await coordsOf(grp8.sel), sum8b = await grand();
+    await shot("drag-group-rot90-before", [`document.querySelector(".grand-total")`], await clip());
+    const info8 = await postInfo(), lead8 = info8.find(p => p.id === grp8.g1.id);
+    const dx8 = Math.round((B8.cx - lead8.cx) * 0.9), dy8 = Math.round((B8.cy - lead8.cy) * 0.9);
+    log.push("(8) тянем мышью пост №" + lead8.num + " на экранные (" + dx8 + "," + dy8 + ") к «" + B8.name + "»");
+    await drag(lead8.cx, lead8.cy, dx8, dy8);
+    const after8 = await coordsOf(grp8.sel), sum8a = await grand();
+    const d8 = after8.map((p, i) => ({ id: p.id, dx: p.x - before8[i].x, dy: p.y - before8[i].y, room: p.room }));
+    log.push("(8) дельты по членам при 90° (ждём ОДИНАКОВЫЕ dx,dy мира и room=B у всех): " + JSON.stringify(d8) + ", сумма " + sum8b + "→" + sum8a);
+    await shot("drag-group-rot90-after", [`document.querySelector(".grand-total")`], await clip());
+    await ctrlZ();
+    const undo8 = await coordsOf(grp8.sel);
+    log.push("(8) один Ctrl+Z при 90°: " + JSON.stringify(undo8) + " (ждём = ДО: " + JSON.stringify(before8) + ")");
+    await click(`document.getElementById("planRotateLeftBtn")`); await sleep(700);   // вернуть мир к 0°
+  } else log.push("(7) ПРОПУСК: на холсте меньше двух комнат с подписями");
