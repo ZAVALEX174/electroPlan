@@ -1266,7 +1266,7 @@ function renderProperties(){
     props.className="";
     props.innerHTML=`<label>Выделено постов<input value="${esc(String(ids.length))}" disabled></label>
     <label>Суммарная стоимость<input value="${esc(money(total))}" disabled></label>
-    <small class="prop-hint">Выделено несколько постов. Сдвинуть стрелками или удалить клавишей Delete; разом перетащить — в следующей части.</small>
+    <small class="prop-hint">Выделено несколько постов. Их можно разом перетащить мышью, сдвинуть стрелками или удалить клавишей Delete; Ctrl+клик добавляет или убирает пост.</small>
     <div class="property-actions"><button class="btn ghost" id="removeSelectedPosts">Удалить выделенные (${esc(String(ids.length))})</button></div>`;
     $("removeSelectedPosts").onclick=()=>removePosts(ids);
     return;
