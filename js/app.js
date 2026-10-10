@@ -2056,7 +2056,25 @@ function frameForRoomPlacement(template,room){
   const constrained=criteria.collection||criteria.frameMaterial||criteria.frameShape||criteria.frameColor||standardMismatch;
   if(!constrained)return {frameId:null};
   const pool=EPCatalog.productsForRoom(byKind("frame"),criteria);
-  const deps={frameProduct,frameSlotCount,frameFitsMechs:frameFitsTemplateMechs(template)};
+  /* НАКЛАДКА ПОСТА УЖЕ ПОДХОДИТ КОМНАТЕ → НЕ ТРОГАЕМ (решение владельца 10.10). «Подходит» — та же
+     проверка, что строит пул кандидатов: накладка поста есть в pool (EPCatalog.productsForRoom по
+     серии/отделке/стандарту комнаты), значит она уже отвечает требованиям комнаты, менять нечего —
+     оставляем её ОДИН В ОДИН. Без этого pickRoomFrame брал ПЕРВУЮ той же модульности и подменял уже
+     подходящую накладку (другой стандарт/раскладка/код) — у копии и у «Разместить» менялись цена и
+     состав, хотя отделка комнаты совпадала с отделкой поста. Второго определения «подходит» не заводим. */
+  if(frame&&pool.some(p=>p.id===frame.id))return {frameId:null};
+  /* КАНДИДАТ-НАКЛАДКА ГОДИТСЯ, ТОЛЬКО ЕСЛИ В НЕЁ СОБИРАЕТСЯ СОСТАВ ПОСТА — ТЕМ ЖЕ критерием, которым
+     конструктор разрешает сохранение (EPPosts.distributePosts: valid && full; см. savePostBuilder /
+     $("savePost").disabled). Своего определения «собирается» не вводим. Серийную совместимость
+     (frameFitsTemplateMechs) оставляем рядом: distributePosts судит раскладку по импостам и ширине,
+     а серию клавиш не проверяет. Без раскладочной проверки немецкую 2+2 приняли бы под клавишу 3М —
+     клавиша легла бы верхом на импост (конструктор такой пост сохранить не даёт), и копия/«Разместить»
+     ставили бы несобираемый пост (valid=false) с чужой ценой. Кандидат, в который не собирается, —
+     не кандидат; не осталось ни одного → прежний случай «подходящей накладки нет» (blocked). */
+  const fitsSeries=frameFitsTemplateMechs(template);
+  const mechIds=Array.isArray(template.mechanismIds)?template.mechanismIds:[];
+  const assembles=f=>{const d=EPPosts.distributePosts(mechIds,f,{product,mechanismSpan});return d.valid&&d.full;};
+  const deps={frameProduct,frameSlotCount,frameFitsMechs:f=>fitsSeries(f)&&assembles(f)};
   /* own — доужение до серии и цвета накладки поста: сохраняем то, чего комната не сужала. Через ОБЩИЙ
      preferOwnFrame (§7.1, тот же приём «своё → пул», что у defaultFrameForRoom); стандарт в own НЕ
      включаем — подмена и запускается из-за смены стандарта комнатой, его сохранять незачем. */

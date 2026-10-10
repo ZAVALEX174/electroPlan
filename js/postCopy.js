@@ -161,21 +161,26 @@ function buildCopies(buffer, opts) {
   const numberByIndex = [];
   order.forEach((idx, rank) => { numberByIndex[idx] = startNumber + rank; });
 
-  /* Координаты всех копий сразу. ОДНА защита «точно поверх» на ОБЕ ветки (по точке и сдвигом): после
-     базовой раскладки сдвигаем ВЕСЬ пакет на шаг, пока хоть одна копия в точности накрывает
-     существующий пост. Без неё два Ctrl+V при неподвижной мыши (та же точка) или подряд без точки
-     клали бы вторую пачку ровно на первую — на плане один значок, в смете два поста (скрытый дубль,
-     деньги). База: по точке — центр группы в точку (взаимное расположение через dx/dy); без точки —
-     исходные координаты. Старт сдвига: по точке — 0 (сперва ровно в точку), без точки — 1 (сразу на
-     шаг от оригинала, как было). */
-  const occupied = new Set(existing.map(p => Number(p.x) + "," + Number(p.y)));
+  /* Координаты всех копий сразу. ОДНА защита «значок поверх значка» на ОБЕ ветки (по точке и сдвигом):
+     после базовой раскладки сдвигаем ВЕСЬ пакет на шаг, пока хоть одна копия ПЕРЕКРЫВАЕТ значком
+     существующий пост. Решение владельца 10.10: «если значки перекрываются — сдвигать так же, как при
+     точном совпадении». Раньше ловилось только побитовое равенство координат, и копия, легшая почти
+     поверх (Ctrl+V, мышь ещё на исходном значке), накрывала его на 21×20 px из 24×24 — на плане один
+     значок, в смете два поста (скрытый дубль, деньги). Значок 24×24 с якорем в (x,y): два значка
+     перекрываются, когда их углы ближе ICON по обеим осям; сдвиг на шаг (24) разводит их до касания.
+     База: по точке — центр группы в точку (взаимное расположение через dx/dy); без точки — исходные
+     координаты. Старт сдвига: по точке — 0 (сперва ровно в точку), без точки — 1 (сразу на шаг от
+     оригинала, как было). Пачка сдвигается ЦЕЛИКОМ — взаимное расположение копий сохраняется. */
+  const ICON = POST_ICON_HALF * 2;   /* ширина/высота значка поста */
+  const existingXY = existing.map(p => ({ x: Number(p.x), y: Number(p.y) }));
+  const overlapsExisting = pos => existingXY.some(e => Math.abs(pos.x - e.x) < ICON && Math.abs(pos.y - e.y) < ICON);
   const base = point
     ? items.map(it => ({ x: point.x + it.dx - POST_ICON_HALF, y: point.y + it.dy - POST_ICON_HALF }))
     : items.map(it => ({ x: Number(it.post.x), y: Number(it.post.y) }));
   const shifted = m => base.map(p => ({ x: p.x + step.x * m, y: p.y + step.y * m }));
   let m = point ? 0 : 1;
   let positions = shifted(m);
-  while (positions.some(pos => occupied.has(pos.x + "," + pos.y)) && m < 1000) { m++; positions = shifted(m); }
+  while (positions.some(overlapsExisting) && m < 1000) { m++; positions = shifted(m); }
 
   return copies.map((copy, i) => {
     SERVING_FIELDS.forEach(f => delete copy[f]);
@@ -213,6 +218,12 @@ function copyHotkey(ev, ctx) {
   if (ctx.modalOpen) return null;
   if (!(ev.ctrlKey || ev.metaKey)) return null;
   if (ev.code !== "KeyC" && ev.code !== "KeyV") return null;
+  /* АВТОПОВТОР ЗАЖАТОЙ КЛАВИШИ — НЕ ВТОРОЕ ДЕЙСТВИЕ (решение владельца: «одно нажатие — одна вставка»).
+     Удержанный Ctrl+V сыпал бы pastePosts каждые ~30 мс: десятки вставок и десятки шагов истории на одно
+     нажатие (смета улетала, отмена не возвращала исходное). Гасим ДО решения copy/paste — как у Esc
+     (app.js: if(e.repeat)return). null = не наше действие: приложение не делает preventDefault, а родной
+     Ctrl+V на холсте (вне поля ввода) ничего не вставляет — ни вставки, ни проглоченной клавиши. */
+  if (ev.repeat) return null;
   if (ctx.inTextField) return null;            /* в поле — родная отмена/копирование/вставка */
   if (ev.code === "KeyC") {
     if (ctx.hasTextSelection) return null;     /* выделен текст — не крадём родное копирование текста */

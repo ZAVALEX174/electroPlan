@@ -161,7 +161,7 @@ function placeTemplate({ template, room, catalog = EPCatalog, products = PRODUCT
     EPCatalog: catalog, EPRoom, EPPosts,
     byKind: byKindL, frameProduct: prod, product: prod, compatibleMechanisms: EPCatalog.compatibleMechanisms,
     productSeries: EPCatalog.productSeries,
-    frameSlotCount: EPCatalog.frameSlotCount, moduleWord: EPCatalog.moduleWord,
+    frameSlotCount: EPCatalog.frameSlotCount, moduleWord: EPCatalog.moduleWord, mechanismSpan: EPCatalog.mechanismSpan,
     markCanvasUsed: () => {}, uid: p => p + "GEN",
     getRoomForPoint: () => room || null,   /* центр поста ложится в эту комнату */
     updateObjectRoom: created => { created.roomId = room ? room.id : null; },
@@ -504,4 +504,52 @@ test("★ СТАНДАРТ: накладки поста серии/цвета в
   assert.equal(EPCatalog.productsForRoom([newFrame], { standard: "DE" }).length, 1, "новая накладка годится под немецкий стандарт комнаты");
   assert.notEqual(state.posts[0].frameId, SA2_IT.id, "итальянская накладка не осталась");
   assert.ok(toasts.every(m => !/не размещён/.test(m)), "ошибки размещения нет");
+});
+
+/* ============ 10. «УЖЕ ПОДХОДИТ → НЕ ТРОГАЕМ» и «НЕ СОБИРАЕТСЯ → НЕ КАНДИДАТ» (решение владельца 10.10)
+   Чинилось в ОБЩЕМ правиле frameForRoomPlacement, поэтому «Разместить» (addPending) обязан вести себя
+   так же, как копирование (см. postCopyPlacement.test.js). Два края:
+   (а) накладка поста уже в пуле комнаты → остаётся ОНА САМА, не перевыбирается на первую той же
+       модульности; (б) кандидат, в который состав НЕ собирается (клавиша через импост немецкой 2+2),
+       кандидатом не считается — нет собираемого → пост не размещён (прежний текст). «Собирается» —
+       тот же критерий, что у конструктора (EPPosts.distributePosts valid && full). */
+const GB2a = { id: 900, kind: "frame", active: true, series: ["G"], frameColor: "Белая", slotCount: 2, price: 10, code: "G2a", name: "G белая 2М (а)" };
+const GB2b = { id: 901, kind: "frame", active: true, series: ["G"], frameColor: "Белая", slotCount: 2, price: 15, code: "G2b", name: "G белая 2М (б)" };
+const GM = { id: 910, kind: "mechanism", active: true, series: ["G"], moduleSpan: 1, price: 5, code: "GM", name: "клавиша G 1М" };
+const G_PRODUCTS = [GB2a, GB2b, GM];
+const ROOM_G = { id: "rG", name: "Гостиная G", collection: "G", frameColor: "Белая" };
+const T_G_OWN = { id: "tGb", name: "Пост G", frameId: GB2b.id, frameColor: "Белая", mechanismIds: [GM.id, GM.id] };
+
+test("★ addPending: накладка поста УЖЕ подходит комнате → остаётся ОНА САМА (не первая той же модульности)", () => {
+  /* Пул комнаты G/Белая = [GB2a, GB2b] (обе 2М). Накладка поста — GB2b, она В ПУЛЕ → подменять нечего.
+     Без проверки «уже подходит» pickRoomFrame взял бы ПЕРВУЮ 2М пула (GB2a) и подменил бы цену/артикул. */
+  const { state, toasts } = placeTemplate({ template: T_G_OWN, room: ROOM_G, products: G_PRODUCTS });
+  assert.equal(state.posts.length, 1, "пост размещён");
+  assert.equal(state.posts[0].frameId, GB2b.id,
+    "накладка та же (GB2b, она в пуле комнаты); мутация «убрать проверку „уже подходит“» взяла бы GB2a и краснит здесь");
+  assert.ok(toasts.every(m => !/не размещён/.test(m)), "ошибки нет");
+});
+
+const HIT4 = { id: 920, kind: "frame", active: true, series: ["H"], frameColor: "Белая", standard: "IT", slotCount: 4, price: 10, code: "HIT4", name: "H итальянская белая 4М" };
+const HDE4 = { id: 921, kind: "frame", active: true, series: ["H"], frameColor: "Белая", standard: "DE", slotCount: 4, price: 12, code: "HDE4", name: "H немецкая белая 4М (2+2)" };
+const HM3 = { id: 930, kind: "mechanism", active: true, series: ["H"], moduleSpan: 3, price: 8, code: "HM3", name: "клавиша H 3М" };
+const HM1 = { id: 931, kind: "mechanism", active: true, series: ["H"], moduleSpan: 1, price: 4, code: "HM1", name: "клавиша H 1М" };
+const H_PRODUCTS = [HIT4, HDE4, HM3, HM1];
+const T_H_IT = { id: "tH", name: "Пост H 4М", frameId: HIT4.id, frameColor: "Белая", mechanismIds: [HM3.id, HM1.id] };
+
+test("★ addPending: единственный кандидат — немецкая 2+2, куда клавиша 3М НЕ собирается → пост НЕ размещён", () => {
+  /* Пост (клавиши 3М+1М) итальянской сплошной 4М. Немецкая комната: своей (IT) накладки в пуле нет,
+     единственный кандидат HDE4 принимает клавиши ПО СЕРИИ, но физически это 2+2 — клавиша 3М легла бы
+     через импост (distributePosts valid=false), конструктор такой пост сохранить не даёт. Значит кандидат
+     не считается, собираемого нет → пост не размещён (прежний случай «подходящей накладки нет»). */
+  const { state, toasts } = placeTemplate({ template: T_H_IT, room: { id: "rHde", name: "Немецкая H", collection: "H", frameColor: "Белая", standard: "DE" }, products: H_PRODUCTS });
+  assert.equal(state.posts.length, 0,
+    "несобираемый кандидат — не кандидат: пост НЕ размещён; мутация «принять без проверки собираемости» поставила бы HDE4 (несобираемый) и краснит здесь");
+  assert.match(toasts.join(" | "), /не размещён/, "человеку сказано прежним текстом");
+});
+
+test("★ addPending (контроль): тот же пост в ИТАЛЬЯНСКУЮ комнату H → накладка собирается, пост размещён", () => {
+  const { state } = placeTemplate({ template: T_H_IT, room: { id: "rHit", name: "Итальянская H", collection: "H", frameColor: "Белая", standard: "IT" }, products: H_PRODUCTS });
+  assert.equal(state.posts.length, 1, "в итальянскую комнату пост встаёт: его накладка HIT4 уже подходит и собирается");
+  assert.equal(state.posts[0].frameId, HIT4.id, "накладка та же (HIT4) — она в пуле IT-комнаты, 3М+1М укладываются в сплошной ряд 4М");
 });

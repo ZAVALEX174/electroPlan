@@ -69,5 +69,26 @@
     "from": "state.selected=EPSelection.normalize(placed.map(p=>p.id),state.posts.map(p=>p.id));", "to": "state.selected=null;" },
 
   { "name": "M24: заблокированный пост всё же вставляется (с исходной накладкой) — снят return", "file": "js/app.js",
-    "from": "if(swap.blocked){blocked.push({number:buf.items[i].post.number,message:swap.message});return}", "to": "if(swap.blocked){blocked.push({number:buf.items[i].post.number,message:swap.message});}" }
+    "from": "if(swap.blocked){blocked.push({number:buf.items[i].post.number,message:swap.message});return}", "to": "if(swap.blocked){blocked.push({number:buf.items[i].post.number,message:swap.message});}" },
+
+  { "name": "M25: подходящая накладка всё равно перевыбирается (снята проверка «уже в пуле комнаты») — фикс п.1а", "file": "js/app.js",
+    "from": "  if(frame&&pool.some(p=>p.id===frame.id))return {frameId:null};", "to": "  void 0;" },
+
+  { "name": "M26: несобираемый кандидат принимается (снята проверка distributePosts valid&&full) — фикс п.1б", "file": "js/app.js",
+    "from": "  const deps={frameProduct,frameSlotCount,frameFitsMechs:f=>fitsSeries(f)&&assembles(f)};", "to": "  const deps={frameProduct,frameSlotCount,frameFitsMechs:fitsSeries};" },
+
+  { "name": "M27: автоповтор Ctrl+V/Ctrl+C не проверяется (repeat) — фикс п.2", "file": "js/postCopy.js",
+    "from": "  if (ev.repeat) return null;", "to": "  void 0;" },
+
+  { "name": "M28: перекрытие значков проверяется только на точное равенство координат — фикс п.3", "file": "js/postCopy.js",
+    "from": "  const overlapsExisting = pos => existingXY.some(e => Math.abs(pos.x - e.x) < ICON && Math.abs(pos.y - e.y) < ICON);", "to": "  const overlapsExisting = pos => existingXY.some(e => pos.x === e.x && pos.y === e.y);" },
+
+  { "name": "M29: комната копии — по УГЛУ значка, а не по центру (getRoomForPoint copy.x)", "file": "js/app.js",
+    "from": "const swap=frameForRoomPlacement(copy,getRoomForPoint(copy.x+12,copy.y+12));", "to": "const swap=frameForRoomPlacement(copy,getRoomForPoint(copy.x,copy.y));" },
+
+  { "name": "M30: комната копии — по ИСХОДНЫМ координатам буфера, а не по своим", "file": "js/app.js",
+    "from": "const swap=frameForRoomPlacement(copy,getRoomForPoint(copy.x+12,copy.y+12));", "to": "const swap=frameForRoomPlacement(copy,getRoomForPoint(buf.items[i].post.x+12,buf.items[i].post.y+12));" },
+
+  { "name": "M31: перевод экран→мир снят (clientToWorld) — точка вставки в экранных координатах", "file": "js/app.js",
+    "from": "const point=lp&&lp.overCanvas?clientToWorld(lp.clientX,lp.clientY):null;", "to": "const point=lp&&lp.overCanvas?{x:lp.clientX,y:lp.clientY}:null;" }
 ]
