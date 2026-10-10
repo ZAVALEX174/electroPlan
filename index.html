@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261004.1">
+  <link rel="stylesheet" href="css/styles.css?v=20261010.1">
 </head>
 <body>
 <div class="app">
@@ -588,6 +588,8 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<!-- Сообщения с крестиком, не гаснущие сами (Б9/2б): стоят над toast, одно над другим. Наполняет EPNotices. -->
+<div class="notices" id="notices"></div>
   <script src="js/catalog-vimar.js?v=20260919.1"></script>
   <script src="js/catalog-vimar-attrs.js?v=20260915.2"></script>
   <script src="js/catalog-vimar-openings.js?v=20260920.1"></script>
@@ -683,7 +685,8 @@
 <!-- Копирование постов — оркестровка (Ctrl+C/Ctrl+V): буфер в памяти страницы, copyPosts/pastePosts,
      ответ «буфер не пуст?». Вынесено из app.js (Б9, И2). Грузится ДО app.js, который зовёт
      EPPostCopyUi.attach(ctx) ПОСЛЕ EPCanvasInput.attach (оттуда приходит canvasPointer). -->
-<script src="js/postCopyUi.js?v=20261010.1"></script>
-<script src="js/app.js?v=20261010.5"></script>
+<script src="js/notices.js?v=20261010.1"></script>
+<script src="js/postCopyUi.js?v=20261010.2"></script>
+<script src="js/app.js?v=20261010.6"></script>
 </body>
 </html>

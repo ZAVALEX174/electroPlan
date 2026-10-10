@@ -114,5 +114,14 @@
     "from": "      if (!standing.has(placeId(it.roomKey) + gk)) return;", "to": "      if (false) return;" },
 
   { "name": "M39: заблокированные копии попадают в правило имени/перечень (вместо placed — все copies) — часть 2а", "file": "js/postCopyUi.js",
-    "from": "    placed.map((post,i)=>({post,roomKey:placedRooms[i]?placedRooms[i].id:null})),", "to": "    copies.map(post=>({post,roomKey:getRoomForPoint(post.x+12,post.y+12)?getRoomForPoint(post.x+12,post.y+12).id:null}))," }
+    "from": "    placed.map((post,i)=>({post,roomKey:placedRooms[i]?placedRooms[i].id:null})),", "to": "    copies.map(post=>({post,roomKey:getRoomForPoint(post.x+12,post.y+12)?getRoomForPoint(post.x+12,post.y+12).id:null}))," },
+
+  { "name": "M40: сообщение о невставленных показано гаснущим toast, а не сообщением с крестиком — часть 2б", "file": "js/postCopyUi.js",
+    "from": "if(note)notices.show(\"unplaced\",(`Вставлено постов: ${placed.length}. `+note).trim(),pruneWhen);", "to": "if(note)toast((`Вставлено постов: ${placed.length}. `+note).trim());" },
+
+  { "name": "M41: сообщение об имени группы НЕ показывается (снят show groupName) — часть 2б", "file": "js/postCopyUi.js",
+    "from": "if(stripResult.cleared.length)notices.show(\"groupName\",EPNotices.buildGroupNameText(stripResult.cleared),pruneWhen);", "to": "void 0;" },
+
+  { "name": "M42: оба случая слиты в ОДИН вид (groupName под видом unplaced — не два сообщения) — часть 2б", "file": "js/postCopyUi.js",
+    "from": "notices.show(\"groupName\",", "to": "notices.show(\"unplaced\"," }
 ]

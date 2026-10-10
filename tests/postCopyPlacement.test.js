@@ -26,6 +26,7 @@ const EPLightingGroups = require("../js/lightingGroups.js");
 const EPSelection = require("../js/selection.js");
 const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
+const EPNotices = require("../js/notices.js");
 
 /* Реальный каталог VIMAR — те же файлы и порядок, что в index.html (catalog-vimar → attrs → data). */
 function loadRuntimeProducts() {
@@ -66,9 +67,12 @@ function makeStand({ posts, rooms, pointer, clientDX = 0 }) {
   const roomAt = (x) => state.rooms.find(r => x >= r.x0 && x < r.x1) || null;
   const recalc = () => state.posts.forEach(p => { const r = roomAt(p.x + 12); p.roomId = r ? r.id : null; });
   let n = 0; const toasts = [];
+  /* Сообщения с крестиком (Б9/2б) здесь не предмет (предмет — накладка/цена); спай-заглушка, чтобы
+     pastePosts не падал ReferenceError. DOM-механику держит tests/notices.test.js. */
+  const notices = { calls: [], show(kind, text, pruneWhen) { this.calls.push({ kind, text, pruneWhen }); }, dismiss() {}, prune() {} };
   let ptr = pointer || { overCanvas: false, clientX: 0, clientY: 0 };
   const ctx = {
-    _copyBuffer: null, state,
+    _copyBuffer: null, state, EPNotices, notices,
     EPPostCopy, EPPosts, EPLightingGroups, EPSelection, EPCatalog, EPRoom,
     byKind, frameProduct: product, product,
     compatibleMechanisms: EPCatalog.compatibleMechanisms, productSeries: EPCatalog.productSeries,
@@ -83,7 +87,7 @@ function makeStand({ posts, rooms, pointer, clientDX = 0 }) {
   stand.run(CUT, ctx);
   recalc();
   return {
-    state, toasts,
+    state, toasts, notices,
     copy: ids => { state.selected = EPSelection.normalize(ids, state.posts.map(p => p.id)); ctx.copyPosts(); },
     paste: pt => { ptr = pt ? { overCanvas: true, clientX: pt.x, clientY: pt.y } : { overCanvas: false, clientX: 0, clientY: 0 }; ctx.pastePosts(); }
   };
@@ -168,7 +172,8 @@ test("★ копия в номер чужой серии (несобираемо
   w.copy(["src"]);
   w.paste({ x: 1500, y: 112 });
   assert.equal(w.state.posts.length, 1, "копия НЕ вставлена: в номере 102 (Arke) состав не собирается — пост считается невставленным");
-  const msg = w.toasts.join(" | ");
+  /* Ни один пост не вставлен → текст причины идёт сообщением с крестиком (вид "unplaced"), не toast (Б9/2б). */
+  const msg = w.notices.calls.filter(c => c.kind === "unplaced").map(c => c.text).join(" | ");
   assert.match(msg, /Ничего не вставлено|не вставлен/, "человеку сказано, что копия не вставлена (прежний текст причины)");
   /* Контроль: сдвинь вставку целиком в номер 101 (своя серия) — там копия вставляется и сохраняет накладку. */
   const w2 = makeStand({ posts: [mkPost(F, [mech.id, mech.id, mech.id], 100)], rooms, clientDX });

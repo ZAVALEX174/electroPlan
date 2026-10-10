@@ -107,6 +107,8 @@ function makeApp() {
     openPostBuilder() { spies.openPost = (spies.openPost || 0) + 1; },
     findEntityNode() { return null; }, updateObjectRoom() { return null; }, renderRooms() {},
     refreshAfterRoomAssignments(paint, save) { if (paint) paint(); if (save) save(); },
+    /* undoPlan зовёт notices.prune() (Б9/2б) — заглушка, сообщения здесь не предмет проверки */
+    notices: { prune() {} },
     /* модульные переменные app.js (не объявлены в вырезанных функциях — живут в контексте) */
     _history: EPHistory.create(50),
     _applyingSnapshot: false, _historyAmend: false, _histBusy: false, _gestureActive: false, _autosaveOn: true,
@@ -275,6 +277,7 @@ function makeRoomApp() {
     recalculateRoomAssignments() {}, renderGroupLinks() {}, renderRooms() {}, drawRoomLines() {},
     roomLabelPoint: EPGeom.roomLabelPoint, roomNamePoint: EPGeom.roomNamePoint,
     uid: p => p + (++ctx._uidn), _uidn: 0,
+    notices: { prune() {} },   /* undoPlan зовёт notices.prune() (Б9/2б) — заглушка */
     _history: EPHistory.create(50), _applyingSnapshot: false, _historyAmend: false, _histBusy: false, _gestureActive: false,
     _autosaveOn: true, _saveTimer: null, _roomsTimer: null, _roomsJustScheduled: false, _fieldEditEl: null,
     mountedRoomId: null, _lastIconPlacement: null, _placeOnPostIcon: null

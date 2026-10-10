@@ -27,7 +27,7 @@
    возвращает то, что app.js продолжает звать из document.onkeydown. Вызывается один раз из app.js. */
 function attach(ctx){
 const {
-  canvasPointer,clientToWorld,frameForRoomPlacement,getRoomForPoint,renderAll,renderProperties,renderSummary,state,toast,uid
+  canvasPointer,clientToWorld,frameForRoomPlacement,getRoomForPoint,notices,renderAll,renderProperties,renderSummary,state,toast,uid
 }=ctx;
 
 /* ---- Копирование и вставка постов (Б9). Владелец: «вставить те же посты в соседний номер — отели».
@@ -85,7 +85,10 @@ function pastePosts(){
     placedRooms.push(room);
   });
   const note=blocked.map(b=>`Пост № ${b.number} не вставлен. ${b.message}`).join(" ");
-  if(!placed.length){toast(("Ничего не вставлено. "+note).trim());return}
+  /* Ни один пост не вставлен — проекта не меняли, шага истории нет: сообщение «ничего не вставлено»
+     остаётся до крестика и отмену переживать нечему (pruneWhen не задаём). Это сообщение вида "unplaced" —
+     следующая успешная вставка с невставленными его заменит. */
+  if(!placed.length){notices.show("unplaced",("Ничего не вставлено. "+note).trim());return}
   /* Имя группы света у копий (решение владельца 10.10, вариант Б): если копия попала туда же, где уже
      стоит пост с тем же именем (та же комната, либо оба вне комнат / комнат нет), — расчёт посчитал бы
      их одним светом с двух мест и переобул выключатель в переключатель. Снимаем имя ТОЛЬКО у реально
@@ -100,7 +103,16 @@ function pastePosts(){
      (EPSelection.isSelected). normalize сведёт один к {kind:"post"}, группу — к {kind:"posts"}. */
   state.selected=EPSelection.normalize(placed.map(p=>p.id),state.posts.map(p=>p.id));
   renderAll();renderSummary();renderProperties();
-  toast((`Вставлено постов: ${placed.length}.`+(note?" "+note:"")).trim());
+  /* Сообщения этой вставки привязаны к её постам: pruneWhen вернёт true, когда ни одной вставленной копии
+     на плане не осталось (Ctrl+Z убрал вставку одним шагом). app.js зовёт notices.prune() после undoPlan. */
+  const placedIds=placed.map(p=>String(p.id));
+  const pruneWhen=()=>!placedIds.some(id=>state.posts.some(p=>String(p.id)===id));
+  /* Сообщение Б (имя группы снято) — отдельным сообщением вида "groupName", если у копий убрано имя. */
+  if(stripResult.cleared.length)notices.show("groupName",EPNotices.buildGroupNameText(stripResult.cleared),pruneWhen);
+  /* Сообщение А: есть невставленные — ТОЛЬКО сообщение с крестиком (отдельного гаснущего «Вставлено
+     постов: N.» нет, оно было бы повтором). Невставленных нет — обычный гаснущий toast, как раньше. */
+  if(note)notices.show("unplaced",(`Вставлено постов: ${placed.length}. `+note).trim(),pruneWhen);
+  else toast(`Вставлено постов: ${placed.length}.`);
 }
 
 return {copyPosts,pastePosts,copyBufferFilled};

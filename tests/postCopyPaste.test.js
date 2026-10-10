@@ -15,6 +15,7 @@ const EPPostCopy = require("../js/postCopy.js");
 const EPPosts = require("../js/posts.js");
 const EPLightingGroups = require("../js/lightingGroups.js");
 const EPSelection = require("../js/selection.js");
+const EPNotices = require("../js/notices.js");
 
 /* Пост-образец: минимум полей, которых хватает проводке и расчёту номеров проходных. */
 function mkPost(over) {
@@ -35,10 +36,13 @@ function makeStand(over) {
   let n = 0;
   const counts = { renderAll: 0, renderSummary: 0, renderProperties: 0 };
   const toasts = [];
+  /* Спай сообщений с крестиком (как toast-спай): записываем kind/text/pruneWhen каждого show (Б9/2б).
+     Настоящую DOM-механику EPNotices (замена, стопка, крестик, prune) держит tests/notices.test.js. */
+  const notices = { calls: [], show(kind, text, pruneWhen) { this.calls.push({ kind, text, pruneWhen }); }, dismiss() {}, prune() {} };
   const ctx = {
     _copyBuffer: over._copyBuffer !== undefined ? over._copyBuffer : null,
     state: over.state || { posts: [], selected: null, rooms: [], devices: [] },
-    EPPostCopy, EPPosts, EPLightingGroups, EPSelection,
+    EPPostCopy, EPPosts, EPLightingGroups, EPSelection, EPNotices, notices,
     uid: p => p + (++n),
     clientToWorld: over.clientToWorld || ((x, y) => ({ x, y })),
     canvasPointer: over.canvasPointer || (() => ({ overCanvas: false, clientX: 0, clientY: 0 })),
@@ -50,7 +54,12 @@ function makeStand(over) {
     toast: m => toasts.push(m)
   };
   const pastePosts = stand.run(["copyPosts", "pastePosts"], ctx);   /* обе в одной vm-программе */
-  return { ctx, pastePosts, copyPosts: ctx.copyPosts, counts, toasts };
+  return { ctx, pastePosts, copyPosts: ctx.copyPosts, counts, toasts, notices };
+}
+/* Текст сообщения последнего show данного вида (или ""). Нужен ожиданиям про сообщения с крестиком. */
+function noticeText(s, kind) {
+  const hit = s.notices.calls.filter(c => c.kind === kind).pop();
+  return hit ? hit.text : "";
 }
 
 /* ───────────────────────── Ctrl+C ───────────────────────── */
@@ -143,10 +152,12 @@ test("★ часть постов без накладки комнаты: ОСТ
   s.pastePosts();
   assert.equal(s.ctx.state.posts.length, 3, "вставлен только незаблокированный (2 исходных + 1 копия)");
   assert.equal(s.ctx.state.selected.kind, "post", "одна копия → одиночное выделение");
-  const msg = s.toasts.join(" ");
+  /* Есть невставленные → текст идёт сообщением с крестиком (вид "unplaced"), гаснущего toast НЕТ (Б9/2б). */
+  const msg = noticeText(s, "unplaced");
   assert.match(msg, /Вставлено постов: 1/, "сказано, сколько вставлено");
   assert.match(msg, /№ 5/, "назван номер ИСХОДНОГО невставленного поста (5), а не новый номер копии");
   assert.match(msg, /нет подходящей накладки/, "причина словами — текст из frameForRoomPlacement");
+  assert.equal(s.toasts.length, 0, "гаснущего toast нет — длинный текст о невставленном не должен гаснуть за 1,8 с");
 });
 
 test("★ ВСЕ посты заблокированы → ничего не вставлено, шага истории НЕТ, сказано почему", () => {
@@ -161,9 +172,11 @@ test("★ ВСЕ посты заблокированы → ничего не в�
   assert.equal(s.ctx.state.posts.length, 2, "проект не изменился — ни одной копии");
   assert.equal(s.counts.renderAll, 0, "renderAll НЕ звали — шага истории нет (нечего отменять)");
   assert.equal(s.ctx.state.selected, null, "выделение не трогали");
-  const msg = s.toasts.join(" ");
+  /* «Ничего не вставлено» — тоже сообщение с крестиком (вид "unplaced"); toast не зовётся (Б9/2б). */
+  const msg = noticeText(s, "unplaced");
   assert.match(msg, /Ничего не вставлено/, "человеку сказано, что ничего не вставлено");
   assert.match(msg, /№ 3[\s\S]*№ 7|№ 7[\s\S]*№ 3/, "названы оба невставленных поста");
+  assert.equal(s.toasts.length, 0, "гаснущего toast нет");
 });
 
 /* ───────────────────────── Ctrl+V: номера проходных через НАСТОЯЩУЮ проводку ───────────────────────── */
@@ -215,4 +228,82 @@ test("★ вставка БЕЗ точки не ложится поверх уж
   assert.ok(!(copy.x === 24 && copy.y === 24), "копия НЕ легла на стоящий пост b (24,24) — сдвинулась дальше");
   const keys = s.ctx.state.posts.map(p => p.x + "," + p.y);
   assert.equal(new Set(keys).size, keys.length, "нет двух постов с одинаковыми координатами");
+});
+
+/* ───────────────────── Ctrl+V: сообщения с крестиком (Б9/2б) — ПРОВОДКА ─────────────────────
+   Какой ВИД сообщения (unplaced/groupName) и какой текст pastePosts отдаёт в EPNotices, зовёт ли
+   обычный гаснущий toast и привязано ли сообщение к постам своей вставки (pruneWhen для отмены).
+   Саму DOM-механику (замена по виду, стопка, крестик, prune) держит tests/notices.test.js. */
+
+test("★ нет невставленных и имён не снято → ТОЛЬКО гаснущий toast, сообщений с крестиком нет", () => {
+  const src = [mkPost({ id: "a", number: 1 })];
+  const s = makeStand({
+    _copyBuffer: EPPostCopy.snapshot(src), state: { posts: src.slice(), selected: null, rooms: [], devices: [] },
+    canvasPointer: () => ({ overCanvas: true, clientX: 300, clientY: 300 })
+  });
+  s.pastePosts();
+  assert.equal(s.notices.calls.length, 0, "ни невставленных, ни снятых имён → сообщений с крестиком нет");
+  assert.deepEqual(s.toasts, ["Вставлено постов: 1."], "обычное гаснущее сообщение, как раньше");
+});
+
+test("★ убраны имена, невставленных нет → сообщение Б (groupName) + гаснущее «Вставлено постов: N.»", () => {
+  /* Исходный пост «Свет» в комнате R1; копия садится в R1 (getRoomForPoint → R1) и с тем же именем —
+     правило имени его снимает, сообщение Б обязано появиться, а обычный toast — остаться (имён мало, не
+     невставленные). */
+  const src = [mkPost({ id: "a", number: 1, roomId: "R1", keyGroups: ["Свет", "", ""] })];
+  const s = makeStand({
+    _copyBuffer: EPPostCopy.snapshot(src), state: { posts: src.slice(), selected: null, rooms: [], devices: [] },
+    canvasPointer: () => ({ overCanvas: true, clientX: 300, clientY: 300 })
+  });
+  s.pastePosts();
+  assert.equal(s.ctx.state.posts.length, 2, "копия вставлена");
+  const gn = s.notices.calls.filter(c => c.kind === "groupName");
+  assert.equal(gn.length, 1, "ровно одно сообщение Б про снятое имя группы");
+  assert.match(gn[0].text, /убрано имя группы света «Свет»/, "текст Б построен EPNotices.buildGroupNameText");
+  assert.equal(s.notices.calls.filter(c => c.kind === "unplaced").length, 0, "невставленных нет — сообщения А нет");
+  assert.deepEqual(s.toasts, ["Вставлено постов: 1."], "обычное гаснущее сообщение показано");
+});
+
+test("★ есть И невставленные, И снятые имена → ДВА отдельных сообщения (unplaced + groupName), toast НЕТ", () => {
+  const src = [mkPost({ id: "a", number: 3, roomId: "R1", frameId: 10, keyGroups: ["Свет", "", ""] }),
+    mkPost({ id: "b", number: 5, roomId: "R1", frameId: 99, keyGroups: ["Свет", "", ""] })];
+  const s = makeStand({
+    _copyBuffer: EPPostCopy.snapshot(src), state: { posts: src.slice(), selected: null, rooms: [], devices: [] },
+    canvasPointer: () => ({ overCanvas: true, clientX: 300, clientY: 300 }),
+    frameForRoomPlacement: copy => copy.frameId === 99 ? { blocked: true, message: "нет накладки" } : { frameId: null }
+  });
+  s.pastePosts();
+  assert.ok(s.notices.calls.some(c => c.kind === "unplaced"), "есть сообщение А про невставленный пост");
+  assert.ok(s.notices.calls.some(c => c.kind === "groupName"), "есть сообщение Б про снятое имя");
+  assert.equal(new Set(s.notices.calls.map(c => c.kind)).size, 2, "ДВА разных вида — не слиты в одно сообщение");
+  assert.equal(s.toasts.length, 0, "при невставленных обычного гаснущего toast нет");
+});
+
+test("★ сообщения вставки привязаны к её постам (pruneWhen): пока посты на плане — не снимается, ушли — снимается", () => {
+  const src = [mkPost({ id: "a", number: 3, frameId: 10 }), mkPost({ id: "b", number: 5, frameId: 99 })];
+  const s = makeStand({
+    _copyBuffer: EPPostCopy.snapshot(src), state: { posts: src.slice(), selected: null, rooms: [], devices: [] },
+    canvasPointer: () => ({ overCanvas: true, clientX: 300, clientY: 300 }),
+    frameForRoomPlacement: copy => copy.frameId === 99 ? { blocked: true, message: "нет" } : { frameId: null }
+  });
+  s.pastePosts();
+  const a = s.notices.calls.find(c => c.kind === "unplaced");
+  assert.equal(typeof a.pruneWhen, "function", "сообщение А привязано к постам вставки");
+  assert.equal(a.pruneWhen(), false, "пока вставленные посты на плане — сообщение не подлежит снятию");
+  const placedIds = new Set(s.ctx.state.posts.slice(2).map(p => p.id));   /* 2 исходных + 1 копия */
+  s.ctx.state.posts = s.ctx.state.posts.filter(p => !placedIds.has(p.id));  /* имитация Ctrl+Z: посты вставки ушли */
+  assert.equal(a.pruneWhen(), true, "посты вставки ушли с плана → сообщение подлежит снятию при prune()");
+});
+
+test("★ «ничего не вставлено» НЕ привязано к постам (отмену переживает — шага истории нет)", () => {
+  const src = [mkPost({ id: "a", number: 3, frameId: 99 })];
+  const s = makeStand({
+    _copyBuffer: EPPostCopy.snapshot(src), state: { posts: src.slice(), selected: null, rooms: [], devices: [] },
+    canvasPointer: () => ({ overCanvas: true, clientX: 300, clientY: 300 }),
+    frameForRoomPlacement: () => ({ blocked: true, message: "нет" })
+  });
+  s.pastePosts();
+  const u = s.notices.calls.find(c => c.kind === "unplaced");
+  assert.match(u.text, /Ничего не вставлено/, "сообщение «ничего не вставлено»");
+  assert.equal(u.pruneWhen, undefined, "без pruneWhen — prune() его не тронет, оно живёт до крестика");
 });

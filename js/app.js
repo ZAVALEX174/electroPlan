@@ -2833,6 +2833,7 @@ function undoPlan(){
   if(!_history.canUndo()){syncHistoryUi();return}
   _histBusy=true;
   try{applyPlanSnapshot(_history.undo())}finally{_histBusy=false}
+  notices.prune();                 /* отменённая вставка: её сообщения уходят сами — постов на плане уже нет (Б9/2б) */
   syncHistoryUi();
 }
 function redoPlan(){
@@ -4141,8 +4142,11 @@ const {makeDraggable,placePendingAtEvent,onSpaceKeydown,canvasPointer}=EPCanvasI
    top-level app.js (frameForRoomPlacement/getRoomForPoint/clientToWorld/uid/state/toast/render*) — к этому
    моменту уже объявлены. Возвращённые copyPosts/pastePosts/copyBufferFilled зовёт document.onkeydown выше:
    он — отложенный обработчик, на момент его присваивания эти const ещё в TDZ, но вызывается он уже после. */
+/* Всплывающие сообщения с крестиком (не гаснут сами) вынесены в js/notices.js (EPNotices.attach, Б9/2б):
+   контейнер #notices в правом нижнем углу, undoPlan зовёт notices.prune(). Передаём инстанс в copyUi. */
+const notices=EPNotices.attach({host:$("notices"),doc:document});
 const {copyPosts,pastePosts,copyBufferFilled}=EPPostCopyUi.attach({
-  canvasPointer,clientToWorld,frameForRoomPlacement,getRoomForPoint,renderAll,renderProperties,renderSummary,state,toast,uid
+  canvasPointer,clientToWorld,frameForRoomPlacement,getRoomForPoint,notices,renderAll,renderProperties,renderSummary,state,toast,uid
 });
 
 /* Слой комнат (таблички, контуры, правка вершин) вынесен в js/rooms.js (И1, кусок 2). Поднимаем его

@@ -26,6 +26,7 @@ const EPPostFit = require("../js/postfit.js");
 const EPSelection = require("../js/selection.js");
 const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
+const EPNotices = require("../js/notices.js");
 
 /* Реальный каталог VIMAR — те же файлы и порядок, что в index.html. */
 function loadRuntimeProducts() {
@@ -96,9 +97,12 @@ function makeStand({ posts, rooms, pointer }) {
   const roomAt = x => state.rooms.find(r => x >= r.x0 && x < r.x1) || null;
   const recalc = () => state.posts.forEach(p => { const r = roomAt(p.x + 12); p.roomId = r ? r.id : null; });
   let n = 0; const toasts = [];
+  /* Сообщения с крестиком (Б9/2б) здесь не предмет проверки (деньги — предмет), но pastePosts их зовёт —
+     спай-заглушка, чтобы не падать ReferenceError; DOM-механику держит tests/notices.test.js. */
+  const notices = { calls: [], show(kind, text, pruneWhen) { this.calls.push({ kind, text, pruneWhen }); }, dismiss() {}, prune() {} };
   let ptr = pointer || { overCanvas: false, clientX: 0, clientY: 0 };
   const ctx = {
-    _copyBuffer: null, state,
+    _copyBuffer: null, state, EPNotices, notices,
     EPPostCopy, EPPosts, EPLightingGroups, EPSelection, EPCatalog, EPRoom,
     byKind, frameProduct: product, product,
     compatibleMechanisms: EPCatalog.compatibleMechanisms, productSeries: EPCatalog.productSeries,

@@ -511,6 +511,15 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .frame-picker-empty{margin:8px 0 4px;padding:12px;border:1px solid #e6cfa0;border-radius:10px;background:#fdf6e8;color:#7a5a12;font-size:11px;line-height:1.4}
 .frame-picker-empty-hint{margin:0;color:var(--muted);font-size:10px}
 .toast{position:fixed;right:20px;bottom:20px;z-index:150;display:none;padding:11px 14px;border-radius:11px;color:#fff;background:#123f69;box-shadow:var(--shadow);font-size:11px}.toast.show{display:block}
+/* Сообщения с крестиком (Б9/2б): тот же угол и фон, что toast, но не гаснут. Контейнер стоит ВЫШЕ toast
+   (bottom больше его высоты) и складывает сообщения колонкой — одно над другим, не перекрывая друг друга
+   и toast. Текст многострочный и читаемый (pre-wrap, line-height), крестик — заметная кнопка с подписью. */
+.notices{position:fixed;right:20px;bottom:68px;z-index:151;display:flex;flex-direction:column-reverse;gap:8px;max-width:360px}
+.notice{display:flex;align-items:flex-start;gap:10px;padding:11px 10px 11px 14px;border-radius:11px;color:#fff;background:#123f69;box-shadow:var(--shadow);font-size:11px;line-height:1.45}
+.notice__text{flex:1;white-space:pre-wrap}
+.notice__close{flex:none;appearance:none;border:0;background:transparent;color:#fff;font-size:16px;line-height:1;cursor:pointer;padding:0 3px;border-radius:6px}
+.notice__close:hover{background:rgba(255,255,255,.18)}
+.notice__close:focus-visible{outline:2px solid #fff;outline-offset:1px}
 @media(max-width:1100px){.workspace{grid-template-columns:270px 1fr}.right-panel{display:none}
 /* На узких ноутбуках 560px сборки + каталог карточками рядом не помещаются — складываем
    в одну колонку со сквозным скроллом тела окна (сборка сверху, каталог под ней).

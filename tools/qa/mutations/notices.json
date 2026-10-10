@@ -1,0 +1,16 @@
+[
+  { "name": "N1: новое сообщение того же вида ДОБАВЛЯЕТСЯ, а не заменяет (снят dismiss в show) — часть 2б", "file": "js/notices.js",
+    "from": "function show(kind,text,pruneWhen){\n    dismiss(kind);", "to": "function show(kind,text,pruneWhen){\n    void 0;" },
+
+  { "name": "N2: крестик закрывает ВСЕ сообщения, а не только своё — часть 2б", "file": "js/notices.js",
+    "from": "btn.onclick=()=>dismiss(kind);", "to": "btn.onclick=()=>{for(const k of Object.keys(live))dismiss(k);};" },
+
+  { "name": "N3: prune НЕ снимает отменённое сообщение (стало no-op) — часть 2б", "file": "js/notices.js",
+    "from": "if(rec.pruneWhen&&rec.pruneWhen())dismiss(kind);", "to": "void 0;" },
+
+  { "name": "N4: текст одной копии во МНОЖЕСТВЕННОМ числе (oneCopy всегда false) — часть 2б", "file": "js/notices.js",
+    "from": "const oneCopy=numbers.length===1,oneName=names.length===1;", "to": "const oneCopy=false,oneName=names.length===1;" },
+
+  { "name": "N5: номера копий НЕ по возрастанию (снята сортировка) — часть 2б", "file": "js/notices.js",
+    "from": "const numbers=[...new Set(list.map(c=>c.number))].sort((a,b)=>Number(a)-Number(b));", "to": "const numbers=[...new Set(list.map(c=>c.number))];" }
+]
