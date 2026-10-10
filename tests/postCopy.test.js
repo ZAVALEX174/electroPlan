@@ -416,3 +416,112 @@ test("деньги: копия ОДНОГО поста из пары — у ко
   assert.equal(rows[0].missingReason, "cross-single-place");
   assert.equal(W.postTotalCost(c, after.light).toFixed(2), "131.62");
 });
+
+/* ─────────── ИМЯ ГРУППЫ СВЕТА У КОПИИ (Б9, часть 2а; решение владельца 10.10, вариант Б) ───────────
+   stripSharedGroupNames снимает у клавиши копии имя группы ТАМ И ТОЛЬКО ТАМ, где копия попала в то же
+   место (та же комната / оба вне комнат / комнат нет), что уже стоящий пост с тем же именем, — иначе
+   расчёт посчитал бы их одним светом с двух мест (выключатель → переключатель, деньги). Правила «одна
+   группа»/«одно место» — настоящие функции расчёта (groupKeyOf/crossGroupKey + roomKey). */
+const stripDeps = { groupKeyOf: EPLightingGroups.groupKeyOf, crossKey: EPLightingGroups.crossGroupKey };
+/* post с клавишами: groups — имена, crosses — номера проходных (по умолчанию пусто). */
+function keyPost(number, groups, crosses) {
+  return { id: "k" + number, number, keyGroups: groups.slice(),
+    keyCrossNumbers: crosses ? crosses.slice() : groups.map(() => ""),
+    mechanismIds: groups.map(() => 101) };
+}
+
+test("имя убрано: копия в ТУ ЖЕ комнату, где стоит пост с тем же именем", () => {
+  const existing = [{ post: keyPost(1, ["Свет", "", ""]), roomKey: "R" }];
+  const copy = keyPost(2, ["Свет", "", ""]);
+  const res = EPPostCopy.stripSharedGroupNames([{ post: copy, roomKey: "R" }], existing, stripDeps);
+  assert.deepEqual(copy.keyGroups, ["", "", ""], "имя снято — копия стала обычным выключателем");
+  assert.deepEqual(res.cleared, [{ number: 2, keyIndex: 0, name: "Свет" }], "перечень: номер 2, клавиша 0, имя «Свет»");
+});
+
+test("имя СОХРАНЕНО: копия в ДРУГУЮ комнату, где такого имени нет", () => {
+  const existing = [{ post: keyPost(1, ["Свет", "", ""]), roomKey: "R" }];
+  const copy = keyPost(2, ["Свет", "", ""]);
+  const res = EPPostCopy.stripSharedGroupNames([{ post: copy, roomKey: "Q" }], existing, stripDeps);
+  assert.deepEqual(copy.keyGroups, ["Свет", "", ""], "в другой комнате имя цело");
+  assert.deepEqual(res.cleared, [], "ничего не убрано");
+});
+
+test("имя убрано: оба ВНЕ КОМНАТ (roomKey null у обоих)", () => {
+  const existing = [{ post: keyPost(1, ["Свет", "", ""]), roomKey: null }];
+  const copy = keyPost(2, ["Свет", "", ""]);
+  EPPostCopy.stripSharedGroupNames([{ post: copy, roomKey: null }], existing, stripDeps);
+  assert.deepEqual(copy.keyGroups, ["", "", ""], "вне комнат — одно место, имя снято");
+});
+
+test("имя убрано: комнат на плане нет (у всех roomKey null)", () => {
+  /* «Комнат нет» для правила неотличимо от «оба вне комнат»: партиция расчёта одна (null). */
+  const existing = [{ post: keyPost(1, ["Кухня", "Кухня"]), roomKey: null }];
+  const copy = keyPost(2, ["Кухня", "Кухня"]);
+  EPPostCopy.stripSharedGroupNames([{ post: copy, roomKey: null }], existing, stripDeps);
+  assert.deepEqual(copy.keyGroups, ["", ""], "обе клавиши с «Кухня» снято");
+});
+
+test("имя-ярлык НЕ убирается у клавиши с номером проходной (номер связывает, имя — нет)", () => {
+  /* Стоящий пост связан ИМЕНЕМ «Свет» в той же комнате. У копии клавиша «Свет» несёт НОМЕР проходной —
+     по resolveGroup её группа определяется номером, имя лишь ярлык и ничего не склеивает → не трогаем. */
+  const existing = [{ post: keyPost(1, ["Свет", "", ""]), roomKey: "R" }];
+  const copy = keyPost(2, ["Свет", "", ""], ["9", "", ""]);
+  const res = EPPostCopy.stripSharedGroupNames([{ post: copy, roomKey: "R" }], existing, stripDeps);
+  assert.deepEqual(copy.keyGroups, ["Свет", "", ""], "имя-ярлык при номере проходной сохранено");
+  assert.deepEqual(res.cleared, [], "ничего не убрано");
+});
+
+test("имя убрано и при другом регистре/пробелах (правило склейки расчёта)", () => {
+  const existing = [{ post: keyPost(1, ["Спальня", "", ""]), roomKey: "R" }];
+  const copy = keyPost(2, ["  спальня ", "", ""]);
+  EPPostCopy.stripSharedGroupNames([{ post: copy, roomKey: "R" }], existing, stripDeps);
+  assert.deepEqual(copy.keyGroups, ["", "", ""], "« спальня » = «Спальня» для groupKeyOf → снято");
+});
+
+test("два имени в посту, совпадает одно → снято ТОЛЬКО оно, длина keyGroups прежняя", () => {
+  const existing = [{ post: keyPost(1, ["Свет", "", ""]), roomKey: "R" }];
+  const copy = keyPost(2, ["Свет", "Бра", ""]);
+  const res = EPPostCopy.stripSharedGroupNames([{ post: copy, roomKey: "R" }], existing, stripDeps);
+  assert.deepEqual(copy.keyGroups, ["", "Бра", ""], "снято «Свет», «Бра» цело");
+  assert.equal(copy.keyGroups.length, 3, "длина массива не изменилась");
+  assert.deepEqual(res.cleared, [{ number: 2, keyIndex: 0, name: "Свет" }]);
+});
+
+test("пара копий с общим именем в ДРУГУЮ комнату → имена целы у ОБЕИХ (остаются парой между собой)", () => {
+  /* В целевой комнате Q стоящих постов с этим именем нет: копии одной пачки по имени связываться МОГУТ. */
+  const existing = [{ post: keyPost(1, ["Свет у кровати", "", ""]), roomKey: "R" },
+    { post: keyPost(2, ["Свет у кровати", "", ""]), roomKey: "R" }];
+  const c1 = keyPost(3, ["Свет у кровати", "", ""]);
+  const c2 = keyPost(4, ["Свет у кровати", "", ""]);
+  const res = EPPostCopy.stripSharedGroupNames(
+    [{ post: c1, roomKey: "Q" }, { post: c2, roomKey: "Q" }], existing, stripDeps);
+  assert.deepEqual(c1.keyGroups, ["Свет у кровати", "", ""]);
+  assert.deepEqual(c2.keyGroups, ["Свет у кровати", "", ""]);
+  assert.deepEqual(res.cleared, [], "в другой комнате ничего не убрано");
+});
+
+test("та же пара в ТУ ЖЕ комнату → снято у ОБЕИХ копий (перечень на обе)", () => {
+  const existing = [{ post: keyPost(1, ["Свет у кровати", "", ""]), roomKey: "R" },
+    { post: keyPost(2, ["Свет у кровати", "", ""]), roomKey: "R" }];
+  const c1 = keyPost(3, ["Свет у кровати", "", ""]);
+  const c2 = keyPost(4, ["Свет у кровати", "", ""]);
+  const res = EPPostCopy.stripSharedGroupNames(
+    [{ post: c1, roomKey: "R" }, { post: c2, roomKey: "R" }], existing, stripDeps);
+  assert.deepEqual(c1.keyGroups, ["", "", ""]);
+  assert.deepEqual(c2.keyGroups, ["", "", ""]);
+  assert.deepEqual(res.cleared, [{ number: 3, keyIndex: 0, name: "Свет у кровати" },
+    { number: 4, keyIndex: 0, name: "Свет у кровати" }]);
+});
+
+test("исходные посты и буфер не изменены", () => {
+  const src = keyPost(1, ["Свет", "", ""]);
+  const srcCopy = JSON.parse(JSON.stringify(src));
+  const copy = keyPost(2, ["Свет", "", ""]);
+  EPPostCopy.stripSharedGroupNames([{ post: copy, roomKey: null }], [{ post: src, roomKey: null }], stripDeps);
+  assert.deepEqual(src, srcCopy, "стоящий пост не тронут");
+});
+
+test("stripSharedGroupNames падает громко без обязательных зависимостей", () => {
+  assert.throws(() => EPPostCopy.stripSharedGroupNames([], [], {}), /groupKeyOf/);
+  assert.throws(() => EPPostCopy.stripSharedGroupNames([], [], { groupKeyOf: () => "" }), /crossKey/);
+});

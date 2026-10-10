@@ -232,8 +232,76 @@ function copyHotkey(ev, ctx) {
   return ctx.hasBuffer ? "paste" : null;       /* пустой буфер — родная вставка */
 }
 
+/* ИМЯ ГРУППЫ СВЕТА У КОПИИ — убрать там, где копия слилась бы со стоящим постом (решение владельца
+   10.10, вариант Б). Беда без этого правила: пост «Свет» 151,88 € копируется на то же место (комнат
+   нет / та же комната), и расчёт видит ДВА места управления одной группы «Свет» — выключатель 20001.0
+   у обоих превращается в переключатель 20005.0: исходный 151,88 → 157,41 €, смета растёт на 162,94 €
+   вместо 151,88 €. Копия не должна связывать себя с уже стоящим постом по имени.
+
+   Что именно убираем — РОВНО то имя клавиши копии, которым она попала бы в ОДНУ ГРУППУ СВЕТА с клавишей
+   уже стоящего поста В ТОМ ЖЕ МЕСТЕ. «Одну группу» и «одно место» считаем ТЕМИ ЖЕ правилами, что расчёт,
+   через зависимости, второй нормализации не заводим (§7.1):
+     • «одна группа» — приоритет связи из EPLightingGroups.resolveGroup: есть НОМЕР проходной (crossKey
+       непуст) → клавиша связана номером, имя тут лишь ярлык и НИЧЕГО не связывает → имя НЕ трогаем (и у
+       копии, и у стоящего поста такую клавишу в сравнение не берём); номера нет, есть имя → связь по имени,
+       ключ склейки — groupKeyOf (регистр/пробелы/невидимое приводятся им же);
+     • «одно место» — покомнатное разбиение расчёта (partitionKeyOf app.js): roomKey поста либо null
+       «вне комнат / комнат на плане нет»; разные места не сливаются даже при одинаковом имени.
+   «Уже стоящие» — ТОЛЬКО посты до вставки (existing): копии одной пачки между собой по имени связываться
+   МОГУТ (пара с общим именем, перенесённая в другую комнату, остаётся парой — «такие же посты»), поэтому
+   реестр стоящих имён копиями не пополняем.
+
+   copies  — [{post, roomKey}] РЕАЛЬНО вставляемых копий (заблокированные по накладке сюда не попадают);
+   existing— [{post, roomKey}] постов проекта ДО вставки; deps.groupKeyOf, deps.crossKey — те же функции
+   расчёта (EPLightingGroups.groupKeyOf / crossGroupKey). Мутирует copies[i].post.keyGroups (имя → "",
+   длину массива сохраняя — контракт EPBuilderSlots.toPost); existing и буфер не трогает. Возврат
+   { copies, cleared }, где cleared — перечень убранного для сообщения человеку (следующая задача):
+   [{ number, keyIndex, name }] — номер поста-копии, индекс клавиши и УБРАННОЕ имя как было. */
+const PLACE_SEP = "\u0000";   /* склейка «место + ключ группы»; \0 в именах не встречается */
+function placeId(roomKey) { return roomKey == null ? PLACE_SEP + "no-room" : PLACE_SEP + "room:" + String(roomKey); }
+
+function stripSharedGroupNames(copies, existing, deps) {
+  deps = deps || {};
+  const groupKeyOf = deps.groupKeyOf, crossKey = deps.crossKey;
+  if (typeof groupKeyOf !== "function") throw new Error("stripSharedGroupNames: нужен groupKeyOf (ключ группы расчёта)");
+  if (typeof crossKey !== "function") throw new Error("stripSharedGroupNames: нужен crossKey (ключ проходной расчёта)");
+  const copyList = Array.isArray(copies) ? copies : [];
+  const existList = Array.isArray(existing) ? existing : [];
+
+  /* Реестр имён, уже занятых стоящими постами: место + ключ группы. Клавиши, связанные НОМЕРОМ, в
+     реестр не кладём — их имя лишь ярлык и копию по имени не притянет (resolveGroup: номер главнее имени). */
+  const standing = new Set();
+  existList.forEach(it => {
+    const post = it && it.post;
+    const groups = post && Array.isArray(post.keyGroups) ? post.keyGroups : [];
+    const crosses = post && Array.isArray(post.keyCrossNumbers) ? post.keyCrossNumbers : [];
+    groups.forEach((g, j) => {
+      if (crossKey(crosses[j])) return;          /* связано номером — имя ничего не склеивает */
+      const gk = groupKeyOf(g);
+      if (gk) standing.add(placeId(it.roomKey) + gk);
+    });
+  });
+
+  const cleared = [];
+  copyList.forEach(it => {
+    const post = it && it.post;
+    if (!post || !Array.isArray(post.keyGroups)) return;
+    const crosses = Array.isArray(post.keyCrossNumbers) ? post.keyCrossNumbers : [];
+    post.keyGroups.forEach((g, i) => {
+      if (crossKey(crosses[i])) return;          /* у копии клавиша с номером — имя-ярлык НЕ убираем */
+      const gk = groupKeyOf(g);
+      if (!gk) return;                           /* имя не задано — убирать нечего */
+      if (!standing.has(placeId(it.roomKey) + gk)) return;   /* в этом месте такого имени у стоящих нет */
+      cleared.push({ number: post.number, keyIndex: i, name: g });
+      post.keyGroups[i] = "";                    /* копия становится обычным выключателем этой клавишей */
+    });
+  });
+
+  return { copies: copyList.map(it => it && it.post), cleared };
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
-const api = { snapshot, buildCopies, newCrossNumbers, copyHotkey, POST_ICON_HALF };
+const api = { snapshot, buildCopies, newCrossNumbers, copyHotkey, stripSharedGroupNames, POST_ICON_HALF };
 if (typeof window !== "undefined") window.EPPostCopy = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

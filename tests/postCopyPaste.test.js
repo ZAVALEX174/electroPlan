@@ -199,3 +199,20 @@ test("★ два Ctrl+V в ту же точку НЕ дают постов с о
   const keys = s.ctx.state.posts.map(p => p.x + "," + p.y);
   assert.equal(new Set(keys).size, keys.length, "НЕТ двух постов с одинаковыми координатами — вторая пачка сдвинута, не поверх первой");
 });
+
+/* Та же защита «значок поверх значка» обязана работать и БЕЗ точки (курсор не над планом, сдвиг от
+   исходных). Защита — ОДНА на обе ветки (решение владельца 10.10); отдельный тест ветки без точки, чтобы
+   у правила не было края: шаг сдвига 1 ставит копию ровно на уже стоящий пост — она обязана съехать. */
+test("★ вставка БЕЗ точки не ложится поверх уже стоящего поста (защита работает и в ветке сдвига)", () => {
+  const posts = [mkPost({ id: "a", number: 1, x: 0, y: 0 }), mkPost({ id: "b", number: 2, x: 24, y: 24 })];
+  const s = makeStand({
+    _copyBuffer: EPPostCopy.snapshot([posts[0]]),
+    state: { posts: posts.slice(), selected: null, rooms: [], devices: [] },
+    canvasPointer: () => ({ overCanvas: false, clientX: 0, clientY: 0 })   /* курсор не над планом → сдвиг */
+  });
+  s.pastePosts();
+  const copy = s.ctx.state.posts[2];
+  assert.ok(!(copy.x === 24 && copy.y === 24), "копия НЕ легла на стоящий пост b (24,24) — сдвинулась дальше");
+  const keys = s.ctx.state.posts.map(p => p.x + "," + p.y);
+  assert.equal(new Set(keys).size, keys.length, "нет двух постов с одинаковыми координатами");
+});

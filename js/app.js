@@ -3952,6 +3952,11 @@ $("surchargeInput").oninput=applySurcharge;
    и обновить экран ОДНИМ шагом истории. Последняя позиция курсора «под мышью» живёт в canvasInput.js
    (он владеет указательными событиями холста) и приходит сюда функцией canvasPointer() из его attach. */
 let _copyBuffer=null;
+/* Имена групп света, снятые у последней пачки копий правилом EPPostCopy.stripSharedGroupNames (решение
+   владельца 10.10, вариант Б). Живёт в памяти страницы, как _copyBuffer: нужно СЛЕДУЮЩЕЙ задаче, чтобы
+   показать человеку отдельное сообщение «у копий № … убрано имя группы». В этой задаче его только
+   накапливаем — ни одного нового текста человеку. */
+let _lastPasteClearedNames=[];
 /* Ctrl+C: снимок выделенных постов в буфер СЕЙЧАС (решение владельца: исходные потом можно удалить —
    вставка всё равно сработает, буфер независим). Копируется и один пост, и группа: postIds отдаёт id
    любого вида выделения. */
@@ -3973,18 +3978,35 @@ function pastePosts(){
   if(!buf||!Array.isArray(buf.items)||!buf.items.length)return;
   const lp=canvasPointer();
   const point=lp&&lp.overCanvas?clientToWorld(lp.clientX,lp.clientY):null;
+  /* Посты проекта ДО вставки — их занятые имена групп нужны правилу имени ниже. Снимок берём ДО push:
+     копии одной пачки «уже стоящими» не считаются (пара может остаться парой между собой). */
+  const existingBefore=state.posts.slice();
   const copies=EPPostCopy.buildCopies(buf,{existingPosts:state.posts,point,genId:()=>uid("post_"),
     nextPostNumber:EPPosts.nextPostNumber,crossKey:EPLightingGroups.crossGroupKey});
-  const placed=[],blocked=[];
+  const placed=[],blocked=[],placedRooms=[];
   copies.forEach((copy,i)=>{
-    const swap=frameForRoomPlacement(copy,getRoomForPoint(copy.x+12,copy.y+12));
+    /* Комнату копии определяем ОДИН раз по центру её значка — ею и накладку подбираем, и правило имени
+       применяем (второго определения «куда попала копия» не заводим). */
+    const room=getRoomForPoint(copy.x+12,copy.y+12);
+    const swap=frameForRoomPlacement(copy,room);
     if(swap.blocked){blocked.push({number:buf.items[i].post.number,message:swap.message});return}
     if(swap.frameId!=null)copy.frameId=swap.frameId;
     state.posts.push(copy);
     placed.push(copy);
+    placedRooms.push(room);
   });
   const note=blocked.map(b=>`Пост № ${b.number} не вставлен. ${b.message}`).join(" ");
   if(!placed.length){toast(("Ничего не вставлено. "+note).trim());return}
+  /* Имя группы света у копий (решение владельца 10.10, вариант Б): если копия попала туда же, где уже
+     стоит пост с тем же именем (та же комната, либо оба вне комнат / комнат нет), — расчёт посчитал бы
+     их одним светом с двух мест и переобул выключатель в переключатель. Снимаем имя ТОЛЬКО у реально
+     вставленных копий (заблокированные в placed не входят); «одна группа»/«одно место» — правилами
+     расчёта (groupKeyOf/crossGroupKey + roomId). Перечень убранного — следующей задаче для сообщения. */
+  const stripResult=EPPostCopy.stripSharedGroupNames(
+    placed.map((post,i)=>({post,roomKey:placedRooms[i]?placedRooms[i].id:null})),
+    existingBefore.map(post=>({post,roomKey:post.roomId!=null?post.roomId:null})),
+    {groupKeyOf:EPLightingGroups.groupKeyOf,crossKey:EPLightingGroups.crossGroupKey});
+  _lastPasteClearedNames=stripResult.cleared;
   /* Выделяем НОВЫЕ посты ДО renderAll — renderPosts тогда сразу рисует их подсвеченными
      (EPSelection.isSelected). normalize сведёт один к {kind:"post"}, группу — к {kind:"posts"}. */
   state.selected=EPSelection.normalize(placed.map(p=>p.id),state.posts.map(p=>p.id));
