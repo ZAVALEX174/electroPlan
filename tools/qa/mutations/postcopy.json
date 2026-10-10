@@ -27,11 +27,47 @@
     "from": "[\"id\", \"number\", \"x\", \"y\", \"roomId\"]", "to": "[\"id\", \"number\", \"x\", \"y\", \"roomId\", \"restrictInnardsColor\"]" },
 
   { "name": "M10: дубль номера поста в пакете (все копии с одним номером)", "file": "js/postCopy.js",
-    "from": "copy.number = startNumber + i;", "to": "copy.number = startNumber;" },
+    "from": "copy.number = numberByIndex[i];", "to": "copy.number = startNumber;" },
 
   { "name": "M11: сломано взаимное расположение (точка без смещения dx)", "file": "js/postCopy.js",
     "from": "point.x + it.dx - POST_ICON_HALF", "to": "point.x - POST_ICON_HALF" },
 
-  { "name": "M12: повторная вставка ложится поверх предыдущей (сдвиг не нарастает)", "file": "js/postCopy.js",
-    "from": "positions.some(pos => occupied.has(pos.x + \",\" + pos.y)) && m < 1000", "to": "false && m < 1000" }
+  { "name": "M12: защита «точно поверх» снята СОВСЕМ (обе ветки — по точке и сдвигом)", "file": "js/postCopy.js",
+    "from": "positions.some(pos => occupied.has(pos.x + \",\" + pos.y)) && m < 1000", "to": "false && m < 1000" },
+
+  { "name": "M13: защита «точно поверх» снята в ветке С ТОЧКОЙ (фикс 1 — правило должно быть ОДНО на обе)", "file": "js/postCopy.js",
+    "from": "positions.some(pos => occupied.has(pos.x + \",\" + pos.y)) && m < 1000", "to": "positions.some(pos => occupied.has(pos.x + \",\" + pos.y)) && !point && m < 1000" },
+
+  { "name": "M14: обязательный crossKey не проверяется — забытый молча оставит старые номера проходных (фикс 2)", "file": "js/postCopy.js",
+    "from": "if (typeof opts.crossKey !== \"function\") throw new Error(\"buildCopies: нужен crossKey (правило сравнения номеров проходных)\");", "to": "void 0;" },
+
+  { "name": "M15: обязательный genId не проверяется (фикс 2)", "file": "js/postCopy.js",
+    "from": "if (typeof opts.genId !== \"function\") throw new Error(\"buildCopies: нужен genId (генератор id поста)\");", "to": "void 0;" },
+
+  { "name": "M16: обязательный nextPostNumber не проверяется (фикс 2)", "file": "js/postCopy.js",
+    "from": "if (typeof opts.nextPostNumber !== \"function\") throw new Error(\"buildCopies: нужен nextPostNumber (правило нумерации)\");", "to": "void 0;" },
+
+  { "name": "M17: номера копий по порядку ВЫДЕЛЕНИЯ, а не по номерам исходных (фикс 3 — кому инвертор)", "file": "js/postCopy.js",
+    "from": "copy.number = numberByIndex[i];", "to": "copy.number = startNumber + i;" },
+
+  { "name": "M18: Ctrl+C/V перехватывается даже в поле ввода (copyHotkey потерял inTextField)", "file": "js/postCopy.js",
+    "from": "if (ctx.inTextField) return null;", "to": "void 0;" },
+
+  { "name": "M19: подмена накладки под комнату НЕ вызывается (копия встаёт с исходной накладкой)", "file": "js/app.js",
+    "from": "const swap=frameForRoomPlacement(copy,getRoomForPoint(copy.x+12,copy.y+12));", "to": "const swap={frameId:null};" },
+
+  { "name": "M20: комнаты после вставки не пересчитываются / нет шага истории (renderAll снят)", "file": "js/app.js",
+    "from": "renderAll();renderSummary();renderProperties();", "to": "renderSummary();renderProperties();" },
+
+  { "name": "M21: N шагов отмены вместо одного (renderAll на каждую копию)", "file": "js/app.js",
+    "from": "state.posts.push(copy);", "to": "state.posts.push(copy);renderAll();" },
+
+  { "name": "M22: crossKey не передан в проводке (buildCopies обязан упасть громко — фикс 2)", "file": "js/app.js",
+    "from": "nextPostNumber:EPPosts.nextPostNumber,crossKey:EPLightingGroups.crossGroupKey});", "to": "nextPostNumber:EPPosts.nextPostNumber,crossKey:undefined});" },
+
+  { "name": "M23: новые посты после вставки НЕ выделены", "file": "js/app.js",
+    "from": "state.selected=EPSelection.normalize(placed.map(p=>p.id),state.posts.map(p=>p.id));", "to": "state.selected=null;" },
+
+  { "name": "M24: заблокированный пост всё же вставляется (с исходной накладкой) — снят return", "file": "js/app.js",
+    "from": "if(swap.blocked){blocked.push({number:buf.items[i].post.number,message:swap.message});return}", "to": "if(swap.blocked){blocked.push({number:buf.items[i].post.number,message:swap.message});}" }
 ]

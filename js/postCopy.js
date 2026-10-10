@@ -123,6 +123,13 @@ function snapshot(posts) {
    накрывают уже существующие посты (иначе второй Ctrl+V лёг бы поверх первого). */
 function buildCopies(buffer, opts) {
   opts = opts || {};
+  /* ОБЯЗАТЕЛЬНЫЕ зависимости — забыли, ПАДАЕМ ГРОМКО, а не продолжаем молча: без crossKey копии молча
+     сохранили бы старые номера проходных (слиплись бы с оригиналом, оживив чужой инвертор), без
+     genId/nextPostNumber получили бы undefined-id/номер и дубль в документах. «Забытое поле теряется
+     молча» уже было граблей проекта (§7.1) — ловим на входе, у самого правила, а не ниже по стеку. */
+  if (typeof opts.genId !== "function") throw new Error("buildCopies: нужен genId (генератор id поста)");
+  if (typeof opts.nextPostNumber !== "function") throw new Error("buildCopies: нужен nextPostNumber (правило нумерации)");
+  if (typeof opts.crossKey !== "function") throw new Error("buildCopies: нужен crossKey (правило сравнения номеров проходных)");
   const items = (buffer && Array.isArray(buffer.items)) ? buffer.items : [];
   const existing = Array.isArray(opts.existingPosts) ? opts.existingPosts : [];
   const genId = opts.genId;
@@ -135,35 +142,51 @@ function buildCopies(buffer, opts) {
   const copies = items.map(it => deepClone(it.post));
 
   /* Новые номера проходных — одним правилом (newCrossNumbers), по всему пакету сразу. */
-  const crossMap = crossKey ? newCrossNumbers(copies, existing, crossKey) : new Map();
+  const crossMap = newCrossNumbers(copies, existing, crossKey);
 
   /* Стартовый номер поста — из EPPosts.nextPostNumber (max+1), дальше последовательно: без дублей в
      пакете и без столкновения с существующими. Правило «следующий номер» не копируем — берём как есть. */
   const startNumber = opts.nextPostNumber(existing);
 
-  /* Координаты всех копий сразу: по точке — центр группы в точку; без точки — сдвиг от исходных с
-     нарастанием, пока хоть одна копия точно совпадает с существующим постом. */
-  let positions;
-  if (point) {
-    positions = items.map(it => ({ x: point.x + it.dx - POST_ICON_HALF, y: point.y + it.dy - POST_ICON_HALF }));
-  } else {
-    const occupied = new Set(existing.map(p => Number(p.x) + "," + Number(p.y)));
-    const tryShift = m => items.map(it => ({ x: Number(it.post.x) + step.x * m, y: Number(it.post.y) + step.y * m }));
-    let m = 1;
-    positions = tryShift(m);
-    while (positions.some(pos => occupied.has(pos.x + "," + pos.y)) && m < 1000) { m++; positions = tryShift(m); }
-  }
+  /* Номера копий раздаём В ПОРЯДКЕ НОМЕРОВ ИСХОДНЫХ постов, а не порядка выделения: по номеру поста
+     расчёт решает, какому месту управления достаётся инвертор (канонический порядок проходных,
+     EPLightingGroups.canonicalOrder). Исходные №3 и №5 дают копии в том же отношении (меньший номер →
+     меньший, больший → больший) при ЛЮБОМ порядке, в котором их выделили и сложили в буфер. Ранжируем
+     индексы по исходному number (при равных — стабильно по индексу) и раздаём startNumber+ранг; позиции
+     и все прочие поля копии остаются на своих местах — ранжируем ТОЛЬКО номер. */
+  const order = items.map((_, i) => i).sort((a, b) => {
+    const na = Number(items[a].post.number), nb = Number(items[b].post.number);
+    return na !== nb ? na - nb : a - b;
+  });
+  const numberByIndex = [];
+  order.forEach((idx, rank) => { numberByIndex[idx] = startNumber + rank; });
+
+  /* Координаты всех копий сразу. ОДНА защита «точно поверх» на ОБЕ ветки (по точке и сдвигом): после
+     базовой раскладки сдвигаем ВЕСЬ пакет на шаг, пока хоть одна копия в точности накрывает
+     существующий пост. Без неё два Ctrl+V при неподвижной мыши (та же точка) или подряд без точки
+     клали бы вторую пачку ровно на первую — на плане один значок, в смете два поста (скрытый дубль,
+     деньги). База: по точке — центр группы в точку (взаимное расположение через dx/dy); без точки —
+     исходные координаты. Старт сдвига: по точке — 0 (сперва ровно в точку), без точки — 1 (сразу на
+     шаг от оригинала, как было). */
+  const occupied = new Set(existing.map(p => Number(p.x) + "," + Number(p.y)));
+  const base = point
+    ? items.map(it => ({ x: point.x + it.dx - POST_ICON_HALF, y: point.y + it.dy - POST_ICON_HALF }))
+    : items.map(it => ({ x: Number(it.post.x), y: Number(it.post.y) }));
+  const shifted = m => base.map(p => ({ x: p.x + step.x * m, y: p.y + step.y * m }));
+  let m = point ? 0 : 1;
+  let positions = shifted(m);
+  while (positions.some(pos => occupied.has(pos.x + "," + pos.y)) && m < 1000) { m++; positions = shifted(m); }
 
   return copies.map((copy, i) => {
     SERVING_FIELDS.forEach(f => delete copy[f]);
     copy.id = genId();
-    copy.number = startNumber + i;
+    copy.number = numberByIndex[i];
     copy.x = positions[i].x;
     copy.y = positions[i].y;
     /* Проходные: клавиши с заданным номером получают новый (один на каждый исходный); пустые — пустыми.
        Длину keyCrossNumbers сохраняем (контракт EPBuilderSlots.toPost: равна длине mechanismIds). Нет
        массива вовсе (только что поставленный из шаблона пост) — не выдумываем его. */
-    if (crossKey && Array.isArray(copy.keyCrossNumbers)) {
+    if (Array.isArray(copy.keyCrossNumbers)) {
       copy.keyCrossNumbers = copy.keyCrossNumbers.map(v => {
         const key = crossKey(v);
         return key && crossMap.has(key) ? crossMap.get(key) : v;
@@ -173,8 +196,33 @@ function buildCopies(buffer, opts) {
   });
 }
 
+/* РЕШЕНИЕ «ПЕРЕХВАТЫВАТЬ ЛИ Ctrl+C / Ctrl+V» — чистой функцией под тестом, как EPHistory.hotkeyAction
+   (тело document.onkeydown стенд не режет). ev — event-подобный {code, ctrlKey, metaKey}; ctx —
+   состояние, которое чистая функция сама знать не может, оркестратор его собирает:
+     modalOpen        — открыто любое модальное окно (под ними хоткеи холста молчат, как у undo/redo);
+     inTextField      — цель в текстовом поле (EPHistory.isTextTarget) — там Ctrl+C/V родные;
+     hasTextSelection — человек выделил текст на странице — НЕ крадём родное копирование текста;
+     hasSelection     — есть выделенные посты (иначе копировать нечего);
+     hasBuffer        — буфер непуст (иначе вставлять нечего).
+   Возврат "copy" | "paste" | null. null = НЕ перехватываем, отдаём браузеру родное поведение.
+   Пустой буфер (Ctrl+V) и отсутствие выделения (Ctrl+C) намеренно дают null: клавиша не «проглочена»,
+   родное поведение страницы работает. */
+function copyHotkey(ev, ctx) {
+  ev = ev || {};
+  ctx = ctx || {};
+  if (ctx.modalOpen) return null;
+  if (!(ev.ctrlKey || ev.metaKey)) return null;
+  if (ev.code !== "KeyC" && ev.code !== "KeyV") return null;
+  if (ctx.inTextField) return null;            /* в поле — родная отмена/копирование/вставка */
+  if (ev.code === "KeyC") {
+    if (ctx.hasTextSelection) return null;     /* выделен текст — не крадём родное копирование текста */
+    return ctx.hasSelection ? "copy" : null;   /* нет выделенных постов — копировать нечего */
+  }
+  return ctx.hasBuffer ? "paste" : null;       /* пустой буфер — родная вставка */
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
-const api = { snapshot, buildCopies, newCrossNumbers, POST_ICON_HALF };
+const api = { snapshot, buildCopies, newCrossNumbers, copyHotkey, POST_ICON_HALF };
 if (typeof window !== "undefined") window.EPPostCopy = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

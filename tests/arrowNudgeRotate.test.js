@@ -14,6 +14,8 @@ const assert = require("node:assert/strict");
 const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
 const EPHistory = require("../js/history.js");
+const EPPostCopy = require("../js/postCopy.js");
+const EPSelection = require("../js/selection.js");
 
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) <= eps, `${a} ≈ ${b}`);
 
@@ -50,6 +52,10 @@ function buildKeydown(state, openModal) {
   const nodeFor = id => ({ classList: { contains: () => id === openModal }, value: "", contains: () => false });
   const ctx = {
     document: {}, state, EPHistory,
+    /* Б9: onkeydown на КАЖДОЕ нажатие спрашивает EPPostCopy.copyHotkey (перехват Ctrl+C/V). Для стрелок
+       он вернёт null, но ветка всё равно читает эти имена — кладём их в контекст. window.getSelection —
+       проверка выделенного текста страницы; буфера нет. */
+    EPPostCopy, EPSelection, _copyBuffer: null, window: { getSelection: () => "" },
     $: id => nodeFor(id),
     undoPlan() { hist.undo++; }, redoPlan() { hist.redo++; },   /* Б4: keydown решает хоткей через EPHistory и зовёт эти функции */
     moveSelectedBy: (x, y) => { moves.push([x, y]); return true; },

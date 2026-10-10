@@ -380,6 +380,11 @@ function applyRubberSelection(){
 function suppressSyntheticClick(e){
   if(panMoved||spaceDown||rbSuppressClick){panMoved=false;e.stopPropagation();e.preventDefault()}
 }
+/* Геттер последней позиции курсора над окном холста — для вставки постов Ctrl+V (app.js зовёт через
+   возврат attach). Функция, а не значение: lastPointer переназначается на каждом движении, геттер
+   отдаёт актуальное на момент вызова. Объявлена ДО регистрации слушателей (clearRubberClickSuppress
+   остаётся последней function — её вырезка в стенде не захватывает блок регистрации). */
+function canvasPointer(){return lastPointer}
 /* Новый жест на окне холста (любой pointerdown): одноразовое гашение клика от ПРЕДЫДУЩЕЙ рамки уже
    отработало на её click — снимаем флаг, чтобы гасился РОВНО один клик. Именованной функцией (не
    инлайном в обработчике), чтобы поведенческий стенд мог её вырезать и проверить сброс. */
@@ -433,6 +438,12 @@ canvasScroll.onclick=e=>{
    объекты под курсором (иначе пробел+клик по иконке начал бы тащить иконку). pan —
    в пикселях экрана 1:1 с мышью: двигаем сам вид, масштаб тут не делим. ---- */
 let spaceDown=false,panning=false,panLX=0,panLY=0,panMoved=false;
+/* ПОСЛЕДНЯЯ ПОЗИЦИЯ КУРСОРА над окном холста — единственное место хранения (его читает вставка постов
+   Ctrl+V в app.js через возвращённый canvasPointer()). Живёт ЗДЕСЬ, потому что указательные события
+   холста уже слушает этот модуль. overCanvas гасит pointerleave: увели курсор с плана → вставка идёт
+   сдвигом от исходных, а не в точку за пределами видимой области. Отдельный слушатель от панорамного
+   (тот сработает лишь при зажатой кнопке) — трекер нужен на любом движении. */
+let lastPointer={clientX:0,clientY:0,overCanvas:false};
 canvasScroll.addEventListener("pointerdown",e=>{
   clearRubberClickSuppress();   /* новый жест: гашение клика от ПРЕДЫДУЩЕЙ рамки уже отработало, снимаем флаг */
   if(!((spaceDown&&e.button===0)||e.button===1))return;   /* пробел+ЛКМ или средняя кнопка */
@@ -450,6 +461,11 @@ canvasScroll.addEventListener("pointermove",e=>{
 },true);
 canvasScroll.addEventListener("pointerup",endPan,true);
 canvasScroll.addEventListener("pointercancel",endPan,true);
+/* Трекер позиции курсора для вставки «под мышь» (Б9): слушаем во ВСПЛЫТИИ, без условий — обновляем на
+   каждом движении, в т.ч. над иконками/табличками (pointermove от детей всплывает сюда). pointerleave не
+   срабатывает при переходе на потомка — overCanvas держится true, пока курсор в пределах окна холста. */
+canvasScroll.addEventListener("pointermove",e=>{lastPointer={clientX:e.clientX,clientY:e.clientY,overCanvas:true}});
+canvasScroll.addEventListener("pointerleave",()=>{lastPointer.overCanvas=false});
 /* Рамку выделения слушаем в фазе ВСПЛЫТИЯ (панорама выше — в перехвате со stopPropagation; задвоения
    нет: при пробеле/средней кнопке её pointerdown гасит всплытие, сюда событие не доходит). beginRubberBand
    сам проверяет инструмент/пустое место. */
@@ -479,7 +495,7 @@ canvasScroll.addEventListener("wheel",e=>{
 document.addEventListener("keyup",e=>{if(e.code==="Space"){spaceDown=false;canvasScroll.classList.remove("pan-ready")}});
 window.addEventListener("blur",()=>{spaceDown=false;canvasScroll.classList.remove("pan-ready")});
 
-return {makeDraggable,placePendingAtEvent,onSpaceKeydown};
+return {makeDraggable,placePendingAtEvent,onSpaceKeydown,canvasPointer};
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */

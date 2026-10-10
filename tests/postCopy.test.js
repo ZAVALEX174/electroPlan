@@ -134,6 +134,75 @@ test("buildCopies без точки: сдвиг от исходных; повт�
   assert.deepEqual([second[0].x, second[0].y], [88, 108], "сдвиг нарос до двух шагов");
 });
 
+test("buildCopies ПО ТОЧКЕ: повторная вставка в ту же точку НЕ ложится поверх (защита, фикс 1)", () => {
+  /* Два Ctrl+V при неподвижной мыши: первая копия встаёт ровно в точку, вторая — когда первая уже в
+     проекте — обязана сдвинуться, иначе на плане один значок, в смете два поста (скрытый дубль, деньги).
+     Защита «точно поверх» раньше была только в ветке без точки — теперь ОДНА на обе ветки. */
+  const buf = EPPostCopy.snapshot([samplePost({ x: 0, y: 0 })]);
+  const point = { x: 100, y: 100 };
+  const first = EPPostCopy.buildCopies(buf, buildOpts({ existingPosts: [], point }));
+  assert.deepEqual([first[0].x, first[0].y], [88, 88], "первая копия — центр значка ровно в точке (100,100)");
+  const second = EPPostCopy.buildCopies(buf, buildOpts({ existingPosts: [Object.assign({}, first[0])], point }));
+  assert.notDeepEqual([second[0].x, second[0].y], [first[0].x, first[0].y], "вторая в той же точке сдвинута, не поверх первой");
+  assert.deepEqual([second[0].x, second[0].y], [112, 112], "сдвиг на один шаг (24) от перекрытой точки");
+});
+
+test("buildCopies: номера копий — по порядку номеров ИСХОДНЫХ постов, не по порядку выделения (фикс 3)", () => {
+  /* Выделили в порядке [№5, №3] — буфер хранит этот порядок. Номера копий обязаны идти по номерам
+     ИСХОДНЫХ: №3→меньший новый, №5→больший, независимо от порядка выделения (по номеру расчёт решает,
+     какому месту инвертор). */
+  const buf = EPPostCopy.snapshot([samplePost({ id: "s5", number: 5 }), samplePost({ id: "s3", number: 3 })]);
+  const copies = EPPostCopy.buildCopies(buf, buildOpts({ existingPosts: [{ number: 10 }], point: { x: 0, y: 0 } }));
+  /* copies[0] — копия №5 (порядок массива = порядок выделения), copies[1] — копия №3. */
+  assert.equal(copies[0].number, 12, "копия исходного №5 получила больший номер");
+  assert.equal(copies[1].number, 11, "копия исходного №3 получила меньший номер");
+  assert.ok(copies[1].number < copies[0].number, "меньший исходный номер → меньший новый, несмотря на порядок выделения");
+});
+
+test("buildCopies: обязательные зависимости отсутствуют → падаем ГРОМКО (фикс 2)", () => {
+  const buf = EPPostCopy.snapshot([samplePost()]);
+  const ok = { existingPosts: [], genId: makeGenId(0), nextPostNumber: EPPosts.nextPostNumber, crossKey };
+  /* Ждём ИМЕННО сообщение стража (не любой downstream-TypeError, где имя функции тоже встречается):
+     страж обязан упасть ПЕРВЫМ, у входа, понятным текстом — иначе забытый crossKey дал бы молчаливое
+     слипание номеров проходных, а не ясную ошибку. */
+  assert.throws(() => EPPostCopy.buildCopies(buf, Object.assign({}, ok, { crossKey: undefined })), /нужен crossKey/,
+    "забытый crossKey молча оставил бы старые номера проходных (слипание с оригиналом) — должен падать стражем");
+  assert.throws(() => EPPostCopy.buildCopies(buf, Object.assign({}, ok, { genId: undefined })), /нужен genId/);
+  assert.throws(() => EPPostCopy.buildCopies(buf, Object.assign({}, ok, { nextPostNumber: undefined })), /нужен nextPostNumber/);
+});
+
+/* ───────────────────────── (г) РЕШЕНИЕ О ПЕРЕХВАТЕ КЛАВИШ ───────────────────────── */
+
+test("copyHotkey: Ctrl+C копирует выделенные посты; без выделения — null (родное поведение)", () => {
+  const ctx = { modalOpen: false, inTextField: false, hasTextSelection: false, hasSelection: true, hasBuffer: false };
+  assert.equal(EPPostCopy.copyHotkey({ code: "KeyC", ctrlKey: true }, ctx), "copy");
+  assert.equal(EPPostCopy.copyHotkey({ code: "KeyC", ctrlKey: true }, Object.assign({}, ctx, { hasSelection: false })), null,
+    "нет выделенных постов — Ctrl+C не перехватываем");
+});
+
+test("copyHotkey: Ctrl+C НЕ крадёт родное копирование выделенного ТЕКСТА", () => {
+  const ctx = { modalOpen: false, inTextField: false, hasTextSelection: true, hasSelection: true, hasBuffer: false };
+  assert.equal(EPPostCopy.copyHotkey({ code: "KeyC", ctrlKey: true }, ctx), null,
+    "человек выделил текст — отдаём браузеру, посты не копируем");
+});
+
+test("copyHotkey: Ctrl+V вставляет при непустом буфере; пустой буфер — null", () => {
+  const ctx = { modalOpen: false, inTextField: false, hasTextSelection: false, hasSelection: false, hasBuffer: true };
+  assert.equal(EPPostCopy.copyHotkey({ code: "KeyV", ctrlKey: true }, ctx), "paste");
+  assert.equal(EPPostCopy.copyHotkey({ code: "KeyV", ctrlKey: true }, Object.assign({}, ctx, { hasBuffer: false })), null,
+    "пустой буфер — Ctrl+V не перехватываем, родная вставка работает");
+});
+
+test("copyHotkey: поле ввода, модалка, не-Ctrl, чужая клавиша → null", () => {
+  const base = { modalOpen: false, inTextField: false, hasTextSelection: false, hasSelection: true, hasBuffer: true };
+  assert.equal(EPPostCopy.copyHotkey({ code: "KeyC", ctrlKey: true }, Object.assign({}, base, { inTextField: true })), null, "в поле — родной Ctrl+C");
+  assert.equal(EPPostCopy.copyHotkey({ code: "KeyV", ctrlKey: true }, Object.assign({}, base, { inTextField: true })), null, "в поле — родной Ctrl+V");
+  assert.equal(EPPostCopy.copyHotkey({ code: "KeyC", ctrlKey: true }, Object.assign({}, base, { modalOpen: true })), null, "под модалкой молчим");
+  assert.equal(EPPostCopy.copyHotkey({ code: "KeyC", ctrlKey: false }, base), null, "без Ctrl/⌘ — не наше");
+  assert.equal(EPPostCopy.copyHotkey({ code: "KeyX", ctrlKey: true }, base), null, "Ctrl+X — не наше");
+  assert.equal(EPPostCopy.copyHotkey({ code: "KeyV", metaKey: true }, base), "paste", "⌘+V (mac) тоже перехватываем");
+});
+
 /* ───────────────────────── (в) НОВЫЕ НОМЕРА ПРОХОДНЫХ ───────────────────────── */
 
 test("newCrossNumbers: один исходный номер → один новый; пустые остаются пустыми", () => {
