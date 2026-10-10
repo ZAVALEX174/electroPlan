@@ -1,0 +1,37 @@
+[
+  { "name": "M1: новый номер проходной = старый (копия слипается с оригиналом)", "file": "js/postCopy.js",
+    "from": "const value = String(n);", "to": "const value = raw;" },
+
+  { "name": "M2: два разных исходных номера получают ОДИН новый", "file": "js/postCopy.js",
+    "from": "used.add(crossKey(value));", "to": "void 0;" },
+
+  { "name": "M3: новый номер проходной совпал с существующим в проекте (забыли занятые)", "file": "js/postCopy.js",
+    "from": "const used = collectCrossKeys(existingPosts, crossKey);", "to": "const used = new Set();" },
+
+  { "name": "M4: клон поверхностный — массив/объект копии общий с исходником", "file": "js/postCopy.js",
+    "from": "return JSON.parse(JSON.stringify(value));", "to": "return Object.assign({}, value);" },
+
+  { "name": "M5: потеряно поле discount (ушло в служебные)", "file": "js/postCopy.js",
+    "from": "[\"id\", \"number\", \"x\", \"y\", \"roomId\"]", "to": "[\"id\", \"number\", \"x\", \"y\", \"roomId\", \"discount\"]" },
+
+  { "name": "M6: потеряно поле wallType (ушло в служебные)", "file": "js/postCopy.js",
+    "from": "[\"id\", \"number\", \"x\", \"y\", \"roomId\"]", "to": "[\"id\", \"number\", \"x\", \"y\", \"roomId\", \"wallType\"]" },
+
+  { "name": "M7: потеряно поле backlight (ушло в служебные)", "file": "js/postCopy.js",
+    "from": "[\"id\", \"number\", \"x\", \"y\", \"roomId\"]", "to": "[\"id\", \"number\", \"x\", \"y\", \"roomId\", \"backlight\"]" },
+
+  { "name": "M8: потеряно поле keyMechanisms (ушло в служебные)", "file": "js/postCopy.js",
+    "from": "[\"id\", \"number\", \"x\", \"y\", \"roomId\"]", "to": "[\"id\", \"number\", \"x\", \"y\", \"roomId\", \"keyMechanisms\"]" },
+
+  { "name": "M9: потеряно поле restrictInnardsColor (ушло в служебные)", "file": "js/postCopy.js",
+    "from": "[\"id\", \"number\", \"x\", \"y\", \"roomId\"]", "to": "[\"id\", \"number\", \"x\", \"y\", \"roomId\", \"restrictInnardsColor\"]" },
+
+  { "name": "M10: дубль номера поста в пакете (все копии с одним номером)", "file": "js/postCopy.js",
+    "from": "copy.number = startNumber + i;", "to": "copy.number = startNumber;" },
+
+  { "name": "M11: сломано взаимное расположение (точка без смещения dx)", "file": "js/postCopy.js",
+    "from": "point.x + it.dx - POST_ICON_HALF", "to": "point.x - POST_ICON_HALF" },
+
+  { "name": "M12: повторная вставка ложится поверх предыдущей (сдвиг не нарастает)", "file": "js/postCopy.js",
+    "from": "positions.some(pos => occupied.has(pos.x + \",\" + pos.y)) && m < 1000", "to": "false && m < 1000" }
+]

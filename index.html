@@ -676,6 +676,10 @@
      EPRoomDetect.attach(ctx) ДО EPCanvasInput.attach (тот берёт из него addRoomLinePoint). -->
 <script src="js/roomDetect.js?v=20261006.1"></script>
 <script src="js/history.js?v=20261005.2"></script>
+<!-- Копирование постов (Ctrl+C/Ctrl+V): чистый модуль (ни DOM, ни state) — снимок выделенного для
+     буфера, сборка копий с новыми id/номерами/координатами и новыми номерами проходных. Грузится ДО
+     app.js, который держит буфер, ловит хоткеи и кладёт готовые посты в state. -->
+<script src="js/postCopy.js?v=20261010.1"></script>
 <script src="js/app.js?v=20261009.2"></script>
 </body>
 </html>
