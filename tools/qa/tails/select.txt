@@ -9,6 +9,9 @@
   const selText  = () => ev(`const e=document.getElementById("selectionCount");return e.hidden?"(скрыто)":e.textContent`);
   const postInfo = () => ev(`return Array.from(document.querySelectorAll(".plan-icon.post")).map(e=>{const r=e.getBoundingClientRect();return {id:e.dataset.id,num:e.textContent,cx:Math.round(r.left+r.width/2),cy:Math.round(r.top+r.height/2),sel:e.classList.contains("selected")}})`);
   const clip = async () => { const r = await rect(`document.querySelector(".canvas-scroll")`); return { x: r.x, y: r.y, width: r.w, height: r.h }; };
+  // Проверка с ЯВНЫМ результатом: пишет «ОК/FAIL: …» в лог и ВАЛИТ сценарий исключением при false (harness
+  // ловит, печатает «ОШИБКА» и возвращает exit 1). Приёмка по строкам «ждём …» без этого ненадёжна.
+  const assertOk = (cond, msg) => { log.push((cond ? "ОК" : "FAIL") + ": " + msg); if (!cond) throw new Error(msg); };
   const ctrlClickAt = async (x, y) => {
     await mouse(x, y, "mouseMoved");
     await c.send("Input.dispatchMouseEvent", { type: "mousePressed",  x, y, button: "left", clickCount: 1, modifiers: 2 });
@@ -82,8 +85,10 @@
   // цикл «↻90°→↺0°», который в октябре подозревали на дефект рамки: после него предсказание центра
   // поста (worldToScreen из вида) обязано совпадать с отрисовкой до пикселя — сцена (5) проверяет это
   // РАМКОЙ (не кликами). Диагностика подтвердила: расхождение центр↔отрисовка = 0 во всех состояниях
-  // вида (0°, 90°, 90°→0°, 360°, zoom, pan), ранний одноразовый промах был артефактом залипшего ввода
-  // в прогоне (spaceDown от предыдущего жеста глушил старт рамки), а не ошибкой отбора.
+  // вида (0°, 90°, 90°→0°, 360°, zoom, pan) — отбор точен. Настоящей причиной прежнего срыва рамки было
+  // НЕ залипание ввода, а нативное выделение текста холста при протяжке → dragstart на #canvas →
+  // браузерный pointercancel, обрывавший жест. Починено (Б5): старт рамки гасит выделение текста
+  // (preventDefault) и dragstart, а оборванный жест рамку не применяет — сцена (5r) прогоняет это 5 раз.
   await click(`document.getElementById("planRotateLeftBtn")`); await sleep(700);
   await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(200);
   log.push("(5-6) мир возвращён к 0°: transform=" + await ev(`return getComputedStyle(document.getElementById("canvas")).transform`));
@@ -103,40 +108,57 @@
 
   // (5) группу из верхнего ряда постов собираем РАМКОЙ — ИМЕННО ПОСЛЕ цикла поворота (честная проверка
   // дефекта-кандидата «рамка после поворота»). Рамку строим по ЭКРАННЫМ центрам иконок (getBoundingClientRect)
-  // верхнего ряда с запасом; ждём, что выделятся ровно эти посты. Если бы отбор расходился с отрисовкой —
-  // рамка взяла бы не тех, тест сцены (5) упал бы ещё до Delete. Старт тянем с заведомо пустого места
-  // (выше-левее верхнего центра), чтобы попасть в ветку пустого клика, а не в иконку.
+  // верхнего ряда с запасом. Старт тянем с заведомо пустого места (выше-левее верхнего центра), чтобы
+  // попасть в ветку пустого клика, а не в иконку.
   //
-  // ОДИН обычный клик по пустому ПЕРЕД рамкой — обязателен и НЕ маскирует продуктовый дефект. Диагностика
-  // (см. отчёт) показала: геометрия отбора после цикла поворота точна до пикселя (расхождение экранный
-  // центр иконки ↔ worldToScreen = 0 при 0°/90°/90°→0°/360°/zoom/pan), а единственный сбой — артефакт
-  // headless-Chrome: рамка@90° захватывает указатель на .canvas-scroll через setPointerCapture, и первый
-  // повторный захват ЭТОГО ЖЕ элемента после re-render поворота получает одноразовый synthetic
-  // pointercancel (при settle 2.5с не исчезает; перетаскивание иконки — другой элемент захвата — его не
-  // ест; второй жест подряд уже чист). Реальная мышь между жестами указатель отпускает начисто, поэтому
-  // этот холостой клик = «чистое отпускание указателя», а не костыль. Обработка pointercancel в приложении
-  // корректна (отменённый браузером жест ОБЯЗАН прерваться) — трогать её нельзя.
-  const absorb5 = await canvasPt(0.14, 0.45); await clickAt(absorb5.x, absorb5.y); await sleep(200);
+  // Холостой клик-«впитыватель» перед рамкой УБРАН (Б5, починка): рамка больше не срывается. Прежний
+  // срыв был НЕ в геометрии (она точна до пикселя), а в том, что протяжка рамки выделяла ТЕКСТ холста →
+  // при следующем нажатии нативный dragstart на #canvas → браузер слал pointercancel. Теперь старт рамки
+  // гасит нативное выделение текста (preventDefault) и dragstart на холсте, а оборванный жест
+  // (pointercancel) рамку НЕ применяет. Сцена (5r) ниже прогоняет ровно это 5 раз подряд без холостого клика.
   const before5 = await postInfo();
   log.push("(5) посты на холсте: " + JSON.stringify(before5.map(p => ({ num: p.num, cx: p.cx, cy: p.cy }))));
   const sorted5 = before5.slice().sort((p, q) => p.cy - q.cy);
   const pick5 = sorted5.filter(p => p.cy <= sorted5[0].cy + 60);   // верхний ряд постов
+  const want5 = JSON.stringify(pick5.map(p => p.num).sort());
   const r5x0 = Math.min(...pick5.map(p => p.cx)) - 30, r5x1 = Math.max(...pick5.map(p => p.cx)) + 30;
   const r5y0 = Math.min(...pick5.map(p => p.cy)) - 30, r5y1 = Math.max(...pick5.map(p => p.cy)) + 30;
-  await drag(r5x0, r5y0, r5x1 - r5x0, r5y1 - r5y0);
+
+  // (5r) ПЯТЬ РАЗ ПОДРЯД без холостого клика: сперва ПУСТАЯ рамка, протянутая ПОВЕРХ текста подписи
+  // комнаты (именно задевание текста раньше срывало следующий жест через dragstart→pointercancel),
+  // сразу за ней — рамка вокруг верхнего ряда постов. Ждём: каждый раз выделены РОВНО те же посты (want5),
+  // ни один из пяти жестов не сорван. Старт пустой рамки — с пустого пола слева от подписи.
+  const label5 = (await roomRects())[0];
+  const run5 = [];
+  for (let i = 0; i < 5; i++) {
+    await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(120);
+    if (label5) { await drag(label5.cx - 55, label5.cy, 110, 2); await sleep(150); }   // пустая рамка поверх текста подписи
+    const emptySel = await cntSel();
+    await drag(r5x0, r5y0, r5x1 - r5x0, r5y1 - r5y0); await sleep(150);                 // рамка вокруг постов
+    const got = JSON.stringify((await postInfo()).filter(p => p.sel).map(p => p.num).sort());
+    run5.push({ i: i + 1, "пустая.selected": emptySel, "рамка.нумера": got, ок: got === want5 });
+  }
+  log.push("(5r) 5 рамок подряд без холостого клика: ждём каждый раз " + want5 + " → " + JSON.stringify(run5));
+  assertOk(run5.every(r => r.ок), "(5r) все 5 рамок подряд выделили верные посты " + want5 + " (ни один жест не сорван)");
+  await shot("sel-rubber-x5", [], await clip());
+
   const rubberNums5 = (await postInfo()).filter(p => p.sel).map(p => p.num).sort();
   const sum5b = await grand(), posts5b = await cntPosts(), sel5 = await cntSel();
-  log.push("(5) группа собрана РАМКОЙ после цикла 90°→0°: ждём внутри " + JSON.stringify(pick5.map(p => p.num).sort())
+  log.push("(5) группа собрана РАМКОЙ после цикла 90°→0°: ждём внутри " + want5
     + ", выделены " + JSON.stringify(rubberNums5)
     + ", .selected=" + sel5 + ", надпись=«" + await selText() + "», сумма=" + sum5b + ", постов=" + posts5b);
+  assertOk(JSON.stringify(rubberNums5) === want5, "(5) рамка после цикла 90°→0° выделила верные посты " + want5);
+  assertOk(sel5 >= 2, "(5) собрана группа (≥2 поста выделены), а не один");
   await shot("del-group-selected", [`document.querySelector(".grand-total")`], await clip());
   await delKey();
   const posts5a = await cntPosts(), sum5a = await grand();
   log.push("(5) Delete группы: постов " + posts5b + "→" + posts5a + " (ждём −" + sel5 + "), сумма " + sum5b + "→" + sum5a + ", надпись=«" + await selText() + "»");
+  assertOk(posts5a === posts5b - sel5, "(5) Delete удалил РОВНО выделенные (" + sel5 + "): " + posts5b + "→" + posts5a);
   await shot("del-group-after", [`document.querySelector(".grand-total")`], await clip());
   await ctrlZ();
   const posts5u = await cntPosts(), sum5u = await grand();
   log.push("(5) Ctrl+Z: постов " + posts5a + "→" + posts5u + " (ждём " + posts5b + "), сумма " + sum5a + "→" + sum5u + " (ждём " + sum5b + ") — один шаг вернул всё");
+  assertOk(posts5u === posts5b && sum5u === sum5b, "(5) один Ctrl+Z вернул и число постов (" + posts5b + "), и сумму (" + sum5b + ")");
   await shot("del-group-undo", [`document.querySelector(".grand-total")`], await clip());
 
   // (6) два поста у границы комнаты A → удержание стрелки переводит их в комнату B
@@ -180,6 +202,37 @@
     await shot("move-group-undo", [`document.querySelector(".grand-total")`], await clip());
   } else log.push("(6) ПРОПУСК: на холсте меньше двух комнат с подписями");
 
+  // --- Б5 + В19: Ctrl+ДВОЙНОЙ КЛИК В РЕЖИМЕ «РАЗМЕСТИТЬ» (при мире 0°, пока он не повёрнут сценой 8) ---
+  // (9) Первый клик двойного ставит НОВЫЙ пост поверх старого и выходит из размещения, второй клик+dblclick
+  // откатывает постановку (В19). Ctrl занят групповым выделением, но мешать откату НЕ должен — иначе лишний
+  // пост осел бы в смете (деньги). Ждём: число постов и сумма сметы — РОВНО как ДО.
+  n = 75;
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(200);
+  // Ctrl+двойной клик по точке: два нажатия ЛКМ (clickCount 1 и 2) с modifiers:2 (Ctrl) — второй даёт dblclick
+  const ctrlDblClickAt = async (x, y) => {
+    await mouse(x, y, "mouseMoved");
+    for (const cc of [1, 2]) {
+      await c.send("Input.dispatchMouseEvent", { type: "mousePressed",  x, y, button: "left", clickCount: cc, modifiers: 2 });
+      await c.send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: cc, modifiers: 2 });
+    }
+    await sleep(500);
+  };
+  const info9 = await postInfo();
+  if (info9.length) {
+    const target9 = info9[0];
+    const posts9b = await cntPosts(), sum9b = await grand();
+    log.push("(9) ДО: постов=" + posts9b + ", сумма=" + sum9b + ", целевой пост №" + target9.num);
+    await shot("ctrl-dblclick-before", [`document.querySelector(".grand-total")`], await clip());
+    await click(`document.querySelector("[data-place-template]")`); await sleep(300);   // режим «Разместить»
+    await ctrlDblClickAt(target9.cx, target9.cy);                                        // Ctrl+двойной клик по иконке стоящего поста
+    await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(200);   // закрыть возможный конструктор старого поста
+    const posts9a = await cntPosts(), sum9a = await grand();
+    log.push("(9) ПОСЛЕ Ctrl+двойного клика в «Разместить»: постов " + posts9b + "→" + posts9a
+      + " (ждём " + posts9b + "), сумма " + sum9b + "→" + sum9a + " (ждём " + sum9b + ") — дубль снят, лишнего в смете нет");
+    assertOk(posts9a === posts9b && sum9a === sum9b, "(9) Ctrl+двойной клик в «Разместить» не оставил дубль: постов " + posts9b + "→" + posts9a + ", сумма " + sum9b + "→" + sum9a);
+    await shot("ctrl-dblclick-after", [`document.querySelector(".grand-total")`], await clip());
+  } else log.push("(9) ПРОПУСК: на холсте нет постов");
+
   // --- Б5, ч.3: ПЕРЕТАСКИВАНИЕ выделенной ГРУППЫ постов МЫШЬЮ --------------------------------------
   // (7) выделить 2 поста в комнате A → потянуть МЫШЬЮ один из них в соседнюю B → у всех roomId сменился
   //     на B, мировые координаты сдвинуты на ОДНУ дельту → один Ctrl+Z → всё как до. (7b) простой клик
@@ -189,6 +242,32 @@
   await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(200);
   // полные координаты (мир x,y + roomId) членов из сохранённого проекта — для проверки «одна дельта на всех»
   const coordsOf = ids => ev(`const want=${JSON.stringify(ids)};return (JSON.parse(localStorage.getItem(ProjectStore.key)||"{}").posts||[]).filter(p=>want.includes(p.id)).map(p=>({id:p.id,x:Math.round(p.x),y:Math.round(p.y),room:p.roomId||null}))`);
+  // мировые координаты членов БЕЗ округления — для точной проверки дельт (coordsOf округляет ДО вычитания,
+  // и при scale≠1 дробные координаты давали расхождение в 1px между членами — это артефакт округления).
+  const coordsRaw = ids => ev(`const want=${JSON.stringify(ids)};return (JSON.parse(localStorage.getItem(ProjectStore.key)||"{}").posts||[]).filter(p=>want.includes(p.id)).map(p=>({id:p.id,x:p.x,y:p.y,room:p.roomId||null}))`);
+  // масштаб s и угол ang (рад) ВИДА из transform холста: matrix(a,b,..)=R(ang)·s → a=s·cos, b=s·sin
+  const viewScaleAngle = async () => { const t = await ev(`return getComputedStyle(document.getElementById("canvas")).transform`); const m = t.match(/matrix\(([^)]+)\)/); const [a, b] = m[1].split(",").map(Number); return { s: Math.hypot(a, b), ang: Math.atan2(b, a), t }; };
+  // ОЖИДАЕМАЯ мировая дельта из ЭКРАННОЙ (sdx,sdy) — независимо от продукта: world=(1/s)·R(-ang)·screen
+  // (та же формула, что EPDrag.worldPosition: dx=(sdx·cos+sdy·sin)/s, dy=(-sdx·sin+sdy·cos)/s)
+  const worldDeltaFromScreen = (sdx, sdy, s, ang) => ({ dx: (Math.cos(ang) * sdx + Math.sin(ang) * sdy) / s, dy: (-Math.sin(ang) * sdx + Math.cos(ang) * sdy) / s });
+  // Проверка переноса ГРУППЫ мышью: (1) дельты всех членов одинаковы; (2) дельта совпала с ожидаемой из
+  // экранного сдвига (независимый пересчёт); (3) все члены попали в ОДНУ комнату, отличную от исходной.
+  // Допуск TOL — на float-арифметику, НЕ на подгон: при равенстве дельт членов он фактический ~1e-12.
+  const TOL = 0.01;
+  const checkGroupDrag = (label, beforeRaw, afterRaw, sdx, sdy, s, ang) => {
+    const exp = worldDeltaFromScreen(sdx, sdy, s, ang);
+    const d = afterRaw.map(p => { const b = beforeRaw.find(q => q.id === p.id); return { id: p.id, dx: p.x - b.x, dy: p.y - b.y, roomBefore: b.room, roomAfter: p.room }; });
+    log.push(label + " дельты членов (НЕокруглённые): " + JSON.stringify(d.map(x => ({ id: x.id, dx: +x.dx.toFixed(3), dy: +x.dy.toFixed(3), room: x.roomAfter })))
+      + "; ожидаемая из экранной (" + sdx + "," + sdy + ") при s=" + s.toFixed(5) + ", angle=" + Math.round(ang * 180 / Math.PI) + "°: dx=" + exp.dx.toFixed(3) + " dy=" + exp.dy.toFixed(3));
+    const eqMembers = d.every(x => Math.abs(x.dx - d[0].dx) <= TOL && Math.abs(x.dy - d[0].dy) <= TOL);
+    const eqExpect = d.every(x => Math.abs(x.dx - exp.dx) <= TOL && Math.abs(x.dy - exp.dy) <= TOL);
+    const sameRoom = d.every(x => x.roomAfter === d[0].roomAfter);
+    const roomChanged = d.every(x => x.roomAfter !== x.roomBefore);
+    assertOk(eqMembers, label + " дельты ВСЕХ членов одинаковы (допуск " + TOL + "): " + JSON.stringify(d.map(x => ({ dx: +x.dx.toFixed(4), dy: +x.dy.toFixed(4) }))));
+    assertOk(eqExpect, label + " дельта членов совпала с ожидаемой из экранного сдвига (допуск " + TOL + "): ждём dx=" + exp.dx.toFixed(4) + " dy=" + exp.dy.toFixed(4));
+    assertOk(sameRoom && roomChanged, label + " все члены переехали в ОДНУ новую комнату: " + d[0].roomBefore + "→" + d[0].roomAfter);
+    return d;
+  };
   // МЫШИНЫЙ перенос с Esc посреди жеста: нажать на иконку, сдвинуть за порог, послать Escape, отпустить
   const dragIconWithEsc = async (cx, cy, dx, dy) => {
     await mouse(cx, cy, "mouseMoved"); await mouse(cx, cy, "mousePressed");
@@ -216,22 +295,24 @@
     const A7 = rooms7[0], B7 = rooms7[1];
     const grp7 = await buildGroupInRoomA(A7);
     log.push("(7) группа из двух в «" + A7.name + "»: выделено " + JSON.stringify(grp7.sel) + ", .selected=" + await cntSel() + ", надпись=«" + await selText() + "»");
-    const before7 = await coordsOf(grp7.sel), sum7b = await grand();
+    const before7 = await coordsOf(grp7.sel), before7raw = await coordsRaw(grp7.sel), sum7b = await grand();
     log.push("(7) ДО переноса: " + JSON.stringify(before7) + ", сумма=" + sum7b);
     await shot("drag-group-before", [`document.querySelector(".grand-total")`], await clip());
     // тянем МЫШЬЮ ведущий пост к центру B на 0.9 пути (чтобы оба центра попали в B)
     const info7 = await postInfo(), lead7 = info7.find(p => p.id === grp7.g1.id);
     const dx7 = Math.round((B7.cx - lead7.cx) * 0.9), dy7 = Math.round((B7.cy - lead7.cy) * 0.9);
     log.push("(7) тянем мышью пост №" + lead7.num + " на экранные (" + dx7 + "," + dy7 + ") к комнате «" + B7.name + "»");
+    const va7 = await viewScaleAngle();
     await drag(lead7.cx, lead7.cy, dx7, dy7);
     const after7 = await coordsOf(grp7.sel), sum7a = await grand();
-    const d7 = after7.map((p, i) => ({ id: p.id, dx: p.x - before7[i].x, dy: p.y - before7[i].y, room: p.room }));
-    log.push("(7) ПОСЛЕ переноса: " + JSON.stringify(after7) + ", сумма=" + sum7a);
-    log.push("(7) дельты по членам (ждём ОДИНАКОВЫЕ dx,dy и room=B у всех): " + JSON.stringify(d7) + ", .selected=" + await cntSel());
+    log.push("(7) ПОСЛЕ переноса: " + JSON.stringify(after7) + ", сумма=" + sum7a + ", .selected=" + await cntSel());
+    // дельты по НЕокруглённым координатам: равны между членами И совпадают с ожидаемой из экранного сдвига
+    checkGroupDrag("(7)", before7raw, await coordsRaw(grp7.sel), dx7, dy7, va7.s, va7.ang);
     await shot("drag-group-after", [`document.querySelector(".grand-total")`], await clip());
     await ctrlZ();
     const undo7 = await coordsOf(grp7.sel), sum7u = await grand();
     log.push("(7) один Ctrl+Z: " + JSON.stringify(undo7) + ", сумма=" + sum7u + " (ждём = ДО: " + JSON.stringify(before7) + ", сумма " + sum7b + ")");
+    assertOk(JSON.stringify(undo7) === JSON.stringify(before7) && sum7u === sum7b, "(7) один Ctrl+Z вернул координаты и сумму к ДО");
     await shot("drag-group-undo", [`document.querySelector(".grand-total")`], await clip());
 
     // (7b) простой клик (без переноса) по члену группы → выделен только он
@@ -240,38 +321,54 @@
     const info7b = await postInfo(), one7 = info7b.find(p => p.id === grp7b.g1.id);
     await clickAt(one7.cx, one7.cy);   // короткий клик без переноса
     const selAfter7b = await ev(`return Array.from(document.querySelectorAll(".plan-icon.post.selected")).map(e=>e.dataset.id)`);
-    log.push("(7b) клик по члену без переноса: .selected=" + await cntSel() + " (ждём 1), выделен " + JSON.stringify(selAfter7b) + " (ждём [" + grp7b.g1.id + "]), надпись=«" + await selText() + "» (ждём пусто)");
+    const sel7bCount = await cntSel(), selText7b = await selText();
+    log.push("(7b) клик по члену без переноса: .selected=" + sel7bCount + " (ждём 1), выделен " + JSON.stringify(selAfter7b) + " (ждём [" + grp7b.g1.id + "]), надпись=«" + selText7b + "» (ждём пусто)");
+    assertOk(sel7bCount === 1 && selAfter7b.length === 1 && selAfter7b[0] === grp7b.g1.id && selText7b === "(скрыто)",
+      "(7b) клик по члену свернул группу до ОДНОГО этого поста, надпись «Выделено» скрыта");
 
     // (7c) Esc посреди переноса группы → все на месте
     const grp7c = await buildGroupInRoomA(A7);
-    const before7c = await coordsOf(grp7c.sel);
+    const before7c = await coordsRaw(grp7c.sel);
     const info7c = await postInfo(), lead7c = info7c.find(p => p.id === grp7c.g1.id);
     await dragIconWithEsc(lead7c.cx, lead7c.cy, Math.round((B7.cx - lead7c.cx) * 0.6), Math.round((B7.cy - lead7c.cy) * 0.6));
-    const after7c = await coordsOf(grp7c.sel);
+    const after7c = await coordsRaw(grp7c.sel);
     log.push("(7c) Esc посреди переноса: ДО=" + JSON.stringify(before7c) + " ПОСЛЕ=" + JSON.stringify(after7c) + " (ждём совпадение — все вернулись)");
+    assertOk(JSON.stringify(after7c) === JSON.stringify(before7c), "(7c) Esc посреди переноса вернул ВСЕХ членов в исходные координаты");
     await shot("drag-group-esc", [], await clip());
 
     // (8) то же перетаскивание при worldAngle=90°
     n = 90;
     await setVal(`document.getElementById("rotateTargetSelect")`, "world");
     await click(`document.getElementById("planRotateRightBtn")`); await sleep(700);
-    log.push("(8) мир повёрнут: transform=" + await ev(`return getComputedStyle(document.getElementById("canvas")).transform`));
+    // «Вписать в экран» ПОСЛЕ поворота. Доказанная причина прежнего обрыva сцены (8): при 90° и десятке
+    // накопленных предыдущими сценами постов экранный центр подписи кухни уезжал на 4px НИЖЕ нижней кромки
+    // окна холста (csRect.bottom=949, центр подписи y=954) — он попадал на .canvas-footer, и постановка по
+    // центру подписи (buildGroupInRoomA) кликала мимо холста: пост не вставал, nw=[] → g1.cx падал. Это
+    // дефект сценария (точка постановки = центр подписи), не продукта. fitView сохраняет угол мира
+    // (angle=worldAngle — 90° остаётся), только подгоняет масштаб/сдвиг и включает габарит подписей, поэтому
+    // обе подписи снова в пределах окна и постановка по их центрам попадает в холст.
+    await click(`document.getElementById("zoomFit")`); await sleep(700);
+    log.push("(8) мир повёрнут и вписан (угол 90° сохранён): transform=" + await ev(`return getComputedStyle(document.getElementById("canvas")).transform`));
     const rooms8 = await roomRects();
     const A8 = rooms8[0], B8 = rooms8[1];
     const grp8 = await buildGroupInRoomA(A8);
     log.push("(8) группа из двух в «" + A8.name + "» при 90°: выделено " + JSON.stringify(grp8.sel) + ", .selected=" + await cntSel());
-    const before8 = await coordsOf(grp8.sel), sum8b = await grand();
+    assertOk(grp8.sel.length === 2, "(8) при 90° собрана группа из ДВУХ постов (постановка по подписи попала в холст)");
+    const before8 = await coordsOf(grp8.sel), before8raw = await coordsRaw(grp8.sel), sum8b = await grand();
     await shot("drag-group-rot90-before", [`document.querySelector(".grand-total")`], await clip());
     const info8 = await postInfo(), lead8 = info8.find(p => p.id === grp8.g1.id);
     const dx8 = Math.round((B8.cx - lead8.cx) * 0.9), dy8 = Math.round((B8.cy - lead8.cy) * 0.9);
     log.push("(8) тянем мышью пост №" + lead8.num + " на экранные (" + dx8 + "," + dy8 + ") к «" + B8.name + "»");
+    const va8 = await viewScaleAngle();
     await drag(lead8.cx, lead8.cy, dx8, dy8);
     const after8 = await coordsOf(grp8.sel), sum8a = await grand();
-    const d8 = after8.map((p, i) => ({ id: p.id, dx: p.x - before8[i].x, dy: p.y - before8[i].y, room: p.room }));
-    log.push("(8) дельты по членам при 90° (ждём ОДИНАКОВЫЕ dx,dy мира и room=B у всех): " + JSON.stringify(d8) + ", сумма " + sum8b + "→" + sum8a);
+    log.push("(8) ПОСЛЕ переноса при 90°: сумма " + sum8b + "→" + sum8a + ", .selected=" + await cntSel());
+    // дельты по НЕокруглённым координатам: равны между членами И совпадают с ожидаемой из экранного сдвига
+    checkGroupDrag("(8)", before8raw, await coordsRaw(grp8.sel), dx8, dy8, va8.s, va8.ang);
     await shot("drag-group-rot90-after", [`document.querySelector(".grand-total")`], await clip());
     await ctrlZ();
     const undo8 = await coordsOf(grp8.sel);
     log.push("(8) один Ctrl+Z при 90°: " + JSON.stringify(undo8) + " (ждём = ДО: " + JSON.stringify(before8) + ")");
+    assertOk(JSON.stringify(undo8) === JSON.stringify(before8), "(8) один Ctrl+Z при 90° вернул координаты всех членов к ДО");
     await click(`document.getElementById("planRotateLeftBtn")`); await sleep(700);   // вернуть мир к 0°
   } else log.push("(7) ПРОПУСК: на холсте меньше двух комнат с подписями");

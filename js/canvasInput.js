@@ -90,28 +90,32 @@ function clearRoomDropHighlight(){applyDropHighlight([])}
 /* Единый источник событий переноса. PointerEvent (с захватом указателя — перенос не
    рвётся, если курсор ушёл за край окна) там, где он есть; иначе — mouse+touch на
    document (без capture курсор уходит с узла). Наружу — одинаковые onMove(x,y)/onUp();
-   возвращает функцию отписки. */
-function trackDrag(el,pointerId,onMove,onUp){
+   возвращает функцию отписки. onCancel (необязателен) — ОТДЕЛЬНАЯ ветка «браузер забрал жест»
+   (pointercancel/touchcancel): без него отмена идёт в onUp (прежнее поведение переноса объекта), с
+   ним — завершение и отмена различаются. Нужно рамке (Б5): оборванную рамку применять нельзя. */
+function trackDrag(el,pointerId,onMove,onUp,onCancel){
   if(HAS_POINTER){
     try{el.setPointerCapture(pointerId)}catch(_){}
     const move=e=>{if(pointerId!=null&&e.pointerId!==pointerId)return;onMove(e.clientX,e.clientY)};
     const up=e=>{if(pointerId!=null&&e.pointerId!==pointerId)return;cleanup();onUp()};
+    const cancel=e=>{if(pointerId!=null&&e.pointerId!==pointerId)return;cleanup();(onCancel||onUp)()};
     function cleanup(){
-      el.removeEventListener("pointermove",move);el.removeEventListener("pointerup",up);el.removeEventListener("pointercancel",up);
+      el.removeEventListener("pointermove",move);el.removeEventListener("pointerup",up);el.removeEventListener("pointercancel",cancel);
       try{el.releasePointerCapture(pointerId)}catch(_){}
     }
-    el.addEventListener("pointermove",move);el.addEventListener("pointerup",up);el.addEventListener("pointercancel",up);
+    el.addEventListener("pointermove",move);el.addEventListener("pointerup",up);el.addEventListener("pointercancel",cancel);
     return cleanup;
   }
   /* запасной путь (Safari <13): touchmove гасим, иначе страница прокрутится вместо переноса */
   const move=e=>{const t=e.touches?e.touches[0]:e;if(!t)return;if(e.cancelable&&e.touches)e.preventDefault();onMove(t.clientX,t.clientY)};
   const up=()=>{cleanup();onUp()};
+  const cancel=()=>{cleanup();(onCancel||onUp)()};
   function cleanup(){
     document.removeEventListener("mousemove",move);document.removeEventListener("mouseup",up);
-    document.removeEventListener("touchmove",move);document.removeEventListener("touchend",up);document.removeEventListener("touchcancel",up);
+    document.removeEventListener("touchmove",move);document.removeEventListener("touchend",up);document.removeEventListener("touchcancel",cancel);
   }
   document.addEventListener("mousemove",move);document.addEventListener("mouseup",up);
-  document.addEventListener("touchmove",move,{passive:false});document.addEventListener("touchend",up);document.addEventListener("touchcancel",up);
+  document.addEventListener("touchmove",move,{passive:false});document.addEventListener("touchend",up);document.addEventListener("touchcancel",cancel);
   return cleanup;
 }
 
@@ -308,11 +312,21 @@ let rbStartX=0,rbStartY=0,rbLastX=0,rbLastY=0,rbMoved=false,rbEl=null,rbStop=nul
    Клик по иконке/стене/табличке сюда не доходит (их обработчики гасят всплытие своим stopPropagation). */
 function beginRubberBand(e){
   if(!e.isPrimary||e.button!==0)return;
+  /* Рамку тянем ТОЛЬКО мышью (решение владельца «рамка пальцем — бэклог»): касание и перо рамку не
+     начинают. pointerType у настоящего события всегда задан; отсутствует только в шимах — его трактуем
+     как мышь, чтобы не завязывать проверку на шим (запасной touchstart-путь рамку и так не зовёт). */
+  if(e.pointerType&&e.pointerType!=="mouse")return;
   if(state.tool!=="select"||state.pending||spaceDown)return;
   const t=e.target;
   if(!(t===canvasScroll||t===canvas||t===$("wallsSvg")||t===$("roomsSvg")))return;
+  /* preventDefault на старте рамки: протяжка по пустому месту НЕ должна запускать нативное выделение
+     текста холста (переносы строк, подпись/легенда). Иначе выделенный текст при следующем нажатии даёт
+     нативный dragstart на #canvas → браузер шлёт pointercancel → рамка срывается (доказанный дефект).
+     Цель здесь — заведомо пустое место холста (whitelist выше), а не поле ввода или панель, поэтому
+     фокус полей и выделение текста вне холста это не затрагивает. */
+  e.preventDefault();
   rbStartX=e.clientX;rbStartY=e.clientY;rbLastX=e.clientX;rbLastY=e.clientY;rbMoved=false;
-  rbStop=trackDrag(canvasScroll,e.pointerId,rubberMove,rubberUp);
+  rbStop=trackDrag(canvasScroll,e.pointerId,rubberMove,rubberUp,rubberCancel);
 }
 /* Движение: пока не пройден порог — это ещё клик (простой клик по пустому должен сработать как
    раньше — снять выделение). За порогом рисуем рамку и ведём её за курсором. */
@@ -338,6 +352,15 @@ function rubberUp(){
   rbMoved=false;
   rbSuppressClick=true;   /* снимается на следующем pointerdown — ровно один click погашен */
 }
+/* Браузер забрал жест (pointercancel/touchcancel): рамку НЕ применяем — прежнее выделение остаётся,
+   прямоугольник убираем. Клик гасить не нужно: применения не было, rbSuppressClick не взводим, значит
+   одноразовое гашение не залипнет. Денежная ловушка (касание→сдвиг→pointercancel применял частичный
+   отбор и подменял выделение) закрыта ТЕМ, что отмена идёт сюда, а не в rubberUp. */
+function rubberCancel(){
+  if(rbStop){rbStop();rbStop=null}
+  if(rbEl){rbEl.remove();rbEl=null}
+  rbMoved=false;
+}
 /* Собственно отбор: рамку (клиентские координаты) и центры постов сводим к системе окна холста
    (worldToScreen отсчитывает от его левого-верхнего угла — как clientToWorld). normalize заменяет
    выделение целиком: ≥2 → группа, 1 → один пост, 0 → снято. */
@@ -357,6 +380,10 @@ function applyRubberSelection(){
 function suppressSyntheticClick(e){
   if(panMoved||spaceDown||rbSuppressClick){panMoved=false;e.stopPropagation();e.preventDefault()}
 }
+/* Новый жест на окне холста (любой pointerdown): одноразовое гашение клика от ПРЕДЫДУЩЕЙ рамки уже
+   отработало на её click — снимаем флаг, чтобы гасился РОВНО один клик. Именованной функцией (не
+   инлайном в обработчике), чтобы поведенческий стенд мог её вырезать и проверить сброс. */
+function clearRubberClickSuppress(){rbSuppressClick=false}
 
 /* ---- РЕГИСТРАЦИЯ обработчиков ввода на холсте (выполняется один раз при attach, на самом низу
    загрузки app.js — как provязка кнопок в postBuilder/docs; событий во время загрузки нет). ---- */
@@ -407,7 +434,7 @@ canvasScroll.onclick=e=>{
    в пикселях экрана 1:1 с мышью: двигаем сам вид, масштаб тут не делим. ---- */
 let spaceDown=false,panning=false,panLX=0,panLY=0,panMoved=false;
 canvasScroll.addEventListener("pointerdown",e=>{
-  rbSuppressClick=false;   /* новый жест: гашение клика от ПРЕДЫДУЩЕЙ рамки уже отработало, снимаем флаг */
+  clearRubberClickSuppress();   /* новый жест: гашение клика от ПРЕДЫДУЩЕЙ рамки уже отработало, снимаем флаг */
   if(!((spaceDown&&e.button===0)||e.button===1))return;   /* пробел+ЛКМ или средняя кнопка */
   e.preventDefault();e.stopPropagation();
   panning=true;panMoved=false;panLX=e.clientX;panLY=e.clientY;
@@ -434,6 +461,11 @@ canvasScroll.addEventListener("pointerdown",beginRubberBand);
 canvasScroll.addEventListener("click",suppressSyntheticClick,true);
 /* средняя кнопка на части ОС включает автоскролл — глушим */
 canvasScroll.addEventListener("auxclick",e=>{if(e.button===1)e.preventDefault()});
+/* Нативное перетаскивание (dragstart) на холсте не нужно нигде: перенос объектов и рамка идут на
+   указательных событиях. Глушим его — даже если под курсором осталось выделение текста или картинка,
+   браузер не запустит drag (именно он слал pointercancel и срывал рамку). Слушатель только на окне
+   холста: выделение текста и перетаскивание в панелях вне холста не затрагиваются. */
+canvasScroll.addEventListener("dragstart",e=>e.preventDefault());
 
 /* ---- Зум КОЛЕСОМ К ПОЗИЦИИ КУРСОРА. passive:false — нужен preventDefault, иначе
    прокрутится страница. Множитель экспоненциальный — плавно и симметрично вверх/вниз. */

@@ -449,14 +449,14 @@ function compactIcon(entity,kind){
   makeDraggable(el,entity,kind);return el;
 }
 function renderDevices(){canvas.querySelectorAll(".plan-icon.device-only").forEach(e=>e.remove());state.devices.forEach(d=>{const el=compactIcon(d,"device");el.classList.add("device-only");canvas.appendChild(el)})}
-function renderPosts(){canvas.querySelectorAll(".plan-icon.post").forEach(e=>e.remove());state.posts.forEach(p=>{const el=compactIcon(p,"post");el.ondblclick=e=>{e.stopPropagation();if(e.ctrlKey||e.metaKey)return;openPostOnDblClick(p.id)};canvas.appendChild(el)})}
+function renderPosts(){canvas.querySelectorAll(".plan-icon.post").forEach(e=>e.remove());state.posts.forEach(p=>{const el=compactIcon(p,"post");el.ondblclick=e=>{e.stopPropagation();openPostOnDblClick(p.id,e.ctrlKey||e.metaKey)};canvas.appendChild(el)})}
 /* В19: двойной клик по иконке поста. Обычно — открыть ЭТОТ пост (как и было). Но если это тот
    самый новый пост, что первый клик двойного только что поставил ПОВЕРХ старого в режиме
    «Разместить» (см. _placeOnPostIcon/_lastIconPlacement в addPending), — откатываем постановку и
    открываем СТАРЫЙ пост: жест сохраняет прежний смысл «открыть этот пост», а не плодит дубль.
    Решение «это ли продолжение того двойного клика» — чистый EPPlaceDblClick.resolve (окно по
    времени отделяет его от осознанного двойного клика по новому посту много позже). */
-function openPostOnDblClick(postId){
+function openPostOnDblClick(postId,isCtrl){
   const d=EPPlaceDblClick.resolve(_lastIconPlacement,postId,Date.now());
   if(d.undo){
     _lastIconPlacement=null;
@@ -474,6 +474,11 @@ function openPostOnDblClick(postId){
        добавили) — гасим до открытия конструктора старого поста. */
     const t=$("toast");if(t){t.classList.remove("show");t.textContent=""}
   }
+  /* Ctrl(⌘)+двойной клик окно поста НЕ открывает (решение владельца: модификатор занят групповым
+     выделением). Но откат постановки В19 выше (ветка d.undo) выполняется ВСЕГДА — иначе Ctrl+двойной
+     клик в режиме «Разместить» оставил бы лишний пост в смете (деньги): дубль снимается как и без Ctrl.
+     Вне размещения (d.undo=false) при Ctrl просто выходим, не открывая конструктор. */
+  if(isCtrl&&!d.undo)return;
   openPostBuilder({placedId:d.openId});
 }
 /* СВЯЗИ ГРУПП СВЕТА НА РАБОЧЕМ ХОЛСТЕ. Владелец хотел видеть связи между постами не только в
@@ -1172,6 +1177,17 @@ function removePosts(ids){
   if(!kill.size)return;
   state.posts=state.posts.filter(p=>!kill.has(String(p.id)));
   state.selected=null;renderAll();renderProperties();renderSummary();
+}
+/* Удаление выделенного клавишей Delete. Вынесено из document.onkeydown ОТДЕЛЬНОЙ функцией (как
+   moveSelectedByKey), чтобы правило проверялось поведенческим стендом — тело onkeydown стенд не режет.
+   Группа {kind:"posts"} (поля id у неё нет) — одним removePosts (один шаг истории, Ctrl+Z вернёт все);
+   одиночное выделение (.id есть) — прежним removeEntity (свой одиночный шаг). Возвращает true, если
+   что-то удалено. */
+function deleteSelectedEntity(){
+  const sel=state.selected;if(!sel)return false;
+  if(sel.kind==="posts"){removePosts(sel.ids);return true}
+  if(sel.id!=null){removeEntity(sel.kind,sel.id);return true}
+  return false;
 }
 /* Какой комнате принадлежат СМОНТИРОВАННЫЕ сейчас поля #roomName/#roomArea. Нужен flushRoomDraft:
    поля читаются из DOM, но по одному DOM не понять, чью комнату они правят, — а панель может уже
@@ -3987,10 +4003,7 @@ document.onkeydown=e=>{
      одним removePosts (один шаг истории, Ctrl+Z вернёт все); одиночное выделение (.id есть) — прежним
      removeEntity. Backspace здесь НЕ удаляет намеренно: в проекте одиночного удаления на Backspace нет,
      а в ветке «Разметка» ниже он снимает последнюю точку контура — поведение не меняем. */
-  if(e.key==="Delete"&&!typing&&!inBuilder){
-    if(state.selected&&state.selected.kind==="posts")removePosts(state.selected.ids);
-    else if(state.selected&&state.selected.id!=null)removeEntity(state.selected.kind,state.selected.id);
-  }
+  if(e.key==="Delete"&&!typing&&!inBuilder)deleteSelectedEntity();
   /* Клавиатура для выделенного объекта (PLAN 4): Enter — конструктор поста, стрелки —
      сдвиг на шаг сетки (Shift — на 1px). Только вне ввода и при закрытом конструкторе. */
   if(!typing&&state.selected&&!inBuilder){

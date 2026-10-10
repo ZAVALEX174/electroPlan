@@ -67,7 +67,7 @@ test("resolve: часы уехали назад (elapsed<0) — не откат�
 /* --------------------- 2. Поведенческая связка openPostOnDblClick (app.js) --------------------- */
 /* Исполняем НАСТОЯЩИЙ текст openPostOnDblClick в vm: _lastIconPlacement — глобал контекста (как
    top-level let в app.js), EPPlaceDblClick — настоящий модуль, остальное — шпионы. */
-function runDblClick(seedPlacement, postId, now) {
+function runDblClick(seedPlacement, postId, now, isCtrl) {
   const calls = { remove: [], persist: 0, open: [], drop: 0 };
   const toast = {
     textContent: "Объект добавлен в комнату «Кухня»",
@@ -87,7 +87,7 @@ function runDblClick(seedPlacement, postId, now) {
     syncHistoryUi() {}
   };
   const fn = stand.run("openPostOnDblClick", ctx);
-  fn(postId);
+  fn(postId, isCtrl);
   return { calls, ctx, toast };
 }
 
@@ -110,4 +110,24 @@ test("openPostOnDblClick: обычный двойной клик (маркера
   assert.equal(calls.open.length, 1);
   assert.equal(calls.open[0].placedId, "post_z", "открыт именно тот пост, по которому кликнули");
   assert.equal(toast.textContent, "Объект добавлен в комнату «Кухня»", "чужой тост не трогаем");
+});
+
+/* Б5: Ctrl(⌘) занят групповым выделением, поэтому Ctrl+двойной клик окно поста НЕ открывает. НО откат
+   постановки В19 обязан происходить и под Ctrl — иначе Ctrl+двойной клик в «Разместить» оставил бы
+   лишний пост в смете (деньги). Регресс Б5 (ранний return в обработчике ДО openPostOnDblClick) как раз
+   съедал откат. */
+test("openPostOnDblClick: Ctrl+двойной клик в «Разместить» (продолжение постановки) — дубль ВСЁ РАВНО снимается, открыт старый", () => {
+  const { calls, ctx } = runDblClick({ newId: "post_new", overId: "post_old", t: 800 }, "post_new", 1000, true);
+  assert.deepEqual(calls.remove, [["post", "post_new"]], "новый пост (дубль) убран несмотря на Ctrl — лишнего в смете нет");
+  assert.equal(calls.persist, 1, "удаление сохранено");
+  assert.equal(calls.drop, 1, "шаг «поставил» снят из истории");
+  assert.equal(ctx._lastIconPlacement, null, "маркер постановки снят");
+  assert.equal(calls.open.length, 1, "в сценарии В19 конструктор старого поста открывается как без Ctrl");
+  assert.equal(calls.open[0].placedId, "post_old", "открыт СТАРЫЙ пост");
+});
+
+test("openPostOnDblClick: Ctrl+двойной клик ВНЕ размещения — окно НЕ открывается и ничего не удаляется", () => {
+  const { calls } = runDblClick(null, "post_z", 1000, true);
+  assert.deepEqual(calls.remove, [], "вне размещения удалять нечего");
+  assert.equal(calls.open.length, 0, "Ctrl+двойной клик окно поста не открывает (решение владельца)");
 });

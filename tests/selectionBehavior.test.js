@@ -145,8 +145,13 @@ function buildProps(state, props, spies) {
   return {
     render: stand.run("renderProperties", {
       state, props, EPSelection, esc: String, money: v => "m" + v, $: dom.$,
-      projectLighting: () => ({}), postTotalCost: () => 10,
-      flushRoomDraft() {}, renderTemplates() {}, updateSelectionCount() {}, applySelectionClasses() {},
+      /* Стоимость карточки группы обязана зависеть ОТ ПОСТА и ОТ lighting — иначе мутации «сумма по
+         ВСЕМ постам» и «postTotalCost(p,null)» были бы зелёными (стаб ()=>10 их не ловит). p.cost —
+         конкретный пост, light.k делает подсветку наблюдаемой. */
+      projectLighting: () => ({ k: 10 }),
+      postTotalCost: (p, light) => (p.cost || 0) * (light && light.k || 1),
+      flushRoomDraft() {}, renderTemplates() {},
+      updateSelectionCount() { if (spies) spies.count = (spies.count || 0) + 1; }, applySelectionClasses() {},
       findSelectedEntity() { return null; },
       /* removePosts зовётся только из onclick кнопки — спай фиксирует, что кнопка на него провязана */
       removePosts(ids) { if (spies) spies.removed = ids; }
@@ -155,14 +160,18 @@ function buildProps(state, props, spies) {
   };
 }
 test("renderProperties: группа постов → карточка «Выделено постов: N» + суммарная цена + «Удалить выделенные (N)» (Б5 ч.2)", () => {
-  const state = { posts: [{ id: "p1" }, { id: "p2" }], selected: { kind: "posts", ids: ["p1", "p2"] } };
+  /* 3 поста, выделены ДВА из трёх (p1,p2): сумма по выделенным ≠ сумме по всем — ловит мутацию «по
+     всем постам». Стоимости различны и домножены на lighting.k — ловит «postTotalCost(p,null)». */
+  const state = { posts: [{ id: "p1", cost: 3 }, { id: "p2", cost: 5 }, { id: "p3", cost: 7 }],
+    selected: { kind: "posts", ids: ["p1", "p2"] } };
   const props = stand.makeElement();
   const spies = {};
   const { render, dom } = buildProps(state, props, spies);
   render();
   assert.match(props.innerHTML, /Выделено постов/);
   assert.match(props.innerHTML, /value="2"/);
-  assert.match(props.innerHTML, /m20/, "суммарная стоимость = 10+10 через money");
+  assert.match(props.innerHTML, /m80/, "суммарная стоимость = (3+5)·10 через money — только выделенные и с учётом lighting");
+  assert.ok(spies.count >= 1, "renderProperties обновил надпись «Выделено: N» (updateSelectionCount вызван)");
   assert.ok(!/editSelected/.test(props.innerHTML), "«Редактировать» у группы нет (правка набора разом смысла не имеет)");
   assert.match(props.innerHTML, /Удалить выделенные \(2\)/, "Б5 ч.2: кнопка удаления набора с числом");
   /* кнопка провязана на removePosts с тем же составом, что показан (та же функция, что и Delete) */
@@ -201,46 +210,68 @@ test("updateSelectionCount: один пост → пусто и скрыт (на
    5. Рамка выделения (canvasInput.js): applyRubberSelection при угле 90, гашение клика после рамки
    ==================================================================================== */
 function buildRubber(over) {
+  over = over || {};
   const spies = { applyCls: 0, renderProps: 0 };
   const captured = {};
-  const canvasScroll = Object.assign(makeNode(), { getBoundingClientRect: () => ({ left: 0, top: 0 }) });
+  /* По умолчанию смещение окна холста и вид (зум+сдвиг) НЕтривиальны: рамка обязана вычитать смещение
+     окна и переводить мир в экран через зум/сдвиг. На нулевых стабах мутации «забыл вычесть смещение»
+     и «потерял pan» прошли бы мимо (identity). Тесты, которым нужна чистая арифметика угла, задают
+     bcr и view через over. */
+  const bcr = over.bcr || { left: 30, top: 17 };
+  const canvasScroll = Object.assign(makeNode(), { getBoundingClientRect: () => bcr });
   const dom = stand.makeDom();
   const ctx = Object.assign({
     EPSelection, EPViewport, EPDrag, EPConfig, document: makeDoc(),
     canvasScroll, canvas: makeNode(), $: dom.$,
     state: { tool: "select", pending: null, posts: [] },
-    view: () => ({ panX: 0, panY: 0, scale: 1, angle: 90 }),
+    view: () => ({ panX: 40, panY: 25, scale: 2, angle: 0 }),
     hideHover() {},
     applySelectionClasses() { spies.applyCls++; }, renderProperties() { spies.renderProps++; },
-    trackDrag(el, pid, onMove, onUp) { captured.onMove = onMove; captured.onUp = onUp; return () => { captured.stopped = true; }; },
+    trackDrag(el, pid, onMove, onUp, onCancel) { captured.onMove = onMove; captured.onUp = onUp; captured.onCancel = onCancel; return () => { captured.stopped = true; }; },
     spaceDown: false, panMoved: false,
     rbStartX: 0, rbStartY: 0, rbLastX: 0, rbLastY: 0, rbMoved: false, rbEl: null, rbStop: null, rbSuppressClick: false
   }, over);
   const code = [
     stand.functionSource("beginRubberBand"), stand.functionSource("rubberMove"),
-    stand.functionSource("rubberUp"), stand.functionSource("applyRubberSelection"),
-    stand.functionSource("suppressSyntheticClick"),
-    ";({ beginRubberBand, rubberMove, rubberUp, applyRubberSelection, suppressSyntheticClick });"
+    stand.functionSource("rubberUp"), stand.functionSource("rubberCancel"),
+    stand.functionSource("applyRubberSelection"), stand.functionSource("suppressSyntheticClick"),
+    stand.functionSource("clearRubberClickSuppress"),
+    ";({ beginRubberBand, rubberMove, rubberUp, rubberCancel, applyRubberSelection, suppressSyntheticClick, clearRubberClickSuppress });"
   ].join("\n");
   vm.createContext(ctx);
   return { api: vm.runInContext(code, ctx), ctx, canvasScroll, captured, spies };
 }
 
 test("рамка при угле мира 90°: выделяет посты, чьи ЭКРАННЫЕ центры попали в рамку", () => {
-  /* при 90°,scale1,pan0: центр (x+12,y+12) → экран (-(y+12), x+12).
-     a(0,0)→(-12,12), b(100,0)→(-12,112), c(0,100)→(-112,12). Рамка {-30..0}×{0..200} берёт a,b. */
-  const r = buildRubber();
+  /* чистая арифметика угла: смещение окна 0, scale1, pan0. При 90°: центр (x+12,y+12) → экран
+     (-(y+12), x+12). a(0,0)→(-12,12), b(100,0)→(-12,112), c(0,100)→(-112,12). Рамка {-30..0}×{0..200}
+     берёт a,b. Ловит мутацию «worldToScreen без угла». */
+  const r = buildRubber({ bcr: { left: 0, top: 0 }, view: () => ({ panX: 0, panY: 0, scale: 1, angle: 90 }) });
   r.ctx.state.posts = [{ id: "a", x: 0, y: 0 }, { id: "b", x: 100, y: 0 }, { id: "c", x: 0, y: 100 }];
   r.ctx.rbStartX = -30; r.ctx.rbStartY = 0; r.ctx.rbLastX = 0; r.ctx.rbLastY = 200; r.ctx.rbMoved = true;
   r.api.applyRubberSelection();
   assert.deepEqual(plain(r.ctx.state.selected), { kind: "posts", ids: ["a", "b"] });
 });
 
+test("рамка учитывает смещение окна холста и зум/сдвиг вида: клиентские координаты сводятся к окну, мир — к экрану", () => {
+  /* defaults buildRubber: bcr{left:30,top:17}, view{pan(40,25),scale2,angle0}. Экран центра поста =
+     ((x+12)*2+40,(y+12)*2+25). a(0,0)→(64,49), b(30,0)→(124,49). Клиентскую рамку сводим к окну (минус
+     bcr): client(80,17)→окно(50,0), client(130,117)→окно(100,100) → экранная рамка {50..100,0..100}
+     берёт ТОЛЬКО a. Мутации «не вычел смещение окна» и «потерял pan» дают вместо a → b. */
+  const r = buildRubber();
+  r.ctx.state.posts = [{ id: "a", x: 0, y: 0 }, { id: "b", x: 30, y: 0 }];
+  r.ctx.rbStartX = 80; r.ctx.rbStartY = 17; r.ctx.rbLastX = 130; r.ctx.rbLastY = 117; r.ctx.rbMoved = true;
+  r.api.applyRubberSelection();
+  assert.deepEqual(plain(r.ctx.state.selected), { kind: "post", id: "a" });
+});
+
 test("полный жест рамки: протяжка выделяет и ВЗВОДИТ гашение клика; суммарный click не сбрасывает выделение", () => {
+  /* defaults buildRubber (смещение+зум+сдвиг): a(0,0)→экран(64,49), b(100,0)→(264,49). Клиентская
+     рамка client(90,57)→окно(60,40) … (300,77)→окно(270,60) → экранная {60..270,40..60} берёт обоих. */
   const r = buildRubber();
   r.ctx.state.posts = [{ id: "a", x: 0, y: 0 }, { id: "b", x: 100, y: 0 }];
-  r.api.beginRubberBand(pointer({ target: r.canvasScroll, clientX: -30, clientY: 0 }));
-  r.captured.onMove(0, 200);     /* за порогом — рисуем рамку */
+  r.api.beginRubberBand(pointer({ target: r.canvasScroll, clientX: 90, clientY: 57 }));
+  r.captured.onMove(300, 77);    /* за порогом — рисуем рамку */
   r.captured.onUp();             /* отпускание — применяем выделение */
   assert.deepEqual(plain(r.ctx.state.selected), { kind: "posts", ids: ["a", "b"] });
   assert.equal(r.ctx.rbSuppressClick, true, "после протяжки следующий click взведён на гашение");
@@ -248,6 +279,42 @@ test("полный жест рамки: протяжка выделяет и В�
   const ev = { _sp: 0, _pd: 0, stopPropagation() { this._sp++; }, preventDefault() { this._pd++; } };
   r.api.suppressSyntheticClick(ev);
   assert.equal(ev._sp, 1, "click после рамки погашен (иначе сбросил бы выделение)");
+});
+
+test("рамку оборвал браузер (pointercancel): прежнее выделение остаётся, частичная рамка НЕ применяется, гашение не залипает", () => {
+  /* вход: было выделено b, тянем рамку, которая накрыла бы ТОЛЬКО a, но браузер забрал жест. Рамка не
+     должна подменить выделение на a (денежная ловушка B5). defaults: a(0,0)→(64,49), b(100,0)→(264,49);
+     рамка client(90,57)→окно(60,40) … (130,77)→окно(100,60) → экранная {60..100,40..60} берёт лишь a. */
+  const r = buildRubber();
+  r.ctx.state.posts = [{ id: "a", x: 0, y: 0 }, { id: "b", x: 100, y: 0 }];
+  r.ctx.state.selected = { kind: "post", id: "b" };
+  r.api.beginRubberBand(pointer({ target: r.canvasScroll, clientX: 90, clientY: 57 }));
+  r.captured.onMove(130, 77);    /* за порогом — рамка нарисована */
+  assert.equal(typeof r.captured.onCancel, "function", "beginRubberBand передал обработчик отмены");
+  r.captured.onCancel();         /* браузер забрал жест */
+  assert.deepEqual(plain(r.ctx.state.selected), { kind: "post", id: "b" }, "прежнее выделение (b) осталось — частичная рамка не применилась");
+  assert.equal(r.ctx.rbSuppressClick, false, "гашение клика НЕ взведено (применения не было, не залипает)");
+  assert.equal(r.ctx.rbEl, null, "прямоугольник рамки убран");
+});
+
+test("рамка стартует ТОЛЬКО мышью: касание (pointerType touch) рамку не начинает", () => {
+  const r = buildRubber();
+  r.api.beginRubberBand(pointer({ target: r.canvasScroll, pointerType: "touch", clientX: 50, clientY: 50 }));
+  assert.equal(r.captured.onMove, undefined, "касанием рамка не начинается (решение владельца: бэклог)");
+});
+
+test("старт рамки гасит нативное выделение текста (preventDefault на pointerdown пустого места)", () => {
+  const r = buildRubber();
+  let pd = 0;
+  r.api.beginRubberBand(pointer({ target: r.canvasScroll, clientX: 50, clientY: 50, preventDefault() { pd++; } }));
+  assert.equal(pd, 1, "рамка на старте зовёт preventDefault — протяжка не выделяет текст страницы");
+});
+
+test("новый pointerdown снимает одноразовое гашение клика от рамки (ровно один клик гасится)", () => {
+  const r = buildRubber();
+  r.ctx.rbSuppressClick = true;
+  r.api.clearRubberClickSuppress();
+  assert.equal(r.ctx.rbSuppressClick, false, "следующий жест снимает флаг гашения");
 });
 
 test("простой клик по пустому (без протяжки) НЕ гасится: обычный сброс выделения работает", () => {
@@ -305,8 +372,11 @@ test("moveSelectedBy при группе, где все id мертвы, воз�
 /* ====================================================================================
    7. Ctrl+двойной клик по посту НЕ открывает окно поста
    ==================================================================================== */
-test("renderPosts: Ctrl(⌘)+двойной клик по иконке поста не зовёт openPostOnDblClick, обычный — зовёт", () => {
-  const opened = [];
+test("renderPosts: двойной клик по иконке поста ПРОКИДЫВАЕТ флаг Ctrl/⌘ в openPostOnDblClick", () => {
+  /* Решение «откатывать постановку В19 всегда, окно при Ctrl не открывать» принимает openPostOnDblClick
+     (там известно про размещение) — см. placeDblClick.test.js. Здесь сторожим лишь, что обработчик
+     прокидывает модификатор и не глотает его ранним return (регресс Б5 оставлял дубль в смете). */
+  const calls = [];
   const appended = [];
   const canvas = { querySelectorAll: () => [], appendChild: el => appended.push(el) };
   stand.run(["compactIcon", "renderPosts"], {
@@ -314,13 +384,42 @@ test("renderPosts: Ctrl(⌘)+двойной клик по иконке пост�
     document: stand.makeDocument(), EPSelection, canvas,
     EPRoomAssign: { isOutsideRooms: () => false },
     product: () => ({ icon: "?" }), showHover() {}, positionHover() {}, hideHover() {}, makeDraggable() {},
-    openPostOnDblClick: id => opened.push(id)
+    openPostOnDblClick: (id, ctrl) => calls.push([id, ctrl])
   })();
   const el = appended[0];
   el.ondblclick({ ctrlKey: true, stopPropagation() {} });
-  assert.deepEqual(opened, [], "Ctrl+двойной клик окно не открывает");
   el.ondblclick({ ctrlKey: false, metaKey: false, stopPropagation() {} });
-  assert.deepEqual(opened, ["p1"], "обычный двойной клик открывает пост");
+  el.ondblclick({ ctrlKey: false, metaKey: true, stopPropagation() {} });
+  assert.deepEqual(calls, [["p1", true], ["p1", false], ["p1", true]],
+    "флаг Ctrl/⌘ всегда доходит до openPostOnDblClick (откат В19 и запрет окна решает оно)");
+});
+
+test("applySelectionClasses: иконки членов группы постов получают .selected, посторонний — нет", () => {
+  const nodes = ["p1", "p2", "p3"].map(id => { const n = makeNode(); n.dataset.kind = "post"; n.dataset.id = id; return n; });
+  const canvas = { querySelectorAll: sel => (sel.indexOf("plan-icon") >= 0 ? nodes : []) };
+  /* applySelectionClasses трогает ещё room-label (через canvas) и roomsSvg/стены — глушим их пустыми */
+  const $ = id => (id === "roomsSvg" ? { querySelectorAll: () => [] } : stand.makeElement());
+  stand.run("applySelectionClasses", {
+    state: { selected: { kind: "posts", ids: ["p1", "p2"] } }, canvas, $, EPSelection, drawWalls() {}
+  })();
+  assert.equal(nodes[0].classList.contains("selected"), true, "p1 — член группы, подсвечен");
+  assert.equal(nodes[1].classList.contains("selected"), true, "p2 — член группы, подсвечен");
+  assert.equal(nodes[2].classList.contains("selected"), false, "p3 вне группы — не подсвечен");
+});
+
+test("deleteSelectedEntity: группа → removePosts(ids) один раз; одиночное → removeEntity(kind,id)", () => {
+  const calls = { removePosts: [], removeEntity: [] };
+  const run = selected => stand.run("deleteSelectedEntity", {
+    state: { selected },
+    removePosts(ids) { calls.removePosts.push(ids); },
+    removeEntity(kind, id) { calls.removeEntity.push([kind, id]); }
+  })();
+  assert.equal(run({ kind: "posts", ids: ["p1", "p2"] }), true, "группа удалена → true");
+  assert.deepEqual(calls.removePosts, [["p1", "p2"]], "группа идёт через removePosts (один шаг истории)");
+  assert.deepEqual(calls.removeEntity, [], "у группы одиночный removeEntity не зовётся");
+  assert.equal(run({ kind: "post", id: "p9" }), true, "одиночный пост удалён → true");
+  assert.deepEqual(calls.removeEntity, [["post", "p9"]], "одиночное — прежним removeEntity");
+  assert.equal(run(null), false, "ничего не выделено → false");
 });
 
 /* ====================================================================================

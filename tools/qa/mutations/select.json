@@ -52,5 +52,44 @@
     "from": "refreshAfterRoomAssignments(renderRooms, scheduleSave);", "to": "group.forEach(m=>{updateObjectRoom(m.obj);scheduleSave();});" },
 
   { "name": "S17 (Б5 ч.3): после отпускания группы НЕТ пересчёта привязки к комнатам (мимо контракта)", "file": "js/canvasInput.js",
-    "from": "refreshAfterRoomAssignments(renderRooms, scheduleSave);", "to": "renderRooms();scheduleSave();" }
+    "from": "refreshAfterRoomAssignments(renderRooms, scheduleSave);", "to": "renderRooms();scheduleSave();" },
+
+  { "name": "P1 (Б5): старт рамки не гасит нативное выделение текста (нет preventDefault) → dragstart/pointercancel срывает рамку", "file": "js/canvasInput.js",
+    "from": "e.preventDefault();\n  rbStartX=e.clientX;rbStartY=e.clientY;rbLastX=e.clientX;rbLastY=e.clientY;rbMoved=false;", "to": "rbStartX=e.clientX;rbStartY=e.clientY;rbLastX=e.clientX;rbLastY=e.clientY;rbMoved=false;" },
+
+  { "name": "P2 (Б5): оборванная рамка (pointercancel) идёт в rubberUp и ПРИМЕНЯЕТ частичный отбор, подменяя выделение", "file": "js/canvasInput.js",
+    "from": "rbStop=trackDrag(canvasScroll,e.pointerId,rubberMove,rubberUp,rubberCancel);", "to": "rbStop=trackDrag(canvasScroll,e.pointerId,rubberMove,rubberUp,rubberUp);" },
+
+  { "name": "P3 (Б5): рамка стартует не только мышью (снята проверка pointerType) — касание начинает рамку", "file": "js/canvasInput.js",
+    "from": "if(e.pointerType&&e.pointerType!==\"mouse\")return;", "to": "if(false)return;" },
+
+  { "name": "P4a (Б5): обработчик глотает Ctrl ДО openPostOnDblClick — откат постановки В19 не происходит, дубль в смете", "file": "js/app.js",
+    "from": "openPostOnDblClick(p.id,e.ctrlKey||e.metaKey)", "to": "(e.ctrlKey||e.metaKey)||openPostOnDblClick(p.id,false)" },
+
+  { "name": "P4b (Б5): вне размещения Ctrl+двойной клик всё равно открывает окно поста (гард снят)", "file": "js/app.js",
+    "from": "if(isCtrl&&!d.undo)return;", "to": "if(false)return;" },
+
+  { "name": "P5a1 (Б5): сумма карточки группы считается по ВСЕМ постам, а не по выделенным", "file": "js/app.js",
+    "from": "ids.reduce((s,id)=>{const p=state.posts.find(x=>x.id===id);return p?s+postTotalCost(p,light):s},0)", "to": "state.posts.reduce((s,p)=>s+postTotalCost(p,light),0)" },
+
+  { "name": "P5a2 (Б5): стоимость карточки группы без подсветки проекта (postTotalCost без light)", "file": "js/app.js",
+    "from": "postTotalCost(p,light):s", "to": "postTotalCost(p,null):s" },
+
+  { "name": "P5b (Б5): Delete группы не удаляет набор (ветка posts мертва) — поведение Delete не проверялось", "file": "js/app.js",
+    "from": "if(sel.kind===\"posts\"){removePosts(sel.ids);return true}", "to": "if(false){removePosts(sel.ids);return true}" },
+
+  { "name": "P5c1 (Б5): рамка не вычитает смещение окна холста (cr.left/top) — отбор уезжает", "file": "js/canvasInput.js",
+    "from": "EPSelection.rectFromPoints({x:rbStartX-cr.left,y:rbStartY-cr.top},{x:rbLastX-cr.left,y:rbLastY-cr.top})", "to": "EPSelection.rectFromPoints({x:rbStartX,y:rbStartY},{x:rbLastX,y:rbLastY})" },
+
+  { "name": "P5c2 (Б5): рамка теряет сдвиг вида (pan) при переводе мир→экран — отбор при панораме неверен", "file": "js/canvasInput.js",
+    "from": "EPViewport.worldToScreen(pt,v)", "to": "EPViewport.worldToScreen(pt,{scale:v.scale,angle:v.angle})" },
+
+  { "name": "P5d (Б5): новый pointerdown не снимает гашение клика рамки — гашение залипает", "file": "js/canvasInput.js",
+    "from": "function clearRubberClickSuppress(){rbSuppressClick=false}", "to": "function clearRubberClickSuppress(){}" },
+
+  { "name": "P5e (Б5): applySelectionClasses не подсвечивает членов группы (предикат забыл kind=posts)", "file": "js/app.js",
+    "from": "const isSel=(kind,id)=>EPSelection.isSelected(sel,kind,id);", "to": "const isSel=(kind,id)=>sel&&sel.kind===kind&&sel.id===id;" },
+
+  { "name": "P5f (Б5): renderProperties не обновляет надпись «Выделено: N» (updateSelectionCount не вызван)", "file": "js/app.js",
+    "from": "updateSelectionCount();", "to": "void 0;" }
 ]
