@@ -26,7 +26,7 @@ const { stripComments } = require("./helpers/stripComments.js");
 
 const JS_DIR = path.join(__dirname, "..", "js");
 
-/* Последняя функция тела фабрики attach в каждом из пяти модулей И1 — у неё нет `\nfunction`-соседа,
+/* Последняя функция тела фабрики attach в каждом из модулей-фабрик (И1 + Б9/И2 postCopyUi) — у неё нет `\nfunction`-соседа,
    поэтому её вырезка идёт через фолбэк functionBodyEnd. Список сверен побайтным тестом ниже: это ровно
    функции, чья до-правочная вырезка тянула хвост модуля `})();`. */
 const FACTORY_LAST = [
@@ -34,7 +34,8 @@ const FACTORY_LAST = [
   ["rooms.js", "dragVertex"],
   ["docs.js", "generateCommercialOffer"],
   ["canvasInput.js", "onSpaceKeydown"],
-  ["roomDetect.js", "buildRoomsFromLines"]
+  ["roomDetect.js", "buildRoomsFromLines"],
+  ["postCopyUi.js", "pastePosts"]
 ];
 
 /* До-правочная functionSource: «до следующего \nfunction, иначе до конца файла». Дословная копия

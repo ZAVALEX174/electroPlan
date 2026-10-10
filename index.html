@@ -680,6 +680,10 @@
      буфера, сборка копий с новыми id/номерами/координатами и новыми номерами проходных. Грузится ДО
      app.js, который держит буфер, ловит хоткеи и кладёт готовые посты в state. -->
 <script src="js/postCopy.js?v=20261010.4"></script>
-<script src="js/app.js?v=20261010.4"></script>
+<!-- Копирование постов — оркестровка (Ctrl+C/Ctrl+V): буфер в памяти страницы, copyPosts/pastePosts,
+     ответ «буфер не пуст?». Вынесено из app.js (Б9, И2). Грузится ДО app.js, который зовёт
+     EPPostCopyUi.attach(ctx) ПОСЛЕ EPCanvasInput.attach (оттуда приходит canvasPointer). -->
+<script src="js/postCopyUi.js?v=20261010.1"></script>
+<script src="js/app.js?v=20261010.5"></script>
 </body>
 </html>

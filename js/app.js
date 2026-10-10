@@ -3944,75 +3944,9 @@ function applySurcharge(){
   applyProjectSettings();
 }
 $("surchargeInput").oninput=applySurcharge;
-/* ---- Копирование и вставка постов (Б9). Владелец: «вставить те же посты в соседний номер — отели».
-   Буфер _copyBuffer живёт в памяти СТРАНИЦЫ: в снимок проекта и в историю НЕ входит, в localStorage не
-   пишется (F5/перезагрузка его чистит). Правила «что копия», «какие новые номера», «куда встать»,
-   «перехватывать ли клавишу» — в чистом EPPostCopy; здесь только оркестровка: снять выделенные посты в
-   буфер, собрать копии, подменить накладку под комнату ТЕМ ЖЕ frameForRoomPlacement, что и «Разместить»,
-   и обновить экран ОДНИМ шагом истории. Последняя позиция курсора «под мышью» живёт в canvasInput.js
-   (он владеет указательными событиями холста) и приходит сюда функцией canvasPointer() из его attach. */
-let _copyBuffer=null;
-/* Имена групп света, снятые у последней пачки копий правилом EPPostCopy.stripSharedGroupNames (решение
-   владельца 10.10, вариант Б). Живёт в памяти страницы, как _copyBuffer: нужно СЛЕДУЮЩЕЙ задаче, чтобы
-   показать человеку отдельное сообщение «у копий № … убрано имя группы». В этой задаче его только
-   накапливаем — ни одного нового текста человеку. */
-let _lastPasteClearedNames=[];
-/* Ctrl+C: снимок выделенных постов в буфер СЕЙЧАС (решение владельца: исходные потом можно удалить —
-   вставка всё равно сработает, буфер независим). Копируется и один пост, и группа: postIds отдаёт id
-   любого вида выделения. */
-function copyPosts(){
-  const ids=EPSelection.postIds(state.selected);
-  if(!ids.length)return;
-  const pick=new Set(ids.map(String));
-  _copyBuffer=EPPostCopy.snapshot(state.posts.filter(p=>pick.has(String(p.id))));
-}
-/* Ctrl+V: собрать копии и вставить. Точка — последняя позиция мыши, ЕСЛИ курсор над планом; иначе без
-   точки (сдвиг от исходных). Каждой копии по её ЦЕНТРУ (x+12,y+12) определяем комнату и зовём ТОТ ЖЕ
-   frameForRoomPlacement, что «Разместить»: подмена накладки под отделку комнаты или пропуск поста с
-   причиной (правило подмены не дублируем). Нет подходящей накладки для части постов — ОСТАЛЬНЫЕ ставим,
-   про невставленный говорим номер ИСХОДНОГО поста и причину (решение владельца 10.10, п.3). Вся вставка —
-   ОДИН renderAll ⇒ ОДИН шаг истории (Ctrl+Z убирает всё, Ctrl+Y возвращает); после — выделены НОВЫЕ
-   посты, смета/карточка/связи групп обновлены. Все заблокированы — проект не меняем, шага истории нет. */
-function pastePosts(){
-  const buf=_copyBuffer;
-  if(!buf||!Array.isArray(buf.items)||!buf.items.length)return;
-  const lp=canvasPointer();
-  const point=lp&&lp.overCanvas?clientToWorld(lp.clientX,lp.clientY):null;
-  /* Посты проекта ДО вставки — их занятые имена групп нужны правилу имени ниже. Снимок берём ДО push:
-     копии одной пачки «уже стоящими» не считаются (пара может остаться парой между собой). */
-  const existingBefore=state.posts.slice();
-  const copies=EPPostCopy.buildCopies(buf,{existingPosts:state.posts,point,genId:()=>uid("post_"),
-    nextPostNumber:EPPosts.nextPostNumber,crossKey:EPLightingGroups.crossGroupKey});
-  const placed=[],blocked=[],placedRooms=[];
-  copies.forEach((copy,i)=>{
-    /* Комнату копии определяем ОДИН раз по центру её значка — ею и накладку подбираем, и правило имени
-       применяем (второго определения «куда попала копия» не заводим). */
-    const room=getRoomForPoint(copy.x+12,copy.y+12);
-    const swap=frameForRoomPlacement(copy,room);
-    if(swap.blocked){blocked.push({number:buf.items[i].post.number,message:swap.message});return}
-    if(swap.frameId!=null)copy.frameId=swap.frameId;
-    state.posts.push(copy);
-    placed.push(copy);
-    placedRooms.push(room);
-  });
-  const note=blocked.map(b=>`Пост № ${b.number} не вставлен. ${b.message}`).join(" ");
-  if(!placed.length){toast(("Ничего не вставлено. "+note).trim());return}
-  /* Имя группы света у копий (решение владельца 10.10, вариант Б): если копия попала туда же, где уже
-     стоит пост с тем же именем (та же комната, либо оба вне комнат / комнат нет), — расчёт посчитал бы
-     их одним светом с двух мест и переобул выключатель в переключатель. Снимаем имя ТОЛЬКО у реально
-     вставленных копий (заблокированные в placed не входят); «одна группа»/«одно место» — правилами
-     расчёта (groupKeyOf/crossGroupKey + roomId). Перечень убранного — следующей задаче для сообщения. */
-  const stripResult=EPPostCopy.stripSharedGroupNames(
-    placed.map((post,i)=>({post,roomKey:placedRooms[i]?placedRooms[i].id:null})),
-    existingBefore.map(post=>({post,roomKey:post.roomId!=null?post.roomId:null})),
-    {groupKeyOf:EPLightingGroups.groupKeyOf,crossKey:EPLightingGroups.crossGroupKey});
-  _lastPasteClearedNames=stripResult.cleared;
-  /* Выделяем НОВЫЕ посты ДО renderAll — renderPosts тогда сразу рисует их подсвеченными
-     (EPSelection.isSelected). normalize сведёт один к {kind:"post"}, группу — к {kind:"posts"}. */
-  state.selected=EPSelection.normalize(placed.map(p=>p.id),state.posts.map(p=>p.id));
-  renderAll();renderSummary();renderProperties();
-  toast((`Вставлено постов: ${placed.length}.`+(note?" "+note:"")).trim());
-}
+/* Копирование и вставка постов (Ctrl+C/Ctrl+V, Б9) вынесены в js/postCopyUi.js (EPPostCopyUi.attach, И2):
+   буфер в памяти страницы, copyPosts/pastePosts и ответ «буфер не пуст?». Чистые правила — в js/postCopy.js
+   (EPPostCopy). attach поднимается ниже, рядом с EPCanvasInput (оттуда приходит canvasPointer). */
 /* Ловушка фокуса полноэкранного конструктора: Tab обязан ходить ПО ОКНУ, а не уводить на
    элементы под ним (у окна role="dialog" aria-modal="true", и уехавший за него фокус — это и
    потерянная клавиатура, и правки холста вслепую). Список фокусируемых собираем на каждый
@@ -4050,7 +3984,7 @@ document.onkeydown=e=>{
   const copyAction=EPPostCopy.copyHotkey(e,{modalOpen:anyModalOpen,inTextField:EPHistory.isTextTarget(e.target),
     hasTextSelection:!!(window.getSelection&&String(window.getSelection())),
     hasSelection:EPSelection.count(state.selected)>0,
-    hasBuffer:!!(_copyBuffer&&_copyBuffer.items&&_copyBuffer.items.length)});
+    hasBuffer:copyBufferFilled()});
   if(copyAction){e.preventDefault();copyAction==="copy"?copyPosts():pastePosts();return}
   /* Ловушку Tab снимаем, пока поверх конструктора висит вопрос об охвате правки типа стены:
      иначе Tab утаскивал бы фокус обратно в окно поста, а по кнопкам самого вопроса пройти
@@ -4200,6 +4134,15 @@ const {makeDraggable,placePendingAtEvent,onSpaceKeydown,canvasPointer}=EPCanvasI
   tightestRoomAtPoint,refreshAfterRoomAssignments,removeEntity,renderAll,renderGroupLinks,renderProperties,
   renderRooms:()=>renderRooms(),renderSummary,scheduleSave,selectEntity,setTool,state,toast,uid,
   updateObjectRoom,updateStatus,view,zoomBy
+});
+
+/* Копирование/вставка постов (Б9, И2) вынесено в js/postCopyUi.js. Поднимаем ПОСЛЕ EPCanvasInput.attach:
+   pastePosts берёт последнюю позицию курсора функцией canvasPointer() из его attach. Прочие зависимости —
+   top-level app.js (frameForRoomPlacement/getRoomForPoint/clientToWorld/uid/state/toast/render*) — к этому
+   моменту уже объявлены. Возвращённые copyPosts/pastePosts/copyBufferFilled зовёт document.onkeydown выше:
+   он — отложенный обработчик, на момент его присваивания эти const ещё в TDZ, но вызывается он уже после. */
+const {copyPosts,pastePosts,copyBufferFilled}=EPPostCopyUi.attach({
+  canvasPointer,clientToWorld,frameForRoomPlacement,getRoomForPoint,renderAll,renderProperties,renderSummary,state,toast,uid
 });
 
 /* Слой комнат (таблички, контуры, правка вершин) вынесен в js/rooms.js (И1, кусок 2). Поднимаем его

@@ -54,8 +54,9 @@ function buildKeydown(state, openModal) {
     document: {}, state, EPHistory,
     /* Б9: onkeydown на КАЖДОЕ нажатие спрашивает EPPostCopy.copyHotkey (перехват Ctrl+C/V). Для стрелок
        он вернёт null, но ветка всё равно читает эти имена — кладём их в контекст. window.getSelection —
-       проверка выделенного текста страницы; буфера нет. */
-    EPPostCopy, EPSelection, _copyBuffer: null, window: { getSelection: () => "" },
+       проверка выделенного текста страницы; copyBufferFilled — ответ модуля «буфер не пуст?» (Б9/И2,
+       onkeydown больше не читает _copyBuffer напрямую), здесь буфера нет → false. */
+    EPPostCopy, EPSelection, copyBufferFilled: () => false, window: { getSelection: () => "" },
     $: id => nodeFor(id),
     undoPlan() { hist.undo++; }, redoPlan() { hist.redo++; },   /* Б4: keydown решает хоткей через EPHistory и зовёт эти функции */
     moveSelectedBy: (x, y) => { moves.push([x, y]); return true; },

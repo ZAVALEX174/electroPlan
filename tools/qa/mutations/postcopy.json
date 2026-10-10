@@ -53,22 +53,22 @@
   { "name": "M18: Ctrl+C/V перехватывается даже в поле ввода (copyHotkey потерял inTextField)", "file": "js/postCopy.js",
     "from": "if (ctx.inTextField) return null;", "to": "void 0;" },
 
-  { "name": "M19: подмена накладки под комнату НЕ вызывается (копия встаёт с исходной накладкой)", "file": "js/app.js",
+  { "name": "M19: подмена накладки под комнату НЕ вызывается (копия встаёт с исходной накладкой)", "file": "js/postCopyUi.js",
     "from": "const swap=frameForRoomPlacement(copy,room);", "to": "const swap={frameId:null};" },
 
-  { "name": "M20: комнаты после вставки не пересчитываются / нет шага истории (renderAll снят)", "file": "js/app.js",
+  { "name": "M20: комнаты после вставки не пересчитываются / нет шага истории (renderAll снят)", "file": "js/postCopyUi.js",
     "from": "renderAll();renderSummary();renderProperties();", "to": "renderSummary();renderProperties();" },
 
-  { "name": "M21: N шагов отмены вместо одного (renderAll на каждую копию)", "file": "js/app.js",
+  { "name": "M21: N шагов отмены вместо одного (renderAll на каждую копию)", "file": "js/postCopyUi.js",
     "from": "state.posts.push(copy);", "to": "state.posts.push(copy);renderAll();" },
 
-  { "name": "M22: crossKey не передан в проводке (buildCopies обязан упасть громко — фикс 2)", "file": "js/app.js",
+  { "name": "M22: crossKey не передан в проводке (buildCopies обязан упасть громко — фикс 2)", "file": "js/postCopyUi.js",
     "from": "nextPostNumber:EPPosts.nextPostNumber,crossKey:EPLightingGroups.crossGroupKey});", "to": "nextPostNumber:EPPosts.nextPostNumber,crossKey:undefined});" },
 
-  { "name": "M23: новые посты после вставки НЕ выделены", "file": "js/app.js",
+  { "name": "M23: новые посты после вставки НЕ выделены", "file": "js/postCopyUi.js",
     "from": "state.selected=EPSelection.normalize(placed.map(p=>p.id),state.posts.map(p=>p.id));", "to": "state.selected=null;" },
 
-  { "name": "M24: заблокированный пост всё же вставляется (с исходной накладкой) — снят return", "file": "js/app.js",
+  { "name": "M24: заблокированный пост всё же вставляется (с исходной накладкой) — снят return", "file": "js/postCopyUi.js",
     "from": "if(swap.blocked){blocked.push({number:buf.items[i].post.number,message:swap.message});return}", "to": "if(swap.blocked){blocked.push({number:buf.items[i].post.number,message:swap.message});}" },
 
   { "name": "M25: подходящая накладка всё равно перевыбирается (снята проверка «уже в пуле комнаты») — фикс п.1а", "file": "js/app.js",
@@ -83,19 +83,19 @@
   { "name": "M28: перекрытие значков проверяется только на точное равенство координат — фикс п.3", "file": "js/postCopy.js",
     "from": "  const overlapsExisting = pos => existingXY.some(e => Math.abs(pos.x - e.x) < ICON && Math.abs(pos.y - e.y) < ICON);", "to": "  const overlapsExisting = pos => existingXY.some(e => pos.x === e.x && pos.y === e.y);" },
 
-  { "name": "M29: комната копии — по УГЛУ значка, а не по центру (getRoomForPoint copy.x)", "file": "js/app.js",
+  { "name": "M29: комната копии — по УГЛУ значка, а не по центру (getRoomForPoint copy.x)", "file": "js/postCopyUi.js",
     "from": "const room=getRoomForPoint(copy.x+12,copy.y+12);", "to": "const room=getRoomForPoint(copy.x,copy.y);" },
 
-  { "name": "M30: комната копии — по ИСХОДНЫМ координатам буфера, а не по своим", "file": "js/app.js",
+  { "name": "M30: комната копии — по ИСХОДНЫМ координатам буфера, а не по своим", "file": "js/postCopyUi.js",
     "from": "const room=getRoomForPoint(copy.x+12,copy.y+12);", "to": "const room=getRoomForPoint(buf.items[i].post.x+12,buf.items[i].post.y+12);" },
 
-  { "name": "M31: перевод экран→мир снят (clientToWorld) — точка вставки в экранных координатах", "file": "js/app.js",
+  { "name": "M31: перевод экран→мир снят (clientToWorld) — точка вставки в экранных координатах", "file": "js/postCopyUi.js",
     "from": "const point=lp&&lp.overCanvas?clientToWorld(lp.clientX,lp.clientY):null;", "to": "const point=lp&&lp.overCanvas?{x:lp.clientX,y:lp.clientY}:null;" },
 
-  { "name": "M32: правило имени НЕ вызывается в проводке (копия оставляет имя, слипается со стоящим) — часть 2а", "file": "js/app.js",
+  { "name": "M32: правило имени НЕ вызывается в проводке (копия оставляет имя, слипается со стоящим) — часть 2а", "file": "js/postCopyUi.js",
     "from": "  const stripResult=EPPostCopy.stripSharedGroupNames(", "to": "  const stripResult={cleared:[]};0&&EPPostCopy.stripSharedGroupNames(" },
 
-  { "name": "M33: место копии всегда «другое» (имя НЕ снимается даже там же, где стоит исходный) — часть 2а", "file": "js/app.js",
+  { "name": "M33: место копии всегда «другое» (имя НЕ снимается даже там же, где стоит исходный) — часть 2а", "file": "js/postCopyUi.js",
     "from": "    placed.map((post,i)=>({post,roomKey:placedRooms[i]?placedRooms[i].id:null})),", "to": "    placed.map((post,i)=>({post,roomKey:\"__diff\"+i}))," },
 
   { "name": "M34: «вне комнат» не считается одним местом (no-room стоящие не в реестре) — часть 2а", "file": "js/postCopy.js",
@@ -107,12 +107,12 @@
   { "name": "M36: имя-ярлык убирается у клавиши с НОМЕРОМ проходной (снят приоритет номера у копии) — часть 2а", "file": "js/postCopy.js",
     "from": "      if (crossKey(crosses[i])) return;", "to": "      if (false) return;" },
 
-  { "name": "M37: копии ОДНОЙ пачки считаются «уже стоящими» (живая ссылка на state.posts) — часть 2а", "file": "js/app.js",
+  { "name": "M37: копии ОДНОЙ пачки считаются «уже стоящими» (живая ссылка на state.posts) — часть 2а", "file": "js/postCopyUi.js",
     "from": "  const existingBefore=state.posts.slice();", "to": "  const existingBefore=state.posts;" },
 
   { "name": "M38: убираются ВСЕ имена поста, а не совпавшее со стоящим — часть 2а", "file": "js/postCopy.js",
     "from": "      if (!standing.has(placeId(it.roomKey) + gk)) return;", "to": "      if (false) return;" },
 
-  { "name": "M39: заблокированные копии попадают в правило имени/перечень (вместо placed — все copies) — часть 2а", "file": "js/app.js",
+  { "name": "M39: заблокированные копии попадают в правило имени/перечень (вместо placed — все copies) — часть 2а", "file": "js/postCopyUi.js",
     "from": "    placed.map((post,i)=>({post,roomKey:placedRooms[i]?placedRooms[i].id:null})),", "to": "    copies.map(post=>({post,roomKey:getRoomForPoint(post.x+12,post.y+12)?getRoomForPoint(post.x+12,post.y+12).id:null}))," }
 ]
