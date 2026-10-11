@@ -16,6 +16,7 @@ const zlib = require("node:zlib");
 const EPSpecExcel = require("../js/specExcel.js");
 const EPOfferPdf = require("../js/offerPdf.js");
 const EPSupplierSpec = require("../js/supplierSpec.js");
+const EPEstimate = require("../js/estimate.js");
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const money = n => Number(n).toFixed(2) + " €";
@@ -87,6 +88,7 @@ const estBase = () => ({
 });
 const withVat = (mode) => {
   const e = estBase();
+  e.vatMode = mode;   // В7: vatShown берёт режим из est.vatMode (у настоящего build он есть)
   if (mode === "none") { e.vat = 0; e.total = e.subtotal; }
   if (mode === "surcharge") { e.vat = e.subtotal * 0.2; e.vatIncluded = false; e.total = e.subtotal + e.vat; }
   if (mode === "included") { e.vat = e.subtotal * 0.2 / 1.2; e.vatIncluded = true; e.total = e.subtotal; }
@@ -101,8 +103,8 @@ const supplierSpec = () => ({ posts: [
 ] });
 
 /* КП на тех же данных — источник истины для сверки чисел. */
-const kpHtml = (est, options) => EPOfferPdf.buildHtml(est, { esc, money, displayCurrency: () => "EUR",
-  options, postLayout: [], planBlockHtml: "", lightingHtml: "", supplierSpecHtml: "" });
+const kpHtml = (est, options) => EPOfferPdf.buildHtml(est, { esc, money, moneyShown: money, displayRate: () => 1,
+  displayCurrency: () => "EUR", options, postLayout: [], planBlockHtml: "", lightingHtml: "", supplierSpecHtml: "" });
 
 /* ---- 1. Валидный ZIP ---- */
 test("A6: build даёт валидный ZIP (STORE) с CRC и нужными частями", () => {
@@ -195,7 +197,11 @@ test("A6: при отключённых ценах в книге нет ни д�
 const RATE = 95.37 * 1.03;                         // курс ЦБ РФ 95,37 + надбавка 3%
 const round2 = x => Math.round((x + Number.EPSILON) * 100) / 100;
 const moneyRub = n => round2(n * RATE).toFixed(2) + " ₽";   // money(), какой получает offerPdf в рублях
-const kpRub = (est, options) => EPOfferPdf.buildHtml(est, { esc, money: moneyRub, displayCurrency: () => "RUB",
+/* moneyShownRub форматирует число, УЖЕ переведённое в рубли (курс не применяет повторно) — так КП
+   печатает три числа НДС из vatShown (они уже ×RATE). displayRate=RATE даёт тот же курс в vatShown. */
+const moneyShownRub = n => round2(n).toFixed(2) + " ₽";
+const kpRub = (est, options) => EPOfferPdf.buildHtml(est, { esc, money: moneyRub, moneyShown: moneyShownRub,
+  displayRate: () => RATE, displayCurrency: () => "RUB",
   settings: {}, effectiveRate: () => RATE, options, postLayout: [], planBlockHtml: "", lightingHtml: "", supplierSpecHtml: "" });
 
 /* Свод с count=2 у одного артикула — чтобы «сумма» (цена×кол-во) отличалась от «цены» и подмена
@@ -270,6 +276,20 @@ test("A6: граница округления копейки — Excel и КП �
   const stored = priceCell[1].num;
   const mRub = n => round2(n * R).toFixed(2);
   assert.equal(round2(stored).toFixed(2), mRub(1.2345), "2-значное округление ячейки = money() КП на том же float");
+});
+
+test("A6 МУТАЦИЯ-ловушка: три числа НДС берутся из vatShown, не est.X×курс (копеечная граница)", () => {
+  /* subtotal 0,01 × курс 92,5, НДС 5% сверху: vatShown даёт без НДС 0,93, НДС 0,05, итог 0,98. А
+     est.total×курс = 0,0105×92,5 = 0,97125 (≈0,97). Разные копейки — мутация «Excel считает мимо
+     общего правила» (vat.total → est.total×rate) делает в книге 0,97 вместо 0,98 и ловится. */
+  const est = { groups: [{ name: "X", count: 1, unit: "шт", sum: 0.01, items: [{ code: "X", name: "X", count: 1, price: 0.01 }] }],
+    equipment: 0.01, discount: 0, materials: 0, work: 0, subtotal: 0.01, missing: [],
+    vatMode: "surcharge", vat: 0.0005, vatLabel: "НДС", vatPercent: 5, vatIncluded: false, total: 0.0105 };
+  const { spec } = sheets(EPSpecExcel.build(est, { rows: [] }, { options: {}, currency: "RUB", rate: 92.5 }));
+  const v = EPEstimate.vatShown(est.subtotal, est.vatMode, est.vatPercent, 92.5);
+  assert.equal(v.total, 0.98);
+  assert.ok(hasNum(spec, 0.98), "в книге итог из vatShown (0,98)");
+  assert.ok(!hasNum(spec, 0.97125), "в книге НЕТ est.total×курс (0,97) — Excel не считает мимо правила");
 });
 
 /* ---- Имя файла: номер КП, безопасные символы, расширение ---- */

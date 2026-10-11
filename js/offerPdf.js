@@ -68,7 +68,16 @@ function termsFooterHtml(terms, esc) {
    Фамилия (developer, поле «Разработчик» реквизитов) стоит ПОД подписью и только если подпись есть:
    без подписи подписывать нечего. Это ТЕКСТ — экранируем (конвенция 4).
    Гейт по уровню подписки НЕ здесь: механика «загружено → печатается» не знает про тарифы, тариф
-   подключится потом одним условием у ВЫЗОВА (какие картинки вообще передать). */
+   подключится потом одним условием у ВЫЗОВА (какие картинки вообще передать).
+
+   ⚠️ НАХЛЁСТ ПЕЧАТИ НА ПОДПИСЬ (В6, решение владельца 11.10: «подпись должна читаться сквозь печать»).
+   Когда есть И подпись, И печать — печать ставится ПОВЕРХ подписи, внахлёст, а не рядом. Подпись
+   остаётся читаемой сквозь печать за счёт mix-blend-mode:multiply у печати (см. .sign-stamp в стилях
+   КП): при умножении белый фон печати исчезает (白×X = X), а её линии затемняют то, что под ними, —
+   так же как настоящая печать поверх подписи на бумаге. Это работает и для печати на ПРОЗРАЧНОМ PNG
+   (прозрачные области и так показывают подпись), и для печати на БЕЛОМ фоне (белое уходит в multiply).
+   Печать абсолютом поверх подписи в потоке; фамилия — под обеими. Только подпись или только печать —
+   как раньше, одним столбцом. */
 function signatureBlockHtml(signature, stamp, developer, esc, docImages) {
   const e = typeof esc === "function" ? esc : (s => String(s));
   const api = docImages || docImagesApi();
@@ -77,9 +86,14 @@ function signatureBlockHtml(signature, stamp, developer, esc, docImages) {
   if (!sig && !seal) return "";
   const name = typeof developer === "string" && developer.trim()
     ? `<div class="sign-name">${e(developer.trim())}</div>` : "";
-  const sigCell = sig ? `<div class="sign-col">${sig}${name}</div>` : "";
-  const sealCell = seal ? `<div class="sign-col">${seal}</div>` : "";
-  return `<div class="signature">${sigCell}${sealCell}</div>`;
+  /* И подпись, и печать → печать внахлёст поверх подписи (sign-stamp абсолютом над sign-stack). */
+  if (sig && seal) {
+    return `<div class="signature"><div class="sign-col">`
+      + `<div class="sign-stack">${sig}<span class="sign-stamp">${seal}</span></div>${name}</div></div>`;
+  }
+  /* Что-то одно — как раньше, одним столбцом (у печати без подписи фамилию не печатаем). */
+  const only = sig ? sig + name : seal;
+  return `<div class="signature"><div class="sign-col">${only}</div></div>`;
 }
 
 /* Автопечать окна КП: печатаем НЕ по таймеру, а когда догрузятся картинки (иллюстрации постов
@@ -125,12 +139,21 @@ function compose(est, deps) {
   const esc = deps.esc;
   const displayCurrency = deps.displayCurrency;
   const s = deps.settings || {};
-  const { materials, work, total } = est;
+  const { materials, work } = est;
   const config = typeof window !== "undefined" && window.EPOfferOptions
     ? window.EPOfferOptions : require("./offerOptions.js");
   const options = config.normalize(deps.options);
   const itemText = (value, code) => config.itemText(value, options.articles, code);
   const estimate = deps.EPEstimate || defaultEstimate();
+
+  /* Три числа НДС и итог — из ОДНОЙ функции EPEstimate.vatShown (В7): «Итого без НДС», «НДС» и «Итого
+     с НДС» приходят уже в валюте показа и округлёнными так, что сумма двух напечатанных сходится с
+     третьим. Курс (rate) и формат УЖЕ-показанного числа приходят зависимостями: moneyShown форматирует
+     число без повторного умножения на курс (money() умножил бы второй раз). Без зависимостей (старый
+     вызов на rate=1) moneyShown == money, числа те же. Остальные суммы документа — как раньше, money(). */
+  const rate = deps.displayRate ? deps.displayRate() : 1;
+  const moneyShown = deps.moneyShown || money;
+  const vat = estimate.vatShown(est.subtotal, est.vatMode, est.vatPercent, rate);
 
   /* Проценты в КП — с ДЕСЯТИЧНОЙ ЗАПЯТОЙ (русский документ), как курс в rateFooter: «12,5%», а не
      «12.5%». Целое остаётся целым. */
@@ -337,7 +360,7 @@ function compose(est, deps) {
   const signatureBlock = signatureBlockHtml(deps.signature, deps.stamp, (deps.header || {}).developer, esc);
 
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Коммерческое предложение</title><style>
-  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.priceless{width:340px;margin:8px 0 0 auto;color:#9b3f2b;font-size:11px;font-weight:bold;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}.terms{margin-top:28px;padding-top:12px;border-top:1px solid #d8e6f2;color:#4a5b6c;font-size:11px;line-height:1.45}.signature{display:flex;gap:48px;align-items:flex-end;margin-top:34px;page-break-inside:avoid}.sign-col{text-align:center}.sign-name{margin-top:6px;font-size:11px;color:#4a5b6c}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}.disc-mark{color:#9b3f2b;font-size:10px;font-weight:normal;white-space:nowrap}.pl-disc{color:#9b3f2b;font-size:9px;font-weight:normal;margin-top:2px}.req-block{margin-top:10px}.req-title{font-weight:bold;color:#185d96;margin-bottom:2px}@media print{button{display:none}}</style></head><body>
+  @page{size:A4;margin:16mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}h1{font-size:24px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:24px}.meta{display:flex;justify-content:space-between;margin-bottom:20px}.box{padding:12px;background:#edf6ff;border-radius:10px}table{width:100%;border-collapse:collapse;margin-top:14px}th,td{padding:9px;border-bottom:1px solid #d8e6f2;text-align:left}th{background:#e8f4ff;color:#185d96}.right{text-align:right}.totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}.grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}.footer{margin-top:35px;color:#687f94;font-size:10px}.priceless{width:340px;margin:8px 0 0 auto;color:#9b3f2b;font-size:11px;font-weight:bold;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}.terms{margin-top:28px;padding-top:12px;border-top:1px solid #d8e6f2;color:#4a5b6c;font-size:11px;line-height:1.45}.signature{margin-top:34px;page-break-inside:avoid}.sign-col{display:inline-block;text-align:center}.sign-name{margin-top:8px;font-size:11px;color:#4a5b6c;position:relative;z-index:1}.sign-stack{position:relative;display:inline-block;padding:22px 34px}.sign-stack>img{position:relative;z-index:1}.sign-stamp{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;pointer-events:none;mix-blend-mode:multiply;-webkit-print-color-adjust:exact;print-color-adjust:exact}.sign-stamp>img{display:block}.section-title{font-size:16px;color:#185d96;margin:26px 0 4px}.layout td.pl-num{font-weight:bold;color:#185d96;text-align:center}.layout td.pl-illus{text-align:center}.layout td.pl-illus>img{max-height:56px;max-width:96px;object-fit:contain}.pl-frame-status{margin-top:5px;color:#9b3f2b;font-size:10px;font-weight:bold;line-height:1.25}.disc-mark{color:#9b3f2b;font-size:10px;font-weight:normal;white-space:nowrap}.pl-disc{color:#9b3f2b;font-size:9px;font-weight:normal;margin-top:2px}.req-block{margin-top:10px}.req-title{font-weight:bold;color:#185d96;margin-bottom:2px}@media print{button{display:none}}</style></head><body>
   <h1>Коммерческое предложение</h1><div class="sub">Проект электрики и комплектация электроустановочных изделий</div>
   <div class="meta"><div class="box">${logoImg}${headerRows}</div><button onclick="window.print()">Сохранить в PDF</button></div>
   ${planSection}
@@ -348,9 +371,9 @@ function compose(est, deps) {
   ${options.prices ? `<div class="totals"><div><span>Оборудование</span><b>${money(est.equipment)}</b></div>
   ${est.discount ? `<div><span>${estimate.discountLabel(est.discountMixed, est.discountPercent)}</span><b>−${money(est.discount)}</b></div>` : ""}
   <div><span>Монтажные материалы</span><b>${money(materials)}</b></div><div><span>Работы</span><b>${money(work)}</b></div>
-  ${est.vat && !est.vatIncluded ? `<div><span>Итого без НДС</span><b>${money(est.subtotal)}</b></div><div><span>${esc(est.vatLabel || "НДС")} ${est.vatPercent}%</span><b>${money(est.vat)}</b></div>` : ""}
-  <div class="grand"><span>Итого${est.vat && !est.vatIncluded ? " с НДС" : ""}</span><b>${money(total)}</b></div>
-  ${est.vat && est.vatIncluded ? `<div><span>${esc(est.vatLabel || "в т.ч. НДС")} ${est.vatPercent}%</span><b>${money(est.vat)}</b></div>` : ""}</div>` : ""}
+  ${est.vat && !est.vatIncluded ? `<div><span>Итого без НДС</span><b>${moneyShown(vat.subtotal)}</b></div><div><span>${esc(est.vatLabel || "НДС")} ${est.vatPercent}%</span><b>${moneyShown(vat.amount)}</b></div>` : ""}
+  <div class="grand"><span>Итого${est.vat && !est.vatIncluded ? " с НДС" : ""}</span><b>${moneyShown(vat.total)}</b></div>
+  ${est.vat && est.vatIncluded ? `<div><span>${esc(est.vatLabel || "в т.ч. НДС")} ${est.vatPercent}%</span><b>${moneyShown(vat.amount)}</b></div>` : ""}</div>` : ""}
   ${pricelessNote ? `<div class="priceless">${options.prices ? esc(pricelessNote) : `Позиций без товара в каталоге: ${est.missing.length}. Проверьте состав проекта перед передачей документа.`}</div>` : ""}
   ${options.prices && displayCurrency() === "RUB" ? rateFooter() : ""}
   ${options.prices ? `<div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>` : ""}

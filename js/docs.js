@@ -36,7 +36,7 @@ function attach(ctx){
 const {
   $,STANDARD_LABEL,assembledPostHtml,assembledPostSpec,buildEstimate,canvas,companyLogo,companySignature,
   companyStamp,companyTerms,displayCurrency,displayRate,docHeader,esc,frameProduct,keySlotKind,lightingHtml,
-  lightingRowsFor,mechanismSpan,money,postComposition,postCost,postTotalCost,postsForGroupLinks,product,
+  lightingRowsFor,mechanismSpan,money,moneyShown,postComposition,postCost,postTotalCost,postsForGroupLinks,product,
   productImage,projectLighting,roomNamePoint,scheduleSave,state,toast
 }=ctx;
 
@@ -580,19 +580,6 @@ function installSheetForProject(){
    Сверху добавляем реквизиты (docHeader) и раскладку постов (buildPostLayout). */
 function generateCommercialOffer(){
   const options=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
-  /* Автономер КП (§1.3 «EPG-2026-0001»): при первой печати проекта с пустым «Номер КП» выдаём
-     следующий номер и закрепляем за проектом; правило формата/счётчика живёт в EPOfferNumber
-     (§7.1). Счётчик — бланк компании (EPPrefs), один на все проекты; год берётся из даты КП.
-     Ручной номер не трогаем и счётчик им не двигаем — это решает assign() по пустоте current. */
-  const dh=EP_DATA.settings.docHeader=EP_DATA.settings.docHeader||{};
-  const counters=EPPrefs.get("offerCounters",{});
-  const num=EPOfferNumber.assign(counters,{current:dh.number,date:dh.date});
-  if(num.number!==(dh.number||"")){
-    dh.number=num.number;
-    if($("docNumber"))$("docNumber").value=num.number;
-    scheduleSave(); /* номер закрепляем в снимке проекта — переживёт перезагрузку */
-  }
-  if(JSON.stringify(num.counters)!==JSON.stringify(counters))EPPrefs.set("offerCounters",num.counters);
   /* ОДИН расчёт групп света на весь документ: он же уходит в смету (цены механизмов), он же в
      блок «Группы света» и он же в свод поставщика — двум проходам разойтись негде. */
   const light=projectLighting();
@@ -601,7 +588,7 @@ function generateCommercialOffer(){
      и печатаем. Секции — готовыми строками (planBlockHtml/lightingHtml/supplierSpecHtml),
      как и раньше; их пустота (раскладка без столбцов, план без чертежа, нечего заказывать)
      видна только после сборки. */
-  const deps={money,esc,displayCurrency,effectiveRate:EPRates.effectiveRate,
+  const deps={money,moneyShown,displayRate,esc,displayCurrency,effectiveRate:EPRates.effectiveRate,
     settings:EP_DATA.settings,options,header:docHeader(),logo:companyLogo(),terms:companyTerms(),
     /* Подпись и печать — бланк компании (EPPrefs), в конец КП после условий и перед сводом. В лист
        монтажника не передаём: он не коммерческий документ. Тарифный гейт (кто это видит) подключится
@@ -623,6 +610,22 @@ function generateCommercialOffer(){
   if(!EPOfferPdf.hasContent(est,deps)){
     toast("В предложении нечего печатать: включите раздел с содержимым или цены и итоги");return;
   }
+  /* Автономер КП (§1.3 «EPG-2026-0001») выдаём и закрепляем ТОЛЬКО когда КП реально будет напечатан —
+     ПОСЛЕ стража пустого КП (В8, решение владельца 11.10): нажатие на пустом проекте не должно занимать
+     номер и двигать счётчик. Правило формата/счётчика живёт в EPOfferNumber (§7.1). Счётчик — бланк
+     компании (EPPrefs), один на все проекты; год берётся из даты КП. Ручной номер не трогаем и счётчик
+     им не двигаем — это решает assign() по пустоте current. После присвоения перечитываем шапку
+     (docHeader), чтобы свежий номер попал в печатаемый документ. */
+  const dh=EP_DATA.settings.docHeader=EP_DATA.settings.docHeader||{};
+  const counters=EPPrefs.get("offerCounters",{});
+  const num=EPOfferNumber.assign(counters,{current:dh.number,date:dh.date});
+  if(num.number!==(dh.number||"")){
+    dh.number=num.number;
+    if($("docNumber"))$("docNumber").value=num.number;
+    scheduleSave(); /* номер закрепляем в снимке проекта — переживёт перезагрузку */
+    deps.header=docHeader(); /* шапка КП должна нести только что присвоенный номер */
+  }
+  if(JSON.stringify(num.counters)!==JSON.stringify(counters))EPPrefs.set("offerCounters",num.counters);
   if(est.missing.length)toast(`Внимание: позиций без товара в каталоге — ${est.missing.length}`);
   const win=window.open("","_blank");
   if(!win){toast("Разрешите всплывающие окна для формирования PDF");return}

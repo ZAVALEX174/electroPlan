@@ -1,0 +1,41 @@
+[
+  { "name": "В7 M1: итог surcharge считается независимо, а не из двух напечатанных", "file": "js/estimate.js",
+    "from": "total: round2(shownBase + amount), included: false, label: info.label };",
+    "to": "total: round2((Number(base) || 0) * r * (100 + p) / 100), included: false, label: info.label };" },
+
+  { "name": "В7 M2: НДС surcharge считается от СЫРОЙ суммы, не от округлённой", "file": "js/estimate.js",
+    "from": "const amount = round2(shownBase * p / 100);",
+    "to": "const amount = round2((Number(base) || 0) * r * p / 100);" },
+
+  { "name": "В7 M3: режим «выделить» меняет итог (должен оставаться прежним)", "file": "js/estimate.js",
+    "from": "total: shownBase, included: true, label: info.label };",
+    "to": "total: round2(shownBase + amount), included: true, label: info.label };" },
+
+  { "name": "В7 M4: Excel берёт итог НДС мимо vatShown (est.total×курс)", "file": "js/specExcel.js",
+    "from": "totalRow(`Итого${est.vat && !est.vatIncluded ? \" с НДС\" : \"\"}`, vat.total, true);",
+    "to": "totalRow(`Итого${est.vat && !est.vatIncluded ? \" с НДС\" : \"\"}`, est.total * rate, true);" },
+
+  { "name": "В7 M5: панель берёт итог мимо vatShown (money(est.total))", "file": "js/app.js",
+    "from": "$(\"grandTotal\").textContent=moneyShown(vat.total);",
+    "to": "$(\"grandTotal\").textContent=money(est.total);" },
+
+  { "name": "В7 M6: КП берёт итог мимо vatShown (money(est.total))", "file": "js/offerPdf.js",
+    "from": "<b>${moneyShown(vat.total)}</b></div>",
+    "to": "<b>${money(est.total)}</b></div>" },
+
+  { "name": "В8 M7: ручной номер снова двигает счётчик (вернули поднятие пола)", "file": "js/offerNumber.js",
+    "from": "  if (current) return { number: current, counters: next, assigned: false };",
+    "to": "  const parsed = parse(current); if (parsed && parsed.seq > (next[parsed.year] || 0)) next[parsed.year] = parsed.seq;\n  if (current) return { number: current, counters: next, assigned: false };" },
+
+  { "name": "В8 M8: номер/счётчик занимаются при пустом КП (снят return стража)", "file": "js/docs.js",
+    "from": "toast(\"В предложении нечего печатать: включите раздел с содержимым или цены и итоги\");return;",
+    "to": "toast(\"В предложении нечего печатать: включите раздел с содержимым или цены и итоги\");" },
+
+  { "name": "В6 M10: печать не внахлёст — вынесена из sign-stack", "file": "js/offerPdf.js",
+    "from": "<div class=\"sign-stack\">${sig}<span class=\"sign-stamp\">${seal}</span></div>${name}",
+    "to": "${sig}${name}" },
+
+  { "name": "В6 M11: у печати снят mix-blend-mode (подпись не читается сквозь печать)", "file": "js/offerPdf.js",
+    "from": "z-index:2;pointer-events:none;mix-blend-mode:multiply;-webkit-print-color-adjust:exact",
+    "to": "z-index:2;pointer-events:none;-webkit-print-color-adjust:exact" }
+]

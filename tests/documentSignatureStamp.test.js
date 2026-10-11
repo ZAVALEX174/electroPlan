@@ -18,6 +18,10 @@
      (б) проверка файла для подписи снята/подменена своей копией → красит «validateSource определён
          ровно в одном модуле» и/или «loadDocImage(подпись) не сохраняет негодный файл, называет причину»;
      (в) блок подписи уехал ПОСЛЕ сводной спецификации → красит «подпись НИЖЕ условий, но ВЫШЕ свода».
+     (г) печать вынесена из нахлёста в отдельный столбец рядом (как было до В6) → красит «обе →
+         печать внахлёст поверх подписи (sign-stamp в sign-stack)».
+     (д) у .sign-stamp снят mix-blend-mode → подпись не читается сквозь печать: красит «печать —
+         полупрозрачный слой поверх подписи (mix-blend-mode)».
    Запуск: node --test tests/documentSignatureStamp.test.js */
 "use strict";
 const test = require("node:test");
@@ -52,6 +56,28 @@ test("signatureBlockHtml: обе картинки → подпись И печа
   assert.match(out, /alt="Подпись"/, "у первой картинки alt Подпись");
   assert.match(out, /alt="Печать"/, "у второй картинки alt Печать");
   assert.ok(out.indexOf(SIG) < out.indexOf(STAMP), "подпись стоит раньше печати");
+});
+
+test("signatureBlockHtml: обе → печать ВНАХЛЁСТ поверх подписи (В6: sign-stamp внутри sign-stack)", () => {
+  const out = signatureBlockHtml(SIG, STAMP, "Иван Петров", esc);
+  assert.match(out, /class="sign-stack"/, "подпись и печать в общем слое sign-stack, а не в соседних столбцах");
+  /* Печать — в оверлее sign-stamp, и именно в нём лежит картинка печати (нахлёст, а не столбец рядом). */
+  const m = out.match(/<span class="sign-stamp">([\s\S]*?)<\/span>/);
+  assert.ok(m, "печать обёрнута в sign-stamp (абсолютный оверлей поверх подписи)");
+  assert.ok(m[1].includes(STAMP), "в оверлее sign-stamp — именно картинка печати");
+  assert.ok(!out.includes(STAMP.replace(STAMP, "")) || out.indexOf(STAMP) > out.indexOf(SIG), "печать поверх подписи, подпись в потоке");
+  /* Ровно ОДИН столбец: печать не вынесена в отдельную ячейку рядом. */
+  assert.equal((out.match(/class="sign-col"/g) || []).length, 1, "один столбец — печать не рядом, а внахлёст");
+});
+
+test("КП: .sign-stamp — полупрозрачный слой поверх подписи (В6: подпись читается сквозь печать)", () => {
+  /* Читаемость сквозь печать обеспечивает mix-blend-mode у оверлея печати: при multiply белый фон
+     печати исчезает, а линии затемняют подпись под собой — и на прозрачном PNG, и на белом фоне.
+     Правило живёт в <style> КП; проверяем, что стиль присутствует и привязан к .sign-stamp. */
+  const html = buildHtml(est, Object.assign({}, deps, { signature: SIG, stamp: STAMP }));
+  assert.match(html, /\.sign-stamp\{[^}]*position:absolute/, ".sign-stamp — абсолютный оверлей");
+  assert.match(html, /\.sign-stamp\{[^}]*mix-blend-mode:multiply/, "печать видна сквозь подпись (multiply)");
+  assert.match(html, /\.sign-stamp\{[^}]*print-color-adjust:exact/, "смешение сохраняется при печати в PDF");
 });
 
 test("signatureBlockHtml: загружена ТОЛЬКО подпись → она одна, без ячейки под печать", () => {

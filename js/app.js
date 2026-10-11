@@ -78,9 +78,14 @@ function displayRate(){
      нулевого курса (displayCurrency сюда с RUB без курса не пустит). */
   return EPRates.effectiveRate(EP_DATA.settings)||1;
 }
-const money=(n)=>new Intl.NumberFormat("ru-RU",{
+/* moneyShown форматирует число, УЖЕ переведённое в валюту показа (курс не применяет повторно).
+   money() переводит базовую цену в валюту показа и форматирует. Нужны оба: суммы каталога хранятся
+   в евро и идут через money(), а три числа НДС (EPEstimate.vatShown) приходят уже в валюте показа и
+   округлёнными до копейки — их форматирует moneyShown, иначе курс умножился бы дважды. */
+const moneyShown=(n)=>new Intl.NumberFormat("ru-RU",{
   style:"currency",currency:displayCurrency(),minimumFractionDigits:2,maximumFractionDigits:2
-}).format((Number(n)||0)*displayRate());
+}).format(Number(n)||0);
+const money=(n)=>moneyShown((Number(n)||0)*displayRate());
 /* Курс печатаем с 4 знаками, но дробную часть — через ЗАПЯТУЮ: в русском документе
    «92,5000 ₽», а не «92.5000 ₽» (интерфейс и КП идут заказчику). */
 const rubRate=n=>(Number(n)||0).toFixed(4).replace(".",",");
@@ -1848,8 +1853,13 @@ let _specGroups=[];
 function renderSummary(){
   const light=projectLighting();
   const est=buildEstimate(light);
+  /* Три числа НДС и итог берём из ОДНОЙ функции EPEstimate.vatShown (В7): они уже в валюте показа и
+     округлены до копейки так, что «без НДС» + «НДС» всегда = итог. Форматируем moneyShown — курс уже
+     учтён внутри vatShown (displayRate), повторно умножать нельзя. Строки выше НДС (оборудование,
+     материалы, работы) — как раньше, через money() от базовой цены. */
+  const vat=EPEstimate.vatShown(est.subtotal,est.vatMode,est.vatPercent,displayRate());
   $("equipmentTotal").textContent=money(est.equipment);$("materialsTotal").textContent=money(est.materials);
-  $("workTotal").textContent=money(est.work);$("grandTotal").textContent=money(est.total);
+  $("workTotal").textContent=money(est.work);$("grandTotal").textContent=moneyShown(vat.total);
   /* скидка и НДС показываются, только когда заданы — чтобы не мозолить нулями */
   $("discountRow").hidden=!est.discount;
   /* Подпись строки скидки в панели — ТА ЖЕ, что в КП: одна функция EPEstimate.discountLabel (§7.1),
@@ -1867,10 +1877,10 @@ function renderSummary(){
   const vatOnTop=est.vat&&!est.vatIncluded, vatInside=est.vat&&est.vatIncluded;
   $("vatRow").hidden=!vatOnTop;
   $("vatRowLabel").textContent=est.vatLabel;
-  $("vatTotal").textContent=money(est.vat)+` (${est.vatPercent}%)`;
+  $("vatTotal").textContent=moneyShown(vat.amount)+` (${est.vatPercent}%)`;
   $("vatIncludedRow").hidden=!vatInside;
   $("vatIncludedLabel").textContent=est.vatLabel;
-  $("vatIncludedTotal").textContent=money(est.vat)+` (${est.vatPercent}%)`;
+  $("vatIncludedTotal").textContent=moneyShown(vat.amount)+` (${est.vatPercent}%)`;
   $("objectCount").textContent=state.devices.length+state.posts.length;
   /* У каждой строки — своё поле «скидка, %» (А2). Пусто → действует общая (её процент в
      placeholder), число → личная скидка (0 — «без скидки»). Скидка хранится НА ОБЪЕКТАХ строки
@@ -4077,7 +4087,7 @@ window.addEventListener("unhandledrejection",e=>reportFailure("Необрабо�
 const {buildPostSheet,openInstallSheet}=EPDocs.attach({
   $,STANDARD_LABEL,assembledPostHtml,assembledPostSpec,buildEstimate,canvas,companyLogo,companySignature,
   companyStamp,companyTerms,displayCurrency,displayRate,docHeader,esc,frameProduct,keySlotKind,lightingHtml,
-  lightingRowsFor,mechanismSpan,money,postComposition,postCost,postTotalCost,postsForGroupLinks,product,
+  lightingRowsFor,mechanismSpan,money,moneyShown,postComposition,postCost,postTotalCost,postsForGroupLinks,product,
   productImage,projectLighting,roomNamePoint,scheduleSave,state,toast
 });
 

@@ -4,7 +4,7 @@
    поэтому браузер поднимать не нужно. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { build, postPrice, billableLighting, lightingCounts, pricelessNote, vatBreakdown, vatModeOf } = require("../js/estimate.js");
+const { build, postPrice, billableLighting, lightingCounts, pricelessNote, vatBreakdown, vatShown, vatModeOf } = require("../js/estimate.js");
 const PF = require("../js/postfit.js");
 const POSTS = require("../js/posts.js");
 
@@ -143,6 +143,82 @@ test("vatBreakdown: неизвестный режим трактуется ка�
   const v = vatBreakdown(100, "wat", 20);
   assert.equal(v.mode, "surcharge");
   near(v.total, 120, "как галочка «включать НДС»");
+});
+
+/* ⚠️ ТРИ ЧИСЛА НДС СХОДЯТСЯ ДО КОПЕЙКИ — vatShown (В7, решение владельца 11.10). Это правило показа:
+   «без НДС», «НДС» и «итог» человек видит в валюте показа и округлёнными, и сумма двух напечатанных
+   обязана совпасть с третьим напечатанным. Проверяем ЖЁСТКИМИ числами и сплошным перебором. */
+test("vatShown «начислить сверху»: пример владельца 1 250,01 + 20% = 250,00 и итог 1 500,01 (не 1 500,02)", () => {
+  const v = vatShown(1250.01, "surcharge", 20, 1);
+  assert.equal(v.subtotal, 1250.01, "«без НДС» = округлённая база");
+  assert.equal(v.amount, 250.00, "НДС = округл(база × 20%) = 250,00");
+  assert.equal(v.total, 1500.01, "итог = без НДС + НДС = 1 500,01, а не 1 500,02");
+  assert.equal(Math.round((v.subtotal + v.amount) * 100) / 100, v.total, "два напечатанных числа сходятся в третье");
+});
+
+test("vatShown «выделить в стоимости»: итог не меняется, «без НДС» = итог − НДС", () => {
+  const v = vatShown(1500.01, "included", 20, 1);
+  assert.equal(v.total, 1500.01, "итог не меняется — цены уже с НДС");
+  assert.equal(v.amount, 250.00, "НДС выделен обратным счётом от округлённого итога");
+  assert.equal(v.subtotal, 1250.01, "«без НДС» = итог − НДС");
+  assert.equal(Math.round((v.subtotal + v.amount) * 100) / 100, v.total, "сходится до копейки");
+});
+
+test("vatShown «не учитывать»: НДС 0, итог = база", () => {
+  const v = vatShown(1250.01, "none", 20, 1);
+  assert.equal(v.amount, 0);
+  assert.equal(v.total, 1250.01);
+  assert.equal(v.subtotal, 1250.01);
+});
+
+test("vatShown в рублях по курсу: граница копейки — три числа всё равно сходятся", () => {
+  /* База подобрана так, что база×курс попадает на копеечную границу. Проверяем инвариант, а не
+     конкретные копейки: без НДС + НДС == итог при любой базе и курсе. */
+  [92.5, 95.37 * 1.03, 100.004].forEach(rate => {
+    const v = vatShown(1234.567, "surcharge", 20, rate);
+    assert.equal(Math.round((v.subtotal + v.amount) * 100) / 100, v.total,
+      `rate ${rate}: без НДС + НДС = итог`);
+  });
+});
+
+test("vatShown: сплошной перебор — напечатанные без НДС + НДС ВСЕГДА = итог (евро и рубли)", () => {
+  /* База 0,01…300,00 шаг 0,01 (30 000 значений — весь диапазон за разумное время), ставки из прайса,
+     курсы: евро (1) и два рублёвых. В ОБОИХ режимах с НДС инвариант «два напечатанных = третье».
+     Полный прогон до 3 000,00 — отдельным скриптом в отчёте (числа сочетаний/расхождений). */
+  const rates = [1, 92.5, 95.37 * 1.03];
+  const percents = [0, 5, 7, 10, 20, 22];
+  let checked = 0, mismatches = 0;
+  for (let cents = 1; cents <= 30000; cents++) {
+    const base = cents / 100;
+    for (const p of percents) {
+      for (const rate of rates) {
+        for (const mode of ["surcharge", "included"]) {
+          const v = vatShown(base, mode, p, rate);
+          checked++;
+          /* Напечатанные числа округлены до копейки; их сумма — тоже (round2 от уже 2-значных). */
+          if (Math.round((v.subtotal + v.amount) * 100) / 100 !== v.total) mismatches++;
+        }
+      }
+    }
+  }
+  assert.equal(mismatches, 0, `перебор ${checked} сочетаний: расхождений 0`);
+  assert.ok(checked > 1000000, `проверено ${checked} сочетаний`);
+});
+
+test("vatShown МУТАЦИЯ-ловушка: НДС surcharge от ОКРУГЛЁННОЙ суммы, не от сырой (копеечная граница)", () => {
+  /* база 0,01 × курс 92,5 = 0,925 → округл 0,93; НДС 7% от 0,93 = 0,0651 → 0,07. От сырой 0,925×7% =
+     0,06475 → 0,06. Разные копейки — ловит мутацию «НДС считается от неокруглённой суммы». */
+  const v = vatShown(0.01, "surcharge", 7, 92.5);
+  assert.equal(v.subtotal, 0.93);
+  assert.equal(v.amount, 0.07, "НДС от округлённой базы = 0,07, а не 0,06 от сырой");
+});
+
+test("vatShown МУТАЦИЯ-ловушка: итог surcharge получен из двух напечатанных, не независимо", () => {
+  /* база 0,01 × 92,5 = 0,93; НДС 5% = 0,05; итог = 0,93+0,05 = 0,98. Независимо 0,925×1,05 = 0,97125 →
+     0,97. Ловит мутацию «третье число считается отдельно». */
+  const v = vatShown(0.01, "surcharge", 5, 92.5);
+  assert.equal(v.total, 0.98, "итог = без НДС + НДС = 0,98, а не независимые 0,97");
+  assert.equal(Math.round((v.subtotal + v.amount) * 100) / 100, v.total);
 });
 
 /* Миграция старых проектов — тоже одно правило (vatModeOf): галочка vatEnabled превращается в режим. */

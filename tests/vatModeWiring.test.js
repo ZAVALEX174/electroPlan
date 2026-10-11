@@ -32,6 +32,10 @@ function render(mode) {
     EPEstimate,
     $: dom.$,
     money: v => "€" + Number(v).toFixed(2),
+    /* displayRate=1 (евро) и moneyShown форматирует УЖЕ-показанное число — панель берёт три числа НДС
+       из EPEstimate.vatShown, умноженные на курс, и форматирует их без повторного умножения (В7). */
+    displayRate: () => 1,
+    moneyShown: v => "€" + Number(v).toFixed(2),
     esc: String,
     projectLighting: () => ({}),
     buildEstimate: () => estFor(mode),
@@ -60,6 +64,26 @@ test("панель «выделить в стоимости»: «в т.ч. НД�
   /* 100 × 20/120 = 16,67 € — выделено из итога, а не добавлено */
   assert.match(els.vatIncludedTotal.textContent, /€16\.67 \(20%\)/, "НДС выделен обратным счётом");
   assert.equal(els.grandTotal.textContent, "€100.00", "итог прежний — цены уже с НДС");
+});
+
+test("панель МУТАЦИЯ-ловушка: итог из vatShown по курсу, не money(est.total) (копеечная граница)", () => {
+  /* subtotal 0,01 × курс 92,5, НДС 5% сверху: vatShown даёт итог 0,98, а money(est.total)=0,0105×92,5 =
+     0,97. Мутация «панель считает мимо правила» (vat.total → est.total) показала бы 0,97 — ловится. */
+  const dom = stand.makeDom();
+  const device = { id: 1, price: 0.01, unit: "шт.", name: "X", code: "X" };
+  const est = EPEstimate.build({ devices: [{ productId: 1 }], posts: [],
+    product: () => device, frameProduct: () => device, postCost: () => 0,
+    settings: { workPercent: 0, materialsPercent: 0, discountPercent: 0, vatPercent: 5, vatMode: "surcharge" } });
+  const run = stand.run("renderSummary", {
+    state: { rooms: [], devices: [{ id: "d1", roomId: null }], posts: [] },
+    EPEstimate, $: dom.$,
+    money: v => (Number(v) * 92.5).toFixed(2), displayRate: () => 92.5, moneyShown: v => Number(v).toFixed(2),
+    esc: String, projectLighting: () => ({}), buildEstimate: () => est,
+    lightingHtml: () => "[L]", updateStatus: () => {}, orphanObjectsWarningText: () => ""
+  });
+  run();
+  assert.equal(EPEstimate.vatShown(est.subtotal, est.vatMode, est.vatPercent, 92.5).total, 0.98);
+  assert.equal(dom.els.grandTotal.textContent, "0.98", "панель показывает итог из vatShown (0,98), не money(est.total)=0,97");
 });
 
 test("панель «не учитывать»: обе строки НДС скрыты, итог равен базе", () => {

@@ -202,12 +202,18 @@ function buildSpecSheet(est, options, config, estimate, rate) {
     if (est.discount) totalRow(estimate.discountLabel(est.discountMixed, est.discountPercent), -est.discount * rate, true);
     totalRow("Монтажные материалы", est.materials * rate, true);
     totalRow("Работы", est.work * rate, true);
+    /* Три числа НДС и итог — из ОДНОЙ EPEstimate.vatShown (В7), ровно как панель и КП: приходят уже в
+       валюте показа (учтён rate) и округлёнными так, что «без НДС» + «НДС» = итог. Кладём ИХ как есть
+       (не est.X×rate): они уже с точностью до копейки, денежный формат ячейки их только отобразит.
+       Строки ВЫШЕ НДС (оборудование, скидка, материалы, работы) остаются est.X×rate — их свод В7 не
+       трогает, итог там складывается по прежнему правилу. */
+    const vat = estimate.vatShown(est.subtotal, est.vatMode, est.vatPercent, rate);
     if (est.vat && !est.vatIncluded) {
-      totalRow("Итого без НДС", est.subtotal * rate, true);
-      totalRow(`${est.vatLabel || "НДС"} ${est.vatPercent}%`, est.vat * rate, true);
+      totalRow("Итого без НДС", vat.subtotal, true);
+      totalRow(`${est.vatLabel || "НДС"} ${est.vatPercent}%`, vat.amount, true);
     }
-    totalRow(`Итого${est.vat && !est.vatIncluded ? " с НДС" : ""}`, est.total * rate, true);
-    if (est.vat && est.vatIncluded) totalRow(`${est.vatLabel || "в т.ч. НДС"} ${est.vatPercent}%`, est.vat * rate, true);
+    totalRow(`Итого${est.vat && !est.vatIncluded ? " с НДС" : ""}`, vat.total, true);
+    if (est.vat && est.vatIncluded) totalRow(`${est.vatLabel || "в т.ч. НДС"} ${est.vatPercent}%`, vat.amount, true);
   }
 
   /* Ширины: наименование и состав — широкие, числовые/служебные — узкие. */

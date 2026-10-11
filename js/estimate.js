@@ -145,6 +145,45 @@ function vatBreakdown(base, mode, percent) {
   return { mode: m, percent: p, amount: sub * p / 100, included: false, total: sub + sub * p / 100, label: VAT_LABELS.surcharge };
 }
 
+/* Округление до копейки (2 знака). Деньги положительны, поэтому Math.round (к ближайшему, половина
+   вверх) совпадает с округлением Intl.NumberFormat («halfExpand»), которым показывает money() — так
+   число из vatShown и его же вывод money()/денежным форматом Excel не разойдутся. */
+function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+
+/* ⚠️ ТРИ ЧИСЛА НДС, КОТОРЫЕ СХОДЯТСЯ ДО КОПЕЙКИ — ОДНО правило в ОДНОМ месте (В7, решение владельца
+   11.10). vatBreakdown выше считает НДС и итог в БАЗОВОЙ валюте и БЕЗ округления; но «Итого без НДС»,
+   «НДС» и «Итого с НДС» человек видит уже в валюте показа и округлёнными до копейки — и там, где
+   каждое число округлялось отдельно, сумма двух напечатанных не сходилась с третьим напечатанным
+   (1 250,01 + 250,00 показывало итог 1 500,02 вместо 1 500,01). Поэтому ТРЕТЬЕ число получаем из двух
+   уже округлённых, а не считаем независимо.
+
+   vatShown(base, mode, percent, rate) — base в базовой валюте (subtotal сметы), rate — множитель в
+   валюту показа (displayRate: 1 для евро, курс для рублей). Возвращает subtotal/amount/total УЖЕ в
+   валюте показа и УЖЕ округлёнными до копейки, плюс mode/percent/included/label из vatBreakdown (режим
+   и подпись — не копируем, берём оттуда). Правило по решению владельца 1:
+     «начислить сверху»   — «без НДС» = округлённая база; НДС = округл(без НДС × p/100);
+                            итог = округл(без НДС + НДС)  → без НДС + НДС всегда = итог;
+     «выделить в стоимости» — итог НЕ меняется (округлённая база); НДС = округл(итог × p/(100+p));
+                            «без НДС» = округл(итог − НДС)  → без НДС + НДС всегда = итог;
+     «не учитывать»       — НДС 0, итог = «без НДС» = округлённая база.
+   Все потребители (панель «Стоимость проекта», КП, Excel) берут числа ОТСЮДА и форматируют их как
+   УЖЕ-показанные (без повторного умножения на курс) — второй копии этой арифметики быть не должно. */
+function vatShown(base, mode, percent, rate) {
+  const r = Number(rate) > 0 ? Number(rate) : 1;
+  const info = vatBreakdown(base, mode, percent);   // режим/ставка/подпись — ОДНО правило, не копируем
+  const p = info.percent;
+  const shownBase = round2((Number(base) || 0) * r);
+  if (info.mode === "none") {
+    return { mode: info.mode, percent: 0, subtotal: shownBase, amount: 0, total: shownBase, included: false, label: info.label };
+  }
+  if (info.mode === "included") {
+    const amount = round2(shownBase * p / (100 + p));
+    return { mode: info.mode, percent: p, subtotal: round2(shownBase - amount), amount, total: shownBase, included: true, label: info.label };
+  }
+  const amount = round2(shownBase * p / 100);
+  return { mode: info.mode, percent: p, subtotal: shownBase, amount, total: round2(shownBase + amount), included: false, label: info.label };
+}
+
 /* Режим НДС проекта — ОДНО правило чтения настроек, вместе с миграцией старых проектов (§7.1 п.4:
    обратная совместимость — самый частый пропущенный край). Новое поле settings.vatMode
    ("none"|"included"|"surcharge"). Проекта, сохранённого до трёх режимов, этого поля нет — читаем
@@ -569,7 +608,7 @@ function pricelessNote(est) {
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, vatBreakdown, vatModeOf, discountOf, discountBreakdown, discountLabel };
+const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, vatBreakdown, vatShown, vatModeOf, discountOf, discountBreakdown, discountLabel };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -99,7 +99,10 @@ const vatEst = mode => EPEstimate.build({
 });
 /* Деньги округляем до копеек — чтобы СВЕРЯТЬ СУММУ строки НДС, а не только её подпись: без этого
    мутация «строка печатает est.subtotal вместо est.vat» (100 € вместо 16,67 €) осталась бы зелёной. */
-const vatDeps = Object.assign({}, deps, { money: n => Number(n).toFixed(2) + " €" });
+/* displayRate=1 (евро) + moneyShown форматирует УЖЕ-показанное число: КП берёт три числа НДС из
+   EPEstimate.vatShown (валюта показа, округлены до копейки) и печатает их без повторного курса (В7). */
+const vatDeps = Object.assign({}, deps, { money: n => Number(n).toFixed(2) + " €",
+  displayRate: () => 1, moneyShown: n => Number(n).toFixed(2) + " €" });
 
 test("КП «начислить сверху»: база, НДС-слагаемое и итог с НДС — с точными суммами", () => {
   const html = buildHtml(vatEst("surcharge"), vatDeps);
@@ -119,6 +122,21 @@ test("КП «выделить в стоимости»: итог прежний, 
   const posGrand = html.indexOf("<span>Итого</span>");
   const posIncl = html.indexOf("в т.ч. НДС");
   assert.ok(posGrand > -1 && posIncl > posGrand, "«в т.ч. НДС» стоит ПОД итогом");
+});
+
+test("КП МУТАЦИЯ-ловушка: итог берётся из vatShown по курсу, не money(est.total) (копеечная граница)", () => {
+  /* subtotal 0,01 × курс 92,5, НДС 5% сверху: vatShown даёт без НДС 0,93, НДС 0,05, итог 0,98. А
+     money(est.total)=est.total×курс = 0,0105×92,5 = 0,97125 (0,97). Мутация «КП считает мимо общего
+     правила» напечатала бы 0,97 — здесь видно. moneyShown форматирует УЖЕ-показанное число. */
+  const est2 = { groups: [{ name: "X", composition: "X", count: 1, unit: "шт", sum: 0.01 }],
+    equipment: 0.01, discount: 0, materials: 0, work: 0, subtotal: 0.01, missing: [],
+    vatMode: "surcharge", vat: 0.0005, vatLabel: "НДС", vatPercent: 5, vatIncluded: false, total: 0.0105 };
+  const html = buildHtml(est2, Object.assign({}, deps, { displayCurrency: () => "RUB",
+    displayRate: () => 92.5, money: n => (Number(n) * 92.5).toFixed(2), moneyShown: n => Number(n).toFixed(2) }));
+  assert.match(html, /<span>Итого без НДС<\/span><b>0\.93<\/b>/, "без НДС = округлённая база");
+  assert.match(html, /<span>НДС 5%<\/span><b>0\.05<\/b>/, "НДС от округлённой базы");
+  assert.match(html, /<span>Итого с НДС<\/span><b>0\.98<\/b>/, "итог = 0,93+0,05 = 0,98, не 0,97");
+  assert.ok(!/<b>0\.97<\/b>/.test(html), "итог НЕ money(est.total)=0,97 — КП не считает мимо правила");
 });
 
 test("КП «не учитывать»: строки НДС нет вовсе, итог без НДС", () => {
