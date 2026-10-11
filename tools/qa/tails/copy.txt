@@ -1,0 +1,490 @@
+  // ===================================================================================================
+  // Б9 «КОПИРОВАНИЕ ПОСТОВ», браузерный хвост `copy`. Ctrl+C/Ctrl+V/Ctrl+Z/Ctrl+Y и движение мыши —
+  // НАСТОЯЩИЕ события через DevTools Protocol (Input.dispatchKeyEvent / Input.dispatchMouseEvent), чтобы
+  // проверить проводку клавиш (document.onkeydown → EPPostCopyUi.pastePosts) и трекер «мышь над планом»
+  // (canvasInput.js canvasPointer). Вызовов copyPosts()/pastePosts() из консоли НЕТ.
+  //
+  // ⚠️ app.js — IIFE: ни state, ни product/buildEstimate/clientToWorld из консоли не видны. Поэтому
+  // читаем ТОЛЬКО через DOM, localStorage (ProjectStore), EP_DATA и глобальные EP*-модули — как select.txt.
+  //
+  // Фраза владельца (критерий): «Выделили посты в одном номере, Ctrl+C, навели мышь на соседний номер,
+  // Ctrl+V — там такие же посты в том же взаимном расположении; каждый считается по своей комнате, смета
+  // растёт на их стоимость; Ctrl+Z убирает вставленное одним шагом». Решения владельца 10.10: копии несут
+  // СВОИ новые номера проходных (своя пара, с исходными не связываются); накладка копии — отделки комнаты;
+  // подходящая накладка НЕ меняется; нет подходящей — остальные вставить, про невставленный сказать;
+  // имя группы света у копии, вставленной туда же, где исходный, снимается с сообщением-крестиком.
+  // Все деньги — в ЕВРО прайса (currencySelect=EUR): тогда «до копейки» проверяемо без ошибки курса.
+  //
+  // Эталон поста (из независимой проверки 11.10, RESULT.md): накладка 21653.01 (Eikon Evo, 3М, 68,07 €) +
+  // 3×клавиши 20021.B (5,08 €). Номер проходной «7» у первой клавиши → пост 157,41 €, пара 314,82 €,
+  // четыре поста (пара + две копии своей пары) 629,64 €.
+  //
+  // Проверки — с ПАДЕНИЕМ (assertOk валит сценарий исключением → harness печатает «ОШИБКА» и exit 1).
+  // ===================================================================================================
+  n = 100;
+  const assertOk = (cond, msg) => { log.push((cond ? "ОК" : "FAIL") + ": " + msg); if (!cond) throw new Error(msg); };
+  const settle = () => sleep(900);   /* автосохранение в localStorage дебаунсится на 700 мс (EPConfig) */
+
+  // Настоящие клавиши через CDP (modifiers:2 = Ctrl), ровно как в tails/select.txt.
+  const hotkey = async (code, vk, keyChar, mods = 2) => {
+    await c.send("Input.dispatchKeyEvent", { type: "keyDown", modifiers: mods, code, key: keyChar, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
+    await c.send("Input.dispatchKeyEvent", { type: "keyUp",   modifiers: mods, code, key: keyChar, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
+    await sleep(500);
+  };
+  const ctrlC = () => hotkey("KeyC", 67, "c");
+  const ctrlV = () => hotkey("KeyV", 86, "v");
+  const ctrlZ = () => hotkey("KeyZ", 90, "z");
+  const ctrlY = () => hotkey("KeyY", 89, "y");
+  const ctrlClickAt = async (x, y) => {
+    await mouse(x, y, "mouseMoved");
+    await c.send("Input.dispatchMouseEvent", { type: "mousePressed",  x, y, button: "left", clickCount: 1, modifiers: 2 });
+    await c.send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button: "left", clickCount: 1, modifiers: 2 });
+    await sleep(400);
+  };
+  // Навести мышь: НАСТОЯЩИЙ mouseMoved → pointermove на .canvas-scroll → lastPointer.overCanvas=true.
+  const hoverAt = async (x, y) => { await mouse(x, y, "mouseMoved"); await sleep(250); };
+
+  const clip = async () => { const r = await rect(`document.querySelector(".canvas-scroll")`); return { x: r.x, y: r.y, width: r.w, height: r.h }; };
+  const cntPosts = () => ev(`return document.querySelectorAll(".plan-icon.post").length`);
+  const cntSel   = () => ev(`return document.querySelectorAll(".plan-icon.post.selected").length`);
+  const selText  = () => ev(`const e=document.getElementById("selectionCount");return e.hidden?"(скрыто)":e.textContent`);
+  const selIds   = () => ev(`return Array.from(document.querySelectorAll(".plan-icon.post.selected")).map(function(e){return e.dataset.id;})`);
+  const toastText = () => ev(`const e=document.querySelector(".toast");return e?e.textContent.trim():null`);
+  const lightText = () => ev(`const e=document.getElementById("lightingSummary");return e?e.textContent.replace(/\\s+/g," ").trim():""`);
+  // Сообщения с крестиком (EPNotices) — НЕ toast: живут в #notices как .notice, текст в .notice__text.
+  const notices = () => ev(`return Array.from(document.querySelectorAll("#notices .notice")).map(function(e){var t=e.querySelector(".notice__text");return t?t.textContent.trim():e.textContent.trim();});`);
+  // Деньги: в EUR формат ru-RU «1 234,56 €» — пробел-тысячи, запятая-дробь; парсим в число до копейки.
+  const parseMoney = s => { if (s == null) return NaN; let t = String(s).replace(/[\s  ]/g, "").replace(/[^0-9.,-]/g, ""); if (t.indexOf(",") >= 0) t = t.replace(/\./g, "").replace(",", "."); return parseFloat(t); };
+  const equip = async () => parseMoney(await ev(`return document.getElementById("equipmentTotal").textContent`));
+  const grand = async () => parseMoney(await ev(`return document.getElementById("grandTotal").textContent`));
+  const prodId = async (code) => ev(`var p=((window.EP_DATA&&window.EP_DATA.products)||[]).find(function(x){return x.code===${JSON.stringify(code)};});return p?Number(p.id):null;`);
+
+  // Посты из DOM (экранные центры, выделение).
+  const domPosts = () => ev(`return Array.from(document.querySelectorAll(".plan-icon.post")).map(function(e){var r=e.getBoundingClientRect();return {id:e.dataset.id,cx:Math.round(r.left+r.width/2),cy:Math.round(r.top+r.height/2),sel:e.classList.contains("selected")};});`);
+  // Посты из сохранённого проекта (мировые x/y, комната, номер, накладка, механизмы, проходные).
+  const prjPosts = () => ev(`var j=JSON.parse(localStorage.getItem(ProjectStore.key)||"{}");return (j.posts||[]).map(function(p){return {id:p.id,num:Number(p.number),room:p.roomId||null,x:p.x,y:p.y,frameId:p.frameId,mech:(p.mechanismIds||[]).slice(),cross:(p.keyCrossNumbers||[]).slice(),groups:(p.keyGroups||[]).slice()};});`);
+  // Слить обе картины по id (мир + экран + выделение).
+  const posts = async () => { const d = await domPosts(), p = await prjPosts(); return p.map(x => { const dd = d.find(y => y.id === x.id) || {}; return Object.assign({}, x, { cx: dd.cx ?? null, cy: dd.cy ?? null, sel: !!dd.sel }); }); };
+  // Код накладки поста по frameId (для проверки «накладка копии = накладка исходного»).
+  const frameCodeOf = (frameId) => ev(`var p=((window.EP_DATA&&window.EP_DATA.products)||[]).find(function(x){return String(x.id)===String(${JSON.stringify(frameId)});});return p?p.code:null;`);
+  const roomsInfo = async () => {
+    const p = await ev(`var j=JSON.parse(localStorage.getItem(ProjectStore.key)||"{}");return (j.rooms||[]).map(function(r){return {id:r.id,name:r.name};});`);
+    const d = await ev(`return Array.from(document.querySelectorAll(".room-label")).map(function(e){var r=e.getBoundingClientRect();return {name:e.textContent.trim(),cx:Math.round(r.left+r.width/2),cy:Math.round(r.top+r.height/2)};});`);
+    return p.map(r => { const dd = d.find(x => x.name.indexOf(r.name) >= 0) || {}; return { id: r.id, name: r.name, cx: dd.cx ?? null, cy: dd.cy ?? null }; });
+  };
+  // Инструмент «Выбор»: makeRoom оставляет активным «Комната», и в этом режиме mousedown холста гасит
+  // всплытие к canvas.onclick (placePendingAtEvent) — размещение и выделение кликом не доходят. Возвращаем
+  // «Выбор» перед любой работой мышью по холсту.
+  const selectTool = async () => { await click(`document.querySelector('[data-tool="select"]')`); await sleep(200); };
+  const placeLast = async (x, y) => {
+    // Закрываем возможную модалку конструктора: пока postModal открыт, кнопка «Разместить» под ним и клик
+    // по ней не доходит (режим размещения не включается). Esc в app.js закрывает окно поста.
+    if (await ev(`return document.getElementById("postModal").classList.contains("open")`)) {
+      await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(300);
+    }
+    await selectTool();
+    // Библиотека перерисовывается ПОСЛЕ savePost асинхронно: пока renderLibrary не отработал, кнопок
+    // «Разместить» в DOM нет (замерено: до ~2 с список бывает пуст). Ждём появления кнопки, иначе клик
+    // уходит в пустоту и режим размещения не включается. Это ожидание рендера, не «пауза на всякий случай».
+    for (let i = 0; i < 25; i++) { if (await ev(`return document.querySelectorAll("[data-place-template]").length>0`)) break; await sleep(300); }
+    // Взводим размещение последнего шаблона его же кнопкой «Разместить» (НЕ проверяемый шаг — проверяем
+    // копирование). onclick кнопки идемпотентно добавляет класс "placing"; опрашиваем до включения режима.
+    const arm = async () => { await ev(`var b=Array.from(document.querySelectorAll("[data-place-template]")).at(-1);if(b)b.click();return 1;`); await sleep(300); return ev(`return document.getElementById("canvas").classList.contains("placing")`); };
+    let placing = false;
+    for (let i = 0; i < 6 && !placing; i++) placing = await arm();
+    await clickAt(x, y); await sleep(500);
+    log.push("placeLast@(" + x + "," + y + "): placing=" + placing + ", шаблонов=" + await ev(`return document.querySelectorAll("[data-place-template]").length`) + ", постов=" + await cntPosts());
+  };
+  // Накатать чистый холст: настоящая кнопка «Очистить холст» (#clearBtn → clearCanvas, без подтверждения)
+  // стирает посты И комнаты; валюту ставим ЕВРО (прайс), чтобы смета была в 2-знаковых евро без курса.
+  // Сообщение «ничего не вставлено» живёт до крестика и переживает очистку холста (у него нет pruneWhen —
+  // это не отмена). Между сценами снимаем такие висящие сообщения из DOM, чтобы они не мешали следующей
+  // сцене считать свои сообщения. Это уборка стенда между сценами, а не обход проверки.
+  const clearAll = async () => {
+    await click($("clearBtn")); await sleep(500);
+    await ev(`document.querySelectorAll("#notices .notice").forEach(function(e){e.remove()});return 1;`);
+    await setVal($("currencySelect"), "EUR"); await sleep(400);
+  };
+  // Отделка комнаты: клик по подписи → селекты свойств (ids как в shoot.mjs). vals — {selectId: value}.
+  const setRoomProps = async (label, vals) => {
+    await selectTool();
+    await clickAt(label.cx, label.cy); await sleep(500);
+    for (const k of Object.keys(vals)) await setVal($(k), vals[k]);
+    await sleep(500);
+    await clickAt(10, 300); await sleep(200);   // снять выделение/закрыть свойства
+  };
+  // Построить шаблон поста: накладка frameCode + keyCount клавиш keyCode через НАСТОЯЩИЙ конструктор.
+  // roomNameSub — подстрока имени комнаты для контекста builderRoomSelect; опцию ищем ПОСЛЕ открытия окна
+  // (до открытия список опций пуст/устаревший). Контекст комнаты БЕЗ отделки гарантирует, что любая
+  // накладка видна в списке и ставится. slotCount — число модулей накладки; задать ДО выбора накладки,
+  // иначе накладка иной модульности (напр. 8М 2+2+2+2) не встанет под дефолтные 3 слота и каталог клавиш
+  // под неё не построится (как в scn.mjs).
+  const buildTemplate = async (frameCode, keyCode, keyCount, roomNameSub, slotCount) => {
+    await click($("newPostBtn")); await sleep(800);
+    if (roomNameSub) {
+      const opt = await ev(`return (Array.from(document.getElementById("builderRoomSelect").options||[]).find(function(o){return o.textContent.indexOf(${JSON.stringify(roomNameSub)})>=0;})||{}).value`);
+      if (opt) { await setVal($("builderRoomSelect"), opt); await sleep(300); }
+    }
+    if (slotCount) { await setVal($("postSlotCount"), String(slotCount)); await sleep(400); }
+    const fId = await prodId(frameCode);
+    assertOk(fId != null, "накладка " + frameCode + " есть в каталоге");
+    await setVal($("postFrameSelect"), String(fId)); await sleep(500);
+    const kId = await prodId(keyCode);
+    await setVal($("builderSearch"), keyCode); await sleep(600);
+    const kCard = `document.querySelector('#builderCatalog [data-pick="${kId}"]')`;
+    assertOk(await ev(`return !!${kCard}`), "карточка клавиши " + keyCode + " доступна в конструкторе для накладки " + frameCode);
+    for (let i = 0; i < keyCount; i++) { await click(kCard); await sleep(350); }
+    const slots = await ev(`return JSON.stringify(Array.from(document.querySelectorAll("#builderSlots .slot-code")).map(function(e){return e.textContent;}))`);
+    const dis = await ev(`return document.getElementById("savePost").disabled`);
+    log.push("buildTemplate " + frameCode + "+" + keyCount + "×" + keyCode + ": слоты=" + slots + ", savePost.disabled=" + dis);
+    await click($("savePost")); await sleep(700);
+    return { frameCode };
+  };
+  // Открыть окно размещённого поста по его экранным координатам (единственное место полей «№ проходной»
+  // и «Группа света»): выделить кликом, «Редактировать».
+  const openPlacedPost = async (cx, cy) => {
+    await selectTool();
+    await clickAt(cx, cy); await sleep(300);
+    await click(btnText("Редактировать")); await sleep(900);
+  };
+  // Вписать значение в поле слота окна поста (data-slot-cross / data-slot-group) по индексу клавиши.
+  const setSlotField = async (attr, index, value) => {
+    const n0 = await ev(`return document.querySelectorAll("#builderSlots [${attr}]").length`);
+    await ev(`var i=document.querySelector('#builderSlots [${attr}="${index}"]');if(i){i.value=${JSON.stringify(String(value))};i.dispatchEvent(new Event("input",{bubbles:true}));i.dispatchEvent(new Event("change",{bubbles:true}));}return 1;`);
+    await sleep(400);
+    return n0;
+  };
+
+  // --- СЦЕНА 1. Пара постов с общим номером проходной в первой комнате → Ctrl+C → мышь в соседнюю → Ctrl+V.
+  // Эталон: 21653.01 + 3×20021.B, проходная «7» у первой клавиши → 157,41 € / пост, пара 314,82 €.
+  // Ждём: +2 поста, обе копии в соседней комнате, взаимное расположение = исходному, у копий СВОЙ общий
+  // номер проходной (≠7), оборудование 629,64 €, выделены новые, гаснущее «Вставлено постов: 2.».
+  await clearAll();
+  await makeRoom(0.24, 0.46); await nameRoom("Номер 101");
+  await makeRoom(0.52, 0.46); await nameRoom("Номер 102");
+  await settle();
+  let rooms1 = await roomsInfo();
+  log.push("(1) SETUP комнаты: " + JSON.stringify(rooms1));
+  assertOk(rooms1.length === 2, "(1) созданы РОВНО две комнаты");
+  const r101 = rooms1.find(r => r.name.indexOf("101") >= 0), r102 = rooms1.find(r => r.name.indexOf("102") >= 0);
+
+  await buildTemplate("21653.01", "20021.B", 3, "101");
+
+  // Два поста в комнате 101 рядом (центр значка = x+12,y+12).
+  await placeLast(r101.cx - 22, r101.cy + 45);
+  await placeLast(r101.cx + 22, r101.cy + 45);
+  await settle();
+  log.push("(1) SETUP поставлено постов: " + await cntPosts());
+  assertOk(await cntPosts() === 2, "(1) в комнате 101 поставлено два поста");
+
+  // Фикстура «парная проходная»: каждому посту через окно поста задаём ОДИН И ТОТ ЖЕ номер «7» у первой
+  // клавиши (slot 0). Это исходные данные владельца «одинаковый номер = пара», не проверяемый шаг.
+  const setCross0 = async (cx, cy, num) => {
+    await openPlacedPost(cx, cy);
+    const has = await setSlotField("data-slot-cross", 0, num);
+    await click($("savePost")); await sleep(700);
+    return has;
+  };
+  let pp = await posts();
+  const kiSet = p => p.cross.findIndex(v => String(v || "").trim() !== "");
+  const hasField1 = await setCross0(pp[0].cx, pp[0].cy, "7");
+  pp = await posts();
+  const target2 = pp.find(p => kiSet(p) < 0) || pp[1];
+  const hasField2 = await setCross0(target2.cx, target2.cy, "7");
+  await settle();
+  log.push("(1) SETUP полей «№ проходной» в окне поста: пост1=" + hasField1 + ", пост2=" + hasField2);
+  assertOk(hasField1 >= 1 && hasField2 >= 1, "(1) у размещённого поста есть поле «№ проходной»");
+  const srcSnap = (await posts()).sort((a, b) => a.num - b.num);
+  log.push("(1) SETUP исходные посты: " + JSON.stringify(srcSnap.map(p => ({ num: p.num, room: p.room, x: +p.x.toFixed(1), y: +p.y.toFixed(1), cross: p.cross }))));
+  assertOk(srcSnap.length === 2 && srcSnap.every(p => p.cross[kiSet(p)] === "7"), "(1) обоим постам задан один номер проходной «7» (пара)");
+
+  const S0 = await equip(), N0 = await cntPosts();
+  const light0 = await lightText();
+  log.push("(1) SETUP S0(оборудование,€)=" + S0 + ", постов=" + N0 + "; группы света: " + light0);
+  assertOk(Math.abs(S0 - 314.82) < 0.02, "(1) пара = 314,82 € (эталонный пост 21653.01+3×20021.B, проходная 7): факт " + S0);
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(200);
+  await clickAt(10, 300); await sleep(200);   // снять выделение
+  await shot("copy-setup", [`document.querySelector(".grand-total")`], await clip());
+
+  // Ctrl+C группы → мышь в комнату 102 → Ctrl+V
+  let info2 = (await posts()).sort((a, b) => a.num - b.num);
+  const srcA = info2[0], srcB = info2[1];
+  await clickAt(srcA.cx, srcA.cy);
+  await ctrlClickAt(srcB.cx, srcB.cy);
+  log.push("(1) выделено перед Ctrl+C: .selected=" + await cntSel() + ", надпись=«" + await selText() + "», ids=" + JSON.stringify(await selIds()));
+  assertOk(await cntSel() === 2, "(1) перед Ctrl+C выделены оба исходных поста");
+  await ctrlC();
+
+  // МИРОВАЯ точка под мышью: читаем ровно ту, что отдаст clientToWorld, через transform холста.
+  const r102c = (await roomsInfo()).find(r => r.name.indexOf("102") >= 0);
+  const worldPt = async (cx, cy) => ev(`
+    var canvas=document.getElementById("canvas"); var s=document.querySelector(".canvas-scroll").getBoundingClientRect();
+    var t=getComputedStyle(canvas).transform; var m=t&&t!=="none"?t.match(/matrix\\(([^)]+)\\)/):null;
+    var a=1,b=0,cc=0,d=1,e=0,f=0; if(m){var v=m[1].split(",").map(Number);a=v[0];b=v[1];cc=v[2];d=v[3];e=v[4];f=v[5];}
+    var px=${cx}-s.left-e, py=${cy}-s.top-f; var det=a*d-b*cc;
+    return {x:(px*d-py*cc)/det, y:(-px*b+py*a)/det};
+  `);
+  await hoverAt(r102c.cx, r102c.cy);
+  const expectPoint = await worldPt(r102c.cx, r102c.cy);
+  log.push("(1) мышь в центр 102 (client " + r102c.cx + "," + r102c.cy + ") → мировая точка " + JSON.stringify({ x: +expectPoint.x.toFixed(2), y: +expectPoint.y.toFixed(2) }));
+  await ctrlV();
+  await settle();
+
+  const after2 = await posts();
+  const N2 = after2.length;
+  log.push("(1) постов после Ctrl+V: " + N0 + "→" + N2 + ", тост=«" + await toastText() + "»");
+  assertOk(N2 === N0 + 2, "(1) постов стало +2 (было " + N0 + ", стало " + N2 + ")");
+  assertOk(/Вставлено постов: 2\./.test(await toastText() || ""), "(1) гаснущее «Вставлено постов: 2.»");
+
+  const srcIds = new Set(srcSnap.map(p => p.id));
+  const copies = after2.filter(p => !srcIds.has(p.id)).sort((a, b) => a.num - b.num);
+  const srcAfter = after2.filter(p => srcIds.has(p.id)).sort((a, b) => a.num - b.num);
+  assertOk(copies.length === 2, "(1) ровно две НОВЫЕ копии");
+
+  log.push("(1) комнаты: исходные " + JSON.stringify(srcAfter.map(p => p.room)) + " (ждём 101=" + r101.id + "), копии " + JSON.stringify(copies.map(p => p.room)) + " (ждём 102=" + r102.id + ")");
+  assertOk(srcAfter.every(p => p.room === r101.id), "(1) исходные остались в комнате 101");
+  assertOk(copies.every(p => p.room === r102.id), "(1) обе копии попали в комнату 102");
+
+  const srcUnchanged = JSON.stringify(srcAfter.map(p => ({ x: p.x, y: p.y, frameId: p.frameId, cross: p.cross, mech: p.mech })))
+    === JSON.stringify(srcSnap.map(p => ({ x: p.x, y: p.y, frameId: p.frameId, cross: p.cross, mech: p.mech })));
+  assertOk(srcUnchanged, "(1) исходные посты не тронуты (накладка/механизмы/проходная/координаты)");
+
+  const dOrig = { dx: +(srcSnap[1].x - srcSnap[0].x).toFixed(4), dy: +(srcSnap[1].y - srcSnap[0].y).toFixed(4) };
+  const dCopy = { dx: +(copies[1].x - copies[0].x).toFixed(4), dy: +(copies[1].y - copies[0].y).toFixed(4) };
+  log.push("(1) дельта между исходными " + JSON.stringify(dOrig) + ", между копиями " + JSON.stringify(dCopy));
+  assertOk(Math.abs(dOrig.dx - dCopy.dx) < 0.01 && Math.abs(dOrig.dy - dCopy.dy) < 0.01, "(1) взаимное расположение копий совпало с исходными (допуск 0.01 мира)");
+
+  // центр группы копий = под мышью. Центр значка = x+12; допуск 0.6 — под-пиксельное округление ОДНОЙ
+  // экранной точки курсора при screenToWorld (расхождение — от целочисленного client-округления мыши).
+  const copyCenter = { x: (copies[0].x + 12 + copies[1].x + 12) / 2, y: (copies[0].y + 12 + copies[1].y + 12) / 2 };
+  log.push("(1) центр группы копий " + JSON.stringify({ x: +copyCenter.x.toFixed(3), y: +copyCenter.y.toFixed(3) }) + ", мышь-мир " + JSON.stringify({ x: +expectPoint.x.toFixed(3), y: +expectPoint.y.toFixed(3) }));
+  assertOk(Math.abs(copyCenter.x - expectPoint.x) < 0.6 && Math.abs(copyCenter.y - expectPoint.y) < 0.6, "(1) центр группы копий встал под мышь (допуск 0.6)");
+
+  const cA = copies[0].cross[kiSet(copies[0])], cB = copies[1].cross[kiSet(copies[1])];
+  log.push("(1) проходные: исходные " + JSON.stringify(srcSnap.map(p => p.cross)) + ", копии " + JSON.stringify(copies.map(p => p.cross)) + " → копии[" + cA + "," + cB + "]");
+  assertOk(cA && cB && cA === cB, "(1) у копий номер проходной задан и ОДИНАКОВ между ними (своя пара): " + cA);
+  assertOk(cA !== "7", "(1) номер проходной копий ОТЛИЧЕН от исходного «7» (с оригиналом не связались): " + cA);
+
+  // роли в смете: пара → переключатели, НЕ инверторы.
+  const light1 = await lightText();
+  log.push("(1) группы света после вставки: " + light1);
+  assertOk(!/нвертор/.test(light1), "(1) после вставки в группах света НЕТ инвертора (копии — своя пара переключателей)");
+
+  // смета: 629,64 € (4 поста по 157,41) и ровно 2·S0 до копейки.
+  const S1 = await equip();
+  log.push("(1) смета оборудования S0=" + S0 + " → S1=" + S1 + " (ждём 629,64 = 2·S0)");
+  assertOk(Math.abs(S1 - 629.64) < 0.02, "(1) оборудование после вставки = 629,64 €: факт " + S1);
+  assertOk(Math.abs(S1 - 2 * S0) < 0.005, "(1) S1 = 2·S0 до копейки: " + S1 + " vs " + (2 * S0).toFixed(2));
+
+  const selAfter2 = await selIds();
+  log.push("(1) после Ctrl+V .selected=" + await cntSel() + ", надпись=«" + await selText() + "», ids=" + JSON.stringify(selAfter2));
+  assertOk(await cntSel() === 2 && selAfter2.every(id => !srcIds.has(id)), "(1) выделены именно две НОВЫЕ копии");
+  assertOk(await selText() === "Выделено: 2", "(1) надпись «Выделено: 2»");
+  await shot("copy-pasted", [`document.querySelector(".grand-total")`], await clip());
+
+  // --- СЦЕНА 2. Ctrl+Z убирает вставленное ОДНИМ шагом (2 поста, 314,82 €); Ctrl+Y возвращает (4, 629,64).
+  await ctrlZ(); await settle();
+  const Nz = await cntPosts(), Sz = await equip();
+  log.push("(2) Ctrl+Z: постов " + N2 + "→" + Nz + " (ждём " + N0 + "), S " + S1 + "→" + Sz + " (ждём 314,82)");
+  assertOk(Nz === N0 && Math.abs(Sz - 314.82) < 0.02, "(2) один Ctrl+Z вернул 2 поста и смету 314,82 €: постов " + Nz + ", S " + Sz);
+  await ctrlY(); await settle();
+  const Ny = await cntPosts(), Sy = await equip();
+  log.push("(2) Ctrl+Y: постов " + Nz + "→" + Ny + " (ждём " + N2 + "), S " + Sz + "→" + Sy + " (ждём 629,64)");
+  assertOk(Ny === N2 && Math.abs(Sy - 629.64) < 0.02, "(2) один Ctrl+Y вернул 4 поста и смету 629,64 €: постов " + Ny + ", S " + Sy);
+  await shot("copy-undo-redo", [`document.querySelector(".grand-total")`], await clip());
+
+  // --- СЦЕНА 3. Та же отделка: две комнаты с ОДИНАКОВОЙ отделкой (Eikon Exe), пост с накладкой 22669.75
+  // (Eikon Exe, 8М, 2+2+2+2) + 8×20021.B = 742,88 €. Копия в соседнюю И в ту же комнату: артикул накладки
+  // копии = 22669.75 (подходящая накладка НЕ подменяется — починка блока), цена копии = цене исходного.
+  await clearAll();
+  await makeRoom(0.24, 0.46); await nameRoom("Отделка A");
+  await makeRoom(0.52, 0.46); await nameRoom("Отделка B");
+  await settle();
+  let rooms3 = await roomsInfo();
+  let a3 = rooms3.find(r => r.name.indexOf("A") >= 0), b3 = rooms3.find(r => r.name.indexOf("B") >= 0);
+  // Пост собираем ПОКА комнаты без отделки: при заданной отделке конструктор сужает каталог механизмов и
+  // карточка клавиши 20021.B не находится. Отделку задаём НИЖЕ, перед размещением, — тогда подмену накладки
+  // проверяем именно на ветке «накладка уже подходит комнате → не трогаем» (починка 10.10), а не на пустой.
+  await buildTemplate("22669.75", "20021.B", 8, "Отделка A", 8);
+  await setRoomProps(a3, { roomCollectionSelect: "Eikon Exe" });
+  await setRoomProps(b3, { roomCollectionSelect: "Eikon Exe" });
+  await settle();
+  rooms3 = await roomsInfo(); a3 = rooms3.find(r => r.name.indexOf("A") >= 0); b3 = rooms3.find(r => r.name.indexOf("B") >= 0);
+  const collA = await ev(`var e=document.getElementById("roomCollectionSelect");return e?e.value:null`);
+  log.push("(3) отделка комнат Eikon Exe задана после сборки поста; комнаты " + JSON.stringify(rooms3.map(r => r.name)));
+  await placeLast(a3.cx, a3.cy + 45);
+  await settle();
+  assertOk(await cntPosts() === 1, "(3) эталонный пост (22669.75) поставлен в комнату «Отделка A»");
+  const src3 = (await posts())[0];
+  const srcFrame3 = await frameCodeOf(src3.frameId);
+  const P3 = await equip();
+  log.push("(3) исходный: накладка " + srcFrame3 + ", оборудование P=" + P3 + " € (ждём 742,88)");
+  assertOk(srcFrame3 === "22669.75", "(3) у исходного поста накладка 22669.75: факт " + srcFrame3);
+  assertOk(Math.abs(P3 - 742.88) < 0.05, "(3) исходный пост = 742,88 €: факт " + P3);
+  await shot("copy-finish-before", [`document.querySelector(".grand-total")`], await clip());
+
+  // Копия в СОСЕДНЮЮ комнату B (та же отделка).
+  await clickAt(src3.cx, src3.cy); await sleep(200);
+  assertOk(await cntSel() === 1, "(3) исходный пост выделен перед Ctrl+C");
+  await ctrlC();
+  await hoverAt(b3.cx, b3.cy); await ctrlV(); await settle();
+  let aft3 = await posts();
+  assertOk(aft3.length === 2, "(3) после вставки в B постов 2");
+  const copyB3 = aft3.find(p => p.id !== src3.id);
+  const copyBframe = await frameCodeOf(copyB3.frameId);
+  const S3b = await equip();
+  log.push("(3) копия в B: накладка " + copyBframe + " (ждём 22669.75), оборудование " + P3 + "→" + S3b + " (ждём 2·P=" + (2 * P3).toFixed(2) + ")");
+  assertOk(copyBframe === "22669.75", "(3) накладка копии в соседней комнате = 22669.75 (не подменена): факт " + copyBframe);
+  assertOk(copyB3.room === b3.id, "(3) копия попала в комнату B");
+  assertOk(Math.abs(S3b - 2 * P3) < 0.02, "(3) цена копии = цене исходного (оборудование 2·P): " + S3b + " vs " + (2 * P3).toFixed(2));
+  await shot("copy-finish-other-room", [`document.querySelector(".grand-total")`], await clip());
+
+  // Копия в ТУ ЖЕ комнату A.
+  await hoverAt(a3.cx + 40, a3.cy - 30); await ctrlV(); await settle();
+  aft3 = await posts();
+  assertOk(aft3.length === 3, "(3) после вставки в ту же комнату постов 3");
+  const copyA3 = aft3.find(p => p.id !== src3.id && p.id !== copyB3.id);
+  const copyAframe = await frameCodeOf(copyA3.frameId);
+  const S3a = await equip();
+  log.push("(3) копия в ту же A: накладка " + copyAframe + " (ждём 22669.75), оборудование →" + S3a + " (ждём 3·P=" + (3 * P3).toFixed(2) + ")");
+  assertOk(copyAframe === "22669.75", "(3) накладка копии в той же комнате = 22669.75 (не подменена): факт " + copyAframe);
+  assertOk(Math.abs(S3a - 3 * P3) < 0.02, "(3) цена копии в той же комнате = цене исходного: " + S3a + " vs " + (3 * P3).toFixed(2));
+  await shot("copy-finish-same-room", [`document.querySelector(".grand-total")`], await clip());
+
+  // --- СЦЕНА 4. Сообщение с крестиком «ничего не вставлено»: вставка в комнату, под критерии которой
+  // накладки нет (немецкий + Arke + Антрацит). Ждём: сообщение начинается с «Ничего не вставлено. Пост № »
+  // и называет номер ИСХОДНОГО поста; гаснущего нет; через 3 с сообщение ещё на экране; постов не прибавилось.
+  await clearAll();
+  await makeRoom(0.24, 0.46); await nameRoom("Исходная");
+  await makeRoom(0.52, 0.46); await nameRoom("Немецкая");
+  await settle();
+  let rooms4 = await roomsInfo();
+  let srcRoom4 = rooms4.find(r => r.name.indexOf("Исходн") >= 0), deRoom4 = rooms4.find(r => r.name.indexOf("Немец") >= 0);
+  // Исходный пост ставим ПОКА обе комнаты без отделки (размещение «Разместить» надёжно), и лишь ПОТОМ
+  // задаём целевой комнате немецкую отделку Arke/Антрацит. ПОРЯДОК ВАЖЕН: при заданной немецкой отделке ДО
+  // размещения кнопка «Разместить» в хвосте не взводила режим (режим размещения не включался; замер в
+  // отчёте) — на размещение источника это не влияет, он идёт в комнату «Исходная» без отделки.
+  await buildTemplate("21653.01", "20021.B", 3, "Исходная");   // Eikon Evo — в немецкую Arke/Антрацит не встанет
+  await placeLast(srcRoom4.cx, srcRoom4.cy + 45);
+  await settle();
+  await setRoomProps(deRoom4, { roomStandardSelect: "DE", roomCollectionSelect: "Arke", room_frameColorSelect: "Антрацит" });
+  await settle();
+  rooms4 = await roomsInfo(); srcRoom4 = rooms4.find(r => r.name.indexOf("Исходн") >= 0); deRoom4 = rooms4.find(r => r.name.indexOf("Немец") >= 0);
+  const N4 = await cntPosts();
+  const src4 = (await posts())[0];
+  log.push("(4) исходный пост № " + src4.num + " в «Исходная», постов=" + N4);
+  assertOk(N4 === 1, "(4) один исходный пост поставлен");
+  await clickAt(src4.cx, src4.cy); await sleep(200); await ctrlC();
+  await hoverAt(deRoom4.cx, deRoom4.cy); await ctrlV(); await settle();
+  const N4a = await cntPosts();
+  const notes4 = await notices();
+  const toast4 = await toastText();
+  log.push("(4) после Ctrl+V в немецкую: постов " + N4 + "→" + N4a + ", toast=«" + toast4 + "», сообщений с крестиком=" + notes4.length);
+  log.push("(4) текст сообщения: «" + (notes4[0] || "") + "»");
+  assertOk(N4a === N4, "(4) ничего не вставлено — число постов не изменилось (" + N4 + ")");
+  assertOk(notes4.length >= 1 && notes4[0].indexOf("Ничего не вставлено. Пост № " + src4.num) === 0,
+    "(4) сообщение начинается с «Ничего не вставлено. Пост № " + src4.num + "»: факт «" + (notes4[0] || "") + "»");
+  assertOk(!/Вставлено постов/.test(toast4 || ""), "(4) гаснущего «Вставлено постов…» нет: toast=«" + toast4 + "»");
+  await shot("copy-nothing-pasted", [`document.querySelector("#notices")`], await clip());
+  await sleep(3000);   // замер «не гаснет само»: через 3 с сообщение обязано остаться на экране
+  const notes4b = await notices();
+  log.push("(4) через 3 с: сообщений=" + notes4b.length + ", текст=«" + (notes4b[0] || "") + "»");
+  assertOk(notes4b.length >= 1 && notes4b[0].indexOf("Ничего не вставлено. Пост № " + src4.num) === 0,
+    "(4) через 3 с сообщение всё ещё на экране (не гаснет само)");
+
+  // --- СЦЕНА 5. Сообщение с крестиком об имени группы: копия в ТУ ЖЕ комнату, где исходный пост с именем
+  // группы света → имя у копии снимается, сообщение дословно; цена исходного не меняется; крестик закрывает.
+  await clearAll();
+  await makeRoom(0.38, 0.46); await nameRoom("Спальня");
+  await settle();
+  await buildTemplate("21653.01", "20021.B", 3, "Спальня");
+  const sp5 = (await roomsInfo())[0];
+  await placeLast(sp5.cx - 30, sp5.cy + 45);
+  await settle();
+  // Имя группы «Свет у кровати» у первой клавиши — через окно размещённого поста.
+  let src5 = (await posts())[0];
+  await openPlacedPost(src5.cx, src5.cy);
+  const gField = await setSlotField("data-slot-group", 0, "Свет у кровати");
+  await click($("savePost")); await sleep(700);
+  await settle();
+  src5 = (await posts())[0];
+  const P5 = await equip();
+  log.push("(5) поле «Группа света» у поста: " + gField + "; имя исходного[0]=«" + (src5.groups[0] || "") + "», оборудование P=" + P5);
+  assertOk(src5.groups[0] === "Свет у кровати", "(5) исходному посту задано имя группы «Свет у кровати»");
+  await clickAt(src5.cx, src5.cy); await sleep(200); await ctrlC();
+  await hoverAt(sp5.cx + 40, sp5.cy + 45); await ctrlV(); await settle();   // вставка в ТУ ЖЕ комнату
+  const aft5 = await posts();
+  assertOk(aft5.length === 2, "(5) после вставки в ту же комнату постов 2");
+  const copy5 = aft5.find(p => p.id !== src5.id);
+  const src5a = aft5.find(p => p.id === src5.id);
+  const cn5 = copy5.num;
+  const expect5 = "У копии № " + cn5 + " убрано имя группы света «Свет у кровати»: она стоит там же, где исходный пост, и с одинаковым именем программа посчитала бы их одним светом с двух мест. Нужна проходная — поставьте у клавиш одинаковый номер проходной.";
+  const notes5 = await notices();
+  const S5 = await equip();
+  log.push("(5) копия № " + cn5 + ", её имя[0]=«" + (copy5.groups[0] || "") + "», исходный имя[0]=«" + (src5a.groups[0] || "") + "», оборудование " + P5 + "→" + S5);
+  log.push("(5) сообщение: «" + (notes5[0] || "") + "»");
+  assertOk(notes5.indexOf(expect5) >= 0, "(5) сообщение об имени группы дословно совпало.\n  ждал: " + expect5 + "\n  факт: " + (notes5[0] || ""));
+  assertOk(copy5.groups[0] === "", "(5) у копии имя группы снято (keyGroups[0] пусто)");
+  assertOk(src5a.groups[0] === "Свет у кровати", "(5) у исходного имя группы осталось");
+  assertOk(Math.abs(S5 - 2 * P5) < 0.02, "(5) цена исходного не изменилась (оборудование 2·P=" + (2 * P5).toFixed(2) + "): факт " + S5);
+  await shot("copy-groupname", [`document.querySelector("#notices")`], await clip());
+  // Клик по крестику закрывает сообщение.
+  await click(`document.querySelector("#notices .notice__close")`); await sleep(300);
+  const notes5b = await notices();
+  log.push("(5) после клика по крестику сообщений=" + notes5b.length);
+  assertOk(notes5b.length === 0, "(5) клик по крестику закрыл сообщение");
+
+  // --- СЦЕНА 6. Удержание Ctrl+V (одно нажатие + 60 событий с autoRepeat) → вставка ОДНА (решение владельца
+  // «одно нажатие — одна вставка»; copyHotkey гасит ev.repeat).
+  await clearAll();
+  await makeRoom(0.38, 0.46); await nameRoom("Комната6");
+  await settle();
+  await buildTemplate("21653.01", "20021.B", 3, "Комната6");
+  const k6 = (await roomsInfo())[0];
+  await placeLast(k6.cx - 30, k6.cy + 45);
+  await settle();
+  const N6 = await cntPosts();
+  const src6 = (await posts())[0];
+  await clickAt(src6.cx, src6.cy); await sleep(200); await ctrlC();
+  // Удержание: 1 keyDown (repeat=false) + 60 keyDown (autoRepeat=true) + keyUp.
+  const holdCtrlV = async () => {
+    await c.send("Input.dispatchKeyEvent", { type: "keyDown", modifiers: 2, code: "KeyV", key: "v", windowsVirtualKeyCode: 86, nativeVirtualKeyCode: 86, autoRepeat: false });
+    for (let i = 0; i < 60; i++) await c.send("Input.dispatchKeyEvent", { type: "keyDown", modifiers: 2, code: "KeyV", key: "v", windowsVirtualKeyCode: 86, nativeVirtualKeyCode: 86, autoRepeat: true });
+    await c.send("Input.dispatchKeyEvent", { type: "keyUp", modifiers: 2, code: "KeyV", key: "v", windowsVirtualKeyCode: 86, nativeVirtualKeyCode: 86, autoRepeat: false });
+    await sleep(700);
+  };
+  await hoverAt(k6.cx + 40, k6.cy + 45); await holdCtrlV(); await settle();
+  const N6a = await cntPosts();
+  log.push("(6) удержание Ctrl+V (1 + 60 autoRepeat): постов " + N6 + "→" + N6a + " (ждём +1, буфер из одного поста)");
+  assertOk(N6a === N6 + 1, "(6) удержание дало ОДНУ вставку (+1): " + N6 + "→" + N6a);
+  // Контроль: отдельное нажатие добавляет ещё одну вставку.
+  await ctrlV(); await settle();
+  const N6b = await cntPosts();
+  log.push("(6) контроль: отдельное нажатие Ctrl+V → постов " + N6a + "→" + N6b + " (ждём +1)");
+  assertOk(N6b === N6a + 1, "(6) отдельное нажатие после удержания даёт ещё одну вставку (+1): " + N6a + "→" + N6b);
+  await shot("copy-hold", [`document.querySelector(".grand-total")`], await clip());
+
+  // --- СЦЕНА 7. Ctrl+V при фокусе в текстовом поле и при открытом окне поста → посты НЕ добавляются
+  // (copyHotkey отдаёт родную вставку в поле; под модалкой хоткеи холста молчат). Буфер непуст (из сцены 6).
+  const N7 = await cntPosts();
+  // (7a) фокус в текстовом поле (курс, input[type=number] — isTextTarget истинно).
+  const focused7 = await ev(`var i=document.getElementById("rateInput");if(!i)return null;i.focus();return document.activeElement===i?i.id:document.activeElement&&document.activeElement.tagName;`);
+  await ctrlV(); await sleep(400);
+  const N7a = await cntPosts();
+  log.push("(7a) фокус в поле (activeElement=" + focused7 + "), Ctrl+V: постов " + N7 + "→" + N7a + " (ждём без изменений)");
+  assertOk(focused7 === "rateInput", "(7a) фокус встал в текстовое поле rateInput: факт " + focused7);
+  assertOk(N7a === N7, "(7a) Ctrl+V в текстовом поле не добавил постов: " + N7 + "→" + N7a);
+  await ev(`document.activeElement&&document.activeElement.blur&&document.activeElement.blur();return 1;`); await sleep(150);
+  // (7b) открытое окно поста (postModal.open) — хоткеи холста под модалкой молчат.
+  const p7 = (await domPosts())[0];
+  await openPlacedPost(p7.cx, p7.cy);
+  const modalOpen7 = await ev(`return document.getElementById("postModal").classList.contains("open")`);
+  await ctrlV(); await sleep(400);
+  const N7b = await cntPosts();
+  log.push("(7b) открыто окно поста (postModal.open=" + modalOpen7 + "), Ctrl+V: постов " + N7a + "→" + N7b + " (ждём без изменений)");
+  assertOk(modalOpen7 === true, "(7b) окно поста открыто");
+  assertOk(N7b === N7a, "(7b) Ctrl+V при открытом окне поста не добавил постов: " + N7a + "→" + N7b);
+  await click($("cancelPost")); await sleep(400);
+  await shot("copy-guarded", [`document.querySelector(".grand-total")`], await clip());
+
+  log.push("ИТОГ: сцены 1–7 пройдены настоящими событиями, все assertOk ОК.");
