@@ -245,6 +245,10 @@ test("renderSummary: итог ОГОВАРИВАЕТ позиции без це�
       missing: [GONE_ID, GONE_ID + 1]   // две позиции без цены
     }),
     money: v => "money(" + v + ")",
+    /* итог с НДС идёт через EPEstimate.vatShown → moneyShown (курс — displayRate); обе голые имена
+       из app.js обязаны быть в контексте, иначе ReferenceError. Здесь заглушки — предмет теста иной. */
+    moneyShown: v => "moneyShown(" + v + ")",
+    displayRate: () => 1,
     esc: s => String(s),
     lightingHtml: () => "[LIGHT]",
     orphanObjectsWarningText: () => "",

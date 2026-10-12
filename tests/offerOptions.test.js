@@ -10,7 +10,10 @@ const EPPosts = require("../js/posts.js");
 const EPPostImage = require("../js/postImage.js");
 const EPOfferNumber = require("../js/offerNumber.js");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
-const deps = { esc, money: n => n + " €", displayCurrency: () => "EUR" };
+/* moneyShown/displayRate нужны generateCommercialOffer (docs.js) как голые имена: итог с НДС он
+   считает через EPEstimate.vatShown и форматирует moneyShown (число уже в валюте показа). При rate=1
+   moneyShown == money, числа те же; без них песочница падает ReferenceError. */
+const deps = { esc, money: n => n + " €", moneyShown: n => n + " €", displayRate: () => 1, displayCurrency: () => "EUR" };
 const est = { groups: [{ name: "Пост 7", composition: "Розетка, белая", count: 2, unit: "компл.", sum: 20,
   items: [{ kind: "mechanism", name: "Розетка, белая", code: "M.01", count: 1 }] }],
   equipment: 20, discount: 0, materials: 5, work: 10, subtotal: 35, vat: 0, total: 35, missing: [] };

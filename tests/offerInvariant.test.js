@@ -29,7 +29,10 @@ const est = () => ({ groups: [
       items: [{ kind: "mechanism", name: "Выключатель", code: "20001.0", count: 3 }] },
     { name: "Пост 2", composition: "Розетка", count: 2, unit: "компл.", sum: 640.50,
       items: [{ kind: "mechanism", name: "Розетка", code: "20208", count: 2 }] }
-  ], equipment: 1712.37, discount: 0, materials: 400, work: 300, subtotal: 2412.37, vat: 0, total: 15040.98, missing: [] });
+  /* НДС в этом наборе нет (vat:0), поэтому «Итого» = subtotal: оборудование 1712.37 + материалы 400 +
+     работы 300 = 2412.37. Итог КП берётся из EPEstimate.vatShown(subtotal) (В7, решение владельца —
+     три числа НДС сходятся до копейки), а не из отдельного est.total: при vat=0 это та же subtotal. */
+  ], equipment: 1712.37, discount: 0, materials: 400, work: 300, subtotal: 2412.37, vat: 0, total: 2412.37, missing: [] });
 const layout = () => [{ number: 1, fill: [{ word: "Выключатель", count: 2 }], modules: 3, frameCode: "09663",
   box: { name: "Коробка 3М", code: "V71303", count: 1 }, assembledImageHtml: "<b>СБ</b>", frameName: "Накладка" }];
 const render = options => EPOfferPdf.buildHtml(est(), { esc, money, displayCurrency: () => "EUR", options,
@@ -77,7 +80,7 @@ test("D10: hasContent проверяет «раздел что-то напеча
 function guardStand(offerOptions, over) {
   const dom = stand.makeDom();
   let opened = 0; const toasts = [];
-  const ctx = { esc, money, displayCurrency: () => "EUR", EPRates: { effectiveRate: () => 90 },
+  const ctx = { esc, money, moneyShown: money, displayRate: () => 1, displayCurrency: () => "EUR", EPRates: { effectiveRate: () => 90 },
     EPOfferOptions, EPOfferPdf, EP_DATA: { settings: { offerOptions } }, state: { posts: [] },
     projectLighting: () => ({ plan: { groups: [], gaps: [], relays: [], totals: {} } }),
     buildEstimate: () => est(),
@@ -115,7 +118,7 @@ test("D10-инвариант: суммы и цены КП не зависят о
   const withArt = render({ articles: true, prices: true });
   const noArt = render({ articles: false, prices: true });
   assert.deepEqual(moneys(noArt), moneys(withArt), "мультимножество денег одно и то же");
-  assert.ok(withArt.includes("15040.98 €") && noArt.includes("15040.98 €"), "итог не плывёт");
+  assert.ok(withArt.includes("2412.37 €") && noArt.includes("2412.37 €"), "итог не плывёт");
   assert.ok(withArt.includes("1071.87 €") && noArt.includes("1071.87 €"), "сумма строки не пересчитывается");
 });
 
