@@ -49,5 +49,9 @@
 
   { "name": "В6 M11: у печати снят mix-blend-mode (подпись не читается сквозь печать)", "file": "js/offerPdf.js",
     "from": "z-index:2;pointer-events:none;mix-blend-mode:multiply;-webkit-print-color-adjust:exact",
-    "to": "z-index:2;pointer-events:none;-webkit-print-color-adjust:exact" }
+    "to": "z-index:2;pointer-events:none;-webkit-print-color-adjust:exact" },
+
+  { "name": "Б M12: round2 снова округляет двоичный double, а не десятичное значение (7326.92 вместо 7326.93)", "file": "js/estimate.js",
+    "from": "  return Math.round(Number((x * 100).toPrecision(15))) / 100;",
+    "to": "  return Math.round(x * 100) / 100;" }
 ]

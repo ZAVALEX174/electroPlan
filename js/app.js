@@ -84,7 +84,7 @@ function displayRate(){
    округлёнными до копейки — их форматирует moneyShown, иначе курс умножился бы дважды. */
 const moneyShown=(n)=>new Intl.NumberFormat("ru-RU",{
   style:"currency",currency:displayCurrency(),minimumFractionDigits:2,maximumFractionDigits:2
-}).format(Number(n)||0);
+}).format(EPEstimate.round2(n));
 const money=(n)=>moneyShown((Number(n)||0)*displayRate());
 /* Курс печатаем с 4 знаками, но дробную часть — через ЗАПЯТУЮ: в русском документе
    «92,5000 ₽», а не «92.5000 ₽» (интерфейс и КП идут заказчику). */

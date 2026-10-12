@@ -4,7 +4,7 @@
    поэтому браузер поднимать не нужно. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { build, postPrice, billableLighting, lightingCounts, pricelessNote, vatBreakdown, vatShown, vatModeOf } = require("../js/estimate.js");
+const { build, postPrice, billableLighting, lightingCounts, pricelessNote, round2, totalsShown, vatBreakdown, vatShown, vatModeOf } = require("../js/estimate.js");
 const PF = require("../js/postfit.js");
 const POSTS = require("../js/posts.js");
 
@@ -23,6 +23,49 @@ test("pricelessNote: нет позиций без цены → пустая ст
   assert.equal(pricelessNote({ missing: [] }), "", "пустой missing — оговорки нет");
   assert.equal(pricelessNote({}), "", "поля missing нет вовсе — оговорки нет");
   assert.equal(pricelessNote(null), "", "нет est — не падаем, оговорки нет");
+});
+
+/* ОДНО правило округления на всю программу — школьное «половина вверх» по ДЕСЯТИЧНОМУ значению,
+   как считает Excel (решение владельца 12.10). Наивное Math.round(n*100)/100 округляет двоичный
+   double и на «половинках» ошибается вниз: 79.21×92.5 → 7326.92 вместо 7326.93, которое показывает
+   настоящий Excel. Проверяем на семи числах из разведки + большие суммы (Excel оперирует 15
+   значащими цифрами, не 12). Зелёный ≠ проверено (§7.1): мутация в kp.json возвращает round2 к
+   Math.round(n*100)/100 — должен покраснеть этот тест. */
+test("round2: школьное округление «половина вверх» по десятичному значению (как Excel)", () => {
+  const cases = [
+    [6.01 * 92.5, 555.93, "6.01×92.5 = 555.925"],
+    [11.5 * 5 / 100, 0.58, "11.5×5/100 = 0.575"],
+    [79.21 * 92.5, 7326.93, "79.21×92.5 = 7326.925 (double 7326.9249…)"],
+    [1.005, 1.01, "1.005"],
+    [10.15 * 0.1, 1.02, "10.15×0.1 = 1.015"],
+    [0.125, 0.13, "0.125"],
+    [2.675, 2.68, "2.675"],
+    [123456789.125, 123456789.13, "сумма порядка 1e8 с половинкой копейки"],
+    [1000000000.125, 1000000000.13, "сумма порядка 1e9 — 12 значащих цифр здесь мало, нужно 15"],
+    [555.92, 555.92, "обычное число не портится"],
+    [0, 0, "ноль"],
+  ];
+  for (const [n, exp, name] of cases) {
+    assert.equal(round2(n), exp, name + ` → ${exp}`);
+  }
+});
+
+test("totalsShown: округление строк и итога совпадает с Excel (6,01 € и 79,21 € при курсе 92,5)", () => {
+  /* 6.01×92.5 = 555.925 → оборудование и итог (без НДС) = 555.93. */
+  const t1 = totalsShown({ equipment: 6.01, discount: 0, materials: 0, work: 0, vatMode: "none" }, 92.5);
+  assert.equal(t1.equipment, 555.93, "оборудование 6.01×92.5 = 555.93");
+  assert.equal(t1.total, 555.93, "итог без НДС = 555.93");
+
+  /* 11.5 € при НДС «начислить сверху» 5 %, курс 1: НДС = round2(11.5×0.05) = round2(0.575) = 0.58;
+     итог = round2(11.5 + 0.58) = 12.08. */
+  const t2 = totalsShown({ equipment: 11.5, discount: 0, materials: 0, work: 0, vatMode: "surcharge", vatPercent: 5 }, 1);
+  assert.equal(t2.amount, 0.58, "НДС 5% от 11,5 = 0,58 (0.575 вверх)");
+  assert.equal(t2.total, 12.08, "итог с НДС = 12,08");
+
+  /* 79.21×92.5 = 7326.925 → 7326.93, как в настоящем Excel. */
+  const t3 = totalsShown({ equipment: 79.21, discount: 0, materials: 0, work: 0, vatMode: "none" }, 92.5);
+  assert.equal(t3.equipment, 7326.93, "оборудование 79.21×92.5 = 7326.93");
+  assert.equal(t3.total, 7326.93, "итог без НДС = 7326.93");
 });
 
 /* Каталог-заглушка: розетка 10 € за штуку и кабель-канал 5 € за метр. */

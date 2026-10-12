@@ -24,6 +24,22 @@ const EPSupplierSpec = require("../js/supplierSpec.js");
 
 const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
 const f2 = n => Number(n).toFixed(2);
+
+/* Независимая эмуляция показа Excel — НЕ через EPEstimate.round2, иначе сравнение «ячейка Excel =
+   totalsShown» было бы тавтологией (§7.1: зелёный тест, который проверяет сам себя). Табличный
+   процессор сводит число к 15 значащим десятичным цифрам (снимая двоичный дребезг), затем школьно
+   округляет до копейки «от нуля». Записано здесь отдельной арифметикой на строках/BigInt. */
+function excelShow(x) {
+  const n = Number(x) || 0;
+  const a = Math.abs(n), sign = n < 0 ? -1 : 1;
+  const s = a.toPrecision(15);
+  if (s.includes("e")) return f2(Math.round(a * 100) / 100 * sign);
+  let [int, frac = ""] = s.split(".");
+  frac = (frac + "000").slice(0, 3);
+  let k = BigInt(int) * 100n + BigInt(frac.slice(0, 2));
+  if (frac[2] >= "5") k += 1n;
+  return f2(Number(k) / 100 * sign);
+}
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 /* est в форме EPEstimate.build (только поля, читаемые totalsShown и шаблоном итогов). */
@@ -178,8 +194,10 @@ for (const [currency, rate] of [["EUR", 1], ["RUB", 95.37 * 1.03]]) {
     assert.equal(panel.grand, f2(t.total), "панель: итог = КП");
 
     const xl = xlsxTotals(est, rate, currency);
-    /* Оборудование в Excel — формула SUM; на экране она округляется до той же копейки, что totalsShown. */
-    assert.equal(f2(round2(xl.equipment)), f2(t.equipment), "Excel: оборудование (округл. SUM) = totalsShown");
+    /* Оборудование в Excel — формула SUM с кэшем est.equipment×rate (сырое произведение); на экране
+       процессор округлит его НЕЗАВИСИМОЙ эмуляцией excelShow (не round2), и результат обязан совпасть
+       с totalsShown. Так тест держит именно «показ Excel = деньги КП», а не тавтологию round2=round2. */
+    assert.equal(excelShow(xl.equipment), f2(t.equipment), "Excel: оборудование (показ SUM) = totalsShown");
     assert.equal(f2(xl.materials), f2(t.materials), "Excel: материалы = totalsShown");
     assert.equal(f2(xl.work), f2(t.work), "Excel: работы = totalsShown");
     assert.equal(f2(xl.subtotal), f2(t.subtotal), "Excel: «Итого без НДС» = totalsShown");

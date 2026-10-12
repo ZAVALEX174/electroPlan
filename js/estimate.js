@@ -145,10 +145,20 @@ function vatBreakdown(base, mode, percent) {
   return { mode: m, percent: p, amount: sub * p / 100, included: false, total: sub + sub * p / 100, label: VAT_LABELS.surcharge };
 }
 
-/* Округление до копейки (2 знака). Деньги положительны, поэтому Math.round (к ближайшему, половина
-   вверх) совпадает с округлением Intl.NumberFormat («halfExpand»), которым показывает money() — так
-   число из vatShown и его же вывод money()/денежным форматом Excel не разойдутся. */
-function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+/* Округление до копейки (2 знака) — обычное ШКОЛЬНОЕ «половина вверх» по ДЕСЯТИЧНОМУ значению,
+   как считает Excel (решение владельца 12.10: одно правило округления на всю программу). Наивное
+   Math.round(n*100)/100 округляет двоичный double, а не десятичное число: 79.21×92.5 даёт
+   7326.924999999999, и n*100 = 732692.4999999999 → Math.round = …92 вместо …93, которое человек
+   видит в настоящем Excel. toPrecision(15) сначала снимает двоичный дребезг (Excel тоже оперирует
+   15 значащими цифрами), и только потом округляем до копейки — так число из totalsShown/vatShown
+   и его вывод money()/moneyShown и денежным форматом Excel совпадают до копейки (6.01×92.5 →
+   555.93, 11.5×5/100 → 0.58, 1.005 → 1.01). Деньги положительны, поэтому «половина вверх»
+   (Math.round, к +∞) совпадает с Excel «от нуля»; для возможного отрицательного (скидка больше
+   базы) поведение то же, что у прежнего Math.round. */
+function round2(n) {
+  const x = Number(n) || 0;
+  return Math.round(Number((x * 100).toPrecision(15))) / 100;
+}
 
 /* ⚠️ ТРИ ЧИСЛА НДС, КОТОРЫЕ СХОДЯТСЯ ДО КОПЕЙКИ — ОДНО правило в ОДНОМ месте (В7, решение владельца
    11.10). vatBreakdown выше считает НДС и итог в БАЗОВОЙ валюте и БЕЗ округления; но «Итого без НДС»,
@@ -659,7 +669,7 @@ function isEmptyProject(est, supplier) {
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, vatBreakdown, vatShown, totalsShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
+const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, vatBreakdown, vatShown, totalsShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
