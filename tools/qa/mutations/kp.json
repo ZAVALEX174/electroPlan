@@ -52,6 +52,10 @@
     "to": "z-index:2;pointer-events:none;-webkit-print-color-adjust:exact" },
 
   { "name": "Б M12: round2 снова округляет двоичный double, а не десятичное значение (7326.92 вместо 7326.93)", "file": "js/estimate.js",
-    "from": "  return Math.round(Number((x * 100).toPrecision(15))) / 100;",
-    "to": "  return Math.round(x * 100) / 100;" }
+    "from": "  return sign * Math.round(Number((Math.abs(x) * 100).toPrecision(15))) / 100;",
+    "to": "  return sign * Math.round(Math.abs(x) * 100) / 100;" },
+
+  { "name": "Б M13: app.js moneyShown печатает СЫРОЕ число мимо round2 (строка «Сумма» 7326,92 вместо 7326,93)", "file": "js/app.js",
+    "from": "}).format(EPEstimate.round2(n));",
+    "to": "}).format(Number(n)||0);" }
 ]

@@ -196,8 +196,10 @@ function buildSpecSheet(est, options, config, estimate, rate) {
        есть (не est.X×rate): они уже с точностью до копейки, денежный формат ячейки их только отобразит. */
     const totals = estimate.totalsShown(est, rate);
     /* «Оборудование» = Σ столбца «Сумма». Когда столбец «Сумма» показан — делаем это настоящей
-       формулой SUM (её кэш-значение равно totals.equipment, а на экране Excel формат округлит SUM до
-       той же копейки). Нет столбца «Сумма» (его скрыли) — печатаем готовое значение totals.equipment. */
+       формулой SUM; её кэш — СЫРОЕ произведение est.equipment × rate (ровно Σ сырых ячеек столбца), а
+       НЕ round2(totals.equipment): на экране денежный формат Excel округлит SUM до той же копейки, что
+       totals.equipment (offerTotalsConsistency сверяет это независимой эмуляцией показа). Нет столбца
+       «Сумма» (его скрыли) — печатаем готовое, уже округлённое totals.equipment. */
     if (sumIdx >= 0 && rows.length) {
       const col = colLetter(sumIdx + 1);
       totalRow("Оборудование", 0, true, formula(`SUM(${col}${firstData}:${col}${lastData})`, est.equipment * rate, S_BOLDMONEY));

@@ -16,6 +16,7 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
 const EPEstimate = require("../js/estimate.js");
 const EPOfferPdf = require("../js/offerPdf.js");
@@ -24,6 +25,9 @@ const EPSupplierSpec = require("../js/supplierSpec.js");
 
 const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
 const f2 = n => Number(n).toFixed(2);
+/* Форматтер стенда ОБЯЗАН повторять app.js:85 — округлять через EPEstimate.round2 до показа, иначе
+   сравнение «строка/итог = totalsShown» шло бы мимо настоящего правила (§7.1: тест не тот код). */
+const showMoney = n => f2(EPEstimate.round2(n));
 
 /* Независимая эмуляция показа Excel — НЕ через EPEstimate.round2, иначе сравнение «ячейка Excel =
    totalsShown» было бы тавтологией (§7.1: зелёный тест, который проверяет сам себя). Табличный
@@ -115,7 +119,7 @@ test("Б: перебор >200 000 — печатные строки = «без �
 
 /* КП: вытащить напечатанное значение строки итогов по подписи. */
 function kpTotals(est, rate, currency) {
-  const money = n => f2(Number(n) * rate), moneyShown = n => f2(n);
+  const moneyShown = n => showMoney(n), money = n => showMoney(Number(n) * rate);
   const html = EPOfferPdf.buildHtml(est, { esc, money, moneyShown, displayRate: () => rate,
     displayCurrency: () => currency, settings: {}, effectiveRate: () => rate,
     options: { prices: true, sections: { plan: false, layout: false, specification: false, lighting: false, supplier: false } },
@@ -136,7 +140,7 @@ function panelTotals(est, rate) {
   const run = stand.run("renderSummary", {
     state: { rooms: [], devices: [{ id: "d1", roomId: null }], posts: [] },
     EPEstimate, $: dom.$,
-    money: v => f2(Number(v) * rate), moneyShown: v => f2(v), displayRate: () => rate,
+    money: v => showMoney(Number(v) * rate), moneyShown: v => showMoney(v), displayRate: () => rate,
     esc: String, projectLighting: () => ({}), buildEstimate: () => est,
     lightingHtml: () => "[L]", updateStatus: () => {}, orphanObjectsWarningText: () => ""
   });
@@ -202,5 +206,44 @@ for (const [currency, rate] of [["EUR", 1], ["RUB", 95.37 * 1.03]]) {
     assert.equal(f2(xl.work), f2(t.work), "Excel: работы = totalsShown");
     assert.equal(f2(xl.subtotal), f2(t.subtotal), "Excel: «Итого без НДС» = totalsShown");
     assert.equal(f2(xl.grandWithVat), f2(t.total), "Excel: итог с НДС = totalsShown");
+  });
+}
+
+/* ---- 4. Строка «Сумма» = «Оборудование» на НАСТОЯЩЕМ пути app.js ---- */
+
+/* НАСТОЯЩИЕ money/moneyShown из app.js (вырезаем исходный const-блок, а не копируем в тест): строка
+   «Сумма» спецификации идёт через money(), «Оборудование» — через moneyShown(), и оба обязаны
+   применить round2 ровно так, как в приложении. Мутация round2 в app.js:85 (kp.json M13) краснит
+   ИМЕННО здесь — на копии стенда она бы не отразилась (§7.1). */
+function appMoney(rate, currency) {
+  const ctx = { EPEstimate, displayCurrency: () => currency, displayRate: () => rate };
+  vm.createContext(ctx);
+  return vm.runInContext(
+    stand.constBlock("moneyShown") + "\n" + stand.constBlock("money") + "\n;({ money, moneyShown });", ctx);
+}
+
+/* Проект из ОДНОЙ позиции: equipment = сумма этой строки, поэтому «Сумма» и «Оборудование» обязаны
+   совпасть до копейки. 79,21 € × 92,5 = 7 326,9249… — форматтер без round2 напечатал бы 7 326,92,
+   round2 даёт 7 326,93 (ловит M13); 6,01 € × 92,5 = 555,925 → 555,93 (двоичного дребезга тут нет —
+   проверяем саму сходимость строки и итога). */
+const digitsOf = s => String(s).replace(/[^\d,]/g, "");
+for (const [price, exp] of [[6.01, "555,93"], [79.21, "7326,93"]]) {
+  test(`Строка «Сумма» = «Оборудование» на настоящем пути app.js (${price} € × 92,5 → ${exp})`, () => {
+    const { money, moneyShown } = appMoney(92.5, "RUB");
+    const est = EPEstimate.build({
+      devices: [{ productId: 1 }], posts: [],
+      product: id => (id === 1 ? { id: 1, code: "T", name: "Тестовый товар", price, unit: "шт." } : undefined),
+      settings: {}
+    });
+    const html = EPOfferPdf.buildHtml(est, { esc, money, moneyShown, displayRate: () => 92.5,
+      displayCurrency: () => "RUB", settings: {}, effectiveRate: () => 92.5,
+      options: { prices: true, sections: { plan: false, layout: false, specification: true, lighting: false, supplier: false } },
+      postLayout: [], planBlockHtml: "", lightingHtml: "", supplierSpecHtml: "" });
+    const rightCells = [...html.matchAll(/<td class="right">([^<]*)<\/td>/g)].map(m => m[1]);
+    const specSum = rightCells[rightCells.length - 1];   // последняя «right»-ячейка строки — «Сумма»
+    const equipment = (html.match(/<span>Оборудование<\/span><b>([^<]*)<\/b>/) || [])[1];
+    assert.equal(digitsOf(specSum), exp, `строка «Сумма» = ${exp}`);
+    assert.equal(digitsOf(equipment), exp, `«Оборудование» = ${exp}`);
+    assert.equal(specSum, equipment, "строка «Сумма» и «Оборудование» совпадают до копейки");
   });
 }
