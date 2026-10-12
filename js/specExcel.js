@@ -190,30 +190,29 @@ function buildSpecSheet(est, options, config, estimate, rate) {
       row[1] = valueCell || num(value, moneyStyle ? S_BOLDMONEY : S_BOLD);
       sheet.push(row);
     };
+    /* ВЕСЬ блок итогов — из ОДНОЙ EPEstimate.totalsShown (Б), ровно как панель и КП: оборудование,
+       скидка, материалы, работы, «без НДС», НДС и итог приходят уже в валюте показа (учтён rate) и
+       округлёнными так, что сумма напечатанных строк выше НДС сходится с «Итого без НДС». Кладём ИХ как
+       есть (не est.X×rate): они уже с точностью до копейки, денежный формат ячейки их только отобразит. */
+    const totals = estimate.totalsShown(est, rate);
     /* «Оборудование» = Σ столбца «Сумма». Когда столбец «Сумма» показан — делаем это настоящей
-       формулой SUM (её значение равно est.equipment × rate: «можно считать формулами»). Нет
-       столбца «Сумма» (его скрыли) — печатаем готовое значение. */
+       формулой SUM (её кэш-значение равно totals.equipment, а на экране Excel формат округлит SUM до
+       той же копейки). Нет столбца «Сумма» (его скрыли) — печатаем готовое значение totals.equipment. */
     if (sumIdx >= 0 && rows.length) {
       const col = colLetter(sumIdx + 1);
       totalRow("Оборудование", 0, true, formula(`SUM(${col}${firstData}:${col}${lastData})`, est.equipment * rate, S_BOLDMONEY));
     } else {
-      totalRow("Оборудование", est.equipment * rate, true);
+      totalRow("Оборудование", totals.equipment, true);
     }
-    if (est.discount) totalRow(estimate.discountLabel(est.discountMixed, est.discountPercent), -est.discount * rate, true);
-    totalRow("Монтажные материалы", est.materials * rate, true);
-    totalRow("Работы", est.work * rate, true);
-    /* Три числа НДС и итог — из ОДНОЙ EPEstimate.vatShown (В7), ровно как панель и КП: приходят уже в
-       валюте показа (учтён rate) и округлёнными так, что «без НДС» + «НДС» = итог. Кладём ИХ как есть
-       (не est.X×rate): они уже с точностью до копейки, денежный формат ячейки их только отобразит.
-       Строки ВЫШЕ НДС (оборудование, скидка, материалы, работы) остаются est.X×rate — их свод В7 не
-       трогает, итог там складывается по прежнему правилу. */
-    const vat = estimate.vatShown(est.subtotal, est.vatMode, est.vatPercent, rate);
+    if (est.discount) totalRow(estimate.discountLabel(est.discountMixed, est.discountPercent), -totals.discount, true);
+    totalRow("Монтажные материалы", totals.materials, true);
+    totalRow("Работы", totals.work, true);
     if (est.vat && !est.vatIncluded) {
-      totalRow("Итого без НДС", vat.subtotal, true);
-      totalRow(`${est.vatLabel || "НДС"} ${est.vatPercent}%`, vat.amount, true);
+      totalRow("Итого без НДС", totals.subtotal, true);
+      totalRow(`${est.vatLabel || "НДС"} ${est.vatPercent}%`, totals.amount, true);
     }
-    totalRow(`Итого${est.vat && !est.vatIncluded ? " с НДС" : ""}`, vat.total, true);
-    if (est.vat && est.vatIncluded) totalRow(`${est.vatLabel || "в т.ч. НДС"} ${est.vatPercent}%`, vat.amount, true);
+    totalRow(`Итого${est.vat && !est.vatIncluded ? " с НДС" : ""}`, totals.total, true);
+    if (est.vat && est.vatIncluded) totalRow(`${est.vatLabel || "в т.ч. НДС"} ${est.vatPercent}%`, totals.amount, true);
   }
 
   /* Ширины: наименование и состав — широкие, числовые/служебные — узкие. */

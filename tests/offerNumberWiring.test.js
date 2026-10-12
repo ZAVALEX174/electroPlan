@@ -25,6 +25,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
 const EPOfferNumber = require("../js/offerNumber.js");
+const EPEstimate = require("../js/estimate.js");
 
 /* EPPrefs-шим: единственное хранилище счётчика (бланк компании), общий на «все проекты» прогона. */
 function makePrefs(init) {
@@ -36,29 +37,36 @@ function makePrefs(init) {
   };
 }
 
+/* Захват того, что generateCommercialOffer сделал с пользователем: тосты и попытки открыть окно.
+   Сбрасывается в начале каждого run — нужен тесту стража пустого проекта (А). */
+const captured = { toasts: [], opened: 0 };
+
 /* Контекст исполнения generateCommercialOffer: реальный автономер + заглушки документа. hasContent
-   управляемый (В8: номер выдаётся ТОЛЬКО когда есть что печатать). Печать прерывается на window.open
-   →null уже ПОСЛЕ присвоения номера, поэтому сборку документа собирать не надо. */
-function makeCtx(EP_DATA, EPPrefs, dom, hasContent) {
+   управляемый (В8: номер выдаётся ТОЛЬКО когда есть что печатать). empty=true имитирует ПУСТОЙ проект
+   (нет строк сметы): настоящий EPEstimate.isEmptyProject даёт true, страж пустого проекта (А) гасит КП
+   до автонумера. Печать прерывается на window.open→null уже ПОСЛЕ присвоения номера, поэтому сборку
+   документа собирать не надо. */
+function makeCtx(EP_DATA, EPPrefs, dom, hasContent, empty) {
   const noop = () => "";
   return {
-    EP_DATA, EPPrefs, EPOfferNumber, $: dom.$, scheduleSave: () => { scheduleSave.calls++; },
+    EP_DATA, EPPrefs, EPOfferNumber, EPEstimate, $: dom.$, scheduleSave: () => { scheduleSave.calls++; },
     JSON,
     EPOfferOptions: { normalize: () => ({ sections: {} }) },
-    projectLighting: () => ({}), buildEstimate: () => ({ missing: [] }),
+    projectLighting: () => ({}), buildEstimate: () => ({ missing: [], groups: empty ? [] : [{}] }),
     money: String, moneyShown: String, displayRate: () => 1, esc: String, displayCurrency: () => "EUR",
     EPRates: { effectiveRate: () => 1 },
     companyLogo: noop, companyTerms: noop, companySignature: noop, companyStamp: noop,
     buildPostLayout: () => ({}), planBlockHtml: noop, lightingHtml: noop, supplierSpecHtml: noop,
     EPOfferPdf: { hasContent: () => hasContent !== false, buildHtml: () => "" },
-    toast: () => {}, window: { open: () => null }
+    toast: m => captured.toasts.push(m), window: { open: () => { captured.opened++; return null; } }
   };
 }
 const scheduleSave = { calls: 0 };
 
-function run(EP_DATA, EPPrefs, hasContent) {
+function run(EP_DATA, EPPrefs, hasContent, empty) {
+  captured.toasts = []; captured.opened = 0;
   const dom = stand.makeDom();
-  const ctx = makeCtx(EP_DATA, EPPrefs, dom, hasContent);
+  const ctx = makeCtx(EP_DATA, EPPrefs, dom, hasContent, empty);
   ctx.scheduleSave = () => {};
   const gen = stand.run(["docHeader", "generateCommercialOffer"], ctx);
   gen();
@@ -110,6 +118,23 @@ test("ПУСТОЙ КП (нечего печатать) номер и счётч
   /* После того как появилось содержимое, тот же проект получает первый номер — пустой проход его
      не «съел». */
   const dom2 = run(EP_DATA, prefs, true);
+  assert.equal(EP_DATA.settings.docHeader.number, "EPG-2026-0001", "непустой КП выдал первый номер");
+  assert.deepEqual(prefs.store.offerCounters, { 2026: 1 });
+});
+
+test("ПУСТОЙ ПРОЕКТ (нет ни поста, ни изделия): КП не открывается, номер и счётчик не заняты (А)", () => {
+  const EP_DATA = { settings: { docHeader: { date: "2026-05-01", number: "" } } };
+  const prefs = makePrefs({});
+  /* empty=true: настоящий EPEstimate.isEmptyProject даёт true, страж пустого проекта гасит КП ДО
+     автонумера — даже при hasContent=true (блок итогов с нулями его прежде не ловил). */
+  run(EP_DATA, prefs, true, true);
+  assert.equal(captured.opened, 0, "окно печати на пустом проекте не открывалось");
+  assert.equal(captured.toasts.join("|"), "В проекте пока нет ни одного поста — в предложении нечего печатать",
+    "сообщение дословно как утвердил владелец");
+  assert.equal(EP_DATA.settings.docHeader.number, "", "номер пустому проекту не выдан");
+  assert.equal(prefs.store.offerCounters, undefined, "счётчик даже не заведён");
+  /* Появились посты — тот же проект получает первый номер: пустой проход его не «съел». */
+  run(EP_DATA, prefs, true, false);
   assert.equal(EP_DATA.settings.docHeader.number, "EPG-2026-0001", "непустой КП выдал первый номер");
   assert.deepEqual(prefs.store.offerCounters, { 2026: 1 });
 });

@@ -18,6 +18,7 @@ const EPOfferOptions = require("../js/offerOptions.js");
 const EPOfferPdf = require("../js/offerPdf.js");
 const EPSupplierSpec = require("../js/supplierSpec.js");
 const EPOfferNumber = require("../js/offerNumber.js");
+const EPEstimate = require("../js/estimate.js");
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const money = n => Number(n).toFixed(2) + " €";
@@ -81,7 +82,7 @@ function guardStand(offerOptions, over) {
   const dom = stand.makeDom();
   let opened = 0; const toasts = [];
   const ctx = { esc, money, moneyShown: money, displayRate: () => 1, displayCurrency: () => "EUR", EPRates: { effectiveRate: () => 90 },
-    EPOfferOptions, EPOfferPdf, EP_DATA: { settings: { offerOptions } }, state: { posts: [] },
+    EPOfferOptions, EPOfferPdf, EPEstimate, EP_DATA: { settings: { offerOptions } }, state: { posts: [] },
     projectLighting: () => ({ plan: { groups: [], gaps: [], relays: [], totals: {} } }),
     buildEstimate: () => est(),
     buildPostLayout: () => layout(),

@@ -139,21 +139,21 @@ function compose(est, deps) {
   const esc = deps.esc;
   const displayCurrency = deps.displayCurrency;
   const s = deps.settings || {};
-  const { materials, work } = est;
   const config = typeof window !== "undefined" && window.EPOfferOptions
     ? window.EPOfferOptions : require("./offerOptions.js");
   const options = config.normalize(deps.options);
   const itemText = (value, code) => config.itemText(value, options.articles, code);
   const estimate = deps.EPEstimate || defaultEstimate();
 
-  /* Три числа НДС и итог — из ОДНОЙ функции EPEstimate.vatShown (В7): «Итого без НДС», «НДС» и «Итого
-     с НДС» приходят уже в валюте показа и округлёнными так, что сумма двух напечатанных сходится с
-     третьим. Курс (rate) и формат УЖЕ-показанного числа приходят зависимостями: moneyShown форматирует
-     число без повторного умножения на курс (money() умножил бы второй раз). Без зависимостей (старый
-     вызов на rate=1) moneyShown == money, числа те же. Остальные суммы документа — как раньше, money(). */
+  /* ВЕСЬ блок итогов — из ОДНОЙ функции EPEstimate.totalsShown (Б): «Оборудование», «Скидка»,
+     «Монтажные материалы», «Работы», «Итого без НДС», «НДС» и «Итого с НДС» приходят уже в валюте
+     показа и округлёнными так, что сумма ПЕЧАТНЫХ строк выше НДС сходится с «Итого без НДС», а он плюс
+     НДС — с итогом. Курс (rate) и формат УЖЕ-показанного числа приходят зависимостями: moneyShown
+     форматирует число без повторного умножения на курс (money() умножил бы второй раз). Без зависимостей
+     (старый вызов на rate=1) moneyShown == money, числа те же. */
   const rate = deps.displayRate ? deps.displayRate() : 1;
   const moneyShown = deps.moneyShown || money;
-  const vat = estimate.vatShown(est.subtotal, est.vatMode, est.vatPercent, rate);
+  const totals = estimate.totalsShown(est, rate);
 
   /* Проценты в КП — с ДЕСЯТИЧНОЙ ЗАПЯТОЙ (русский документ), как курс в rateFooter: «12,5%», а не
      «12.5%». Целое остаётся целым. */
@@ -368,12 +368,12 @@ function compose(est, deps) {
   ${frameWarnings}
   ${specSection}
   ${lightingSection}
-  ${options.prices ? `<div class="totals"><div><span>Оборудование</span><b>${money(est.equipment)}</b></div>
-  ${est.discount ? `<div><span>${estimate.discountLabel(est.discountMixed, est.discountPercent)}</span><b>−${money(est.discount)}</b></div>` : ""}
-  <div><span>Монтажные материалы</span><b>${money(materials)}</b></div><div><span>Работы</span><b>${money(work)}</b></div>
-  ${est.vat && !est.vatIncluded ? `<div><span>Итого без НДС</span><b>${moneyShown(vat.subtotal)}</b></div><div><span>${esc(est.vatLabel || "НДС")} ${est.vatPercent}%</span><b>${moneyShown(vat.amount)}</b></div>` : ""}
-  <div class="grand"><span>Итого${est.vat && !est.vatIncluded ? " с НДС" : ""}</span><b>${moneyShown(vat.total)}</b></div>
-  ${est.vat && est.vatIncluded ? `<div><span>${esc(est.vatLabel || "в т.ч. НДС")} ${est.vatPercent}%</span><b>${moneyShown(vat.amount)}</b></div>` : ""}</div>` : ""}
+  ${options.prices ? `<div class="totals"><div><span>Оборудование</span><b>${moneyShown(totals.equipment)}</b></div>
+  ${est.discount ? `<div><span>${estimate.discountLabel(est.discountMixed, est.discountPercent)}</span><b>−${moneyShown(totals.discount)}</b></div>` : ""}
+  <div><span>Монтажные материалы</span><b>${moneyShown(totals.materials)}</b></div><div><span>Работы</span><b>${moneyShown(totals.work)}</b></div>
+  ${est.vat && !est.vatIncluded ? `<div><span>Итого без НДС</span><b>${moneyShown(totals.subtotal)}</b></div><div><span>${esc(est.vatLabel || "НДС")} ${est.vatPercent}%</span><b>${moneyShown(totals.amount)}</b></div>` : ""}
+  <div class="grand"><span>Итого${est.vat && !est.vatIncluded ? " с НДС" : ""}</span><b>${moneyShown(totals.total)}</b></div>
+  ${est.vat && est.vatIncluded ? `<div><span>${esc(est.vatLabel || "в т.ч. НДС")} ${est.vatPercent}%</span><b>${moneyShown(totals.amount)}</b></div>` : ""}</div>` : ""}
   ${pricelessNote ? `<div class="priceless">${options.prices ? esc(pricelessNote) : `Позиций без товара в каталоге: ${est.missing.length}. Проверьте состав проекта перед передачей документа.`}</div>` : ""}
   ${options.prices && displayCurrency() === "RUB" ? rateFooter() : ""}
   ${options.prices ? `<div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>` : ""}

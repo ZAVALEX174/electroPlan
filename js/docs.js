@@ -584,6 +584,14 @@ function generateCommercialOffer(){
      блок «Группы света» и он же в свод поставщика — двум проходам разойтись негде. */
   const light=projectLighting();
   const est=buildEstimate(light);
+  /* Страж ПУСТОГО проекта (А, решение владельца 12.10): на проекте без единого поста/изделия КП НЕ
+     открывается и номер НЕ занимается. Критерий — ОДИН с выгрузкой Excel (EPEstimate.isEmptyProject);
+     КП свод не собирает (его стенды эту сборку не вырезают), а est.groups пусты ровно тогда же, когда
+     пуст и свод. Прежний страж ниже (EPOfferPdf.hasContent) оставлен для СВОЕГО случая — непустой
+     проект, в котором выключены все разделы и цены. */
+  if(EPEstimate.isEmptyProject(est)){
+    toast("В проекте пока нет ни одного поста — в предложении нечего печатать");return;
+  }
   /* Зависимости документа собираем ОДИН раз: тем же набором проверяем «будет ли что печатать»
      и печатаем. Секции — готовыми строками (planBlockHtml/lightingHtml/supplierSpecHtml),
      как и раньше; их пустота (раскладка без столбцов, план без чертежа, нечего заказывать)
@@ -645,8 +653,9 @@ function exportSpecExcel(){
   const light=projectLighting();
   const est=buildEstimate(light);
   const supplier=EPSupplierSpec.collect(supplierSpecData(light));
-  /* Пустой проект выгружать незачем: нет ни позиций сметы, ни строк свода. */
-  if(!(est.groups&&est.groups.length)&&!(supplier.rows&&supplier.rows.length)){
+  /* Пустой проект выгружать незачем: нет ни позиций сметы, ни строк свода. Критерий — ОДНА функция
+     EPEstimate.isEmptyProject, та же, что у стража пустого КП (А, решение владельца 12.10). */
+  if(EPEstimate.isEmptyProject(est,supplier)){
     toast("В проекте нечего выгружать в Excel");return;
   }
   const options=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);

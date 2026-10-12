@@ -1853,13 +1853,13 @@ let _specGroups=[];
 function renderSummary(){
   const light=projectLighting();
   const est=buildEstimate(light);
-  /* Три числа НДС и итог берём из ОДНОЙ функции EPEstimate.vatShown (В7): они уже в валюте показа и
-     округлены до копейки так, что «без НДС» + «НДС» всегда = итог. Форматируем moneyShown — курс уже
-     учтён внутри vatShown (displayRate), повторно умножать нельзя. Строки выше НДС (оборудование,
-     материалы, работы) — как раньше, через money() от базовой цены. */
-  const vat=EPEstimate.vatShown(est.subtotal,est.vatMode,est.vatPercent,displayRate());
-  $("equipmentTotal").textContent=money(est.equipment);$("materialsTotal").textContent=money(est.materials);
-  $("workTotal").textContent=money(est.work);$("grandTotal").textContent=moneyShown(vat.total);
+  /* ВЕСЬ блок итогов берём из ОДНОЙ функции EPEstimate.totalsShown (Б): оборудование, скидка,
+     материалы, работы, НДС и итог приходят уже в валюте показа и округлёнными до копейки так, что
+     столбец слагаемых сходится в «Итого». Форматируем moneyShown — курс учтён внутри totalsShown
+     (displayRate), повторно умножать нельзя. */
+  const totals=EPEstimate.totalsShown(est,displayRate());
+  $("equipmentTotal").textContent=moneyShown(totals.equipment);$("materialsTotal").textContent=moneyShown(totals.materials);
+  $("workTotal").textContent=moneyShown(totals.work);$("grandTotal").textContent=moneyShown(totals.total);
   /* скидка и НДС показываются, только когда заданы — чтобы не мозолить нулями */
   $("discountRow").hidden=!est.discount;
   /* Подпись строки скидки в панели — ТА ЖЕ, что в КП: одна функция EPEstimate.discountLabel (§7.1),
@@ -1867,7 +1867,7 @@ function renderSummary(){
      Подпись идёт в <span> (#discountLabel), сумма «−X €» — в #discountTotal, без «(N%)»: процент
      теперь живёт в подписи, иначе он задвоился бы (решение владельца, бывший «общий % всегда» отменён). */
   $("discountLabel").textContent=EPEstimate.discountLabel(est.discountMixed,est.discountPercent);
-  $("discountTotal").textContent="−"+money(est.discount);
+  $("discountTotal").textContent="−"+moneyShown(totals.discount);
   /* Строка НДС в панели стоит там же, где в КП (§7.1, одинаково в панели и в документе):
      «Начислить сверху» — НДС это слагаемое, идёт ДО «Итого» (#vatRow), и столбец сходится в сумму;
      «Выделить в стоимости» — НДС уже внутри итога, поэтому «в т.ч. НДС» идёт ПОД «Итого»
@@ -1877,10 +1877,10 @@ function renderSummary(){
   const vatOnTop=est.vat&&!est.vatIncluded, vatInside=est.vat&&est.vatIncluded;
   $("vatRow").hidden=!vatOnTop;
   $("vatRowLabel").textContent=est.vatLabel;
-  $("vatTotal").textContent=moneyShown(vat.amount)+` (${est.vatPercent}%)`;
+  $("vatTotal").textContent=moneyShown(totals.amount)+` (${est.vatPercent}%)`;
   $("vatIncludedRow").hidden=!vatInside;
   $("vatIncludedLabel").textContent=est.vatLabel;
-  $("vatIncludedTotal").textContent=moneyShown(vat.amount)+` (${est.vatPercent}%)`;
+  $("vatIncludedTotal").textContent=moneyShown(totals.amount)+` (${est.vatPercent}%)`;
   $("objectCount").textContent=state.devices.length+state.posts.length;
   /* У каждой строки — своё поле «скидка, %» (А2). Пусто → действует общая (её процент в
      placeholder), число → личная скидка (0 — «без скидки»). Скидка хранится НА ОБЪЕКТАХ строки

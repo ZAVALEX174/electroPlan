@@ -184,6 +184,41 @@ function vatShown(base, mode, percent, rate) {
   return { mode: info.mode, percent: p, subtotal: shownBase, amount, total: round2(shownBase + amount), included: false, label: info.label };
 }
 
+/* ⚠️ ВЕСЬ БЛОК ИТОГОВ В ВАЛЮТЕ ПОКАЗА — ОДНО правило в ОДНОМ месте (Б, решение владельца 12.10).
+   Раньше каждый потребитель (панель «Стоимость проекта», КП, Excel) печатал «Оборудование»,
+   «Скидку», «Монтажные материалы» и «Работы» через money() от базовой цены, а «Итого без НДС» —
+   отдельным round2(subtotal × курс). Поэтому сумма ЧЕТЫРЁХ напечатанных строк не сходилась с
+   напечатанным итогом на копейку (евро ~29 %, рубли ~37 %): 1264,29 − 222,77 + 73,48 + 208,83 =
+   1323,83, а печаталось 1323,82. Теперь «Итого без НДС» = СУММА УЖЕ ОКРУГЛЁННЫХ печатных строк, а
+   НДС и «Итого» считаются уже от неё — той же vatShown, что и всегда (итог может измениться на
+   копейку против прежнего — принято владельцем).
+
+   totalsShown(est, rate) возвращает equipment/discount/materials/work/subtotal/amount/total УЖЕ в
+   валюте показа и округлёнными до копейки, плюс mode/percent/included/label. Все три потребителя
+   берут числа ОТСЮДА и форматируют их как уже-показанные (moneyShown, без повторного ×курс) — второй
+   копии арифметики у них нет. НДС поверх округлённой базы считает vatShown с rate=1: база уже в валюте
+   показа (сумма округлённых строк), и правило «режим → три числа» живёт в ОДНОМ месте, не дублируется.
+   Итог не зависит от того, какие строки документ ПОКАЗЫВАЕТ (часть можно скрыть в «Настройке состава
+   КП»): числа производны от est, а не от набора видимых столбцов. */
+function totalsShown(est, rate) {
+  const r = Number(rate) > 0 ? Number(rate) : 1;
+  const e = est || {};
+  const equipment = round2((Number(e.equipment) || 0) * r);
+  const discount  = round2((Number(e.discount)  || 0) * r);
+  const materials = round2((Number(e.materials) || 0) * r);
+  const work      = round2((Number(e.work)      || 0) * r);
+  /* База НДС — сумма УЖЕ ОКРУГЛЁННЫХ строк (оборудование − скидка + материалы + работы), а не
+     round2(subtotal × курс): человек видит именно эти четыре числа, и их сумма обязана дать итог.
+     round2 снимает только дребезг двоичной арифметики — слагаемые уже с точностью до копейки. */
+  const shownBase = round2(equipment - discount + materials + work);
+  /* НДС и итог — ТОЙ ЖЕ vatShown: база уже в валюте показа, поэтому rate=1 (внутренний round2 от уже
+     округлённой базы её не меняет). Второй копии арифметики НДС нет (§7.1). */
+  const vat = vatShown(shownBase, e.vatMode, Number(e.vatPercent) || 0, 1);
+  return { equipment, discount, materials, work,
+    subtotal: vat.subtotal, amount: vat.amount, total: vat.total,
+    mode: vat.mode, percent: vat.percent, included: vat.included, label: vat.label };
+}
+
 /* Режим НДС проекта — ОДНО правило чтения настроек, вместе с миграцией старых проектов (§7.1 п.4:
    обратная совместимость — самый частый пропущенный край). Новое поле settings.vatMode
    ("none"|"included"|"surcharge"). Проекта, сохранённого до трёх режимов, этого поля нет — читаем
@@ -602,13 +637,29 @@ function pricelessNote(est) {
     + `Сумма неполна: уточните цены у поставщика или замените позиции.`;
 }
 
+/* ⚠️ «ПУСТОЙ ПРОЕКТ» — ОДНО определение на КП и на выгрузку Excel (А, решение владельца 12.10:
+   «критерий пустоты — тот же, что у Excel»). Пустой проект = нет ни строки сметы, ни строки свода:
+   ни постов, ни одиночных изделий (прайс-реле схемы «Реле» существует только при постах). Раньше это
+   правило жило литералом в exportSpecExcel, а у КП стража пустого проекта не было вовсе — на пустом
+   проекте КП открывался и ЗАНИМАЛ номер EPG-… (страж EPOfferPdf.hasContent при включённых ценах всегда
+   true: блок итогов с нулями). Теперь оба документа спрашивают ЭТУ функцию.
+   est.groups пусты ⟺ в проекте нет ни постов, ни изделий ⟺ supplier.rows пусты (реле считается только
+   от постов): поэтому у Excel, который видит и свод, критерий тот же, а КП достаточно передать один est
+   (supplier он не собирает — его стенды эту сборку не вырезают). Проект со старыми одиночными изделиями
+   даёт строки сметы и пустым НЕ считается — ровно как у Excel. */
+function isEmptyProject(est, supplier) {
+  const groups = est && est.groups;
+  const rows = supplier && supplier.rows;
+  return !(groups && groups.length) && !(rows && rows.length);
+}
+
 /* Двойной экспорт: в браузере — глобальный namespace (сборщика в проекте нет,
    см. PLAN 2.2), в Node — module.exports, чтобы автотесты (PLAN 7.1) могли
    подключить расчёт напрямую, не поднимая приложение и DOM. */
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, vatBreakdown, vatShown, vatModeOf, discountOf, discountBreakdown, discountLabel };
+const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, vatBreakdown, vatShown, totalsShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
