@@ -32,10 +32,12 @@ const est = () => ({ groups: [
       items: [{ kind: "mechanism", name: "Выключатель", code: "20001.0", count: 1, price: 357.29 }] },
     { name: "Пост 2", composition: "Розетка", count: 2, unit: "компл.", sum: 640.50,
       items: [{ kind: "mechanism", name: "Розетка", code: "20208", count: 1, price: 320.25 }] }
-  /* НДС в этом наборе нет (vat:0), поэтому «Итого» = subtotal: оборудование 1712.37 + материалы 400 +
-     работы 300 = 2412.37. Итог КП берётся из EPEstimate.vatShown(subtotal) (В7, решение владельца —
-     три числа НДС сходятся до копейки), а не из отдельного est.total: при vat=0 это та же subtotal. */
-  ], equipment: 1712.37, discount: 0, materials: 400, work: 300, subtotal: 2412.37, vat: 0, total: 2412.37, missing: [] });
+  /* НДС в этом наборе нет (vat:0). В26: материалы/работы — процент от напечатанного «Оборудования»
+     (totalsShown), поэтому задаём проценты: 20 % и 10 % от 1712,37 € дают 342,47 € и 171,24 €, и
+     «Итого» = 1712,37 − 0 + 342,47 + 171,24 = 2226,08 €. materials/work (евро) остаются признаком
+     показа строки. Итог КП берётся из totalsShown (В7/В26), а не из отдельного est.total. */
+  ], equipment: 1712.37, discount: 0, materialsPercent: 20, workPercent: 10, materials: 400, work: 300,
+    subtotal: 2412.37, vat: 0, total: 2412.37, missing: [] });
 const layout = () => [{ number: 1, fill: [{ word: "Выключатель", count: 2 }], modules: 3, frameCode: "09663",
   box: { name: "Коробка 3М", code: "V71303", count: 1 }, assembledImageHtml: "<b>СБ</b>", frameName: "Накладка" }];
 const render = options => EPOfferPdf.buildHtml(est(), { esc, money, displayCurrency: () => "EUR", options,
@@ -121,7 +123,7 @@ test("D10-инвариант: суммы и цены КП не зависят о
   const withArt = render({ articles: true, prices: true });
   const noArt = render({ articles: false, prices: true });
   assert.deepEqual(moneys(noArt), moneys(withArt), "мультимножество денег одно и то же");
-  assert.ok(withArt.includes("2412.37 €") && noArt.includes("2412.37 €"), "итог не плывёт");
+  assert.ok(withArt.includes("2226.08 €") && noArt.includes("2226.08 €"), "итог не плывёт");
   assert.ok(withArt.includes("1071.87 €") && noArt.includes("1071.87 €"), "сумма строки не пересчитывается");
 });
 

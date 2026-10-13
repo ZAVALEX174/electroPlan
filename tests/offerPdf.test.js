@@ -15,7 +15,11 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const est = {
   groups: [{ name: "Выключатель", composition: "20001", count: 2, unit: "шт", sum: 40,
     items: [{ kind: "mechanism", code: "20001", name: "Выключатель", count: 1, price: 20 }] }],
-  equipment: 40, discount: 0, materials: 5, work: 10, subtotal: 55, vat: 0, total: 55
+  /* В26: материалы/работы печатаются как процент от напечатанного «Оборудования» (totalsShown),
+     поэтому задаём проценты (12,5 % и 25 % от 40 € дают прежние 5 € и 10 €), а materials/work (евро)
+     остаются признаком показа строки. Итог 40 − 0 + 5 + 10 = 55 €. */
+  equipment: 40, discount: 0, materialsPercent: 12.5, workPercent: 25, materials: 5, work: 10,
+  subtotal: 55, vat: 0, total: 55
 };
 /* displayCurrency → EUR: подвал с курсом не печатается, курсовые зависимости не нужны. */
 const deps = { money: n => String(n) + " €", esc, displayCurrency: () => "EUR", settings: {} };

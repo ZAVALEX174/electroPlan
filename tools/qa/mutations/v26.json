@@ -8,7 +8,7 @@
     "to": "    price: spec.rows[i].price, sum: g.sum," },
 
   { "name": "В26 M3: «Оборудование» снова est.equipment × курс, не Σ сумм строк", "file": "js/estimate.js",
-    "from": "  const equipment = specShown(e, r).equipment;",
+    "from": "  const equipment = spec.equipment;",
     "to": "  const equipment = round2((Number(e.equipment) || 0) * r);" },
 
   { "name": "В26 M4: цена изделия без round2 (округление уходит с уровня изделия)", "file": "js/estimate.js",
@@ -21,5 +21,29 @@
 
   { "name": "В26 M6: курс применён дважды — КП печатает суммы строк через money() (ещё раз ×курс)", "file": "js/offerPdf.js",
     "from": "    ? `<td class=\"right\">${moneyShown(r[key])}</td>`",
-    "to": "    ? `<td class=\"right\">${money(r[key])}</td>`" }
+    "to": "    ? `<td class=\"right\">${money(r[key])}</td>`" },
+
+  { "name": "В26 M7: «Скидка» снова от сырого est.discount × курс (не процент от напечатанного)", "file": "js/estimate.js",
+    "from": "  const discount = round2(generalDiscount + personalDiscount);",
+    "to": "  const discount = round2((Number(e.discount) || 0) * r);" },
+
+  { "name": "В26 M8: «Материалы» снова от сырого est.materials × курс", "file": "js/estimate.js",
+    "from": "  const materials = round2(net * (Number(e.materialsPercent) || 0) / 100);",
+    "to": "  const materials = round2((Number(e.materials) || 0) * r);" },
+
+  { "name": "В26 M9: «Работы» снова от сырого est.work × курс", "file": "js/estimate.js",
+    "from": "  const work      = round2(net * (Number(e.workPercent)      || 0) / 100);",
+    "to": "  const work      = round2((Number(e.work) || 0) * r);" },
+
+  { "name": "В26 M10: личная скидка округляется ОДИН раз суммой, а не построчно", "file": "js/estimate.js",
+    "from": "    personalDiscount += round2(sum * clampPercent(g.discountPercent) / 100);",
+    "to": "    personalDiscount += sum * clampPercent(g.discountPercent) / 100;" },
+
+  { "name": "В26 M11: общая скидка берётся от ВСЕГО «Оборудования» (строки с личной не исключены)", "file": "js/estimate.js",
+    "from": "  const generalBase = round2(equipment - personalBase);",
+    "to": "  const generalBase = round2(equipment);" },
+
+  { "name": "В26 M12: материалы/работы считаются от «Оборудования» БЕЗ вычета скидки", "file": "js/estimate.js",
+    "from": "  const net = round2(equipment - discount);",
+    "to": "  const net = round2(equipment);" }
 ]

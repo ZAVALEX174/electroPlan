@@ -46,45 +46,80 @@ function excelShow(x) {
 }
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-/* est в форме EPEstimate.build (только поля, читаемые totalsShown и шаблоном итогов). */
+/* est в форме EPEstimate.build. В26 (решение владельца 13.10): «Оборудование» и суммы строк — ПО
+   ИЗДЕЛИЯМ (specShown), а «Скидка»/«Материалы»/«Работы» — процент от напечатанного «Оборудования»
+   (totalsShown), а не готовые евро × курс. Поэтому на вход идут ПРОЦЕНТЫ (discountPercent /
+   materialsPercent / workPercent), а не суммы: estOf собирает одну строку, у которой цена изделия =
+   equipment (при rate=1 её напечатанная сумма = equipment). est.discount/materials/work/vat остаются
+   лишь признаком показа строки (КП/Excel гейтят «Скидку» по est.discount, строки НДС — по est.vat); в
+   арифметику печати они не входят. est.subtotal НЕ задаём: его читает только мутация MB1, и его
+   отсутствие делает ловушку MB1 строго красной. */
 function estOf(o) {
-  const equipment = o.equipment, discount = o.discount || 0, materials = o.materials || 0, work = o.work || 0;
-  const subtotal = equipment - discount + materials + work;
+  const equipment = o.equipment;
+  const groups = o.groups || [{ name: "P", count: 1, unit: "компл.",
+    discountPersonal: !!o.discountPersonal, discountPercent: o.discountPercent || 0,
+    items: [{ kind: "mechanism", name: "P", code: "X", count: 1, price: equipment }] }];
   return {
-    groups: o.groups || [{ name: "P", count: 1, unit: "компл.", sum: equipment,
-      items: [{ kind: "mechanism", name: "P", code: "X", count: 1, price: equipment }] }],
-    equipment, discount, discountMixed: false, discountPercent: 0, materials, work, subtotal, missing: [],
+    groups, equipment, missing: [],
+    discountPercent: o.discountPercent || 0, discountMixed: false,
+    materialsPercent: o.materialsPercent || 0, workPercent: o.workPercent || 0,
+    discount: o.discountPercent ? 1 : 0, materials: 1, work: 1,
     vatMode: o.vatMode || "none", vatPercent: o.vatPercent || 0,
-    vat: o.vatMode === "surcharge" ? subtotal * (o.vatPercent || 0) / 100
-       : o.vatMode === "included" ? subtotal * (o.vatPercent || 0) / (100 + (o.vatPercent || 0)) : 0,
+    vat: (o.vatMode === "surcharge" || o.vatMode === "included") ? 1 : 0,
     vatIncluded: o.vatMode === "included",
-    vatLabel: o.vatMode === "included" ? "в т.ч. НДС" : o.vatMode === "surcharge" ? "НДС" : "",
-    total: o.vatMode === "surcharge" ? subtotal * (1 + (o.vatPercent || 0) / 100) : subtotal
+    vatLabel: o.vatMode === "included" ? "в т.ч. НДС" : o.vatMode === "surcharge" ? "НДС" : ""
   };
 }
 
 /* ---- 1. Жёсткие примеры ---- */
 
-test("Б пример владельца (евро): печатные строки складываются в «Итого без НДС» 1 323,83", () => {
-  /* База = сами печатные значения владельца (евро), курс 1: «Итого без НДС» обязан быть их суммой. */
-  const t = EPEstimate.totalsShown(estOf({ equipment: 1264.29, discount: 222.77, materials: 73.48, work: 208.83, vatMode: "none" }), 1);
-  assert.deepEqual([t.equipment, t.discount, t.materials, t.work], [1264.29, 222.77, 73.48, 208.83], "печатные строки как у владельца");
-  assert.equal(t.subtotal, 1323.83, "1 264,29 − 222,77 + 73,48 + 208,83 = 1 323,83");
+test("Б/В26 (евро): печатные строки (процент от «Оборудования») складываются в «Итого без НДС» 1 445,08", () => {
+  /* Оборудование 1264,29 €, общая скидка 10 %, материалы 20 % и работы 7 % от «Оборудование − Скидка»,
+     курс 1. На калькуляторе независимо: скидка 126,43; нетто 1137,86; материалы 227,57; работы 79,65;
+     «Итого без НДС» = 1264,29 − 126,43 + 227,57 + 79,65 = 1445,08. */
+  const t = EPEstimate.totalsShown(estOf({ equipment: 1264.29, discountPercent: 10, materialsPercent: 20, workPercent: 7, vatMode: "none" }), 1);
+  assert.deepEqual([t.equipment, t.discount, t.materials, t.work], [1264.29, 126.43, 227.57, 79.65], "каждая строка = процент от напечатанного «Оборудования»");
+  assert.equal(t.subtotal, round2(t.equipment - t.discount + t.materials + t.work), "сумма четырёх печатных строк = «Итого без НДС»");
+  assert.equal(t.subtotal, 1445.08, "1 264,29 − 126,43 + 227,57 + 79,65 = 1 445,08");
 });
 
-test("Б пример владельца (рубли): печатные строки складываются в «Итого без НДС» 261 343,14", () => {
-  const t = EPEstimate.totalsShown(estOf({ equipment: 215640.94, discount: 2377.42, materials: 21384.11, work: 26695.51, vatMode: "none" }), 1);
-  assert.equal(t.subtotal, 261343.14, "215 640,94 + 21 384,11 + 26 695,51 − 2 377,42 = 261 343,14");
+test("Б/В26 (рубли): печатные строки складываются в «Итого без НДС» 260 451,12", () => {
+  const t = EPEstimate.totalsShown(estOf({ equipment: 215640.94, discountPercent: 1, materialsPercent: 10, workPercent: 12, vatMode: "none" }), 1);
+  assert.equal(t.subtotal, round2(t.equipment - t.discount + t.materials + t.work), "сумма печатных строк = «Итого без НДС»");
+  assert.equal(t.subtotal, 260451.12, "215 640,94 − 2 156,41 + 21 348,45 + 25 618,14 = 260 451,12");
 });
 
 test("Б: сумма округлённых ≠ округление суммы — totalsShown берёт ПЕРВОЕ (ловит мутацию MB1/MB2)", () => {
-  /* equipment=materials=work=10,006: каждая строка округляется до 10,01, сумма печатных = 30,03.
-     Округление субтотала (round2(30,018)=30,02) дало бы прежний дефект. Работы в сумме ≠ 0, поэтому
-     их выпадение (MB2) тоже видно: без работ было бы 20,02. */
-  const t = EPEstimate.totalsShown(estOf({ equipment: 10.006, materials: 10.006, work: 10.006, vatMode: "none" }), 1);
+  /* Оборудование 10,006 → печатается 10,01 (specShown округляет изделие по В26); материалы и работы по
+     100 % от нетто 10,01 → по 10,01. Сумма печатных = 30,03. MB1 (shownBase = round2(est.subtotal×курс))
+     даёт 0 — est.subtotal не задан; MB2 (работы выпадают) даёт 20,02. Оба ≠ 30,03 и краснеют. */
+  const t = EPEstimate.totalsShown(estOf({ equipment: 10.006, materialsPercent: 100, workPercent: 100, vatMode: "none" }), 1);
   assert.deepEqual([t.equipment, t.materials, t.work], [10.01, 10.01, 10.01], "каждая строка округлена к 10,01");
-  assert.equal(t.subtotal, 30.03, "сумма трёх напечатанных по 10,01 = 30,03, не 30,02 (округл. суммы) и не 20,02 (без работ)");
+  assert.equal(t.subtotal, 30.03, "сумма трёх напечатанных по 10,01 = 30,03, не 0 (MB1) и не 20,02 (MB2)");
   assert.equal(t.total, 30.03, "без НДС итог равен сумме строк");
+});
+
+test("В26: личная скидка округляется ПОСТРОЧНО, не один раз суммой (ловит мутацию M10)", () => {
+  /* Две личные строки по 10,10 € × 5 % = 0,505 — каждая округляется до 0,51, «Скидка» = 1,02.
+     Округление ОДНИМ числом (0,505 + 0,505 = 1,01 → 1,01) разошлось бы с калькулятором по строкам. */
+  const g1 = { name: "A", count: 1, unit: "компл.", discountPersonal: true, discountPercent: 5,
+    items: [{ kind: "mechanism", name: "A", code: "X", count: 1, price: 10.10 }] };
+  const g2 = { name: "B", count: 1, unit: "компл.", discountPersonal: true, discountPercent: 5,
+    items: [{ kind: "mechanism", name: "B", code: "Y", count: 1, price: 10.10 }] };
+  const t = EPEstimate.totalsShown(estOf({ equipment: 20.20, groups: [g1, g2], discountPercent: 0, vatMode: "none" }), 1);
+  assert.equal(t.discount, 1.02, "0,51 + 0,51 построчно = 1,02, не 1,01 (округление суммы)");
+});
+
+test("В26: общая скидка — от «Оборудования» БЕЗ строк с личной скидкой (ловит мутацию M11)", () => {
+  /* Личная строка 100,00 € (50 %) и обычная 100,00 € при общей 10 %. Личная из базы общей исключена:
+     общая 10 % от 100,00 = 10,00; личная 50,00; «Скидка» = 60,00. Не исключить личную — общая считалась
+     бы от 200,00 → 20,00, и «Скидка» вышла бы 70,00. */
+  const pers = { name: "P", count: 1, unit: "компл.", discountPersonal: true, discountPercent: 50,
+    items: [{ kind: "mechanism", name: "P", code: "X", count: 1, price: 100 }] };
+  const gen = { name: "G", count: 1, unit: "компл.", discountPersonal: false, discountPercent: 10,
+    items: [{ kind: "mechanism", name: "G", code: "Y", count: 1, price: 100 }] };
+  const t = EPEstimate.totalsShown(estOf({ equipment: 200, groups: [pers, gen], discountPercent: 10, vatMode: "none" }), 1);
+  assert.equal(t.discount, 60, "10 % от 100 (без личной) + 50 % от 100 = 60, не 70");
 });
 
 /* ---- 2. Сплошной перебор ---- */
@@ -95,14 +130,15 @@ test("Б: перебор >200 000 — печатные строки = «без �
   const modes = ["surcharge", "included", "none"];
   let checked = 0, mismatches = 0;
   for (let i = 0; i < 4000; i++) {
-    /* Базовые суммы с сотыми долями копейки (3-й знак варьируется) — именно там прежнее правило
-       расходилось. Детерминированно от i, чтобы прогон был воспроизводим. */
+    /* Оборудование с сотыми долями копейки (specShown округлит его до копейки), а скидка/материалы/
+       работы задаются ПРОЦЕНТАМИ (В26) — их произведения дают собственный дребезг 3-го знака, именно
+       там прежнее правило расходилось. Детерминированно от i, чтобы прогон был воспроизводим. */
     const equipment = i * 0.137 + 0.005;
-    const materials = (i % 97) * 0.073 + 0.0025;
-    const work = (i % 53) * 0.021 + 0.0075;
-    const discount = (i % 13) * 0.11 + 0.0049;
+    const materialsPercent = (i % 7) * 3.5;     // 0; 3,5; …; 21
+    const workPercent = (i % 5) * 4;            // 0; 4; …; 16
+    const discountPercent = (i % 11) * 2.5;     // 0; 2,5; …; 25
     for (const rate of rates) for (const p of percents) for (const mode of modes) {
-      const t = EPEstimate.totalsShown(estOf({ equipment, discount, materials, work, vatMode: mode, vatPercent: p }), rate);
+      const t = EPEstimate.totalsShown(estOf({ equipment, discountPercent, materialsPercent, workPercent, vatMode: mode, vatPercent: p }), rate);
       checked++;
       const rowsSum = round2(t.equipment - t.discount + t.materials + t.work);
       /* Для «начислить сверху» сумма строк = «Итого без НДС»; для «выделить»/«не учитывать» — «Итого». */
@@ -180,8 +216,8 @@ function xlsxTotals(est, rate, currency) {
 
 for (const [currency, rate] of [["EUR", 1], ["RUB", 95.37 * 1.03]]) {
   test(`Б: панель, КП и Excel дают ОДНИ И ТЕ ЖЕ числа (${currency}, surcharge 20%)`, () => {
-    /* Суммы с долями копейки, чтобы округление строк имело значение; скидка ненулевая. */
-    const est = estOf({ equipment: 1264.285, discount: 222.774, materials: 73.475, work: 208.825, vatMode: "surcharge", vatPercent: 20 });
+    /* Оборудование с долями копейки, проценты ненулевые (В26: строки — процент от «Оборудования»). */
+    const est = estOf({ equipment: 1264.285, discountPercent: 10, materialsPercent: 20, workPercent: 7, vatMode: "surcharge", vatPercent: 20 });
     const t = EPEstimate.totalsShown(est, rate);
 
     const kp = kpTotals(est, rate, currency);

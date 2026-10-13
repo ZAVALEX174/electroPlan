@@ -87,6 +87,10 @@ const estBase = () => ({
       discountPersonal: false, discountPercent: 10 }
   ],
   equipment: 1712.37, discount: 171.237, discountMixed: true, discountPercent: 10,
+  /* В26: скидка/материалы/работы печатаются как процент от напечатанного «Оборудования» (totalsShown),
+     поэтому проценты — ВХОД, а est.discount/materials/work (евро) остаются лишь признаком показа строки
+     (КП и книга гейтят строку «Скидка» по est.discount, строки НДС — по est.vat). */
+  materialsPercent: 20, workPercent: 15,
   materials: 400, work: 300, subtotal: 2241.133, missing: [],
   vat: 0, vatLabel: "НДС", vatPercent: 20, vatIncluded: false, total: 2241.133
 });
@@ -145,14 +149,17 @@ for (const mode of ["none", "surcharge", "included"]) {
     const equip = Object.values(spec).find(c => c.type === "f");
     assert.ok(equip, "итог «Оборудование» — формула SUM");
     near(equip.num, est.equipment, "значение формулы = est.equipment");
-    assert.ok(hasNum(spec, -est.discount), "скидка в книге со знаком минус");
-    assert.ok(hasNum(spec, est.materials), "материалы в книге");
-    assert.ok(hasNum(spec, est.work), "работы в книге");
-    assert.ok(hasNum(spec, est.total), "итог в книге");
-    assert.ok(html.includes(money(est.total)), "итог КП совпал");
+    /* Итоговые числа — из ОДНОГО правила totalsShown (В26: от напечатанного «Оборудования», не est.X×курс);
+       книга и КП обязаны печатать ровно их. */
+    const t = EPEstimate.totalsShown(est, 1);
+    assert.ok(hasNum(spec, -t.discount), "скидка в книге со знаком минус (из totalsShown)");
+    assert.ok(hasNum(spec, t.materials), "материалы в книге (из totalsShown)");
+    assert.ok(hasNum(spec, t.work), "работы в книге (из totalsShown)");
+    assert.ok(hasNum(spec, t.total), "итог в книге (из totalsShown)");
+    assert.ok(html.includes(money(t.total)), "итог КП совпал");
     if (est.vat) {
-      assert.ok(hasNum(spec, est.vat), "НДС в книге");
-      assert.ok(html.includes(money(est.vat)), "НДС КП совпал");
+      assert.ok(hasNum(spec, t.amount), "НДС в книге (из totalsShown)");
+      assert.ok(html.includes(money(t.amount)), "НДС КП совпал");
     }
   });
 }
@@ -236,15 +243,18 @@ test("A6: деньги в рублях — лист «Спецификация»
   /* Итоги: формула «Оборудование» = equipment×курс; скидка (−), материалы, работы, без НДС, НДС, итог. */
   const equip = Object.values(spec).find(c => c.type === "f");
   near(equip.num, est.equipment * RATE, "SUM-итог = equipment×курс");
-  assert.ok(hasNum(spec, -est.discount * RATE), "скидка ×курс со знаком минус");
-  assert.ok(hasNum(spec, est.materials * RATE), "материалы ×курс");
-  assert.ok(hasNum(spec, est.work * RATE), "работы ×курс");
-  assert.ok(hasNum(spec, est.subtotal * RATE), "итого без НДС ×курс");
-  assert.ok(hasNum(spec, est.vat * RATE), "НДС ×курс");
-  assert.ok(hasNum(spec, est.total * RATE), "итог ×курс");
-  /* Те же числа печатает КП в рублях (money()). */
-  [est.discount, est.materials, est.work, est.subtotal, est.vat, est.total].forEach(v =>
-    assert.ok(html.includes(moneyRub(v)), `${moneyRub(v)} в КП`));
+  /* Итоги — из totalsShown (В26: процент от напечатанного «Оборудования» в рублях, не est.X×курс);
+     книга хранит эти числа, КП печатает их через moneyShown. */
+  const t = EPEstimate.totalsShown(est, RATE);
+  assert.ok(hasNum(spec, -t.discount), "скидка (totalsShown) со знаком минус");
+  assert.ok(hasNum(spec, t.materials), "материалы (totalsShown)");
+  assert.ok(hasNum(spec, t.work), "работы (totalsShown)");
+  assert.ok(hasNum(spec, t.subtotal), "итого без НДС (totalsShown)");
+  assert.ok(hasNum(spec, t.amount), "НДС (totalsShown)");
+  assert.ok(hasNum(spec, t.total), "итог (totalsShown)");
+  /* Те же числа печатает КП в рублях (moneyShown из totalsShown). */
+  [t.discount, t.materials, t.work, t.subtotal, t.amount, t.total].forEach(v =>
+    assert.ok(html.includes(moneyShownRub(v)), `${moneyShownRub(v)} в КП`));
 });
 
 test("A6: деньги в рублях — лист «По артикулам» цена/сумма == money() по курсу", () => {

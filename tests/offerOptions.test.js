@@ -16,7 +16,10 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&
 const deps = { esc, money: n => n + " €", moneyShown: n => n + " €", displayRate: () => 1, displayCurrency: () => "EUR" };
 const est = { groups: [{ name: "Пост 7", composition: "Розетка, белая", count: 2, unit: "компл.", sum: 20,
   items: [{ kind: "mechanism", name: "Розетка, белая", code: "M.01", count: 1, price: 10 }] }],
-  equipment: 20, discount: 0, materials: 5, work: 10, subtotal: 35, vat: 0, total: 35, missing: [] };
+  /* В26: материалы/работы — процент от напечатанного «Оборудования» (totalsShown); 25 % и 50 % от
+     20 € дают прежние 5 € и 10 €, итог 20 − 0 + 5 + 10 = 35 €. materials/work (евро) — признак показа. */
+  equipment: 20, discount: 0, materialsPercent: 25, workPercent: 50, materials: 5, work: 10,
+  subtotal: 35, vat: 0, total: 35, missing: [] };
 const layout = [{ number: 7, fill: [{ word: "Розетка", count: 1 }], modules: 1, frameCode: "F.01",
   box: { name: "Коробка для ГКЛ", code: "B.01", count: 2 }, assembledImageHtml: "<b>СБОРКА</b>" }];
 const render = options => EPOfferPdf.buildHtml(est, { ...deps, options, postLayout: layout,
