@@ -65,5 +65,25 @@
 
   { "name": "В26 M17 (потребитель д): суммарная стоимость выделенных снова money(Σ) — ×курс поверх", "file": "js/app.js",
     "from": "<label>Суммарная стоимость<input value=\"${esc(moneyShown(total))}\" disabled>",
-    "to": "<label>Суммарная стоимость<input value=\"${esc(money(total))}\" disabled>" }
+    "to": "<label>Суммарная стоимость<input value=\"${esc(money(total))}\" disabled>" },
+
+  { "name": "В26 M18 (правило 3б): shownSum округляет ОДИН раз суммой, а не по изделиям", "file": "js/estimate.js",
+    "from": "function shownSum(items, rate) { return pricedUnit(items, rate).price; }",
+    "to": "function shownSum(items, rate) { const r = Number(rate) > 0 ? Number(rate) : 1; return round2((Array.isArray(items) ? items : []).reduce((a, it) => a + (Number(it && it.price) || 0) * (Number(it.count) || 0), 0) * r); }" },
+
+  { "name": "В26 M19 (суммы света): строка поста снова money(c.sum) — округление суммы сырых евро", "file": "js/app.js",
+    "from": "    text:c.gaps\n      ? `${c.found} из ${c.need} · ${moneyShown(EPEstimate.lightingSumShown(rows,displayRate()))} · без механизма: ${c.gaps}`\n      : `${c.found} шт. · ${moneyShown(EPEstimate.lightingSumShown(rows,displayRate()))}`});",
+    "to": "    text:c.gaps\n      ? `${c.found} из ${c.need} · ${money(c.sum)} · без механизма: ${c.gaps}`\n      : `${c.found} шт. · ${money(c.sum)}`});" },
+
+  { "name": "В26 M20 (блок «Группы света»): total снова от сырого lightingSum", "file": "js/app.js",
+    "from": "total:options?.prices===false?0:EPEstimate.shownSum(((light&&light.plan.places)||[]).map(p=>({price:p&&p.product?(Number(p.product.price)||0):0,count:1})),displayRate())",
+    "to": "total:options?.prices===false?0:lightingSum(light)" },
+
+  { "name": "В26 M21 (блок «Группы света»): сумма снова money(sum) — ×курс поверх уже-показанной", "file": "js/lightingPlan.js",
+    "from": "${sum ? ` · ${moneyShown(sum)}` : \"\"}",
+    "to": "${sum ? ` · ${money(sum)}` : \"\"}" },
+
+  { "name": "В26 M22 (Excel «По артикулам»): «Сумма» снова сырое unit×count×курс", "file": "js/specExcel.js",
+    "from": "if (key === \"sum\") return hasPrice ? num(estimate.shownSum([{ price: unitPrice, count: Number(r.count) || 0 }], rate), S_MONEY) : txt(\"\");",
+    "to": "if (key === \"sum\") return hasPrice ? num(unitPrice * (Number(r.count) || 0) * rate, S_MONEY) : txt(\"\");" }
 ]

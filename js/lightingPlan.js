@@ -325,6 +325,10 @@ function buildHtml(plan, deps) {
   const d = deps || {};
   const esc = d.esc || (s => text(s));
   const money = d.money || (n => String(n));
+  /* total приходит УЖЕ в валюте показа и УЖЕ округлённым (Σ напечатанных цен подобранных механизмов
+     по изделиям, В26): форматируем moneyShown без повторного ×курс. Старый вызов без moneyShown
+     (или на курсе 1, где moneyShown == money) печатает то же число. */
+  const moneyShown = d.moneyShown || money;
   const title = d.title || "Группы света";
   const gaps = Array.isArray(plan.gaps) ? plan.gaps : [];
   const groups = Array.isArray(plan.groups) ? plan.groups : [];
@@ -396,7 +400,7 @@ function buildHtml(plan, deps) {
     + `<span style="${S.muted}">Схема: ${esc(schemeText)}</span></div>`
     + groupRows
     + relayRows
-    + (total ? `<div style="${S.row}"><span style="${S.cell}">Механизмы подобраны расчётом</span><b style="${S.cellRight}">${esc(total)}${sum ? ` · ${money(sum)}` : ""}</b></div>` : "")
+    + (total ? `<div style="${S.row}"><span style="${S.cell}">Механизмы подобраны расчётом</span><b style="${S.cellRight}">${esc(total)}${sum ? ` · ${moneyShown(sum)}` : ""}</b></div>` : "")
     + gapRows
     + `</div>`;
 }

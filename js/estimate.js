@@ -235,6 +235,27 @@ function pricedUnit(items, rate) {
   return { price, items: priced };
 }
 
+/* ⚠️ НАПЕЧАТАННАЯ СУММА НАБОРА одинаково считаемых изделий в валюте показа — ОДНО правило (В26,
+   решение владельца 13.10: «складывается всё на всех уровнях: изделия → пост → строка → Оборудование»).
+   items — [{price (евро), count}]; rate — множитель в валюту показа (1 для евро). Каждое изделие
+   переводим в валюту показа и округляем ДО сложения ТЕМ ЖЕ ядром pricedUnit, что цена поста и строка
+   спецификации, затем Σ(цена показа × количество). Так «сумма», которую человек видит, равна сложению
+   тех же напечатанных цен, что стоят рядом: 7 × 25,79 € при курсе 92,5 → 16 699,06 (а не 16 699,03 от
+   округления суммы сырых евро), 2 × 0,85 € → 157,26. При курсе 1 (каталог кратен центу) результат равен
+   прежней сумме сырых евро. Второй копии этой арифметики быть не должно (§7.1): столбец «Стоимость
+   артикулов» КП, суммы механизмов групп света, перенумерация и лист Excel «По артикулам» зовут ЕЁ.
+   Возвращает число в валюте показа, уже округлённое до копейки. */
+function shownSum(items, rate) { return pricedUnit(items, rate).price; }
+
+/* Напечатанная сумма механизмов групп света ОДНОГО поста (строка «N шт. · X ₽» в окне поста и в панели
+   свойств). billableLighting(separateLighting(rows)) — ТОТ ЖЕ фильтр, что кладёт механизмы в состав и в
+   цену поста (пробел и цельное изделие в сумму не идут, ровно как в деньгах, см. lightingCounts); сумму
+   печатаем ядром shownSum — чтобы «X ₽» равнялось сложению напечатанных цен механизмов, а не округлению
+   суммы сырых евро. rows — строки мест ЭТОГО поста (EPLightingPlan.rowsByPost). */
+function lightingSumShown(rows, rate) {
+  return shownSum(billableLighting(separateLighting(rows)).map(r => ({ price: Number(r && r.price) || 0, count: 1 })), rate);
+}
+
 function specShown(est, rate) {
   const r = Number(rate) > 0 ? Number(rate) : 1;
   const groups = (est && est.groups) || [];
@@ -796,7 +817,7 @@ function isEmptyProject(est, supplier) {
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, vatBreakdown, vatShown, pricedUnit, specShown, postPriceShown, totalsShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
+const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, vatBreakdown, vatShown, pricedUnit, shownSum, lightingSumShown, specShown, postPriceShown, totalsShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

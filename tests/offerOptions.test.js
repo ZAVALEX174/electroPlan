@@ -108,7 +108,10 @@ function exportStand(options) {
   const mech = { id: 20, code: "MECH_SECRET", name: "Розетка, белая", moduleCount: 1, categoryId: 300, price: 4, kind: "mechanism" };
   const box = { code: "BOX_SECRET", name: "Коробка для полой стены", price: 2, kind: "socket_box" };
   const support = { code: "SUP_SECRET", name: "Суппорт", price: 1, kind: "support" };
-  const light = { plan: { groups: [{ label: "Свет", placeCount: 1, rolesRequired: { switch: 1 }, roles: { switch: 1 } }], gaps: [], relays: [], totals: { switch: 1 } },
+  /* В26: сумму механизмов групп света блок печатает ПО ИЗДЕЛИЯМ (lightingHtml → EPEstimate.shownSum
+     по plan.places), а не через ранее стабившийся lightingSum. Кладём место с ценой-маркером 12345 €
+     (курс 1): shownSum([{price:12345,count:1}],1) = 12345 — тот же узнаваемый маркер, что и раньше. */
+  const light = { plan: { groups: [{ label: "Свет", placeCount: 1, rolesRequired: { switch: 1 }, roles: { switch: 1 } }], gaps: [], relays: [], totals: { switch: 1 }, places: [{ product: { price: 12345 } }] },
     ambiguous: [{ role: "switch", series: ["Тест"], candidates: [{ code: "CANDIDATE_SECRET", name: "Кандидат CANDIDATE_SECRET" }] }] };
   const state = { devices: [{ productId: 20 }, { productId: 998877 }],
     posts: [{ number: 7, frameId: 10, name: "Пост 7", mechanismIds: [20, 998866] }], rooms: [] };

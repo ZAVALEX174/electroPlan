@@ -261,17 +261,48 @@ test("A6: деньги в рублях — лист «По артикулам» 
   const est = withVat("surcharge");
   const collected = EPSupplierSpec.collect(supplierRub());
   const { supplier } = sheets(EPSpecExcel.build(est, collected, { options: {}, currency: "RUB", rate: RATE }));
+  const html = kpRub(est, {});
   /* Цены артикулов берутся из est.items; свод: 20001.0 ×2, 20208 ×1. */
   const priceByCode = { "20001.0": 357.29, "20208": 320.25 };
-  collected.rows.forEach(row => {
+  /* В26 (решение владельца 13.10): «Цена» = round2(евро × курс), «Сумма» = количество × эта
+     НАПЕЧАТАННАЯ цена (а не сырое unit×count×курс) — чтобы «Кол-во × Цена» сходилось в «Сумму» до
+     копейки. ПРЕЖНЕЕ ожидание «сумма = сырое unit×count×курс» отменено этим решением. Проверяем
+     ПОКЛЕТОЧНО: цена в E{r}, сумма в F{r}, и F = round2(E × count) в целых копейках. */
+  const K = v => Math.round(EPEstimate.round2(v) * 100);
+  const dataRows = [...new Set(Object.keys(supplier).map(rowNo))].filter(r => r >= 2).sort((a, b) => a - b);
+  const codeOf = r => (supplier["C" + r] || {}).text;
+  collected.rows.forEach((row, i) => {
     const unit = priceByCode[row.code];
     if (unit == null) return;                 // строки без цены в est пропускаем (у них клетки пустые)
-    assert.ok(hasNum(supplier, unit * RATE), `цена ${row.code} = ${moneyRub(unit)} по курсу`);
-    assert.ok(hasNum(supplier, unit * row.count * RATE), `сумма ${row.code} = цена×${row.count} по курсу`);
+    const r = dataRows[i];
+    assert.equal(codeOf(r), row.code, `строка ${i + 1} — тот же артикул`);
+    const priceShown = EPEstimate.round2(unit * RATE);
+    const priceCell = (supplier["F" + r] || {}).num, sumCell = (supplier["G" + r] || {}).num;
+    assert.equal(K(priceCell), K(priceShown), `цена ${row.code} = round2(евро×курс)`);
+    assert.equal(K(sumCell), K(priceShown) * row.count, `сумма ${row.code} = количество × напечатанная цена (в копейках)`);
+    /* Сверка с КП: money() на тех же базовых ценах даёт ту же напечатанную цену единицы. */
+    assert.ok(html.includes(moneyRub(unit)), `цена ${moneyRub(unit)} в КП`);
   });
   /* money() КП на тех же базовых ценах даёт те же рублёвые значения. */
   assert.equal(moneyRub(357.29), round2(357.29 * RATE).toFixed(2) + " ₽");
   assert.equal(moneyRub(320.25 * 2), round2(320.25 * 2 * RATE).toFixed(2) + " ₽");
+});
+
+test("A6 (В26): лист «По артикулам» — «Сумма» = количество × НАПЕЧАТАННАЯ цена, а не сырое unit×count×курс", () => {
+  /* 0,85 € × курс 92,5 = 78,625 → round2 = 78,63; сумма 2 шт = 2 × 78,63 = 157,26. Сырое
+     0,85 × 2 × 92,5 = 157,25 — на копейку меньше. Проверяем ПОКЛЕТОЧНО, что в ячейке «Сумма»
+     именно 157,26 (количество × напечатанная цена), и сырого 157,25 там нет (ловит М22). */
+  const est = { groups: [{ name: "P", count: 2, unit: "компл.", sum: 1.7,
+    items: [{ kind: "box", code: "A", name: "Коробка", count: 1, price: 0.85 }] }],
+    equipment: 1.7, discount: 0, materials: 0, work: 0, subtotal: 1.7, missing: [],
+    vat: 0, vatLabel: "НДС", vatPercent: 0, vatIncluded: false, total: 1.7 };
+  const supplier = { rows: [{ code: "A", name: "Коробка", count: 2, unit: "шт." }], totalNames: 1, totalUnits: 2 };
+  const { supplier: sheet } = sheets(EPSpecExcel.build(est, supplier, { options: {}, currency: "RUB", rate: 92.5 }));
+  const K = v => Math.round(v * 100);
+  const priceCell = (sheet["F2"] || {}).num, sumCell = (sheet["G2"] || {}).num;
+  assert.equal(K(priceCell), K(78.63), "цена = round2(0,85×92,5) = 78,63");
+  assert.equal(K(sumCell), K(157.26), "сумма = 2 × 78,63 = 157,26");
+  assert.notEqual(K(sumCell), K(157.25), "сырого 157,25 (unit×count×курс) в ячейке нет");
 });
 
 test("A6 (В26): цена/сумма строки хранятся УЖЕ округлёнными (12,35), а не сырым произведением 12,345", () => {

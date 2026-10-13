@@ -295,7 +295,9 @@ function compose(est, deps) {
     /* Стоимость артикулов — разбивка цены поста по изделиям (p.itemPrices приходит из
        EPEstimate.build того же расчёта, что смета: замена цельных изделий уже сделана). По строке на
        узел: «Наименование — [N × ]цена». Цена узла (item.price) — за штуку, поэтому при count>1
-       показываем и множитель, и итог строки; Σ этих строк равна «Стоимости блока». Узел без артикула
+       показываем множитель, а ИТОГ строки — количество × НАПЕЧАТАННАЯ цена узла (EPEstimate.shownSum,
+       то же ядро, что цена поста): «2 × 78,63 = 157,26», а не 157,25 от округления сырого произведения
+       (В26, решение владельца 13.10). Так Σ этих строк ровно равна «Стоимости блока». Узел без артикула
        каталога (пробел подбора, снятая позиция) цены не имеет — печатаем «цена не определена», а не
        ложный ноль (та же честность, что у pricelessNote). Имя — через itemText, как в наполнении:
        без артикулов коды из подписи вычищаются. Пустой список (пост без ценимых узлов) — «—». */
@@ -306,7 +308,7 @@ function compose(est, deps) {
         const name = esc(itemText(it.name, it.code));
         if (!it.code) return `${name} — цена не определена`;
         const unit = Number(it.price) || 0, count = Number(it.count) || 0;
-        return count > 1 ? `${name} — ${count} × ${money(unit)} = ${money(unit * count)}` : `${name} — ${money(unit)}`;
+        return count > 1 ? `${name} — ${count} × ${money(unit)} = ${moneyShown(estimate.shownSum([{ price: unit, count }], rate))}` : `${name} — ${money(unit)}`;
       }).join("<br>");
     },
     illustration: p => layoutIllustration(p)

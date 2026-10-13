@@ -233,7 +233,7 @@ const codeKey = c => String(c == null ? "" : c).replace(/\s+/g, "").toUpperCase(
 
 /* --- Лист «По артикулам»: плоский свод (как КП, но без подзаголовков-групп — в таблице Excel они
    ломали бы сортировку/фильтр/СУММ). При включённых ценах добавляем цену и сумму. --- */
-function buildSupplierSheet(est, supplier, options, config, rate) {
+function buildSupplierSheet(est, supplier, options, config, estimate, rate) {
   const rows = (supplier && supplier.rows) || [];
   const showArticles = options.articles !== false;
   const showPrices = !!options.prices;
@@ -275,8 +275,11 @@ function buildSupplierSheet(est, supplier, options, config, rate) {
       if (key === "code") return txt(r.code ? r.code + (r.assumed ? ASSUMED : "") : NO_CODE);
       if (key === "count") return num(Number(r.count) || 0);
       if (key === "unit") return txt(r.unit || "шт.");
-      if (key === "price") return hasPrice ? num(unitPrice * rate, S_MONEY) : txt("");
-      if (key === "sum") return hasPrice ? num(unitPrice * (Number(r.count) || 0) * rate, S_MONEY) : txt("");
+      /* Цена/сумма — ПО ИЗДЕЛИЯМ (В26, то же правило, что КП и лист «Спецификация»): «Цена» =
+         напечатанная цена единицы round2(евро × курс), «Сумма» = количество × эта НАПЕЧАТАННАЯ цена
+         (estimate.shownSum, без повторного ×курс). Иначе «Кол-во × Цена ≠ Сумма» на копейку. */
+      if (key === "price") return hasPrice ? num(estimate.round2(unitPrice * rate), S_MONEY) : txt("");
+      if (key === "sum") return hasPrice ? num(estimate.shownSum([{ price: unitPrice, count: Number(r.count) || 0 }], rate), S_MONEY) : txt("");
       return txt("");
     }));
   });
@@ -376,7 +379,7 @@ function build(est, supplier, deps) {
   const sup = supplier || { rows: [] };
 
   const sheet1 = buildSpecSheet(e, options, config, estimate, rate);
-  const sheet2 = buildSupplierSheet(e, sup, options, config, rate);
+  const sheet2 = buildSupplierSheet(e, sup, options, config, estimate, rate);
 
   const contentTypes = `${XMLHEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">`
     + `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`

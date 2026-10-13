@@ -116,8 +116,13 @@ const SETTINGS = [
 ];
 
 test("В26: цена поста (postPriceShown) == «Цена» строки спецификации, настоящий каталог, 5 курсов, 0 расхождений", () => {
-  const N = Number(process.env.INV_N) || 150;
+  /* Объём по умолчанию держим на ~3 с (мутационная проверка гоняет весь набор десятки раз, и 15-секундный
+     прогон раздувал каждый мутационный раунд). Этого N хватает на покрытие всех видов постов и пяти
+     курсов — это проверяют счётчики ниже. Тяжёлый прогон (тысячи постов) — через INV_N=4000. */
+  const N = Number(process.env.INV_N) || 30;
   let projects = 0, posts = 0, rateChecks = 0, mismatch = 0, wireMismatch = 0, euroMismatch = 0;
+  /* Счётчики ВИДОВ постов: при малом N тест обязан доказать, что покрыл их все (а не выродился). */
+  const kinds = { wall: 0, separate: 0, integrated: 0, backlight: 0 };
   const samples = [];
   for (const settings of SETTINGS) {
     const app = makeApp(settings);
@@ -137,8 +142,12 @@ test("В26: цена поста (postPriceShown) == «Цена» строки с
       est.groups.forEach((g, j) => idx.set(g.key, j));
       /* specShown полной сметы по каждому курсу — ОДИН раз на проект (не в цикле постов). */
       const specByRate = new Map(RATES.map(rate => [rate, EPEstimate.specShown(est, rate)]));
+      if (settings.backlight.enabled) kinds.backlight += ps.length;
       ps.forEach((p, pi) => {
         posts++;
+        if (p.wallType) kinds.wall++;
+        if ((p._light || []).some(r => r.kind === "key")) kinds.separate++;
+        if ((p._light || []).some(r => r.kind === "integrated")) kinds.integrated++;
         /* Строка ИМЕННО этого поста: собираем её ОДИН раз (build тяжёлый — не в цикле курсов) и
            берём её ключ и состав. pricedUnit по этому составу — математическое ядро цены поста. */
         const one = buildEst([p]).groups[0];
@@ -184,7 +193,9 @@ test("В26: цена поста (postPriceShown) == «Цена» строки с
       });
     }
   }
-  assert.ok(posts > 1000, `проверено постов: ${posts} (> 1000)`);
+  assert.ok(posts > 150, `проверено постов: ${posts} (> 150)`);
+  /* Все виды постов реально встретились — иначе малый N проверил бы не то, что обещано. */
+  Object.entries(kinds).forEach(([k, n]) => assert.ok(n > 0, `вид постов «${k}» не покрыт (${n})`));
   assert.equal(mismatch, 0, `«Цена» единицы != «Цена» строки сметы: ${mismatch} (проектов ${projects}, постов ${posts}, курсо-проверок ${rateChecks}); примеры: ${JSON.stringify(samples)}`);
   assert.equal(wireMismatch, 0, `postPriceShown != ядро pricedUnit: ${wireMismatch}; примеры: ${JSON.stringify(samples)}`);
   assert.equal(euroMismatch, 0, `евро при курсе 1 разошлось с postPrice: ${euroMismatch}; примеры: ${JSON.stringify(samples)}`);
