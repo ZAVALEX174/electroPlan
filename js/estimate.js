@@ -256,6 +256,18 @@ function lightingSumShown(rows, rate) {
   return shownSum(billableLighting(separateLighting(rows)).map(r => ({ price: Number(r && r.price) || 0, count: 1 })), rate);
 }
 
+/* Напечатанная сумма механизмов групп света ПО ВСЕМУ ПРОЕКТУ — подпись блока «Группы света» и
+   сообщение перенумерации «было → стало». В ОТЛИЧИЕ от lightingSumShown (один пост, только ОТДЕЛЬНЫЕ
+   строки клавиш) берёт ВСЕ места плана (plan.places) — в том числе цельные изделия, подменившие
+   механизм поста: это та же величина, что раньше считал app.lightingSum (Σ place.product.price),
+   но напечатанная по изделиям (shownSum), а не округлением суммы сырых евро. plan — light.plan
+   (с полем places); место без товара и пустой/несуществующий план дают 0, а не NaN. Правило —
+   ТОЛЬКО здесь, чтобы у блока и у перенумерации не было трёх копий «какие места и по какой цене
+   идут в сумму» (§7.1). */
+function lightingPlanSumShown(plan, rate) {
+  return shownSum(((plan && plan.places) || []).map(p => ({ price: (p && p.product) ? (Number(p.product.price) || 0) : 0, count: 1 })), rate);
+}
+
 function specShown(est, rate) {
   const r = Number(rate) > 0 ? Number(rate) : 1;
   const groups = (est && est.groups) || [];
@@ -817,7 +829,7 @@ function isEmptyProject(est, supplier) {
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, vatBreakdown, vatShown, pricedUnit, shownSum, lightingSumShown, specShown, postPriceShown, totalsShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
+const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, vatBreakdown, vatShown, pricedUnit, shownSum, lightingSumShown, lightingPlanSumShown, specShown, postPriceShown, totalsShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

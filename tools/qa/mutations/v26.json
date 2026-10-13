@@ -76,7 +76,7 @@
     "to": "    text:c.gaps\n      ? `${c.found} из ${c.need} · ${money(c.sum)} · без механизма: ${c.gaps}`\n      : `${c.found} шт. · ${money(c.sum)}`});" },
 
   { "name": "В26 M20 (блок «Группы света»): total снова от сырого lightingSum", "file": "js/app.js",
-    "from": "total:options?.prices===false?0:EPEstimate.shownSum(((light&&light.plan.places)||[]).map(p=>({price:p&&p.product?(Number(p.product.price)||0):0,count:1})),displayRate())",
+    "from": "total:options?.prices===false?0:EPEstimate.lightingPlanSumShown(light&&light.plan,displayRate())",
     "to": "total:options?.prices===false?0:lightingSum(light)" },
 
   { "name": "В26 M21 (блок «Группы света»): сумма снова money(sum) — ×курс поверх уже-показанной", "file": "js/lightingPlan.js",
@@ -85,5 +85,9 @@
 
   { "name": "В26 M22 (Excel «По артикулам»): «Сумма» снова сырое unit×count×курс", "file": "js/specExcel.js",
     "from": "if (key === \"sum\") return hasPrice ? num(estimate.shownSum([{ price: unitPrice, count: Number(r.count) || 0 }], rate), S_MONEY) : txt(\"\");",
-    "to": "if (key === \"sum\") return hasPrice ? num(unitPrice * (Number(r.count) || 0) * rate, S_MONEY) : txt(\"\");" }
+    "to": "if (key === \"sum\") return hasPrice ? num(unitPrice * (Number(r.count) || 0) * rate, S_MONEY) : txt(\"\");" },
+
+  { "name": "В26 M23 (правило 3б): lightingPlanSumShown округляет сумму сырых евро один раз (мимо изделий)", "file": "js/estimate.js",
+    "from": "  return shownSum(((plan && plan.places) || []).map(p => ({ price: (p && p.product) ? (Number(p.product.price) || 0) : 0, count: 1 })), rate);",
+    "to": "  const r = Number(rate) > 0 ? Number(rate) : 1; return round2(((plan && plan.places) || []).reduce((a, p) => a + ((p && p.product) ? (Number(p.product.price) || 0) : 0), 0) * r);" }
 ]

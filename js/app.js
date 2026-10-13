@@ -1796,7 +1796,7 @@ function ambiguityHtml(light,options){
    формулировки причин — из EPLightingGroups.GAP_TEXTS; своего словаря здесь нет намеренно. */
 function lightingHtml(light,title,options){
   if(!light)return"";
-  return EPLightingPlan.buildHtml(light.plan,{esc,money,moneyShown,title:title||"Группы света",total:options?.prices===false?0:EPEstimate.shownSum(((light&&light.plan.places)||[]).map(p=>({price:p&&p.product?(Number(p.product.price)||0):0,count:1})),displayRate())})
+  return EPLightingPlan.buildHtml(light.plan,{esc,money,moneyShown,title:title||"Группы света",total:options?.prices===false?0:EPEstimate.lightingPlanSumShown(light&&light.plan,displayRate())})
     +ambiguityHtml(light,options);
 }
 
@@ -3404,7 +3404,7 @@ const renumberSubject=(numbers,before,after)=>JSON.stringify([[...numbers].map((
 function renumberNews(before,after){
   const sumBefore=lightingSum(before),sumAfter=lightingSum(after);
   return Math.abs(sumBefore-sumAfter)>=0.005
-    ? `Перенумерация пересоберёт механизмы групп света: ${moneyShown(EPEstimate.shownSum(((before&&before.plan.places)||[]).map(p=>({price:p&&p.product?(Number(p.product.price)||0):0,count:1})),displayRate()))} → ${moneyShown(EPEstimate.shownSum(((after&&after.plan.places)||[]).map(p=>({price:p&&p.product?(Number(p.product.price)||0):0,count:1})),displayRate()))}`
+    ? `Перенумерация пересоберёт механизмы групп света: ${moneyShown(EPEstimate.lightingPlanSumShown(before&&before.plan,displayRate()))} → ${moneyShown(EPEstimate.lightingPlanSumShown(after&&after.plan,displayRate()))}`
     : lightingKitSignature(before)!==lightingKitSignature(after)
       ? "Перенумерация переставит механизмы групп света между постами (сумма прежняя)"
       : "Перенумерация изменит адреса мест управления в группах («место N из M») — механизмы и сумма прежние, документы изменятся";

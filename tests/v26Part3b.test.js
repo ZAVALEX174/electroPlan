@@ -39,6 +39,15 @@ test("В26 ч.3б: shownSum складывает НАПЕЧАТАННЫЕ цен
   assert.equal(EPEstimate.shownSum([], RATE), 0);
 });
 
+test("В26 ч.3б: lightingPlanSumShown — Σ по ВСЕМ местам плана, по изделиям; пустой план/место без товара → 0", () => {
+  const plan = { places: Array.from({ length: 7 }, () => ({ product: { price: 25.79 } })) };
+  assert.equal(EPEstimate.lightingPlanSumShown(plan, RATE), 16699.06);
+  assert.equal(EPEstimate.lightingPlanSumShown(plan, 1), round2(25.79 * 7));
+  assert.equal(EPEstimate.lightingPlanSumShown(null, RATE), 0);
+  assert.equal(EPEstimate.lightingPlanSumShown({ places: [] }, RATE), 0);
+  assert.equal(EPEstimate.lightingPlanSumShown({ places: [{}, { product: null }] }, RATE), 0);
+});
+
 test("В26 ч.3б: lightingSumShown — только billable отдельные строки, сумма по изделиям", () => {
   const rows = [
     ...Array.from({ length: 7 }, (_, i) => ({ code: "c" + i, price: 25.79 })),
