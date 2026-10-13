@@ -88,7 +88,7 @@ function compositionCtx(dom, comp) {
     postComposition: () => comp,
     productSeries: () => ["Neve"],
     frameSlotCount: () => 3,
-    money: v => "€" + v, esc: s => String(s == null ? "" : s),
+    money: v => "€" + v, moneyShown: v => "S" + v, esc: s => String(s == null ? "" : s),
     lightingRowsFor: () => [], lightingRowSummary: () => null,
     postTotalCost: () => 100
   };
@@ -132,7 +132,7 @@ function hoverHtml(backlight) {
     hover,
     product: () => ({ name: "x", code: "x" }),
     postComposition: () => comp,
-    money: v => "€" + v, esc: s => String(s == null ? "" : s),
+    money: v => "€" + v, moneyShown: v => "S" + v, esc: s => String(s == null ? "" : s),
     postTotalCost: () => 69.48,
     assembledPostHtml: () => "<thumb>",
     postNumberLabel: () => "Пост № 1",
@@ -191,7 +191,7 @@ function renderPropertiesHtml(comp) {
     postNumberLabel: () => "Пост № 1",
     postGroupsPropHtml: () => "",
     WALL_STEP_LABEL: { solid: "Бетон", hollow: "ГКЛ" },
-    money: v => "€" + v,
+    money: v => "€" + v, moneyShown: v => "S" + v,
     esc: s => String(s == null ? "" : s),
     postTotalCost: () => 100,
     $: dom.$

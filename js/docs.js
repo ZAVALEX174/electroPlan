@@ -94,8 +94,8 @@ function buildPostLayout(options,light){
       box:{name:(comp.box||comp.boxFallback)?.name,code:(comp.box||comp.boxFallback)?.code,count:comp.boxCount},
       frameCode:comp.frameAvailability.code,
       /* Стоимость блока для одноимённого столбца (набор «Для клиента»): полная цена ЭТОГО поста —
-         состав плюс механизмы его групп света. Считает postTotalCost → EPEstimate.postPrice, ТА ЖЕ
-         функция, что у панели свойств и строки сметы (§7.1), поэтому раскладка и смета не разойдутся.
+         состав плюс механизмы его групп света, УЖЕ в валюте показа. Считает postTotalCost →
+         EPEstimate.postPriceShown, ТО ЖЕ правило «по изделиям», что «Цена» строки сметы (§7.1).
          Считаем всегда; печатать ли столбец, решает выбранный набор (options.layout.price/prices). */
       price:postTotalCost(p,lite),
       /* Разбивка цены поста по изделиям для столбца «Стоимость артикулов» (набор «Для дизайнера»):

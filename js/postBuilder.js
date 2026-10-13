@@ -35,7 +35,7 @@ const {
   frameFacingHintText,frameFacingLabels,frameFacingList,frameFacingSelectionLabels,frameOptions,frameProduct,
   frameSlotCount,frameSlotOptions,innardsEmptyText,isBareMechanism,isControlPlaceItem,keySlotKind,
   lightingFor,lightingHtml,lightingRowSummary,lightingRowsFor,mechanismModulesTotal,mechanismSpan,
-  moduleWord,money,openInstallSheet,postComposition,postTotalCost,preferOwnFrame,
+  moduleWord,money,moneyShown,openInstallSheet,postComposition,postTotalCost,preferOwnFrame,
   product,productMoney,productPicture,productSeries,renderAll,renderLightingSchemeSelect,
   renderProperties,renderSummary,renderTemplates,roomCatalogFilter,socketBox,state,
   toast,uid,updateStatus
@@ -1236,7 +1236,7 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
   const lightBlock=light?lightingHtml(light,"Группы света в проекте"):"";
   host.innerHTML=`${errorHtml||""}<div class="composition-head"><strong>Состав поста</strong><span>Стандарт: ${esc(STANDARD_LABEL[comp.standard]||comp.standard)}</span></div>
     ${supportRow}${boxRow}${lightRow}${backRow}
-    <div class="composition-row total"><span>Стоимость поста</span><b>${money(postTotalCost(post,light))}</b></div>${note}${lightBlock}`;
+    <div class="composition-row total"><span>Стоимость поста</span><b>${moneyShown(postTotalCost(post,light))}</b></div>${note}${lightBlock}`;
 }
 function changePostSlotCount(){
   const count=Number($("postSlotCount").value);

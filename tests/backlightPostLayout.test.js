@@ -48,7 +48,7 @@ function layoutOf(back) {
   const ctx = {
     state: { posts: [{ number: 1, mechanismIds: ["m1", "m2", "m3"] }] },
     postComposition: () => comp, frameProduct: () => null, EP_DATA: { settings: {} },
-    EPPosts, EPEstimate, product: () => KEY, postCost: () => 0,
+    EPPosts, EPEstimate, product: () => KEY, postCost: () => 0, displayRate: () => 1,
     /* Предмет теста — подсветка в наполнении, не подмена цельного изделия: групп света нет,
        lightRows пусты, effectiveMechanismIds оставляет исходные клавиши. */
     lightingRowsFor: () => [], projectLighting: () => null,

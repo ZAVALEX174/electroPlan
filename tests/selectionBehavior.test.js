@@ -144,7 +144,7 @@ function buildProps(state, props, spies) {
   dom.els.props = props;
   return {
     render: stand.run("renderProperties", {
-      state, props, EPSelection, esc: String, money: v => "m" + v, $: dom.$,
+      state, props, EPSelection, esc: String, money: v => "m" + v, moneyShown: v => "m" + v, $: dom.$,
       /* Стоимость карточки группы обязана зависеть ОТ ПОСТА и ОТ lighting — иначе мутации «сумма по
          ВСЕМ постам» и «postTotalCost(p,null)» были бы зелёными (стаб ()=>10 их не ловит). p.cost —
          конкретный пост, light.k делает подсветку наблюдаемой. */

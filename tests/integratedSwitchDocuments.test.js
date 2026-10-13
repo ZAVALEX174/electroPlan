@@ -135,7 +135,7 @@ test("раскладка КП: строка наполнения печатае�
     postComposition: () => comp, frameProduct: () => null,
     EPPosts, EPEstimate, product, postCost: () => 0,
     lightingRowsFor: () => integratedRow(),
-    projectLighting: () => ({}), EP_DATA: { settings: {} },
+    projectLighting: () => ({}), EP_DATA: { settings: {} }, displayRate: () => 1,
     assembledPostHtml: () => ""
   })({ articles: false });
   const words = layout[0].fill.map(f => f.word);
@@ -161,7 +161,7 @@ test("раскладка КП, «Стоимость артикулов»: в HTM
        разбивке всё равно берётся из product(id), а не отсюда, но группировка/сумма нужны честные. */
     postCost: p => (p.mechanismIds || []).reduce((s, id) => s + ((product(id) || {}).price || 0), 0),
     lightingRowsFor: () => integratedRow(), projectLighting: () => ({}),
-    EP_DATA: { settings: {} }, assembledPostHtml: () => ""
+    EP_DATA: { settings: {} }, displayRate: () => 1, assembledPostHtml: () => ""
   })({ articles: true });
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const money = n => Number(n).toFixed(2) + " €";

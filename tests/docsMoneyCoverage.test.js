@@ -70,7 +70,7 @@ function layoutOf(posts) {
   const ctx = {
     state: { posts },
     postComposition, postCost, frameProduct: id => realById.get(id), product: id => realById.get(id),
-    lightingRowsFor: () => [], projectLighting: () => null,
+    lightingRowsFor: () => [], projectLighting: () => null, displayRate: () => 1,
     EPEstimate, EPPosts, EP_DATA: { settings: {} },
     assembledPostHtml: () => ""
   };

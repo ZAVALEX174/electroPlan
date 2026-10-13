@@ -126,6 +126,7 @@ test("подсказка на плане показывает единую по�
     postNumberLabel: () => "Пост № 7",
     postTotalCost: () => 0,
     money: n => `${n} €`,
+    moneyShown: n => `${n} €`,
     esc,
     positionHover: () => {}
   });
@@ -140,7 +141,7 @@ function postLayoutFor(info) {
     state: { posts: [post] },
     postComposition: () => compOf(info),
     product: () => null, frameProduct: () => null, EP_DATA: { settings: {} },
-    EPPosts, EPEstimate, postCost: () => 0,
+    EPPosts, EPEstimate, postCost: () => 0, displayRate: () => 1,
     /* Предмет теста — статус накладки под картинкой, не подмена цельного изделия: механизмов у
        поста нет, effectiveMechanismIds на пустом наборе ничего не меняет. */
     lightingRowsFor: () => [], projectLighting: () => null,

@@ -11,13 +11,13 @@
     "from": "  const equipment = spec.equipment;",
     "to": "  const equipment = round2((Number(e.equipment) || 0) * r);" },
 
-  { "name": "В26 M4: цена изделия без round2 (округление уходит с уровня изделия)", "file": "js/estimate.js",
-    "from": "      const unit = round2((Number(it && it.price) || 0) * r);",
-    "to": "      const unit = (Number(it && it.price) || 0) * r;" },
+  { "name": "В26 M4: цена изделия без round2 (округление уходит с уровня изделия — ядро pricedUnit)", "file": "js/estimate.js",
+    "from": "    const unit = round2((Number(it && it.price) || 0) * r);",
+    "to": "    const unit = (Number(it && it.price) || 0) * r;" },
 
-  { "name": "В26 M5: цена строки округляется ЦЕЛИКОМ (сырое евро × курс), а не по изделиям", "file": "js/estimate.js",
-    "from": "    const price = round2(items.reduce((acc, it) => acc + it.price * (Number(it.count) || 0), 0));",
-    "to": "    const price = round2(g.items.reduce((acc, it) => acc + (Number(it.price) || 0) * (Number(it.count) || 0), 0) * r);" },
+  { "name": "В26 M5: цена единицы округляется ЦЕЛИКОМ (сырое евро × курс), а не по изделиям — ядро pricedUnit", "file": "js/estimate.js",
+    "from": "  const price = round2(priced.reduce((acc, it) => acc + it.price * (Number(it.count) || 0), 0));",
+    "to": "  const price = round2((Array.isArray(items) ? items : []).reduce((acc, it) => acc + (Number(it.price) || 0) * (Number(it.count) || 0), 0) * r);" },
 
   { "name": "В26 M6: курс применён дважды — КП печатает суммы строк через money() (ещё раз ×курс)", "file": "js/offerPdf.js",
     "from": "    ? `<td class=\"right\">${moneyShown(r[key])}</td>`",
@@ -45,5 +45,25 @@
 
   { "name": "В26 M12: материалы/работы считаются от «Оборудования» БЕЗ вычета скидки", "file": "js/estimate.js",
     "from": "  const net = round2(equipment - discount);",
-    "to": "  const net = round2(equipment);" }
+    "to": "  const net = round2(equipment);" },
+
+  { "name": "В26 M13 (потребитель г): раскладка КП «Стоимость блока» снова money() — ×курс поверх уже-показанной цены", "file": "js/offerPdf.js",
+    "from": "    price: p => moneyShown(Number(p.price) || 0),",
+    "to": "    price: p => money(Number(p.price) || 0)," },
+
+  { "name": "В26 M14 (потребитель а): окно поста «Стоимость поста» снова money(postTotalCost) — ×курс дважды", "file": "js/postBuilder.js",
+    "from": "<span>Стоимость поста</span><b>${moneyShown(postTotalCost(post,light))}</b>",
+    "to": "<span>Стоимость поста</span><b>${money(postTotalCost(post,light))}</b>" },
+
+  { "name": "В26 M15 (потребитель б): подсказка на плане «Стоимость поста» снова money(postTotalCost)", "file": "js/app.js",
+    "from": "<dt>Стоимость поста</dt><dd>${moneyShown(postTotalCost(obj))}</dd>",
+    "to": "<dt>Стоимость поста</dt><dd>${money(postTotalCost(obj))}</dd>" },
+
+  { "name": "В26 M16 (потребитель в): свойства поста «Стоимость» снова money(postTotalCost)", "file": "js/app.js",
+    "from": "<label>Стоимость<input value=\"${moneyShown(postTotalCost(p,light))}\" disabled>",
+    "to": "<label>Стоимость<input value=\"${money(postTotalCost(p,light))}\" disabled>" },
+
+  { "name": "В26 M17 (потребитель д): суммарная стоимость выделенных снова money(Σ) — ×курс поверх", "file": "js/app.js",
+    "from": "<label>Суммарная стоимость<input value=\"${esc(moneyShown(total))}\" disabled>",
+    "to": "<label>Суммарная стоимость<input value=\"${esc(money(total))}\" disabled>" }
 ]

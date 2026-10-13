@@ -1060,7 +1060,7 @@ function showHover(kind,obj,e){
     /* Миниатюра собранного поста (та же EPPostImage, что в конструкторе) вместо простыни
        названий — сразу видно рамку, посты и импосты. */
     hover.innerHTML=`<h4>${esc(postNumberLabel(obj))}</h4><div class="hover-thumb">${assembledPostHtml(obj,{size:"sm"})}</div>
-    <dl><dt>Накладка</dt><dd>${esc(frameInfo.displayName)}</dd><dt>Коробки</dt><dd>${boxCell}</dd>${backRow}<dt>Стоимость поста</dt><dd>${money(postTotalCost(obj))}</dd></dl>`;
+    <dl><dt>Накладка</dt><dd>${esc(frameInfo.displayName)}</dd><dt>Коробки</dt><dd>${boxCell}</dd>${backRow}<dt>Стоимость поста</dt><dd>${moneyShown(postTotalCost(obj))}</dd></dl>`;
   }
   hover.classList.add("show");positionHover(e);
 }
@@ -1277,8 +1277,8 @@ function renderProperties(){
   updateSelectionCount();
   if(state.selected&&state.selected.kind==="posts"){
     applySelectionClasses();   /* подсветить членов группы точечно, без пересоздания сцены */
-    /* Карточка группы: заголовок «Выделено постов: N» и СУММАРНАЯ стоимость (та же postTotalCost и
-       money, что в карточке одного поста — второго правила цены не заводим). Без «Редактировать»
+    /* Карточка группы: заголовок «Выделено постов: N» и СУММАРНАЯ стоимость = Σ напечатанных цен постов
+       (та же postTotalCost; цена уже в валюте показа — moneyShown без повторного ×курс). Без «Редактировать»
        (правка нескольких постов разом смысла не имеет). «Удалить выделенные (N)» (Б5 ч.2) зовёт ту же
        removePosts, что и клавиша Delete, — одно правило удаления набора и один шаг истории. */
     const ids=state.selected.ids.slice();   /* фиксируем состав ДО возможной перерисовки — для обработчика кнопки */
@@ -1286,7 +1286,7 @@ function renderProperties(){
     const total=ids.reduce((s,id)=>{const p=state.posts.find(x=>x.id===id);return p?s+postTotalCost(p,light):s},0);
     props.className="";
     props.innerHTML=`<label>Выделено постов<input value="${esc(String(ids.length))}" disabled></label>
-    <label>Суммарная стоимость<input value="${esc(money(total))}" disabled></label>
+    <label>Суммарная стоимость<input value="${esc(moneyShown(total))}" disabled></label>
     <small class="prop-hint">Выделено несколько постов. Их можно разом перетащить мышью, сдвинуть стрелками или удалить клавишей Delete; Ctrl+клик добавляет или убирает пост.</small>
     <div class="property-actions"><button class="btn ghost" id="removeSelectedPosts">Удалить выделенные (${esc(String(ids.length))})</button></div>`;
     $("removeSelectedPosts").onclick=()=>removePosts(ids);
@@ -1359,7 +1359,7 @@ function renderProperties(){
     ${lightSummary?`<label>Механизмы групп света<input value="${esc(lightSummary.text)}" disabled></label>`:""}
     ${backSummary?`<label>Подсветка клавиш<input value="${esc(backSummary.text)}" disabled></label>`:""}
     ${postGroupsPropHtml(p)}
-    <label>Стоимость<input value="${money(postTotalCost(p,light))}" disabled></label>
+    <label>Стоимость<input value="${moneyShown(postTotalCost(p,light))}" disabled></label>
     <div class="property-actions"><button class="btn primary" id="editSelected">Редактировать</button><button class="btn ghost" id="removeSelected">Удалить</button></div>`;
     $("editSelected").onclick=()=>openPostBuilder({placedId:id});$("removeSelected").onclick=()=>removeEntity(kind,id);
     /* Правка типа стены поста — тем же механизмом охвата, что и конструктор (savePostBuilder →
@@ -1775,9 +1775,9 @@ function projectLighting(){
    свойств и подсказка на плане показали бы цену исходного изделия, а смета — замены. Правило «что
    подменяется» — одно (EPEstimate.effectiveMechanismIds); postPrice сам не берёт цельные в отдельные. */
 function postTotalCost(post,light){
-  const rows=lightingRowsFor(post,light===undefined?projectLighting():light);
-  const effIds=EPEstimate.effectiveMechanismIds(post.mechanismIds,rows);
-  return EPEstimate.postPrice(postCost(Object.assign({},post,{mechanismIds:effIds})),rows);
+  const l=light===undefined?projectLighting():light;
+  /* Цена поста = «Цена» строки спецификации этого поста: тот же build на одном посте и то же ядро pricedUnit (EPEstimate.postPriceShown, §7.1), в валюте показа (displayRate). Здесь — только подстановка зависимостей приложения. */
+  return EPEstimate.postPriceShown(post,{product,frameProduct,postCost,postComposition,lightingOf:po=>lightingRowsFor(po,l),settings:EP_DATA.settings},displayRate());
 }
 /* Неоднозначный подбор: в серии клавиши на нужную роль нашлось НЕСКОЛЬКО голых механизмов, и
    разобрать их данными нечем. Молча выбрать один нельзя — это деньги и монтаж, поэтому
@@ -4106,7 +4106,7 @@ const {openPostBuilder,renderPostSlotCountSelect,requestClosePostBuilder,builder
   frameFacingHintText,frameFacingLabels,frameFacingList,frameFacingSelectionLabels,frameOptions,frameProduct,
   frameSlotCount,frameSlotOptions,innardsEmptyText,isBareMechanism,isControlPlaceItem,keySlotKind,
   lightingFor,lightingHtml,lightingRowSummary,lightingRowsFor,mechanismModulesTotal,mechanismSpan,
-  moduleWord,money,openInstallSheet,postComposition,postTotalCost,preferOwnFrame,
+  moduleWord,money,moneyShown,openInstallSheet,postComposition,postTotalCost,preferOwnFrame,
   product,productMoney,productPicture,productSeries,renderAll,renderLightingSchemeSelect,
   renderProperties,renderSummary,renderTemplates,roomCatalogFilter,socketBox,state,
   toast,uid,updateStatus

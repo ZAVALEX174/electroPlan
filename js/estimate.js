@@ -215,23 +215,59 @@ function vatShown(base, mode, percent, rate) {
    УЖЕ в валюте показа (нужны разбивке «Стоимость артикулов», часть 3). Защита: отсутствие цены, пустой
    состав, позиция без товара (est.missing) дают 0, а не NaN. Строку без состава правилу взять неоткуда —
    её цена/сумма выходят нулевыми (на настоящих данных build у каждой строки есть хотя бы коробка). */
+/* ЯДРО правила «счёт по изделиям» (В26) — напечатанная цена ОДНОЙ единицы набора изделий.
+   Каждое изделие переводим в валюту показа и округляем ДО сложения, затем суммируем по числу
+   изделий в единице. Это ОДНО место арифметики: строка спецификации (specShown) и напечатанная
+   цена ОДНОГО поста (postPriceShown ниже) зовут его же — второй копии правила быть не должно
+   (§7.1), иначе «Цена» строки и «Стоимость поста» разошлись бы на копейку двойного округления
+   (39 372,63 против 39 372,64 при курсе 92,5). items — узлы состава {price (евро), count};
+   rate — множитель в валюту показа (1 для евро). Возвращает { price, items }, где price —
+   цена единицы в валюте показа (округлена), а items — те же узлы с ценой УЖЕ в валюте показа
+   (нужны разбивке «Стоимость артикулов», часть 3). Защита: нет цены/пустой состав → 0, не NaN. */
+function pricedUnit(items, rate) {
+  const r = Number(rate) > 0 ? Number(rate) : 1;
+  const priced = (Array.isArray(items) ? items : []).map((it) => {
+    /* Цену изделия переводим в валюту показа и округляем ЗДЕСЬ — до умножения на количество. */
+    const unit = round2((Number(it && it.price) || 0) * r);
+    return Object.assign({}, it, { price: unit });
+  });
+  const price = round2(priced.reduce((acc, it) => acc + it.price * (Number(it.count) || 0), 0));
+  return { price, items: priced };
+}
+
 function specShown(est, rate) {
   const r = Number(rate) > 0 ? Number(rate) : 1;
   const groups = (est && est.groups) || [];
   let equipment = 0;
   const rows = groups.map((g) => {
     const count = Number(g && g.count) || 0;
-    const items = (g && Array.isArray(g.items) ? g.items : []).map((it) => {
-      /* Цену изделия переводим в валюту показа и округляем ЗДЕСЬ — до умножения на количество. */
-      const unit = round2((Number(it && it.price) || 0) * r);
-      return Object.assign({}, it, { price: unit });
-    });
-    const price = round2(items.reduce((acc, it) => acc + it.price * (Number(it.count) || 0), 0));
+    /* Цена и переведённый состав строки — тем же ядром, что цена поста (§7.1). */
+    const { price, items } = pricedUnit(g && g.items, r);
     const sum = round2(price * count);
     equipment += sum;
     return { price, sum, items };
   });
   return { rows, equipment: round2(equipment) };
+}
+
+/* Напечатанная цена ОДНОГО поста — ОДНА точка на окно поста, подсказку на плане, свойства поста,
+   раскладку КП и «Суммарную стоимость» выделенных постов. Пост собираем в состав ТЕМ ЖЕ build на
+   одном посте (как postPricedItems в документах): build делает замену цельных изделий групп света
+   (effectiveMechanismIds), считает суппорт×коробку по составу и добавляет механизмы групп света —
+   то есть состав ТОЧНО тот же, что у строки спецификации этого поста. Цену печатаем ядром pricedUnit —
+   тем же, что «Цена» строки (specShown). Поэтому цена поста во всех пяти местах совпадает со «Ценой»
+   строки сметы до копейки при любом курсе (В26, решение владельца 13.10).
+   deps — те же зависимости, что у build (product, frameProduct, postCost, postComposition, lightingOf,
+   settings); lightingOf обязан брать расчёт групп света ПРОЕКТА (роли зависят от числа мест по всему
+   проекту), поэтому его передаёт вызывающий. rate — множитель в валюту показа (1 для евро). Пустой или
+   несобранный пост даёт 0 (build вернёт группу с нулевой ценой либо без неё), а не NaN. */
+function postPriceShown(post, deps, rate) {
+  const d = deps || {};
+  const est = build({ devices: [], posts: [post],
+    product: d.product, frameProduct: d.frameProduct, postCost: d.postCost,
+    postComposition: d.postComposition, lightingOf: d.lightingOf, settings: d.settings });
+  const g = est.groups[0];
+  return g ? pricedUnit(g.items, rate).price : 0;
 }
 
 /* ⚠️ ВЕСЬ БЛОК ИТОГОВ В ВАЛЮТЕ ПОКАЗА — ОДНО правило в ОДНОМ месте (Б, решение владельца 12.10;
@@ -760,7 +796,7 @@ function isEmptyProject(est, supplier) {
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, vatBreakdown, vatShown, specShown, totalsShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
+const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, vatBreakdown, vatShown, pricedUnit, specShown, postPriceShown, totalsShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
