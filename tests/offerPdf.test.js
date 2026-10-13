@@ -10,8 +10,11 @@ const EPEstimate = require("../js/estimate.js");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 /* Минимальная смета в форме EPEstimate.build (нужны только поля, читаемые генератором). */
+/* Строки несут items (В26: «Оборудование» и суммы строк считаются по изделиям состава): одно изделие
+   ценой 20 € × количество 2 = сумма строки 40 €, оборудование 40 €. */
 const est = {
-  groups: [{ name: "Выключатель", composition: "20001", count: 2, unit: "шт", sum: 40 }],
+  groups: [{ name: "Выключатель", composition: "20001", count: 2, unit: "шт", sum: 40,
+    items: [{ kind: "mechanism", code: "20001", name: "Выключатель", count: 1, price: 20 }] }],
   equipment: 40, discount: 0, materials: 5, work: 10, subtotal: 55, vat: 0, total: 55
 };
 /* displayCurrency → EUR: подвал с курсом не печатается, курсовые зависимости не нужны. */
@@ -128,7 +131,8 @@ test("КП МУТАЦИЯ-ловушка: итог берётся из vatShown 
   /* subtotal 0,01 × курс 92,5, НДС 5% сверху: vatShown даёт без НДС 0,93, НДС 0,05, итог 0,98. А
      money(est.total)=est.total×курс = 0,0105×92,5 = 0,97125 (0,97). Мутация «КП считает мимо общего
      правила» напечатала бы 0,97 — здесь видно. moneyShown форматирует УЖЕ-показанное число. */
-  const est2 = { groups: [{ name: "X", composition: "X", count: 1, unit: "шт", sum: 0.01 }],
+  const est2 = { groups: [{ name: "X", composition: "X", count: 1, unit: "шт", sum: 0.01,
+      items: [{ kind: "mechanism", code: "X", name: "X", count: 1, price: 0.01 }] }],
     equipment: 0.01, discount: 0, materials: 0, work: 0, subtotal: 0.01, missing: [],
     vatMode: "surcharge", vat: 0.0005, vatLabel: "НДС", vatPercent: 5, vatIncluded: false, total: 0.0105 };
   const html = buildHtml(est2, Object.assign({}, deps, { displayCurrency: () => "RUB",

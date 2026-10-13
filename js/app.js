@@ -1857,7 +1857,7 @@ function renderSummary(){
      материалы, работы, НДС и итог приходят уже в валюте показа и округлёнными до копейки так, что
      столбец слагаемых сходится в «Итого». Форматируем moneyShown — курс учтён внутри totalsShown
      (displayRate), повторно умножать нельзя. */
-  const totals=EPEstimate.totalsShown(est,displayRate());
+  const rate=displayRate(),totals=EPEstimate.totalsShown(est,rate),spec=EPEstimate.specShown(est,rate);
   $("equipmentTotal").textContent=moneyShown(totals.equipment);$("materialsTotal").textContent=moneyShown(totals.materials);
   $("workTotal").textContent=moneyShown(totals.work);$("grandTotal").textContent=moneyShown(totals.total);
   /* скидка и НДС показываются, только когда заданы — чтобы не мозолить нулями */
@@ -1892,7 +1892,7 @@ function renderSummary(){
   $("specList").innerHTML=est.groups.length
     ?est.groups.map((g,i)=>{
       const val=(g.discount!=null&&g.discount!=="")?esc(g.discount):"";
-      return `<div class="spec-item"><div><strong>${esc(g.name)}</strong><span>${g.count} ${esc(g.unit)}</span></div><b>${money(g.sum)}</b>`
+      return `<div class="spec-item"><div><strong>${esc(g.name)}</strong><span>${g.count} ${esc(g.unit)}</span></div><b>${moneyShown(spec.rows[i].sum)}</b>`
         +`<label class="spec-disc" title="Своя скидка на позицию. Пусто — действует общая скидка ${est.discountPercent}%">`
         +`<input type="number" min="0" max="100" step="1" inputmode="numeric" data-disc-row="${i}" value="${val}" placeholder="${est.discountPercent}"><span>%</span></label></div>`;
     }).join("")

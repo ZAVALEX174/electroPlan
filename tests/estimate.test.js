@@ -63,19 +63,23 @@ test("round2: отрицательное округляется ОТ НУЛЯ (�
 });
 
 test("totalsShown: округление строк и итога совпадает с Excel (6,01 € и 79,21 € при курсе 92,5)", () => {
+  /* «Оборудование» теперь считается по изделиям строк (В26): синтетику приводим к настоящей форме —
+     одна строка из одного изделия ценой = equipment. Для одной такой строки результат ровно тот же,
+     что прежнее round2(equipment×курс). */
+  const oneLine = eq => [{ count: 1, items: [{ kind: "device", code: "X", name: "X", count: 1, price: eq }] }];
   /* 6.01×92.5 = 555.925 → оборудование и итог (без НДС) = 555.93. */
-  const t1 = totalsShown({ equipment: 6.01, discount: 0, materials: 0, work: 0, vatMode: "none" }, 92.5);
+  const t1 = totalsShown({ groups: oneLine(6.01), equipment: 6.01, discount: 0, materials: 0, work: 0, vatMode: "none" }, 92.5);
   assert.equal(t1.equipment, 555.93, "оборудование 6.01×92.5 = 555.93");
   assert.equal(t1.total, 555.93, "итог без НДС = 555.93");
 
   /* 11.5 € при НДС «начислить сверху» 5 %, курс 1: НДС = round2(11.5×0.05) = round2(0.575) = 0.58;
      итог = round2(11.5 + 0.58) = 12.08. */
-  const t2 = totalsShown({ equipment: 11.5, discount: 0, materials: 0, work: 0, vatMode: "surcharge", vatPercent: 5 }, 1);
+  const t2 = totalsShown({ groups: oneLine(11.5), equipment: 11.5, discount: 0, materials: 0, work: 0, vatMode: "surcharge", vatPercent: 5 }, 1);
   assert.equal(t2.amount, 0.58, "НДС 5% от 11,5 = 0,58 (0.575 вверх)");
   assert.equal(t2.total, 12.08, "итог с НДС = 12,08");
 
   /* 79.21×92.5 = 7326.925 → 7326.93, как в настоящем Excel. */
-  const t3 = totalsShown({ equipment: 79.21, discount: 0, materials: 0, work: 0, vatMode: "none" }, 92.5);
+  const t3 = totalsShown({ groups: oneLine(79.21), equipment: 79.21, discount: 0, materials: 0, work: 0, vatMode: "none" }, 92.5);
   assert.equal(t3.equipment, 7326.93, "оборудование 79.21×92.5 = 7326.93");
   assert.equal(t3.total, 7326.93, "итог без НДС = 7326.93");
 });

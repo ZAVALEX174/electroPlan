@@ -141,9 +141,12 @@ function buildSpecSheet(est, options, config, estimate, rate) {
   const discMark = (personal, percent) => (!options.prices || !personal) ? ""
     : (Number(percent) === 0 ? "без скидки" : "скидка " + pctStr(percent) + "%");
 
-  /* Строки — производные от est.groups ровно как в offerPdf: количество, сумма и цена
-     (sum/count) читаются из той же сметы, второй раз деньги не считаем. */
-  const rows = (est.groups || []).map(g => ({
+  /* Печатные «Цена» и «Сумма» строки — из ОДНОЙ EPEstimate.specShown (В26), ровно как КП: цена собрана
+     по изделиям, сумма = цена × количество, уже в валюте показа (учтён rate) и округлены. Кладём их КАК
+     ЕСТЬ (ниже — num без повторного ×rate), чтобы Σ столбца «Сумма» сошлась с «Оборудованием». rows[i] ↔
+     est.groups[i]. */
+  const spec = estimate.specShown(est, rate);
+  const rows = (est.groups || []).map((g, i) => ({
     name: itemText(g.name, g.items && g.items.length === 1 ? g.items[0].code : null),
     composition: options.articles ? g.composition : (Array.isArray(g.items)
       ? g.items.map(it => estimate.renderItem({ ...it, name: itemText(it.name, it.code) })).filter(Boolean).join(", ")
@@ -151,7 +154,7 @@ function buildSpecSheet(est, options, config, estimate, rate) {
     article: (g.items || []).filter(it => !it.notRequired && it.count > 0)
       .map(it => `${it.code || "артикул не определён"}${it.count > 1 ? " × " + it.count : ""}${it.assumed ? " (предположительно)" : ""}`).join(", "),
     quantity: g.count, unit: g.unit,
-    price: g.count ? g.sum / g.count : 0, sum: g.sum,
+    price: spec.rows[i].price, sum: spec.rows[i].sum,
     discountMark: discMark(g.discountPersonal, g.discountPercent)
   }));
 
@@ -168,10 +171,11 @@ function buildSpecSheet(est, options, config, estimate, rate) {
   const sheet = [];
   /* Шапка */
   sheet.push(specColumns.map(([, label]) => txt(label, S_HEADER)));
-  /* Тело: денежные столбцы — число × rate с денежным стилем; № — число; остальное — текст. */
+  /* Тело: денежные столбцы — ПЕЧАТНОЕ число из specShown (уже в валюте показа, уже округлено; НЕ
+     умножаем на rate второй раз) с денежным стилем; № — число; остальное — текст. */
   rows.forEach((r, i) => {
     sheet.push(specColumns.map(([key]) => {
-      if (moneyKeys.has(key)) return num((Number(r[key]) || 0) * rate, S_MONEY);
+      if (moneyKeys.has(key)) return num(Number(r[key]) || 0, S_MONEY);
       if (key === "number") return num(i + 1);
       if (key === "name") return txt(r.name + (r.discountMark ? "  (" + r.discountMark + ")" : ""));
       if (key === "quantity") return num(Number(r.quantity) || 0);
@@ -196,13 +200,13 @@ function buildSpecSheet(est, options, config, estimate, rate) {
        есть (не est.X×rate): они уже с точностью до копейки, денежный формат ячейки их только отобразит. */
     const totals = estimate.totalsShown(est, rate);
     /* «Оборудование» = Σ столбца «Сумма». Когда столбец «Сумма» показан — делаем это настоящей
-       формулой SUM; её кэш — СЫРОЕ произведение est.equipment × rate (ровно Σ сырых ячеек столбца), а
-       НЕ round2(totals.equipment): на экране денежный формат Excel округлит SUM до той же копейки, что
-       totals.equipment (offerTotalsConsistency сверяет это независимой эмуляцией показа). Нет столбца
-       «Сумма» (его скрыли) — печатаем готовое, уже округлённое totals.equipment. */
+       формулой SUM по уже-округлённым ячейкам сумм; её кэш = totals.equipment, и это ровно Σ этих ячеек
+       (В26: totals.equipment = Σ напечатанных сумм строк). Значения ячеек и кэш оба округлены до копейки,
+       поэтому пересчёт книги в Excel даёт то же число. Нет столбца «Сумма» (его скрыли) — печатаем
+       готовое totals.equipment. */
     if (sumIdx >= 0 && rows.length) {
       const col = colLetter(sumIdx + 1);
-      totalRow("Оборудование", 0, true, formula(`SUM(${col}${firstData}:${col}${lastData})`, est.equipment * rate, S_BOLDMONEY));
+      totalRow("Оборудование", 0, true, formula(`SUM(${col}${firstData}:${col}${lastData})`, totals.equipment, S_BOLDMONEY));
     } else {
       totalRow("Оборудование", totals.equipment, true);
     }

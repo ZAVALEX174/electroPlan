@@ -15,7 +15,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&
    moneyShown == money, числа те же; без них песочница падает ReferenceError. */
 const deps = { esc, money: n => n + " €", moneyShown: n => n + " €", displayRate: () => 1, displayCurrency: () => "EUR" };
 const est = { groups: [{ name: "Пост 7", composition: "Розетка, белая", count: 2, unit: "компл.", sum: 20,
-  items: [{ kind: "mechanism", name: "Розетка, белая", code: "M.01", count: 1 }] }],
+  items: [{ kind: "mechanism", name: "Розетка, белая", code: "M.01", count: 1, price: 10 }] }],
   equipment: 20, discount: 0, materials: 5, work: 10, subtotal: 35, vat: 0, total: 35, missing: [] };
 const layout = [{ number: 7, fill: [{ word: "Розетка", count: 1 }], modules: 1, frameCode: "F.01",
   box: { name: "Коробка для ГКЛ", code: "B.01", count: 2 }, assembledImageHtml: "<b>СБОРКА</b>" }];

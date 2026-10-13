@@ -196,6 +196,44 @@ function vatShown(base, mode, percent, rate) {
   return { mode: info.mode, percent: p, subtotal: shownBase, amount, total: round2(shownBase + amount), included: false, label: info.label };
 }
 
+/* ⚠️ ПЕЧАТНЫЕ ЧИСЛА СПЕЦИФИКАЦИИ — ОДНО правило «как в обычном счёте» (В26, решение владельца 13.10).
+   Фраза владельца: «„Количество × Цена“ каждой строки даёт ровно „Сумму“, а „Суммы“ всех строк в
+   сложении — ровно „Оборудование“, до копейки, при любом курсе и количестве». Старый путь цену строки
+   брал как g.sum/g.count, а «Оборудование» — как round2(est.equipment × курс); на дробных курсах они
+   расходились (строка 68,07 € × 15 печатала цену 6 500,69, но «Оборудование» 97 510,27 вместо
+   97 510,35 — произведение не сходилось). Теперь счёт идёт ПО ИЗДЕЛИЯМ состава строки (items):
+     цена изделия в валюте показа = round2(цена изделия в евро × курс);
+     цена строки = Σ по изделиям (цена изделия показа × число изделий в ОДНОЙ единице строки);
+     сумма строки      = round2(цена строки × количество единиц);
+     «Оборудование»    = round2(Σ сумм строк).
+   Округляем КАЖДОЕ изделие, затем складываем, — так «Кол × Цена» сходится в «Сумму» ровно, а не с
+   точностью двойного округления цельной цены поста. Деления g.sum/g.count и накопления сырых евро здесь
+   нет по построению. Все потребители (панель «Стоимость проекта», КП, Excel) берут ЭТИ числа, а
+   totalsShown берёт отсюда «Оборудование» — второй копии этой арифметики быть не должно (§7.1).
+   rate — множитель в валюту показа (displayRate: 1 для евро). Возвращает { rows, equipment }, где
+   rows[i] соответствует est.groups[i] и несёт { price, sum, items }: items — изделия строки с ценой
+   УЖЕ в валюте показа (нужны разбивке «Стоимость артикулов», часть 3). Защита: отсутствие цены, пустой
+   состав, позиция без товара (est.missing) дают 0, а не NaN. Строку без состава правилу взять неоткуда —
+   её цена/сумма выходят нулевыми (на настоящих данных build у каждой строки есть хотя бы коробка). */
+function specShown(est, rate) {
+  const r = Number(rate) > 0 ? Number(rate) : 1;
+  const groups = (est && est.groups) || [];
+  let equipment = 0;
+  const rows = groups.map((g) => {
+    const count = Number(g && g.count) || 0;
+    const items = (g && Array.isArray(g.items) ? g.items : []).map((it) => {
+      /* Цену изделия переводим в валюту показа и округляем ЗДЕСЬ — до умножения на количество. */
+      const unit = round2((Number(it && it.price) || 0) * r);
+      return Object.assign({}, it, { price: unit });
+    });
+    const price = round2(items.reduce((acc, it) => acc + it.price * (Number(it.count) || 0), 0));
+    const sum = round2(price * count);
+    equipment += sum;
+    return { price, sum, items };
+  });
+  return { rows, equipment: round2(equipment) };
+}
+
 /* ⚠️ ВЕСЬ БЛОК ИТОГОВ В ВАЛЮТЕ ПОКАЗА — ОДНО правило в ОДНОМ месте (Б, решение владельца 12.10).
    Раньше каждый потребитель (панель «Стоимость проекта», КП, Excel) печатал «Оборудование»,
    «Скидку», «Монтажные материалы» и «Работы» через money() от базовой цены, а «Итого без НДС» —
@@ -215,7 +253,9 @@ function vatShown(base, mode, percent, rate) {
 function totalsShown(est, rate) {
   const r = Number(rate) > 0 ? Number(rate) : 1;
   const e = est || {};
-  const equipment = round2((Number(e.equipment) || 0) * r);
+  /* «Оборудование» = Σ напечатанных сумм строк (В26) — ровно то, что складывает человек по столбцу
+     «Сумма». Считает specShown ПО ИЗДЕЛИЯМ; второй копии этой арифметики здесь нет (§7.1). */
+  const equipment = specShown(e, r).equipment;
   const discount  = round2((Number(e.discount)  || 0) * r);
   const materials = round2((Number(e.materials) || 0) * r);
   const work      = round2((Number(e.work)      || 0) * r);
@@ -671,7 +711,7 @@ function isEmptyProject(est, supplier) {
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, vatBreakdown, vatShown, totalsShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
+const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, vatBreakdown, vatShown, specShown, totalsShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

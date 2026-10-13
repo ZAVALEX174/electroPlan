@@ -154,6 +154,11 @@ function compose(est, deps) {
   const rate = deps.displayRate ? deps.displayRate() : 1;
   const moneyShown = deps.moneyShown || money;
   const totals = estimate.totalsShown(est, rate);
+  /* Печатные «Цена» и «Сумма» КАЖДОЙ строки спецификации — из ОДНОЙ EPEstimate.specShown (В26):
+     цена строки собрана по изделиям состава, сумма = цена × количество, и Σ сумм = «Оборудование»
+     (totals.equipment тоже отсюда). Числа приходят УЖЕ в валюте показа и округлёнными — печатаем их
+     moneyShown (без повторного ×курс), второй копии арифметики у КП нет (§7.1). rows[i] ↔ est.groups[i]. */
+  const spec = estimate.specShown(est, rate);
 
   /* Проценты в КП — с ДЕСЯТИЧНОЙ ЗАПЯТОЙ (русский документ), как курс в rateFooter: «12,5%», а не
      «12.5%». Целое остаётся целым. */
@@ -191,7 +196,7 @@ function compose(est, deps) {
   };
 
   /* позиции группируются, поэтому в КП честное «Кол.» вместо жёсткой единицы */
-  const rows = est.groups.map(g => ({
+  const rows = est.groups.map((g, i) => ({
     name: itemText(g.name, g.items?.length === 1 ? g.items[0].code : null),
     /* Не вырезаем коды из склеенной строки: состав строится тем же renderItem,
        что и смета, но над копиями подписей без артикулов. Старый внешний вызов
@@ -202,7 +207,8 @@ function compose(est, deps) {
     article: (g.items || []).filter(it => !it.notRequired && it.count > 0)
       .map(it => `${it.code || "артикул не определён"}${it.count > 1 ? " × " + it.count : ""}${it.assumed ? " (предположительно)" : ""}`).join(", "),
     quantity: g.count, unit: g.unit,
-    price: g.count ? g.sum / g.count : 0, sum: g.sum,
+    /* Цена/сумма — печатные числа строки из specShown (уже в валюте показа, уже округлены). */
+    price: spec.rows[i].price, sum: spec.rows[i].sum,
     /* Пометка личной скидки строки (est.groups[].discountPersonal/discountPercent из
        EPEstimate.build). Цену и сумму строки НЕ трогаем — они остаются каталожными (до скидки),
        как и «Стоимость блока/артикулов» в раскладке: скидка учтена ОДНОЙ строкой «Скидка» в
@@ -328,7 +334,7 @@ function compose(est, deps) {
   const specSection = options.sections.specification ? `<h2 class="section-title">Спецификация и комплектация</h2>
   <table class="specification"><thead><tr>${specColumns.map(([key, label]) => `<th${["price", "sum"].includes(key) ? ' class="right"' : ""}>${esc(label)}</th>`).join("")}</tr></thead><tbody>
   ${rows.map((r, i) => `<tr>${specColumns.map(([key]) => ["price", "sum"].includes(key)
-    ? `<td class="right">${money(r[key])}</td>`
+    ? `<td class="right">${moneyShown(r[key])}</td>`
     : `<td>${key === "name" ? `<b>${esc(r.name)}</b>${r.discountMark ? ` <span class="disc-mark">${esc(r.discountMark)}</span>` : ""}` : esc(key === "number" ? i + 1 : r[key])}</td>`).join("")}</tr>`).join("")}
   </tbody></table>` : "";
 

@@ -73,13 +73,17 @@ const sheets = bytes => {
 
 /* Смета с count>1 и личной скидкой: цена (sum/count) и сумма (sum) различимы, поэтому подмена одного
    числа сразу видна. vat задаём литералом — тест проверяет перенос чисел est в книгу, а не сам НДС. */
+/* Строки несут изделия с ценой, складывающейся в цену строки (В26: цена/сумма считаются по изделиям):
+   Пост 1 — изделие 357,29 € → цена строки 357,29 €, сумма 357,29 × 3 = 1071,87 €;
+   Пост 2 — изделие 320,25 € → цена строки 320,25 €, сумма 320,25 × 2 = 640,50 €;
+   Оборудование = 1071,87 + 640,50 = 1712,37 €. */
 const estBase = () => ({
   groups: [
     { name: "Пост 1", composition: "Выключатель, Розетка", count: 3, unit: "компл.", sum: 1071.87,
-      items: [{ kind: "mechanism", name: "Выключатель", code: "20001.0", count: 3, price: 100 }],
+      items: [{ kind: "mechanism", name: "Выключатель", code: "20001.0", count: 1, price: 357.29 }],
       discountPersonal: true, discountPercent: 25 },
     { name: "Пост 2", composition: "Розетка", count: 2, unit: "компл.", sum: 640.50,
-      items: [{ kind: "mechanism", name: "Розетка", code: "20208", count: 2, price: 50 }],
+      items: [{ kind: "mechanism", name: "Розетка", code: "20208", count: 1, price: 320.25 }],
       discountPersonal: false, discountPercent: 10 }
   ],
   equipment: 1712.37, discount: 171.237, discountMixed: true, discountPercent: 10,
@@ -248,7 +252,7 @@ test("A6: деньги в рублях — лист «По артикулам» 
   const collected = EPSupplierSpec.collect(supplierRub());
   const { supplier } = sheets(EPSpecExcel.build(est, collected, { options: {}, currency: "RUB", rate: RATE }));
   /* Цены артикулов берутся из est.items; свод: 20001.0 ×2, 20208 ×1. */
-  const priceByCode = { "20001.0": 100, "20208": 50 };
+  const priceByCode = { "20001.0": 357.29, "20208": 320.25 };
   collected.rows.forEach(row => {
     const unit = priceByCode[row.code];
     if (unit == null) return;                 // строки без цены в est пропускаем (у них клетки пустые)
@@ -256,26 +260,25 @@ test("A6: деньги в рублях — лист «По артикулам» 
     assert.ok(hasNum(supplier, unit * row.count * RATE), `сумма ${row.code} = цена×${row.count} по курсу`);
   });
   /* money() КП на тех же базовых ценах даёт те же рублёвые значения. */
-  assert.equal(moneyRub(100), round2(100 * RATE).toFixed(2) + " ₽");
-  assert.equal(moneyRub(50 * 2), round2(100 * RATE).toFixed(2) + " ₽");
+  assert.equal(moneyRub(357.29), round2(357.29 * RATE).toFixed(2) + " ₽");
+  assert.equal(moneyRub(320.25 * 2), round2(320.25 * 2 * RATE).toFixed(2) + " ₽");
 });
 
-test("A6: граница округления копейки — Excel и КП показывают одно и то же", () => {
-  /* Подбираем base и курс так, чтобы base × курс попадало на ...,xx5 (третий знак — 5): 1,2345 × 10 =
-     12,345. Excel хранит ИМЕННО этот float, КП печатает money(1,2345) = round(12,345). Оба округляют
-     один и тот же операнд, поэтому показанные 2 знака совпадают — какое бы правило округления Excel ни
-     применил. */
+test("A6 (В26): цена/сумма строки хранятся УЖЕ округлёнными (12,35), а не сырым произведением 12,345", () => {
+  /* Цена изделия 1,2345 € × курс 10 = 12,345 → round2 «половина вверх» = 12,35. По правилу В26 (решение
+     владельца 13.10) в ячейку Excel идёт УЖЕ напечатанное число из specShown (как и в КП), а не сырое
+     12,345: иначе Σ столбца «Сумма» не сошлась бы с «Оборудованием» при пересчёте книги. ПРЕЖНЕЕ
+     ожидание «ячейка хранит сырое base×курс 12,345» отменено этим решением владельца. */
   const R = 10;
-  const est = { groups: [{ name: "P", count: 2, unit: "компл.", sum: 2.469,
-    items: [{ kind: "mechanism", name: "M", code: "X", count: 2, price: 1.2345 }] }],
-    equipment: 2.469, discount: 0, materials: 0, work: 0, subtotal: 2.469, missing: [],
-    vat: 0, vatLabel: "НДС", vatPercent: 0, vatIncluded: false, total: 2.469 };
+  const est = { groups: [{ name: "P", count: 1, unit: "компл.", sum: 1.2345,
+    items: [{ kind: "mechanism", name: "M", code: "X", count: 1, price: 1.2345 }] }],
+    equipment: 1.2345, discount: 0, materials: 0, work: 0, subtotal: 1.2345, missing: [],
+    vat: 0, vatLabel: "НДС", vatPercent: 0, vatIncluded: false, total: 1.2345 };
   const { spec } = sheets(EPSpecExcel.build(est, { rows: [] }, { options: {}, currency: "RUB", rate: R }));
-  const priceCell = Object.entries(spec).find(([r, c]) => rowNo(r) === 2 && c.type !== "s" && Math.abs(c.num - 1.2345 * R) < 1e-9);
-  assert.ok(priceCell, "цена позиции хранится как base×курс (12.345) без предварительного округления");
-  const stored = priceCell[1].num;
-  const mRub = n => round2(n * R).toFixed(2);
-  assert.equal(round2(stored).toFixed(2), mRub(1.2345), "2-значное округление ячейки = money() КП на том же float");
+  assert.equal(EPEstimate.round2(1.2345 * R), 12.35, "предпосылка: round2(12,345) = 12,35 (половина вверх)");
+  const dataCells = Object.entries(spec).filter(([r, c]) => rowNo(r) === 2 && c.type !== "s" && c.num != null).map(([, c]) => c.num);
+  assert.ok(dataCells.some(n => Math.abs(n - 12.35) < 1e-9), "ячейка цены/суммы хранит округлённые 12,35");
+  assert.ok(!dataCells.some(n => Math.abs(n - 12.345) < 1e-9), "сырого 12,345 в ячейке нет — число пред-округлено (В26)");
 });
 
 test("A6 МУТАЦИЯ-ловушка: три числа НДС берутся из vatShown, не est.X×курс (копеечная граница)", () => {

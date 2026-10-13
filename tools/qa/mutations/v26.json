@@ -1,0 +1,25 @@
+[
+  { "name": "В26 M1: цена строки снова g.sum/g.count (мимо изделий)", "file": "js/specExcel.js",
+    "from": "    price: spec.rows[i].price, sum: spec.rows[i].sum,",
+    "to": "    price: g.count ? g.sum / g.count : 0, sum: spec.rows[i].sum," },
+
+  { "name": "В26 M2: сумма строки снова g.sum (сырое евро мимо курса/изделий)", "file": "js/specExcel.js",
+    "from": "    price: spec.rows[i].price, sum: spec.rows[i].sum,",
+    "to": "    price: spec.rows[i].price, sum: g.sum," },
+
+  { "name": "В26 M3: «Оборудование» снова est.equipment × курс, не Σ сумм строк", "file": "js/estimate.js",
+    "from": "  const equipment = specShown(e, r).equipment;",
+    "to": "  const equipment = round2((Number(e.equipment) || 0) * r);" },
+
+  { "name": "В26 M4: цена изделия без round2 (округление уходит с уровня изделия)", "file": "js/estimate.js",
+    "from": "      const unit = round2((Number(it && it.price) || 0) * r);",
+    "to": "      const unit = (Number(it && it.price) || 0) * r;" },
+
+  { "name": "В26 M5: цена строки округляется ЦЕЛИКОМ (сырое евро × курс), а не по изделиям", "file": "js/estimate.js",
+    "from": "    const price = round2(items.reduce((acc, it) => acc + it.price * (Number(it.count) || 0), 0));",
+    "to": "    const price = round2(g.items.reduce((acc, it) => acc + (Number(it.price) || 0) * (Number(it.count) || 0), 0) * r);" },
+
+  { "name": "В26 M6: курс применён дважды — КП печатает суммы строк через money() (ещё раз ×курс)", "file": "js/offerPdf.js",
+    "from": "    ? `<td class=\"right\">${moneyShown(r[key])}</td>`",
+    "to": "    ? `<td class=\"right\">${money(r[key])}</td>`" }
+]
