@@ -122,6 +122,26 @@ test("В26: общая скидка — от «Оборудования» БЕЗ
   assert.equal(t.discount, 60, "10 % от 100 (без личной) + 50 % от 100 = 60, не 70");
 });
 
+test("В26: строка с ЛИЧНОЙ скидкой 0 % НЕ попадает под общую (ловит мутацию M25)", () => {
+  /* Две строки по 100,00 €, общая скидка 10 %, у ОДНОЙ строки личная 0 % («без скидки на эту позицию»).
+     Личная 0 % — это тоже personal: строку из базы общей скидки надо исключить, но личной скидки с неё
+     ноль. Поэтому «Скидка» = 10 % только от второй строки = 10,00. Мутация M25 (гейт `… && clampPercent>0`)
+     перестаёт считать 0 %-строку личной — она уходит в базу общей, и «Скидка» вышла бы 20,00. */
+  const zero = { name: "Z", count: 1, unit: "компл.", discountPersonal: true, discountPercent: 0,
+    items: [{ kind: "mechanism", name: "Z", code: "X", count: 1, price: 100 }] };
+  const gen = { name: "G", count: 1, unit: "компл.", discountPersonal: false, discountPercent: 10,
+    items: [{ kind: "mechanism", name: "G", code: "Y", count: 1, price: 100 }] };
+  const t = EPEstimate.totalsShown(estOf({ equipment: 200, groups: [zero, gen], discountPercent: 10, vatMode: "none" }), 1);
+  assert.equal(t.discount, 10, "общая 10 % только от строки без личной (10,00), личная 0 % исключена — не 20,00");
+
+  /* Зеркальный случай: личная 100 % у одной строки (мутацию не трогает — у неё процент > 0, — но держит
+     смысл «личная исключена из общей базы»): 100 % от 100,00 = 100,00 плюс общая 10 % от второй = 10,00. */
+  const full = { name: "F", count: 1, unit: "компл.", discountPersonal: true, discountPercent: 100,
+    items: [{ kind: "mechanism", name: "F", code: "Z", count: 1, price: 100 }] };
+  const t2 = EPEstimate.totalsShown(estOf({ equipment: 200, groups: [full, gen], discountPercent: 10, vatMode: "none" }), 1);
+  assert.equal(t2.discount, 110, "личная 100 % (100,00) + общая 10 % от остальной 100,00 (10,00) = 110,00");
+});
+
 /* ---- 2. Сплошной перебор ---- */
 
 test("Б: перебор >200 000 — печатные строки = «без НДС», «без НДС» + «НДС» = «Итого»", () => {
@@ -293,4 +313,35 @@ test("app.js moneyShown: округляет вход до копейки пер�
   const { moneyShown } = appMoney(1, "RUB");
   /* 79,21 € × 92,5 = 7 326,9249… в double: round2 → 7 326,93; Intl без round2 напечатал бы 7 326,92. */
   assert.equal(digitsOf(moneyShown(79.21 * 92.5)), "7326,93", "moneyShown снимает двоичный дребезг (round2)");
+});
+
+/* ---- 5. Панель «Стоимость проекта»: сумма строки спецификации печатается из specShown ----
+   Строка списка спецификации в панели печатает сумму строки через moneyShown(spec.rows[i].sum) — то же
+   «по изделиям», что «Оборудование» и «Сумма» строк КП/Excel. Прежний путь money(g.sum) брал СЫРОЕ евро
+   строки build и умножал на курс ещё раз — на дробном курсе это расходилось со «Σ по изделиям» на пол-
+   копейки. Прогоняем НАСТОЯЩИЙ renderSummary из app.js (стенд appStand) с НАСТОЯЩИМИ money/moneyShown,
+   вырезанными из app.js, на входе с половинкой копейки: 15 × 68,07 € при курсе 95,5. Σ по изделиям —
+   97 510,35 ₽ (round2(68,07×95,5)=6 500,69 × 15), старый money(g.sum) дал бы round2(1021,05×95,5)=97 510,28.
+   Ловит мутацию M26 (money(g.sum)). */
+test("В26 A14: панель — сумма строки спецификации и «Оборудование» = Σ по изделиям (ловит M26)", () => {
+  const rate = 95.5;
+  const { money, moneyShown } = appMoney(rate, "RUB");
+  const est = EPEstimate.build({
+    devices: Array.from({ length: 15 }, () => ({ productId: 1 })), posts: [],
+    product: id => (id === 1 ? { id: 1, code: "X", name: "Светильник", price: 68.07, unit: "шт." } : undefined),
+    settings: {}
+  });
+  const dom = stand.makeDom();
+  const run = stand.run("renderSummary", {
+    state: { rooms: [], devices: [], posts: [] },
+    EPEstimate, $: dom.$, money, moneyShown, displayRate: () => rate,
+    esc: String, projectLighting: () => ({}), buildEstimate: () => est,
+    lightingHtml: () => "[L]", updateStatus: () => {}, orphanObjectsWarningText: () => ""
+  });
+  run();
+  const rowSum = (dom.els.specList.innerHTML.match(/<b>([^<]*)<\/b>/) || [])[1];
+  assert.equal(rowSum, moneyShown(97510.35), "строка спецификации = Σ по изделиям (97 510,35 ₽)");
+  assert.equal(dom.els.equipmentTotal.textContent, moneyShown(97510.35), "«Оборудование» = та же сумма");
+  /* Старый путь money(g.sum) напечатал бы round2(сырое евро строки × курс) — на пол-копейки меньше. */
+  assert.notEqual(rowSum, money(est.groups[0].sum), "НЕ money(g.sum) (97 510,27/,28)");
 });

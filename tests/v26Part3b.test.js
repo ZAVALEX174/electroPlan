@@ -116,3 +116,27 @@ test("В26 ч.3б: Σ столбца «Стоимость артикулов» =
   /* «Стоимость блока» печатается moneyShown (одно применение курса) той же цифрой. */
   assert.ok(html.includes("R" + blockPrice.toFixed(2)), `«Стоимость блока» = R${blockPrice.toFixed(2)}`);
 });
+
+/* ─────────── A16: «Стоимость артикулов», изделие в количестве 1 шт. ───────────
+   У ветки count === 1 нет множителя и итога «= …» — печатается просто «Наименование — цена штуки».
+   Цена штуки приходит в ЕВРО (p.itemPrices из build), поэтому её печатает money() (× курс, валюта
+   показа) ОДИН раз. Мутация M27 (money→moneyShown) напечатала бы сырое евро как рубли: 0,85 вместо
+   78,63. Столбец «Стоимость блока» (price) выключаем — тогда цена показа встречается в HTML только
+   в разбивке артикулов, и сравнение не ловит её из соседней ячейки. */
+test("В26 A16: «Стоимость артикулов» — изделие 1 шт. печатает цену в валюте показа ОДИН раз (ловит M27)", () => {
+  const moneyShown = n => "R" + round2(n).toFixed(2);
+  const money = n => "R" + round2(Number(n) * RATE).toFixed(2);
+  const items = [{ code: "A", name: "Монтажная коробка", count: 1, price: 0.85 }];   // 0,85 € × 92,5 = 78,63
+  const html = EPOfferPdf.buildHtml(
+    { groups: [], equipment: 0, missing: [], discount: 0, materials: 0, work: 0, vat: 0 },
+    { esc: String, money, moneyShown, EPEstimate, displayRate: () => RATE, displayCurrency: () => "RUB",
+      settings: {}, effectiveRate: () => RATE,
+      options: { prices: true, articles: true,
+        sections: { plan: false, layout: true, specification: false, lighting: false, supplier: false },
+        layout: { number: true, fill: false, modules: false, box: false, article: false,
+          illustration: false, price: false, itemPrices: true } },
+      postLayout: [{ number: 1, itemPrices: items }],
+      planBlockHtml: "", lightingHtml: "", supplierSpecHtml: "" });
+  assert.ok(html.includes("R78.63"), `изделие 1 шт. печатает цену показа money(0,85 €) = R78.63; html: ${html}`);
+  assert.ok(!html.includes("R0.85"), "НЕ сырое евро moneyShown(unit) = R0.85 (мутация money→moneyShown)");
+});

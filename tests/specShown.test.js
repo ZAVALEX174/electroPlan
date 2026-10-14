@@ -131,3 +131,28 @@ test("specShown: евро (курс 1) — суммы строк и «Обору
   assert.equal(equipMism, 0, "«Оборудование» в евро не изменилось");
   assert.ok(projects > 300, `проверено ${projects} проектов`);
 });
+
+/* ---- 6. Узел с количеством 0 в цену НЕ входит (ядро pricedUnit) ----
+   build всегда кладёт в состав поста узел коробки (boxItem) с count = comp.boxCount, даже когда
+   коробка ещё не подобрана/не нужна (count 0), но её цена известна. Такой узел не должен прибавляться
+   к цене: count 0 — это «ноль штук», а не «одна». Правило — в ядре pricedUnit (множитель Number(count)||0).
+   Ловит мутацию v26 M24 (count||1): недособранный пост печатал бы стоимость с ценой коробки, которой
+   в нём ещё нет. Проверяем и прямым входом в ядро, и на НАСТОЯЩЕМ build поста (postPriceShown). */
+test("В26 A2: узел count 0 в цену не входит — прямой pricedUnit и настоящий build поста (ловит count||1)", () => {
+  /* Прямой вход: механизм 10 € × 1 + коробка 0,85 € × 0 при курсе 92,5 → ровно 925,00
+     (round2(10×92,5)=925 ×1; round2(0,85×92,5)=78,63 ×0 = 0). Мутация count||1 дала бы 1 003,63. */
+  assert.equal(EPEstimate.pricedUnit([{ price: 10, count: 1 }, { price: 0.85, count: 0 }], 92.5).price, 925,
+    "925,00 — изделие count 0 не прибавляется");
+
+  /* Настоящий build: недособранный пост (один механизм), у которого узел коробки имеет count 0 и цену.
+     postPriceShown собирает пост тем же build, что смета, и считает ядром pricedUnit — «Стоимость поста»
+     обязана быть БЕЗ коробки (925,00), а не с её ценой. */
+  const deps = {
+    product: id => ({ id, code: "M" + id, name: "Механизм", price: 10 }),
+    frameProduct: () => null, postCost: () => 0,
+    postComposition: () => ({ boxCount: 0, box: { code: "B", name: "Монтажная коробка", price: 0.85 }, supportCount: 0 }),
+    lightingOf: () => [], settings: {}
+  };
+  const price = EPEstimate.postPriceShown({ id: "x", number: 1, frameId: null, mechanismIds: [1] }, deps, 92.5);
+  assert.equal(price, 925, "«Стоимость поста» = только механизм (925,00), коробка count 0 исключена");
+});

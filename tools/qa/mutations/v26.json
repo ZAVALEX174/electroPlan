@@ -89,5 +89,21 @@
 
   { "name": "В26 M23 (правило 3б): lightingPlanSumShown округляет сумму сырых евро один раз (мимо изделий)", "file": "js/estimate.js",
     "from": "  return shownSum(((plan && plan.places) || []).map(p => ({ price: (p && p.product) ? (Number(p.product.price) || 0) : 0, count: 1 })), rate);",
-    "to": "  const r = Number(rate) > 0 ? Number(rate) : 1; return round2(((plan && plan.places) || []).reduce((a, p) => a + ((p && p.product) ? (Number(p.product.price) || 0) : 0), 0) * r);" }
+    "to": "  const r = Number(rate) > 0 ? Number(rate) : 1; return round2(((plan && plan.places) || []).reduce((a, p) => a + ((p && p.product) ? (Number(p.product.price) || 0) : 0), 0) * r);" },
+
+  { "name": "В26 M24 (A2, ядро pricedUnit): узел count 0 считается как 1 — цена недособранного поста включает отсутствующую коробку", "file": "js/estimate.js",
+    "from": "acc + it.price * (Number(it.count) || 0), 0));",
+    "to": "acc + it.price * (Number(it.count) || 1), 0));" },
+
+  { "name": "В26 M25 (A5, totalsShown): строка с личной скидкой 0 % уходит в базу общей скидки", "file": "js/estimate.js",
+    "from": "    if (!(g && g.discountPersonal)) return;",
+    "to": "    if (!(g && g.discountPersonal && clampPercent(g.discountPercent) > 0)) return;" },
+
+  { "name": "В26 M26 (A14, панель): сумма строки спецификации снова money(g.sum) — сырое евро × курс", "file": "js/app.js",
+    "from": "<b>${moneyShown(spec.rows[i].sum)}</b>",
+    "to": "<b>${money(g.sum)}</b>" },
+
+  { "name": "В26 M27 (A16, offerPdf «Стоимость артикулов»): цена штуки (count=1) через moneyShown — евро как рубли", "file": "js/offerPdf.js",
+    "from": ": `${name} — ${money(unit)}`;",
+    "to": ": `${name} — ${moneyShown(unit)}`;" }
 ]
