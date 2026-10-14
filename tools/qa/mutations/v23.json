@@ -1,0 +1,10 @@
+[
+  { "name": "V1: «уже подходит» снова через ПУЛ АКТИВНЫХ (снятая подходящая накладка подменяется активной) — фикс В23 шаг 2", "file": "js/app.js",
+    "from": "  if(frame&&EPCatalog.productsForRoom([frame],criteria).length)return {frameId:null};", "to": "  if(frame&&pool.some(p=>p.id===frame.id))return {frameId:null};" },
+
+  { "name": "V2: предикат «подходит» ФИЛЬТРУЕТ по active (снятая снова никогда не подходит) — край В23", "file": "js/app.js",
+    "from": "  if(frame&&EPCatalog.productsForRoom([frame],criteria).length)return {frameId:null};", "to": "  if(frame&&frame.active!==false&&EPCatalog.productsForRoom([frame],criteria).length)return {frameId:null};" },
+
+  { "name": "V3: предикат «подходит» БЕЗ УЧЁТА ОТДЕЛКИ (любая накладка «уже подходит» → снятая НЕподходящая не меняется, решение 1 нарушено)", "file": "js/app.js",
+    "from": "  if(frame&&EPCatalog.productsForRoom([frame],criteria).length)return {frameId:null};", "to": "  if(frame)return {frameId:null};" }
+]
