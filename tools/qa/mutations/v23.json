@@ -6,5 +6,8 @@
     "from": "  if(frame&&EPCatalog.productsForRoom([frame],criteria).length)return {frameId:null};", "to": "  if(frame&&frame.active!==false&&EPCatalog.productsForRoom([frame],criteria).length)return {frameId:null};" },
 
   { "name": "V3: предикат «подходит» БЕЗ УЧЁТА ОТДЕЛКИ (любая накладка «уже подходит» → снятая НЕподходящая не меняется, решение 1 нарушено)", "file": "js/app.js",
-    "from": "  if(frame&&EPCatalog.productsForRoom([frame],criteria).length)return {frameId:null};", "to": "  if(frame)return {frameId:null};" }
+    "from": "  if(frame&&EPCatalog.productsForRoom([frame],criteria).length)return {frameId:null};", "to": "  if(frame)return {frameId:null};" },
+
+  { "name": "V4: предикат «подходит» БЕЗ МАТЕРИАЛА И ФОРМЫ (технополимер «подходит» металлической комнате по серии+цвету → не меняется, пост на 5,90 € дешевле) — край A2 adv", "file": "js/app.js",
+    "from": "  if(frame&&EPCatalog.productsForRoom([frame],criteria).length)return {frameId:null};", "to": "  if(frame&&EPCatalog.productsForRoom([frame],Object.assign({},criteria,{frameMaterial:null,frameShape:null})).length)return {frameId:null};" }
 ]

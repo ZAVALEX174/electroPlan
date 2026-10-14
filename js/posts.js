@@ -525,8 +525,10 @@ function placementFields(template) {
    Цвет накладки, ПОД КОТОРЫЙ собран шаблон. Шаблон помнит его в t.frameColor (savePostBuilder кладёт
    при сохранении — чтобы совпадение переживало перезагрузку проекта и не зависело от того, разрешается
    ли ещё артикул после перезаливки прайса). Старые шаблоны, сохранённые до этого правила, поля не
-   несут — цвет выводим из накладки по frameId (deps.frameProduct). Накладка снята/удалена из прайса →
-   frameProduct вернёт null → цвет неизвестен (null). */
+   несут — цвет выводим из накладки по frameId (deps.frameProduct). Накладка УДАЛЕНА из прайса (артикул
+   не найден в каталоге) → frameProduct вернёт null → цвет неизвестен (null). Снятая с производства
+   (active=false) из каталога НЕ исчезает — product()/frameProduct по active не фильтруют, — её цвет
+   читается как обычно. */
 function templateFrameColor(template, deps) {
   const t = template || {};
   if (typeof t.frameColor === "string" && t.frameColor) return t.frameColor;
