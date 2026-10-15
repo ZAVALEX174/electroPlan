@@ -574,7 +574,7 @@ function applyRateEntry(entry){
   EP_DATA.settings.rateSource=entry.source;
   return entry;
 }
-function loadCachedRate(){return applyRateEntry(EPRates.loadCached())}
+function loadCachedRate(){return applyRateEntry(EPRates.startupRate(EP_DATA.settings,EPRates.loadCached()))}
 function updateRateUi(){
   const s=EP_DATA.settings,info=$("rateInfo");
   $("currencySelect").value=s.displayCurrency||"EUR";

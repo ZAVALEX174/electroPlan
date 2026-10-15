@@ -70,9 +70,22 @@ function effectiveRate(settings) {
   return rate * (1 + pct / 100);
 }
 
+/* Какой курс применить ПРИ ОТКРЫТИИ проекта. Решение владельца 15.10 (В28, вариант «а», не менять):
+   проект хранит курс того дня, когда его поставили (и ручной, и ЦБ — с надбавкой и датой), а курс
+   обновляется ТОЛЬКО по кнопке «Курс ЦБ». Поэтому восстановленный проект со своим курсом (eurRate>0)
+   трогать нельзя — возвращаем null, и вызывающий оставляет курс как есть. Кэш последнего курса ЦБ
+   применяем лишь как ФОЛБЭК проекту, у которого своего курса ещё нет (новый/старый без курса в terms),
+   иначе он открылся бы вовсе без курса. Раньше loadCachedRate клал кэш безусловно — и ручной 92,5
+   превращался после F5 в курс ЦБ из кэша (замер 14.10: «Итого» 51 499,86 ₽ вместо 49 321,56 ₽). */
+function startupRate(settings, cached) {
+  const s = settings || {};
+  if (Number(s.eurRate) > 0) return null;   /* у проекта СВОЙ курс — не перетираем */
+  return cached || null;
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов effectiveRate (PLAN 7.1). */
-const api = { loadCached, fetchFresh, manual, effectiveRate, URL_CBR, CACHE_KEY, SRC_MANUAL };
+const api = { loadCached, fetchFresh, manual, effectiveRate, startupRate, URL_CBR, CACHE_KEY, SRC_MANUAL };
 if (typeof window !== "undefined") window.EPRates = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

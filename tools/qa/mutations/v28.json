@@ -1,0 +1,17 @@
+[
+  { "name": "В28 M1: loadCachedRate снова кладёт кэш ЦБ безусловно (мимо startupRate) — курс проекта перетирается после F5", "file": "js/app.js",
+    "from": "function loadCachedRate(){return applyRateEntry(EPRates.startupRate(EP_DATA.settings,EPRates.loadCached()))}",
+    "to": "function loadCachedRate(){return applyRateEntry(EPRates.loadCached())}" },
+
+  { "name": "В28 M2: восстановление теряет надбавку — rateSurchargePercent всегда сбрасывается в 0", "file": "js/app.js",
+    "from": "    if(p.terms.rateSurchargePercent==null)EP_DATA.settings.rateSurchargePercent=0;",
+    "to": "    EP_DATA.settings.rateSurchargePercent=0;" },
+
+  { "name": "В28 M3: снапшот теряет дату курса — rateDate выпадает из terms, после перезагрузки даты нет", "file": "js/app.js",
+    "from": "eurRate,rateDate,rateSource}))(EP_DATA.settings)",
+    "to": "eurRate,rateSource}))(EP_DATA.settings)" },
+
+  { "name": "В28 M4: кнопка «Курс ЦБ» не обновляет — refreshRate проходит свежий курс через startupRate (при уже заданном курсе вернёт null)", "file": "js/app.js",
+    "from": "    const e=applyRateEntry(await EPRates.fetchFresh());",
+    "to": "    const e=applyRateEntry(EPRates.startupRate(EP_DATA.settings,await EPRates.fetchFresh()));" }
+]
