@@ -27,7 +27,7 @@
         <div class="section-head"><h3>Исходный план</h3><span class="status-dot" id="planStatusDot"></span></div>
         <div class="upload-control">
           <label class="upload-btn">
-            <input id="planUpload" type="file" accept=".png,.svg,.pdf,.dxf,.dwg,image/png,image/svg+xml,application/pdf,application/dxf,application/acad,application/x-autocad,image/vnd.dwg,image/vnd.dxf" hidden>
+            <input id="planUpload" type="file" accept=".png,.jpg,.jpeg,.svg,.webp,.pdf,.dxf,.dwg,image/png,image/jpeg,image/svg+xml,image/webp,application/pdf,application/dxf,application/acad,application/x-autocad,image/vnd.dwg,image/vnd.dxf" hidden>
             <span class="upload-icon">↑</span>
             <span><b>Загрузить план</b><small>PNG · SVG · PDF · DXF · DWG</small></span>
           </label>
@@ -37,16 +37,16 @@
               <strong id="planUploadPopoverTitle">Как подготовить чертёж</strong>
               <button id="closePlanUploadPopover" type="button" aria-label="Закрыть">×</button>
             </div>
-            <div class="upload-format-row"><span>Поддерживаются</span><b>PNG · SVG · PDF · DXF · DWG</b></div>
+            <div class="upload-format-row"><span>Поддерживаются</span><b>PNG · JPG · SVG · WEBP · PDF · DXF · DWG</b></div>
             <ul>
               <li>Предпочтительны векторные PDF, SVG, DXF и DWG</li>
               <li>В многостраничном PDF можно выбрать нужную страницу</li>
               <li>DXF импортируется из model space; DWG — версии R13–R2018</li>
-              <li>PNG шириной 2000–4000 px, желательно 300–600 dpi</li>
+              <li>PNG или JPG шириной 2000–4000 px, желательно 300–600 dpi</li>
               <li>Один этаж, без наклона, перспективы, штампа и таблиц</li>
               <li>Самая тонкая перегородка — не менее 3–5 пикселей</li>
             </ul>
-            <p>JPG и WEBP исключены из-за артефактов сжатия. Файлы обрабатываются локально и не отправляются во внешние сервисы.</p>
+            <p>JPG принимается; для фотоснимков чертежа возможны артефакты сжатия — чётче всего импортируются PNG и векторные форматы. Файлы обрабатываются локально и не отправляются во внешние сервисы.</p>
           </div>
         </div>
         <div class="trace-panel">
@@ -647,7 +647,7 @@
 <script src="js/planTrace.js?v=20260727.1"></script>
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
-<script src="js/planImport.js?v=20260723"></script>
+<script src="js/planImport.js?v=20261015.2"></script>
 <!-- Пользовательские предпочтения интерфейса (вид выбора отделки и т.п.) — один ключ ep_prefs,
      отдельно от снимка проекта. Грузится до app.js, который через него читает выбранный вид. -->
 <script src="js/prefs.js?v=20260915.1"></script>

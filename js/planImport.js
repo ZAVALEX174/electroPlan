@@ -1,6 +1,6 @@
 /**
  * ElectroPlan — локальный импорт планов.
- * PNG/SVG читаются напрямую, PDF растеризуется через PDF.js,
+ * PNG/JPG/SVG/WEBP читаются напрямую, PDF растеризуется через PDF.js,
  * DXF преобразуется в чистый геометрический растр, DWG сначала конвертируется в DXF.
  */
 (function () {
@@ -332,14 +332,16 @@
     if (!file) throw new Error("Файл не выбран");
     if (file.size > MAX_FILE_BYTES) throw new Error("Файл слишком большой — максимум 100 МБ");
     const extension = extensionOf(file);
-    if (extension === "png" || extension === "svg") {
+    // Растровые/векторные картинки, которые браузер рисует сам, читаем как data URL без растеризации.
+    // JPG/JPEG/WEBP идут тем же путём, что PNG: отдельного декодера им не нужно.
+    if (extension === "png" || extension === "svg" || extension === "jpg" || extension === "jpeg" || extension === "webp") {
       return { dataUrl: await readDataUrl(file), format: extension.toUpperCase(), detail: "исходное изображение" };
     }
     if (extension === "pdf") return importPdf(file, options);
     if (extension === "dxf") return importDxf(file);
     if (extension === "dwg") return importDwg(file);
-    throw new Error("Поддерживаются PNG, SVG, PDF, DXF и DWG");
+    throw new Error("Поддерживаются PNG, JPG, SVG, WEBP, PDF, DXF и DWG");
   }
 
-  window.EPPlanImport = { importFile, supportedExtensions: ["png", "svg", "pdf", "dxf", "dwg"] };
+  window.EPPlanImport = { importFile, supportedExtensions: ["png", "jpg", "jpeg", "svg", "webp", "pdf", "dxf", "dwg"] };
 })();
