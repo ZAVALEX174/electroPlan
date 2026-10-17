@@ -7,5 +7,10 @@
   { "name": "K4a M2: перепутали 602/603 — бетон стал получать 603, ГКЛ 602",
     "file": "js/postfit.js",
     "from": "  if (/71701/.test(code)) return \"603\";\n  if (/71001/.test(code)) return \"602\";",
-    "to": "  if (/71701/.test(code)) return \"602\";\n  if (/71001/.test(code)) return \"603\";" }
+    "to": "  if (/71701/.test(code)) return \"602\";\n  if (/71001/.test(code)) return \"603\";" },
+
+  { "name": "K4a M3: сломана запасная ветка byType[0] — у многопостовых немецких накладок (все в каталоге) суппорт типа есть, но модульность не совпадает → пост остаётся без планки",
+    "file": "js/postfit.js",
+    "from": "byType.find(s => supModules(s) === target) || byType[0]",
+    "to": "byType.find(s => supModules(s) === target) || null" }
 ]
