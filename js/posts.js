@@ -154,6 +154,25 @@ function postWallType(post, projectWallType) {
   return (own === "solid" || own === "hollow") ? own : (projectWallType || "unknown");
 }
 
+/* --- МИГРАЦИЯ: ТИП СТЕНЫ ПРОЕКТА → В ПОСТЫ БЕЗ СВОЕГО (К4б) --------------------------------
+   Настройку «тип стены проекта» убрали из панели (решение владельца 17.10): выбор ГКЛ/бетон
+   остаётся только у поста. Прежде пост без собственного post.wallType читал тип стены ПРОЕКТА
+   как значение по умолчанию (см. postWallType выше). Убрать настройку просто так нельзя: старый
+   проект, который считался по «ГКЛ», при первом открытии пересчитал бы эти посты на новый общий
+   дефолт «бетон» — другая коробка, другая цена. Поэтому ПРИ ОТКРЫТИИ каждому посту без своего
+   валидного типа стены проставляем ту стену, по которой он считался, — тип стены проекта из
+   сохранённого снимка (нет/мусор → "solid": именно таким всегда был дефолт проекта). После этого
+   у поста есть своя стена, а общий дефолт «бетон» касается лишь НОВЫХ постов.
+   ⚠️ ИДЕМПОТЕНТНА: посты, у которых стена уже задана (свой выбор), не трогаем — повторное открытие
+   ничего не меняет. Пустая строка/мусор трактуются как отсутствие, ровно как в postWallType. */
+function applyProjectWallToPosts(posts, projectWallType) {
+  const wall = projectWallType === "hollow" ? "hollow" : "solid";
+  (Array.isArray(posts) ? posts : []).forEach(p => {
+    if (p && p.wallType !== "solid" && p.wallType !== "hollow") p.wallType = wall;
+  });
+  return posts;
+}
+
 /* Ключ «однотипности» поста — по ФИЗИЧЕСКОМУ СОСТАВУ: накладка + мультимножество механизмов.
    Нужен ровно для одного вопроса заказчика: «изменить в данном блоке или для всех однотипных
    блоков» (24.08).
@@ -761,7 +780,7 @@ const api = { frameAvailability, mechanismAvailability, postCost, postCompositio
   moduleLayout, fillWord, fillSummary, nextPostNumber, ensurePostNumbers, placementFields,
   templateFrameColor, templateFitsRoomColor, pickRoomFrame,
   frameLayout, distributePosts, maxFreeSpan, postModuleGroups,
-  postWallType, postTypeKey, wallTypeTargets, postBacklight };
+  postWallType, applyProjectWallToPosts, postTypeKey, wallTypeTargets, postBacklight };
 if (typeof window !== "undefined") window.EPPosts = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

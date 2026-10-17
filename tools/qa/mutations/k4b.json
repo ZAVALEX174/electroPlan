@@ -1,0 +1,16 @@
+[
+  { "name": "K4b M1: миграция игнорирует стену проекта (всегда бетон) — старый ГКЛ-проект подешевел бы при открытии",
+    "file": "js/posts.js",
+    "from": "const wall = projectWallType === \"hollow\" ? \"hollow\" : \"solid\";",
+    "to": "const wall = \"solid\";" },
+
+  { "name": "K4b M2: миграция перезаписывает СВОЙ тип стены поста (не идемпотентна) — ручной выбор теряется",
+    "file": "js/posts.js",
+    "from": "if (p && p.wallType !== \"solid\" && p.wallType !== \"hollow\") p.wallType = wall;",
+    "to": "if (p) p.wallType = wall;" },
+
+  { "name": "K4b M3: копия поста теряет wallType (ушёл в служебные) — клон ГКЛ-поста считается по бетону",
+    "file": "js/postCopy.js",
+    "from": "[\"id\", \"number\", \"x\", \"y\", \"roomId\"]",
+    "to": "[\"id\", \"number\", \"x\", \"y\", \"roomId\", \"wallType\"]" }
+]

@@ -303,10 +303,10 @@ function openPostBuilder({templateId=null,placedId=null}={}){
      фантомным местом управления после перезаливки прайса — см. EPBuilderSlots.fromPost. */
   state.builder.slots=placedId?EPBuilderSlots.fromPost(src,keySlotKind):EPBuilderSlots.clearGroups(EPBuilderSlots.fromPost(src,keySlotKind));
   /* Тип стены открываемого объекта: СВОЙ, если он задан (у поста на плане ИЛИ у шаблона —
-     шаблон теперь тоже несёт свой тип стены), иначе тип стены проекта (EPPosts.postWallType —
-     то же правило, по которому его читает подбор коробки, второй копии правила не заводим).
-     Новый пост своего типа стены не имеет и открывается со значением проекта. */
-  state.builder.wallType=EPPosts.postWallType(src,EP_DATA.settings.wallType);
+     шаблон тоже несёт свой тип стены), иначе общий дефолт «бетон» (К4б: настройки стены проекта
+     больше нет). Правило то же, по которому тип стены читает подбор коробки (postWallType),
+     второй копии не заводим. Новый пост своего типа стены не имеет и открывается с «бетон». */
+  state.builder.wallType=EPPosts.postWallType(src,"solid");
   /* Подсветка поста — ЧЕРНОВИК окна, как тип стены: у поста своё переопределение (src.backlight,
      если это объект — та же трактовка «валидности», что у EPPosts.postBacklight), иначе null =
      «как в проекте». Копируем ОБЪЕКТ, а не ссылку: правка черновика до «Сохранить» не должна
@@ -341,10 +341,10 @@ function openPostBuilder({templateId=null,placedId=null}={}){
    месте, в renderBuilder. */
 let builderCtx={mechs:[],addMax:0,maxPostCap:0,remaining:0,frame:null,errorHtml:""};
 
-/* Тип стены, с которым конструктор СЕЙЧАС считает состав поста: черновик окна, а не общая
-   настройка проекта. Пока окно закрыто (черновика нет), отвечает значением проекта — так
-   вызывающему не нужно знать, открыт ли конструктор. */
-const builderWallType=()=>state.builder.wallType||EP_DATA.settings.wallType||"solid";
+/* Тип стены, с которым конструктор СЕЙЧАС считает состав поста: черновик окна. Пока окно
+   закрыто (черновика нет), отвечает общим дефолтом «бетон» (К4б: настройки стены проекта
+   больше нет) — так вызывающему не нужно знать, открыт ли конструктор. */
+const builderWallType=()=>state.builder.wallType||"solid";
 
 /* Подпись текущего состояния конструктора: имя, накладка, тип стены и набор слотов с группами.
    Нужна ровно для одного вопроса — «есть ли что терять при закрытии» (см. builderDirty). Слоты
@@ -1141,9 +1141,8 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
   /* Кнопки «Тип стены» активны ВЕЗДЕ — и у поста на плане, и у шаблона/нового поста: владелец
      решил, что шаблон несёт СВОЙ тип стены и передаёт его посту при размещении. Разница только
      в подсказке: у поста на плане свой тип, у шаблона выбор доедет до будущего поста.
-     ⚠️ Ни в одном случае кнопки НЕ пишут EP_DATA.settings.wallType — иначе вернулся бы дефект B5
-     (правка «у одного шаблона» переставляла подбор коробки всему проекту). Настройку всего
-     проекта правят только в панели «Спецификация» (см. обработчик кнопок и savePostBuilder). */
+     ⚠️ Кнопки пишут только черновик окна (state.builder.wallType), а он при сохранении доезжает
+     до поста/шаблона (см. savePostBuilder). Общей настройки стены проекта больше нет (К4б). */
   const placed=!!state.builder.editingPlacedId;
   document.querySelectorAll("#postWallType .wall-type-option").forEach(b=>{
     const on=b.dataset.wall===wall;
@@ -1154,7 +1153,7 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
   const wallHint=$("postWallTypeHint");
   if(wallHint)wallHint.textContent=placed
     ?"Влияет на подбор монтажной коробки. У поста на плане — свой; при сохранении спросим, менять только в нём или во всех однотипных."
-    :"Влияет на подбор монтажной коробки. Тип стены сохранится в шаблоне и перейдёт посту при размещении на плане; настройку всего проекта это не меняет — она в панели «Спецификация».";
+    :"Влияет на подбор монтажной коробки. Тип стены сохранится в шаблоне и перейдёт посту при размещении на плане.";
   /* Подсветка поста синхронизируется рядом с типом стены (тот же класс «настройка поста»):
      draft.backlight уже участвует в comp/цене через builderPostDraft, здесь — только UI органа. */
   renderPostBacklight();
@@ -1295,7 +1294,7 @@ async function savePostBuilder(){
        человек только что собрал, а не на тот, что был до правки. */
     const next=Object.assign({},post,base);
     const wall=builderWallType();
-    const wallChanged=wall!==EPPosts.postWallType(post,EP_DATA.settings.wallType);
+    const wallChanged=wall!==EPPosts.postWallType(post,"solid");
     let scope="self";
     if(wallChanged){
       /* Вопрос — только когда есть из чего выбирать. Единственный в проекте блок такого
@@ -1325,15 +1324,11 @@ async function savePostBuilder(){
     renderAll();renderProperties();renderSummary();
     toast(wallChanged&&scope==="sameType"?"Обновлён пост и все однотипные посты":"Пост на плане обновлён");
   }else{
-    /* ⚠️ ЗДЕСЬ НЕТ ЗАПИСИ EP_DATA.settings.wallType — И ЭТО ГЛАВНОЕ В ЭТОЙ ВЕТКЕ. Настройку
-       ВСЕГО ПРОЕКТА (#projectWallTypeSelect) правят только в панели «Спецификация»: правка «у
-       одного шаблона», уехавшая в EP_DATA.settings, переставляла подбор коробки всем постам
-       проекта — дефект B5, ради которого у поста и завели собственный тип стены. Владелец решил
-       иначе: теперь ШАБЛОН НЕСЁТ СВОЙ тип стены и передаёт его посту при размещении
-       (EPPosts.placementFields), но общей настройки проекта по-прежнему не касается.
-       В шаблон пишем тип стены ТОЛЬКО как ЯВНЫЙ выбор — отличный от типа стены проекта; совпал
-       с проектом — поле не пишем, тогда шаблон (и пост из него) следуют за проектом («нет поля =
-       как в проекте», то же правило, что у размещённого поста). Если шаблон уже нёс свой тип и
+    /* ⚠️ ШАБЛОН НЕСЁТ СВОЙ тип стены и передаёт его посту при размещении (EPPosts.placementFields).
+       Общей настройки стены проекта больше нет (К4б) — остался общий дефолт «бетон» (solid).
+       В шаблон пишем тип стены ТОЛЬКО как ЯВНЫЙ выбор — отличный от дефолта «бетон»; совпал с
+       дефолтом — поле не пишем, тогда шаблон (и пост из него) открывается с «бетон» («нет поля =
+       дефолт», то же правило, что у размещённого поста). Если шаблон уже нёс свой тип и
        пользователь его не менял — сохраняем как было. Мусор/пустое значение как отсутствие
        трактует сама placementFields при размещении. */
     const existing=state.builder.editingTemplateId;
@@ -1347,9 +1342,9 @@ async function savePostBuilder(){
     const templateFrameColor=frameProduct(template.frameId)?.frameColor;
     if(templateFrameColor)template.frameColor=templateFrameColor;
     const wall=builderWallType();
-    /* Эффективный тип стены проекта — тот же, что показывает панель (renderProjectWallTypeSelect):
-       пусто/мусор → «solid». С ним и сравниваем, что выбор человека — осознанное расхождение. */
-    const projectWall=EP_DATA.settings.wallType==="hollow"?"hollow":"solid";
+    /* Общий дефолт типа стены — «бетон» (solid). С ним сравниваем, что выбор человека —
+       осознанное расхождение, которое стоит запомнить в шаблоне. */
+    const projectWall="solid";
     const ownWall=(wall==="solid"||wall==="hollow")&&wall!==projectWall
       ? wall
       : (prev&&(prev.wallType==="solid"||prev.wallType==="hollow")&&prev.wallType===wall?prev.wallType:null);

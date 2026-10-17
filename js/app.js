@@ -205,7 +205,11 @@ function toast(text){const e=$("toast");e.textContent=text;e.classList.add("show
    стандартно-совместимый фолбэк (тип стены как приоритет); оба не противоречат стандарту.
    Хелперы модуля берут стандарт накладки из поля товара (проставлено при загрузке
    каталога из колонки standard прайса) и серию через productSeries. */
-const wantedWall=()=>EP_DATA.settings.wallType||"solid";
+/* Тип стены по умолчанию для поста, которому его не задавали. Раньше это была настройка ПРОЕКТА
+   (EP_DATA.settings.wallType); с К4б её из панели убрали — стена живёт только у поста, а общий
+   дефолт для поста без своей стены всегда «бетон» (solid). Старые проекты от этого не страдают:
+   при открытии их постам стену проекта проставляет EPPosts.applyProjectWallToPosts. */
+const wantedWall=()=>"solid";
 const findBox=({frame,standard,modules,wallType}={})=>EPPostFit.findBox({
   boxes:byKind("socket_box"),frame,standard,modules,frameModules:frameSlotCount(frame),wantedWall:wallType||wantedWall()});
 const fallbackBox=({frame,standard,modules,wallType}={})=>EPPostFit.fallbackBox({
@@ -224,13 +228,13 @@ const resolveSupport=({frame,standard,modules,box}={})=>EPPostFit.resolveSupport
 const findBacklight=(opts)=>EPPostFit.findBacklight(Object.assign({accessories:byKind("accessory")},opts||{}));
 /* Единый набор зависимостей для чистой логики поста (EPPosts): каталог, подбор
    суппорта/коробки (точный findBox + стандартно-совместимый фолбэк fallbackBox), признак
-   «суппорт вообще не нужен» (крышки IP55 по номенклатуре монтируются без планки), тип
-   стены проекта и подсветка клавиш.
+   «суппорт вообще не нужен» (крышки IP55 по номенклатуре монтируются без планки), дефолт
+   типа стены для поста без своей (всегда solid, см. wantedWall) и подсветка клавиш.
    Настройка подсветки (enabled/color/voltage) пока НЕ существует в проекте — её заводит
    задача B1b (UI + EP_DATA.settings). До тех пор подсветка ВЫКЛЮЧЕНА: фолбэк {enabled:false}
    при отсутствии settings.backlight — состав и цена остаются прежними. */
 const postDeps=()=>({product,frameProduct,socketBox,mechanismSpan,findBox,fallbackBox,findSupport,resolveSupport,
-  supportRequired:EPPostFit.supportRequired,wallType:EP_DATA.settings.wallType,
+  supportRequired:EPPostFit.supportRequired,wallType:"solid",
   findBacklight,backlight:EP_DATA.settings.backlight||{enabled:false}});
 const postCost=p=>EPPosts.postCost(p,postDeps());
 const postComposition=p=>EPPosts.postComposition(p,postDeps());
@@ -356,7 +360,6 @@ async function init(){
   renderCompanyTerms();    /* условия сделки из EPPrefs (общие для всех проектов) — в поле подвала КП */
   renderTemplates();renderAll();renderSummary();updateScaleUi();updateRateUi();applyPlanVisibility();applyPlanRotation();
   renderLightingSchemeSelect();   /* селектор схемы в панели проекта: заполняем и на чистом старте */
-  renderProjectWallTypeSelect();  /* тип стены проекта — там же, рядом со схемой */
   renderProjectBacklight();       /* подсветка клавиш — галочка и оба селектора из каталога */
   renderPostSlotCountSelect();    /* модульности рамки строим из каталога (разметка отдаёт пустой select) */
   applyGridStyle();syncMarkupControls();updateZoomUi();applyView();   /* сетка/переключатели/зум/вид — из state (в т.ч. восстановленного) */
@@ -1034,7 +1037,6 @@ function applyProjectSettings(){
   /* 1) органы настроек — показывают ровно то, что записано в EP_DATA.settings */
   updateRateUi();                  /* валюта, курс, надбавка */
   renderLightingSchemeSelect();    /* схема: селектор в панели проекта + строка для чтения в конструкторе */
-  renderProjectWallTypeSelect();   /* тип стены проекта */
   renderProjectBacklight();        /* подсветка клавиш: галочка/цвет/напряжение + их доступность */
   /* 2) потребители: от настроек зависят состав постов, цены и суммы */
   renderAll();                     /* объекты плана: подбор коробки и механизмов мог измениться */
@@ -1341,13 +1343,11 @@ function renderProperties(){
     /* Подсветка клавиш — тем же backlightRowSummary, что панель «Состав поста» и подсказка: LED в
        цене поста, значит карточка, показывающая эту цену, обязана его назвать (или пробел). */
     const backSummary=backlightRowSummary(comp.backlight);
-    /* Тип стены поста прямо в панели свойств. ⚠️ ОТСУТСТВИЕ post.wallType — это «как в проекте»,
-       а не «unknown» (EPPosts.postWallType), поэтому «свой» и «унаследован» — РАЗНЫЕ состояния,
-       и показываем их по-разному: ownWall различает наличие собственного поля у поста, curWall —
-       фактически действующий тип (свой либо проектный), projWall — значение проекта для подписи. */
-    const projWall=EP_DATA.settings.wallType==="hollow"?"hollow":"solid";
+    /* Тип стены поста прямо в панели свойств. Настройки стены проекта больше нет (К4б) — у поста
+       всегда свой тип стены либо общий дефолт «бетон». ownWall различает, задан ли тип стены
+       пользователем (для подписи «свой»); curWall — фактически действующий (свой либо solid). */
     const ownWall=p.wallType==="solid"||p.wallType==="hollow";
-    const curWall=EPPosts.postWallType(p,EP_DATA.settings.wallType);
+    const curWall=EPPosts.postWallType(p,"solid");
     props.innerHTML=`<label>Пост<input value="${esc(postNumberLabel(p))}" disabled></label>
     <label>Комната<input value="${esc(room?.name||"Не назначена")}" disabled></label>
     <label>Механизмов / коробок<input value="${p.mechanismIds.length} / ${comp.boxCount}" disabled></label>
@@ -1355,7 +1355,7 @@ function renderProperties(){
       <option value="solid"${curWall==="solid"?" selected":""}>Бетон, кирпич, сплошные стены</option>
       <option value="hollow"${curWall==="hollow"?" selected":""}>ГКЛ и полые стены</option>
     </select></label>
-    <small class="prop-hint prop-wall-source${ownWall?" own":""}">${ownWall?"Свой тип стены поста":`Унаследован от проекта: ${esc(WALL_STEP_LABEL[projWall]||projWall)}`}</small>
+    <small class="prop-hint prop-wall-source${ownWall?" own":""}">${ownWall?"Свой тип стены поста":"По умолчанию: бетон"}</small>
     ${lightSummary?`<label>Механизмы групп света<input value="${esc(lightSummary.text)}" disabled></label>`:""}
     ${backSummary?`<label>Подсветка клавиш<input value="${esc(backSummary.text)}" disabled></label>`:""}
     ${postGroupsPropHtml(p)}
@@ -1364,16 +1364,14 @@ function renderProperties(){
     $("editSelected").onclick=()=>openPostBuilder({placedId:id});$("removeSelected").onclick=()=>removeEntity(kind,id);
     /* Правка типа стены поста — тем же механизмом охвата, что и конструктор (savePostBuilder →
        askWallScope): охват спрашиваем ДО любых записей, пишем ЯВНО каждому адресату из
-       EPPosts.wallTypeTargets (даже при совпадении с проектом — иначе выбор «уедет» вслед за
-       настройкой проекта), а вопрос задаём только когда однотипных больше одного. Настройку
-       проекта EP_DATA.settings.wallType отсюда НЕ трогаем — правится лишь в панели проекта
-       (принцип из бага B5); перерисовываем в обработчике по действию человека, а не в теле
-       renderProperties, поэтому renderAll здесь допустим. */
+       EPPosts.wallTypeTargets, а вопрос задаём только когда однотипных больше одного.
+       Перерисовываем в обработчике по действию человека, а не в теле renderProperties,
+       поэтому renderAll здесь допустим. */
     $("postWallSelect").onchange=async e=>{
       const wall=e.target.value==="hollow"?"hollow":"solid";
-      /* Выбор уже действующего значения ничего не меняет и не «прибивает» унаследованный тип к
+      /* Выбор уже действующего значения ничего не меняет и не «прибивает» дефолтный тип к
          посту — то же условие, что wallChanged в savePostBuilder. */
-      if(wall===EPPosts.postWallType(p,EP_DATA.settings.wallType))return;
+      if(wall===EPPosts.postWallType(p,"solid"))return;
       let scope="self";
       const twins=EPPosts.wallTypeTargets(state.posts,p,"sameType");
       if(twins.length>1){
@@ -1951,13 +1949,6 @@ function renderLightingSchemeSelect(){
     const hint=$(hintId);
     if(hint)hint.textContent=found?found.note:"";
   });
-}
-/* Тип стены ПРОЕКТА — значение по умолчанию для постов, которым свой тип стены не задавали
-   (EPPosts.postWallType). Орган управления, как и у схемы, ровно один — в панели проекта:
-   из окна поста настройка всего объекта больше не правится (см. savePostBuilder). */
-function renderProjectWallTypeSelect(){
-  const sel=$("projectWallTypeSelect");
-  if(sel)sel.value=EP_DATA.settings.wallType==="hollow"?"hollow":"solid";
 }
 /* Подсветка клавиш ПРОЕКТА — галочка «считать» плюс цвет и напряжение. Варианты цвета и
    напряжения строим ИЗ КАТАЛОГА (аксессуары-LED с askBacklight), а НЕ хардкодом в разметке:
@@ -2672,8 +2663,8 @@ function projectSnapshot(){
        сохранении не осталось бы НИ vatMode, НИ vatEnabled, а следующее открытие откатило бы
        режим на дефолт (денежный дефект). Снапшот обязан записать эффективный режим единым
        источником, чтобы «открыть → сохранить → открыть» не меняло итог. */
-    terms:(({workPercent,materialsPercent,discountPercent,vatPercent,rateSurchargePercent,wallType,lightingScheme,backlight,displayCurrency,eurRate,rateDate,rateSource})=>
-      ({workPercent,materialsPercent,discountPercent,vatPercent,vatMode:EPEstimate.vatModeOf(EP_DATA.settings),rateSurchargePercent,wallType,lightingScheme,backlight,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
+    terms:(({workPercent,materialsPercent,discountPercent,vatPercent,rateSurchargePercent,lightingScheme,backlight,displayCurrency,eurRate,rateDate,rateSource})=>
+      ({workPercent,materialsPercent,discountPercent,vatPercent,vatMode:EPEstimate.vatModeOf(EP_DATA.settings),rateSurchargePercent,lightingScheme,backlight,displayCurrency,eurRate,rateDate,rateSource}))(EP_DATA.settings)};
 }
 /* План может не влезть в LocalStorage (лимит ~5 МБ). Тогда сохраняем всё остальное,
    пометив, что чертёж придётся загрузить заново, — это лучше полной потери работы. */
@@ -2894,6 +2885,12 @@ async function restoreProject(){
      стабильным идентификатором и на плане, и в документах */
   EPPosts.ensurePostNumbers(state.posts);
   dropOrphanKeyGroups(state.posts);
+  /* К4б: настройку «тип стены проекта» из панели убрали — стена теперь только у поста. Чтобы
+     старый проект при открытии не пересчитал цену (пост без своей стены раньше читал стену
+     проекта, теперь общий дефолт — «бетон»), проставляем каждому такому посту ту стену, по
+     которой он считался: тип стены проекта из снимка (terms.wallType; нет/мусор → solid).
+     Идемпотентно — посты со своей стеной не трогаются (EPPosts.applyProjectWallToPosts). */
+  EPPosts.applyProjectWallToPosts(state.posts,p.terms&&p.terms.wallType);
   state.walls=p.walls||[];state.autoWalls=p.autoWalls||[];
   /* старые проекты без разметки и без флага видимости открываются штатно:
      roomLines → [], planVisibility → "show" (обратная совместимость) */
@@ -2952,9 +2949,6 @@ async function restoreProject(){
        его не трогает, и остаётся дефолт data.js («Классическая»). Это и есть требуемое
        поведение, никакой отдельной миграции (в отличие от надбавки к курсу) не нужно. */
     renderLightingSchemeSelect();
-    /* Тип стены проекта едет в terms тем же Object.assign — селектор в панели обязан показать
-       восстановленное значение, иначе панель уверяет «бетон», а коробки подбираются под ГКЛ. */
-    renderProjectWallTypeSelect();
     /* Подсветка клавиш: старый проект её поля не несёт — Object.assign выше его не трогает, и
        остаётся дефолт data.js (ВЫКЛЮЧЕНО). Это и требуется: включение дорожит смету, задним
        числом дорожать нельзя (тот же принцип, что у надбавки к курсу). Панель обязана показать
@@ -3617,16 +3611,6 @@ $("clearPlanConfirmBtn").onclick=confirmClearPlan;
 $("lightingSchemeSelect").onchange=e=>{
   EP_DATA.settings.lightingScheme=e.target.value;
   applyProjectSettings();
-};
-/* Тип стены ПРОЕКТА — значение по умолчанию для постов без своего post.wallType. Меняется
-   ТОЛЬКО отсюда, из панели проекта: правка настройки всего объекта из окна отдельного поста
-   и была тем дефектом, ради которого у поста завели собственный тип стены.
-   У постов, которым тип стены не задавали, меняется подобранная коробка — а с ней состав,
-   цена поста и смета; всех потребителей обновляет applyProjectSettings. */
-$("projectWallTypeSelect").onchange=e=>{
-  EP_DATA.settings.wallType=e.target.value==="hollow"?"hollow":"solid";
-  applyProjectSettings();
-  toast("Тип стены проекта изменён — посты со своим типом стены не затронуты");
 };
 /* Подсветка клавиш — настройка ВСЕГО проекта (галочка + цвет + напряжение). Как схема и тип
    стены, обработчик лишь пишет значение в EP_DATA.settings.backlight и зовёт

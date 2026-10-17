@@ -463,7 +463,7 @@ test("postModuleGroups: нумерация модулей начинается �
    Заказчик разместил один пост дважды, поменял тип стены у одного — «изменилось у обоих»
    (на деле — у всего проекта: тип стены был только настройкой EP_DATA.settings). Теперь
    тип стены может быть СВОИМ у поста, а настройка проекта осталась значением по умолчанию. */
-const { postWallType, postTypeKey, wallTypeTargets, placementFields, postBacklight } = require("../js/posts.js");
+const { postWallType, applyProjectWallToPosts, postTypeKey, wallTypeTargets, placementFields, postBacklight } = require("../js/posts.js");
 /* Коробки под ту же 3М-сборку: сплошная стена дешевле полой — по ним и видно, что подбор
    пошёл по типу стены поста, а не проекта. */
 const BOX_SOLID = { id: 900, code: "V71303", name: "Коробка 3М (бетон)", price: 1.04, kind: "socket_box", wallType: "solid" };
@@ -485,6 +485,37 @@ test("postWallType: у поста поля нет — читаем тип сте
   assert.equal(postWallType({ wallType: "кирпич" }, "hollow"), "hollow", "мусор = поля нет");
   assert.equal(postWallType(null, "solid"), "solid");
   assert.equal(postWallType({}, null), "unknown", "нет ни своего, ни проектного — честное unknown");
+});
+
+/* --- Миграция «тип стены проекта → в посты без своей стены» (К4б) -----------------------
+   Настройку стены проекта из панели убрали; чтобы старый проект, считавшийся по «ГКЛ», не
+   подорожал при открытии (пост без своей стены раньше читал стену проекта, теперь дефолт —
+   «бетон»), applyProjectWallToPosts проставляет каждому такому посту стену проекта из снимка. */
+test("applyProjectWallToPosts: пост без своей стены получает стену проекта (ГКЛ), свой не трогаем", () => {
+  const posts = [
+    { id: "p1", mechanismIds: [1] },                       // поля нет → наследует проект
+    { id: "p2", mechanismIds: [1], wallType: "solid" },    // свой выбор — не перезаписываем
+    { id: "p3", mechanismIds: [1], wallType: "" },         // пустая строка = поля нет
+    { id: "p4", mechanismIds: [1], wallType: "кирпич" }    // мусор = поля нет
+  ];
+  applyProjectWallToPosts(posts, "hollow");
+  assert.equal(posts[0].wallType, "hollow", "пост без поля получил стену проекта");
+  assert.equal(posts[1].wallType, "solid", "свой тип стены НЕ перезаписан стеной проекта");
+  assert.equal(posts[2].wallType, "hollow", "пустая строка трактуется как отсутствие поля");
+  assert.equal(posts[3].wallType, "hollow", "мусор трактуется как отсутствие поля");
+});
+
+test("applyProjectWallToPosts: нет стены проекта (очень старый проект) → дефолт «бетон»", () => {
+  const posts = [{ id: "p1", mechanismIds: [1] }];
+  applyProjectWallToPosts(posts, undefined);
+  assert.equal(posts[0].wallType, "solid", "проект без terms.wallType всегда считался по бетону");
+});
+
+test("applyProjectWallToPosts: идемпотентна — повторное открытие не меняет уже проставленную стену", () => {
+  const posts = [{ id: "p1", mechanismIds: [1] }];
+  applyProjectWallToPosts(posts, "hollow");          // первое открытие (проект был ГКЛ)
+  applyProjectWallToPosts(posts, "solid");           // повторный прогон с другим дефолтом
+  assert.equal(posts[0].wallType, "hollow", "своя (уже проставленная) стена пережила повторный прогон");
 });
 
 test("postComposition: коробка подбирается по типу стены ПОСТА, а не проекта", () => {

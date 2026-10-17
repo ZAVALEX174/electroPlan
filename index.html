@@ -339,20 +339,12 @@
       <section>
         <div class="section-head"><h3>Спецификация</h3><span class="count-pill" id="objectCount">0</span></div>
         <div class="spec-list" id="specList"></div>
-        <!-- ⚠️ НАСТРОЙКИ ПРОЕКТА ПРАВЯТСЯ ТОЛЬКО ЗДЕСЬ. Тип стены и схема электрики лежат в
-             EP_DATA.settings и едут в terms проекта — это свойства всего объекта, а не поста.
-             Раньше органы управления обоими стояли ВНУТРИ модалки конструктора поста: человек
-             открывал ОДИН пост, переключал стену или схему — и менялся весь проект, включая
-             посты другой серии и другого состава. Теперь у поста на плане свой тип стены
-             (post.wallType), а значение проекта и схема живут здесь, в панели проекта. В окне
-             поста оба показаны ТОЛЬКО ДЛЯ ЧТЕНИЯ. -->
-        <label class="scheme-field">Тип стены проекта
-          <select id="projectWallTypeSelect" aria-describedby="projectWallTypeHint">
-            <option value="solid">Бетон, кирпич, сплошные стены</option>
-            <option value="hollow">ГКЛ и полые стены</option>
-          </select>
-        </label>
-        <small class="hint-line" id="projectWallTypeHint">Значение по умолчанию: по нему подбирается коробка у постов, которым тип стены не задавали отдельно.</small>
+        <!-- ⚠️ НАСТРОЙКИ ПРОЕКТА ПРАВЯТСЯ ТОЛЬКО ЗДЕСЬ. Схема электрики лежит в EP_DATA.settings и
+             едет в terms проекта — это свойство всего объекта, а не поста. Раньше её орган стоял
+             ВНУТРИ модалки конструктора поста: человек открывал ОДИН пост, переключал схему — и
+             менялся весь проект. Теперь схема живёт здесь, в панели проекта, а в окне поста она
+             показана ТОЛЬКО ДЛЯ ЧТЕНИЯ. Тип стены — свойство отдельного ПОСТА (post.wallType);
+             общей настройки стены проекта тут больше нет (К4б). -->
         <label class="scheme-field">Схема электрики проекта
           <select id="lightingSchemeSelect" aria-describedby="lightingSchemeHint"></select>
         </label>
@@ -439,8 +431,8 @@
                  блок в перегородке из ГКЛ соседствует с блоками в бетоне. Теперь у поста на
                  плане тип стены свой, а при сохранении окно спрашивает охват правки. У ШАБЛОНА
                  и нового поста кнопки тоже активны: выбранный тип стены сохраняется в шаблоне и
-                 переходит посту при размещении (владелец, 28.08). Общей настройки проекта эти
-                 кнопки НЕ трогают (дефект B5) — её орган в панели «Спецификация».
+                 переходит посту при размещении (владелец, 28.08). Общей настройки стены проекта
+                 больше нет (К4б) — пост без своей стены считается по дефолту «бетон».
                  Подпись динамическая (renderBuilderComposition). -->
             <small class="wall-type-hint" id="postWallTypeHint"></small>
           </fieldset>
@@ -594,7 +586,7 @@
   <script src="js/catalog-vimar-attrs.js?v=20261017.1"></script>
   <script src="js/catalog-vimar-openings.js?v=20260920.1"></script>
   <script src="js/catalog-vimar-faces.js?v=20260801.2"></script>
-  <script src="js/data.js?v=20260926.3"></script>
+  <script src="js/data.js?v=20261018.1"></script>
 <script src="js/store.js?v=20260723"></script>
 <script src="js/config.js?v=20261005.1"></script>
 <!-- Подтверждение необратимой команды повтором того же действия (у окна есть и нижняя, и
@@ -615,14 +607,14 @@
      до app.js, который через него считает projectLighting. -->
 <script src="js/lightingByRoom.js?v=20260920.1"></script>
 <script src="js/postfit.js?v=20261017.1"></script>
-<script src="js/posts.js?v=20260916.3"></script>
+<script src="js/posts.js?v=20261018.1"></script>
 <script src="js/picker.js?v=20260801.1"></script>
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
 <script src="js/catalogSections.js?v=20260828.1"></script>
 <script src="js/builderSlots.js?v=20260914.2"></script>
 <script src="js/offerOptions.js?v=20260926.1"></script>
 <script src="js/docRequisites.js?v=20261003.1"></script>
-<script src="js/estimate.js?v=20261014.2"></script>
+<script src="js/estimate.js?v=20261018.1"></script>
 <!-- Картинки бланка компании (логотип, подпись, печать) — одно правило «годен ли файл» и разметка
      <img> на все документы (§7.1). Грузится до offerPdf/installSheet, которые через него рисуют. -->
 <script src="js/docImages.js?v=20260922.1"></script>
@@ -661,7 +653,7 @@
      «висящего» промиса и провязка кнопок. Вынесена из app.js (И1). Грузится ДО app.js, который
      подключает её через EPWallScope.create({$, WALL_STEP_LABEL}). -->
 <script src="js/wallScope.js?v=20260927.1"></script>
-<script src="js/postBuilder.js?v=20261013.4"></script>
+<script src="js/postBuilder.js?v=20261018.1"></script>
 <script src="js/rooms.js?v=20261006.1"></script>
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
@@ -687,6 +679,6 @@
      EPPostCopyUi.attach(ctx) ПОСЛЕ EPCanvasInput.attach (оттуда приходит canvasPointer). -->
 <script src="js/notices.js?v=20261010.1"></script>
 <script src="js/postCopyUi.js?v=20261010.2"></script>
-<script src="js/app.js?v=20261015.1"></script>
+<script src="js/app.js?v=20261018.1"></script>
 </body>
 </html>
