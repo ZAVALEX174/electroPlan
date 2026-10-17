@@ -161,8 +161,14 @@ test("суппорт по коробке: V71701 → 603 (с винтами)", (
   const s = findSupport({ supports: EIKON_SUP, frame: eikonIT, standard: "IT_ROUND", frameModules: 2, box: BOX.V71701, seriesOf: p => p.series });
   assert.equal(s.code, "21603");
 });
-test("суппорт по коробке: немецкий стандарт → только 603, даже с круглой V71001", () => {
+/* Решение владельца 17.10 (К4, вариант «а»): у немецкого стандарта тип суппорта тоже задаёт
+   коробка — бетон/V71001 → 602, ГКЛ/V71701 → 603. Прежнее «DE → всегда 603» отменено. */
+test("суппорт по коробке: немецкий стандарт, бетон V71001 → 602 (решение владельца 17.10)", () => {
   const s = findSupport({ supports: EIKON_SUP, frame: eikonDE, standard: "DE", frameModules: 2, box: BOX.V71001, seriesOf: p => p.series });
+  assert.equal(s.code, "21602");
+});
+test("суппорт по коробке: немецкий стандарт, ГКЛ V71701 → 603", () => {
+  const s = findSupport({ supports: EIKON_SUP, frame: eikonDE, standard: "DE", frameModules: 2, box: BOX.V71701, seriesOf: p => p.series });
   assert.equal(s.code, "21603");
 });
 test("суппорт по коробке: V71001 (→602), но в серии только 603 → null (не подставляем)", () => {

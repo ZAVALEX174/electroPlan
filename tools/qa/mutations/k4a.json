@@ -1,0 +1,11 @@
+[
+  { "name": "K4a M1: вернули прежнее DE→603 (всегда ГКЛ-суппорт) — немецкий бетонный пост снова получает 603, а не 602",
+    "file": "js/postfit.js",
+    "from": "function supportTypeForBox(std, box) {\n  const code = String((box && box.code) || \"\");",
+    "to": "function supportTypeForBox(std, box) {\n  if (std === \"DE\") return \"603\";\n  const code = String((box && box.code) || \"\");" },
+
+  { "name": "K4a M2: перепутали 602/603 — бетон стал получать 603, ГКЛ 602",
+    "file": "js/postfit.js",
+    "from": "  if (/71701/.test(code)) return \"603\";\n  if (/71001/.test(code)) return \"602\";",
+    "to": "  if (/71701/.test(code)) return \"602\";\n  if (/71001/.test(code)) return \"603\";" }
+]
