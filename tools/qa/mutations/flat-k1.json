@@ -1,0 +1,26 @@
+[
+  { "name": "K1 M1: подмена роли выключена — Flat не получает механизм под выключатель",
+    "file": "js/lightingPlan.js",
+    "from": "    if (alt) candidates = pick(alt);",
+    "to": "    if (alt) {}" },
+
+  { "name": "K1 M2: подмена ставит не ту роль (кнопку вместо переключателя) — в смету уйдёт 22108, не 22104",
+    "file": "js/lightingPlan.js",
+    "from": "const SERIES_ROLE_FALLBACK = { \"eikon flat\": { switch: \"changeover\" } };",
+    "to": "const SERIES_ROLE_FALLBACK = { \"eikon flat\": { switch: \"button\" } };" },
+
+  { "name": "K1 M3: подмена срабатывает всегда, затирая найденный свой механизм (Eikon Evo выключатель → переключатель)",
+    "file": "js/lightingPlan.js",
+    "from": "  let candidates = pick(role);",
+    "to": "  let candidates = [];" },
+
+  { "name": "K1 M4: плоские клавиши Flat перестают опознаваться клавишей (partRoleOf)",
+    "file": "tools/lib/nomenclature.mjs",
+    "from": "const FLAT_KEY_NAME_RE = /плоск[а-яё]*\\s+клавиш/i;",
+    "to": "const FLAT_KEY_NAME_RE = /\\0нетсовпадения\\0/i;" },
+
+  { "name": "K1 M5: распознавание клавиши слишком широкое — EnOcean «Пара клавиш» тоже станет клавишей",
+    "file": "tools/lib/nomenclature.mjs",
+    "from": "const FLAT_KEY_NAME_RE = /плоск[а-яё]*\\s+клавиш/i;",
+    "to": "const FLAT_KEY_NAME_RE = /клавиш/i;" }
+]

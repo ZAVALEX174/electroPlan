@@ -160,6 +160,22 @@ function isExtraLowVoltage(item) {
   return low && !mains;
 }
 
+/* Серии, где голого механизма нужной роли нет, а владелец разрешил подставить механизм ДРУГОЙ
+   роли (решение 17.10, Eikon Flat: выключатель → переключатель 22104). Это ДАННЫЕ, а не логика:
+   артикулы по-прежнему не зашиты (подбор по роли+серии через обычный pick), здесь только карта
+   «в этой серии роль X исполняется механизмом роли Y». Ключ серии — в нижнем регистре, как её
+   приводит seriesMatch. Инвертор и кнопку сюда НЕ кладём: кнопка в Flat своя (22108), а инвертора
+   нет и заменять его нечем — честный пробел NOT_IN_SERIES. */
+const SERIES_ROLE_FALLBACK = { "eikon flat": { switch: "changeover" } };
+function seriesRoleFallback(series, role) {
+  const list = (Array.isArray(series) ? series : []).map(s => text(s).trim().toLocaleLowerCase("ru-RU"));
+  for (const s of list) {
+    const map = SERIES_ROLE_FALLBACK[s];
+    if (map && map[role]) return map[role];
+  }
+  return null;
+}
+
 /* resolveMechanism({role, series}, mechanisms, deps) → { product, candidates, ambiguous }
 
    Строгий подбор под контракт EPLightingGroups.findMechanism:
@@ -183,11 +199,23 @@ function resolveMechanism(query, mechanisms, deps) {
   const codeOf = d.codeOf || (item => item && item.code);
   const role = text(q.role);
   if (!role) return { product: null, candidates: [], ambiguous: false };
-  let candidates = (Array.isArray(mechanisms) ? mechanisms : []).filter(item =>
+  const list = Array.isArray(mechanisms) ? mechanisms : [];
+  const pick = wanted => list.filter(item =>
     partOf(item) === "bare_mechanism"
-    && roleOf(item) === role
+    && roleOf(item) === wanted
     && text(codeOf(item)).trim() !== ""
     && seriesMatch(q.series, seriesOf(item)));
+  let candidates = pick(role);
+  /* ПОДМЕНА РОЛИ ПО СЕРИИ (решение владельца 17.10, Eikon Flat). В серии Flat нет голого ВЫКЛЮЧАТЕЛЯ
+     — только осевой ПЕРЕКЛЮЧАТЕЛЬ 22104 и КНОПКА 22108. Переключатель электрически делает и работу
+     выключателя, поэтому на роль «выключатель» в Flat ставится 22104. Подмена ТОЧЕЧНАЯ — срабатывает
+     ТОЛЬКО когда своего механизма роли в серии нет вовсе: у Plana/Arke/Eikon Evo+Exe/Neve Up
+     выключатель есть (их не касается, пробел NOT_IN_SERIES у них прежний), а инвертора в Flat нет и
+     заменять его нечем — честный пробел, как у Neve Up. Таблица подмен — ОДНО место (§7.1). */
+  if (!candidates.length) {
+    const alt = seriesRoleFallback(q.series, role);
+    if (alt) candidates = pick(alt);
+  }
   if (candidates.length > 1) {
     const mains = candidates.filter(item => !isExtraLowVoltage(item));
     if (mains.length) candidates = mains;

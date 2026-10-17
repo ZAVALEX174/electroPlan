@@ -127,6 +127,17 @@ test("partRoleOf: клавиша — по ПЕРВОМУ слову назван
   assert.equal(N.partRoleOf(), null);
 });
 
+test("partRoleOf: плоские клавиши Eikon Flat — клавиша, но EnOcean «Пара клавиш» — нет (K1)", () => {
+  /* Flat называет клавиши «Две плоские клавиши…», не со слова «Клавиша», поэтому их ловит
+     отдельный предикат «плоск… клавиш…» (решение владельца 17.10: клавиша Flat садится на
+     осевой механизм 22104/22108). Радиочастотные пары клавиш EnOcean — НЕ клавиши (у них нет
+     слова «плоск»), иначе подцепились бы к устройствам управления чужой логикой. */
+  assert.equal(N.partRoleOf({ group: "управление светом", name: 'Две плоские клавиши, символ "три точки", Flat, никель матовый' }), "key");
+  assert.equal(N.partRoleOf({ group: "управление светом", name: "Две плоские клавиши без символов, Flat,белые" }), "key");
+  assert.equal(N.partRoleOf({ group: "управление светом", name: "Пара клавиш к стройству управления EnOcean, белые" }), null);
+  assert.equal(N.partRoleOf({ group: "управление светом", name: "Широкая клавиша к устройству управления ENOCEAN, серая" }), null);
+});
+
 test("buildAttrs: роль детали и роль управления едут в рантайм разделом roles", () => {
   /* Ключ — артикул, запись {part, control}. Два поля, а не один составной код: рантайм
      спрашивает их порознь (клавиша/механизм решает раскладку поста, роль управления
@@ -458,13 +469,21 @@ test("собранный js/catalog-vimar-attrs.js несёт роли по ре
   /* Проверяем ОТГРУЖАЕМЫЙ артефакт, а не только чистые функции: между ними стоит конвертер,
      и регресс в нём тесты чистых функций не поймают. Числа — замер владельца: 18 голых
      механизмов (Plana/Arke/Eikon Evo+Exe по четыре роли, осевые Eikon Flat 22104/22108 и
-     четыре Neve Up) и 34 клавиши. */
+     четыре Neve Up) и 46 клавиш: 34 классических «Клавиша…» + 12 плоских Eikon Flat 22751.*
+     (K1, решение владельца 17.10 — см. FLAT_KEY_NAME_RE в tools/lib/nomenclature.mjs). */
   const box = {};
   new Function("window", "\"use strict\";" + fs.readFileSync(path.join(__dirname, "../js/catalog-vimar-attrs.js"), "utf8"))(box);
   const roles = box.EP_VIMAR_ATTRS.roles;
   const parts = Object.values(roles).filter((r) => r.part === "bare_mechanism");
   assert.equal(parts.length, 18);
-  assert.equal(Object.values(roles).filter((r) => r.part === "key").length, 34);
+  assert.equal(Object.values(roles).filter((r) => r.part === "key").length, 46);
+  /* Плоские клавиши Flat — именно клавиши (part=key), без роли управления (её им даёт расчёт).
+     Радиочастотные «Пара клавиш…» EnOcean клавишами НЕ становятся (у них нет слова «плоск»). */
+  assert.deepEqual(roles["22751.11"], { part: "key" });
+  assert.deepEqual(roles["22751.0.01"], { part: "key" });
+  assert.equal(Object.keys(roles).filter((c) => /^22751/.test(c) && roles[c].part === "key").length, 12);
+  // Широкая клавиша EnOcean клавишей НЕ становится: part не ставится (роль управления Bluetooth — есть).
+  assert.equal(roles["20506.2"].part, undefined, "широкая клавиша EnOcean клавишей не считается");
   const bareByControl = {};
   for (const r of parts) bareByControl[r.control] = (bareByControl[r.control] || 0) + 1;
   assert.deepEqual(bareByControl, { switch: 4, changeover: 5, button: 6, inverter: 3 });

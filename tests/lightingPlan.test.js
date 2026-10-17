@@ -224,6 +224,57 @@ test("isExtraLowVoltage читает напряжение, а не любые ц
   assert.equal(LP.isExtraLowVoltage(SWITCH), false, "«16AX» и «1P» — не напряжение");
 });
 
+/* ── Eikon Flat (K1): у серии нет голого ВЫКЛЮЧАТЕЛЯ, его роль исполняет переключатель 22104 ── */
+const KEY_FLAT = { id: 50, code: "22751.11", name: "Две плоские клавиши, символ, Flat, никель матовый",
+  price: 36.49, partRole: "key", series: ["Eikon Flat"] };
+const FLAT_CHANGEOVER = { id: 51, code: "22104", name: "Переключатель 1P 10AX осевой, Flat", price: 52.26,
+  partRole: "bare_mechanism", controlRole: "changeover", series: ["Eikon Flat"] };
+const FLAT_BUTTON = { id: 52, code: "22108", name: "Переключатель 1P NO 10A осевой, Flat", price: 52.26,
+  partRole: "bare_mechanism", controlRole: "button", series: ["Eikon Flat"] };
+const FLAT_MECHS = [FLAT_CHANGEOVER, FLAT_BUTTON];
+
+test("Flat: роль «выключатель» подменяется переключателем 22104 (владелец 17.10)", () => {
+  /* В серии Eikon Flat голого ВЫКЛЮЧАТЕЛЯ нет — только осевой переключатель 22104 и кнопка 22108.
+     Переключатель электрически делает и работу выключателя, поэтому на роль switch ставится 22104.
+     Кнопка берёт свой 22108; инвертора в серии нет и заменять его нечем — честный пробел. */
+  assert.equal(LP.resolveMechanism({ role: "switch", series: ["Eikon Flat"] }, FLAT_MECHS).product, FLAT_CHANGEOVER);
+  assert.equal(LP.resolveMechanism({ role: "changeover", series: ["Eikon Flat"] }, FLAT_MECHS).product, FLAT_CHANGEOVER);
+  assert.equal(LP.resolveMechanism({ role: "button", series: ["Eikon Flat"] }, FLAT_MECHS).product, FLAT_BUTTON);
+  assert.equal(LP.resolveMechanism({ role: "inverter", series: ["Eikon Flat"] }, FLAT_MECHS).product, null);
+});
+
+test("подмена роли НЕ срабатывает, если свой механизм роли в серии есть", () => {
+  /* Гарантия, что правило Flat не заденет прочие серии: у Eikon Evo выключатель 20001.0 есть, и
+     switch обязан вернуть именно его, а не переключатель. Подмена действует ТОЛЬКО при полном
+     отсутствии механизма роли в серии. */
+  assert.equal(LP.resolveMechanism({ role: "switch", series: ["Eikon Evo"] }, MECHS).product, SWITCH);
+});
+
+test("Flat в полном расчёте: 1 место — выключатель→22104, кнопка→22108, инвертор — пробел", () => {
+  const flatProduct = id => [KEY_FLAT].concat(FLAT_MECHS).find(p => p.id === Number(id));
+  const flatCollect = posts => LP.collect(posts, { product: flatProduct, seriesOf, isKey });
+  const flatPlan = (posts, scheme) => {
+    const places = flatCollect(posts);
+    const plan = LG.plan({ scheme: scheme || "classic", places }, {
+      seriesOf, findMechanism: q => LP.resolveMechanism(q, FLAT_MECHS).product });
+    return { plan, rows: LP.rowsByPost(plan, places, LG.GAP_TEXTS) };
+  };
+  /* Один пост, 4 клавиши в разных группах → 4 места по одному → выключатель → 22104 ×4. */
+  const post4 = [{ id: "p1", number: "22684.4.11", mechanismIds: [50, 50, 50, 50], keyGroups: ["Г1", "Г2", "Г3", "Г4"] }];
+  assert.deepEqual(flatPlan(post4).rows.get("p:p1").map(r => r.code), ["22104", "22104", "22104", "22104"]);
+  /* Схема «Реле» → кнопка → 22108. */
+  assert.deepEqual(flatPlan(post4, "relay").rows.get("p:p1").map(r => r.code), ["22108", "22108", "22108", "22108"]);
+  /* Три поста одной группы (N=3) → переключатель, переключатель, инвертор; инвертора в Flat нет. */
+  const post3 = [
+    { id: "a", number: 1, mechanismIds: [50], keyGroups: ["Зал"] },
+    { id: "b", number: 2, mechanismIds: [50], keyGroups: ["Зал"] },
+    { id: "c", number: 3, mechanismIds: [50], keyGroups: ["Зал"] }
+  ];
+  const r3 = flatPlan(post3).plan;
+  assert.deepEqual(r3.places.map(p => p.code), ["22104", "22104", null]);
+  assert.equal(r3.places[2].missingReason, LG.GAPS.NOT_IN_SERIES);
+});
+
 /* ── раскладка по постам ──────────────────────────────────────────────────────────── */
 
 test("классическая схема по числу ПОСТОВ группы: 1 → выключатель, 2 → переключатели, 3 → +инвертор", () => {
