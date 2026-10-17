@@ -12,5 +12,10 @@
   { "name": "K4b M3: копия поста теряет wallType (ушёл в служебные) — клон ГКЛ-поста считается по бетону",
     "file": "js/postCopy.js",
     "from": "[\"id\", \"number\", \"x\", \"y\", \"roomId\"]",
-    "to": "[\"id\", \"number\", \"x\", \"y\", \"roomId\", \"wallType\"]" }
+    "to": "[\"id\", \"number\", \"x\", \"y\", \"roomId\", \"wallType\"]" },
+
+  { "name": "K4b M4: вызов миграции в restoreProject удалён — старый ГКЛ-проект открывается без проставленной стены",
+    "file": "js/app.js",
+    "from": "EPPosts.applyProjectWallToPosts(state.posts,p.terms&&p.terms.wallType);",
+    "to": "void 0;" }
 ]
