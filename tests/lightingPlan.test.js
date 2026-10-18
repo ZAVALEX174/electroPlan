@@ -565,3 +565,23 @@ test("каталог: Eikon changeover → 20005.0 (точная серия), Fl
   const sw = LP.resolveMechanism({ role: "switch", series: ["Eikon"] }, mechs);
   assert.equal(sw.product && sw.product.code, "20001.0");
 });
+
+/* ── НАСТОЯЩИЙ каталог: ВЫДЕЛЕННАЯ серия Eikon Flat игнорирует общий механизм семейства (К1, 17.10) ──
+   Эталон — поведение до шага 3 (коммит 732ae3a) на тех же ролях: switch=22104 (подмена на переключатель),
+   changeover=22104, button=22108, inverter=null (своего нет, заменять нечем — честный пробел). Шаг 3
+   ввёл family-правило, и общий «Eikon» 20001.0/20013.0 начал цепляться к Flat через базу, подменяя
+   22104 и оживляя инвертор, которого в серии нет. Выделенная серия (есть в SERIES_ROLE_FALLBACK)
+   принимает ТОЛЬКО точное совпадение серии — поэтому результат снова совпадает с эталоном. */
+test("каталог: Eikon Flat берёт свои 22104/22108, общий Eikon не подставляется (switch→22104, inverter→null)", () => {
+  const mechs = catalogMechanisms();
+  const r = role => { const x = LP.resolveMechanism({ role, series: ["Eikon Flat"] }, mechs); return x.product ? x.product.code : null; };
+  assert.equal(r("switch"), "22104", "Flat switch → 22104 (подмена роли), а НЕ общий 20001.0; мутация «fallback только при пустом списке» вернула бы 20001.0");
+  assert.equal(r("changeover"), "22104");
+  assert.equal(r("button"), "22108");
+  assert.equal(r("inverter"), null, "инвертора в Flat нет; общий 20013.0 через семейство подставляться НЕ должен — честный пробел");
+  /* Обычная подсерия Eikon Evo продолжает брать общий механизм семейства (своих у неё нет). */
+  const evo = role => { const x = LP.resolveMechanism({ role, series: ["Eikon Evo"] }, mechs); return x.product ? x.product.code : null; };
+  assert.equal(evo("switch"), "20001.0");
+  assert.equal(evo("changeover"), "20005.0");
+  assert.equal(evo("inverter"), "20013.0");
+});

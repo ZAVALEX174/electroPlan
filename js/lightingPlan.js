@@ -174,14 +174,22 @@ function isExtraLowVoltage(item) {
    приводит seriesMatch. Инвертор и кнопку сюда НЕ кладём: кнопка в Flat своя (22108), а инвертора
    нет и заменять его нечем — честный пробел NOT_IN_SERIES. */
 const SERIES_ROLE_FALLBACK = { "eikon flat": { switch: "changeover" } };
+const seriesKeys = series => (Array.isArray(series) ? series : (series == null ? [] : [series]))
+  .map(s => text(s).trim().toLocaleLowerCase("ru-RU"));
 function seriesRoleFallback(series, role) {
-  const list = (Array.isArray(series) ? series : []).map(s => text(s).trim().toLocaleLowerCase("ru-RU"));
-  for (const s of list) {
+  for (const s of seriesKeys(series)) {
     const map = SERIES_ROLE_FALLBACK[s];
     if (map && map[role]) return map[role];
   }
   return null;
 }
+/* «ВЫДЕЛЕННАЯ» СЕРИЯ — у неё есть СВОЯ линейка механизмов, перечисленная в SERIES_ROLE_FALLBACK
+   (пока одна — Eikon Flat). Для такой серии общий механизм базового семейства (family-совпадение
+   «Eikon»→«Eikon Flat») НЕ годится: владелец (К1, 17.10) требует механизм самой серии (22104/22108),
+   а своего на роль нет — подмену роли или честный пробел, ровно как было до шага 3. Для обычной
+   подсерии (Eikon Evo/Exe) общий «Eikon» — штатный путь (своих механизмов у неё в каталоге нет),
+   её это не касается. Tondo в карту не входит (шаг 5) — к ней правило не применяется. */
+const seriesIsDedicated = series => seriesKeys(series).some(s => SERIES_ROLE_FALLBACK[s]);
 
 /* resolveMechanism({role, series}, mechanisms, deps) → { product, candidates, ambiguous }
 
@@ -212,7 +220,15 @@ function resolveMechanism(query, mechanisms, deps) {
     && roleOf(item) === wanted
     && text(codeOf(item)).trim() !== ""
     && seriesMatch(q.series, seriesOf(item)));
-  let candidates = pick(role);
+  /* У ВЫДЕЛЕННОЙ серии (Eikon Flat) общий механизм базового семейства не годится — только точное
+     совпадение серии (22104/22108). Поэтому у неё family-кандидаты отсеиваем ДО проверки «пусто ли»:
+     иначе общий 20001.0 (Eikon) удержал бы роль switch и подмена на 22104 не сработала бы, а инвертор
+     получил бы общий 20013.0 вместо честного пробела (поведение К1 до шага 3). Обычной подсерии
+     refine ничего не меняет (у Evo/Exe своих механизмов в каталоге нет — работает family-«Eikon»). */
+  const dedicated = seriesIsDedicated(q.series);
+  const refine = cands => dedicated
+    ? cands.filter(item => EPSeriesMatch.matchLevel(q.series, seriesOf(item)) === "exact") : cands;
+  let candidates = refine(pick(role));
   /* ПОДМЕНА РОЛИ ПО СЕРИИ (решение владельца 17.10, Eikon Flat). В серии Flat нет голого ВЫКЛЮЧАТЕЛЯ
      — только осевой ПЕРЕКЛЮЧАТЕЛЬ 22104 и КНОПКА 22108. Переключатель электрически делает и работу
      выключателя, поэтому на роль «выключатель» в Flat ставится 22104. Подмена ТОЧЕЧНАЯ — срабатывает
@@ -221,7 +237,7 @@ function resolveMechanism(query, mechanisms, deps) {
      заменять его нечем — честный пробел, как у Neve Up. Таблица подмен — ОДНО место (§7.1). */
   if (!candidates.length) {
     const alt = seriesRoleFallback(q.series, role);
-    if (alt) candidates = pick(alt);
+    if (alt) candidates = refine(pick(alt));
   }
   /* ТОЧНОЕ СОВПАДЕНИЕ СЕРИИ ГЛАВНЕЕ СЕМЕЙНОГО (решение владельца 18.10). seriesMatch пускает в
      кандидаты и точную серию («Eikon»→«Eikon»), и семейную («Eikon»→«Eikon Flat/Tondo» через базу),
@@ -229,8 +245,8 @@ function resolveMechanism(query, mechanisms, deps) {
      22104 (серия «Eikon Flat», семейно) — пост терял механизм (131.62 € вместо 157.41 €). Уровень
      совпадения — одно место (EPSeriesMatch.matchLevel, §7.1): есть кандидаты с точной серией —
      семейные из выбора уходят; неоднозначность остаётся, только если точных несколько (это уже не
-     про семью, а про реальный выбор человека). Для Flat-запроса 22104 сам точный, а 20005.0 семейный
-     — выигрывает 22104 (К1 сохранён). */
+     про семью, а про реальный выбор человека). Для выделенной серии refine уже оставил только точные;
+     эта ветка решает НЕвыделенные случаи (Tondo changeover 22104 vs семейный 20005.0). */
   if (candidates.length > 1) {
     const exact = candidates.filter(item => EPSeriesMatch.matchLevel(q.series, seriesOf(item)) === "exact");
     if (exact.length) candidates = exact;
