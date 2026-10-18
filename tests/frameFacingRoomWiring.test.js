@@ -7,10 +7,10 @@
    доезжает до товара ровно так, как в браузере. EPCatalog/EPRoom настоящие.
 
    ЯКОРИ (замерено продакшн-функциями, числа НЕ хардкодим вслепую):
-     A) комната Eikon Evo + материал «Влагозащищенный технополимер»: пул 12 из 237 (коллекция),
-        модульности [2,3,4] вместо [2,3,4,6,7,8] — 6/7/8 уходят вместе с материалом;
+     A) комната Eikon Evo + материал «Камень»: пул 20 из 222 (коллекция), модульности
+        [2,3,4,7,8] вместо [2,3,4,6,7,8] — модуль 6 уходит вместе с материалом;
      B) НЕВОЗМОЖНОЕ сочетание Eikon Tactil + «Металл»: пул 0 — collectionFramePool больше НЕ
-        подменяет пусто всем каталогом (1631), а селектор показывает только фактическую ёмкость.
+        подменяет пусто всем каталогом, а селектор показывает только фактическую ёмкость.
 
    МУТАЦИОННАЯ ТАБЛИЦА (в отчёте):
      builderRoomFilter без ключей frameMaterial/… (только collection) → красит §A-filter, §A-pool, §A-hint;
@@ -52,11 +52,11 @@ const optionValues = html => [...html.matchAll(/<option value="([^"]*)"/g)].map(
 test("предпосылки якорей A/B держатся на текущем каталоге", () => {
   const frames = activeFrames();
   const evoBase = EPCatalog.productsForRoom(frames, { collection: "Eikon Evo" });
-  const evoWet = EPCatalog.productsForRoom(frames, { collection: "Eikon Evo", frameMaterial: "Влагозащищенный технополимер" });
-  assert.equal(evoBase.length, 237, "Eikon Evo: 237 накладок (база до отделки)");
-  assert.equal(evoWet.length, 12, "Eikon Evo + влагозащищённый технополимер: 12 накладок");
+  const evoWet = EPCatalog.productsForRoom(frames, { collection: "Eikon Evo", frameMaterial: "Камень" });
+  assert.equal(evoBase.length, 222, "Eikon Evo: 222 накладки (база до отделки)");
+  assert.equal(evoWet.length, 20, "Eikon Evo + камень: 20 накладок");
   assert.deepEqual(EPCatalog.frameSlotOptions(evoBase), [2, 3, 4, 6, 7, 8], "модульности коллекции");
-  assert.deepEqual(EPCatalog.frameSlotOptions(evoWet), [2, 3, 4], "материал убирает 6/7/8");
+  assert.deepEqual(EPCatalog.frameSlotOptions(evoWet), [2, 3, 4, 7, 8], "материал убирает модуль 6");
   assert.equal(EPCatalog.productsForRoom(frames, { collection: "Eikon Tactil", frameMaterial: "Металл" }).length, 0,
     "Eikon Tactil + Металл — сочетания нет (у Eikon Tactil металла не бывает)");
 });
@@ -74,9 +74,9 @@ function filterFor(room) {
 }
 
 test("§A-filter: критерий несёт коллекцию И отделку комнаты", () => {
-  const f = filterFor({ collection: "Eikon Evo", frameMaterial: "Влагозащищенный технополимер" });
+  const f = filterFor({ collection: "Eikon Evo", frameMaterial: "Камень" });
   assert.equal(f.collection, "Eikon Evo");
-  assert.equal(f.frameMaterial, "Влагозащищенный технополимер");
+  assert.equal(f.frameMaterial, "Камень");
   assert.equal(f.frameShape, null, "форма не задана → null");
   assert.equal(f.frameColor, null, "цвет не задан → null");
 });
@@ -101,8 +101,8 @@ function poolFor(room) {
   return pool(activeFrames());
 }
 
-test("§A-pool: отделка сужает пул до 12 (материал), а не оставляет 237 коллекции", () => {
-  assert.equal(poolFor({ collection: "Eikon Evo", frameMaterial: "Влагозащищенный технополимер" }).length, 12);
+test("§A-pool: отделка сужает пул до 20 (материал), а не оставляет 222 коллекции", () => {
+  assert.equal(poolFor({ collection: "Eikon Evo", frameMaterial: "Камень" }).length, 20);
 });
 
 test("§B-pool: невозможное сочетание → ПУСТОЙ пул (0), а не весь каталог 1631", () => {
@@ -128,10 +128,10 @@ function slotOptions(room, extra) {
   return optionValues(dom.$("postSlotCount").innerHTML).map(Number);
 }
 
-test("§A-slots: селектор в комнате Eikon Evo + материал = [2,3,4]; 6/7/8 ушли вместе с материалом", () => {
-  const opts = slotOptions({ collection: "Eikon Evo", frameMaterial: "Влагозащищенный технополимер" }, 3);
-  assert.deepEqual(opts, [2, 3, 4]);
-  assert.ok(!opts.includes(8), "«8» у этого материала нет — предлагать её значило бы вернуть дефект пустого matchingFrames");
+test("§A-slots: селектор в комнате Eikon Evo + материал = [2,3,4,7,8]; модуль 6 ушёл вместе с материалом", () => {
+  const opts = slotOptions({ collection: "Eikon Evo", frameMaterial: "Камень" }, 3);
+  assert.deepEqual(opts, [2, 3, 4, 7, 8]);
+  assert.ok(!opts.includes(6), "«6» у этого материала нет — предлагать её значило бы вернуть дефект пустого matchingFrames");
 });
 
 test("§B-slots: невозможное сочетание — селектор показывает только фактическую ёмкость поста (extra)", () => {
@@ -152,9 +152,9 @@ function hintFor(room) {
   return hint(activeFrames());
 }
 
-test("§A-hint: «Показано 12 из 237 накладок · сузили: материал …»", () => {
-  const t = hintFor({ collection: "Eikon Evo", frameMaterial: "Влагозащищенный технополимер" });
-  assert.equal(t, "Показано 12 из 237 накладок · сузили: материал «Влагозащищенный технополимер»");
+test("§A-hint: «Показано 20 из 222 накладок · сузили: материал …»", () => {
+  const t = hintFor({ collection: "Eikon Evo", frameMaterial: "Камень" });
+  assert.equal(t, "Показано 20 из 222 накладок · сузили: материал «Камень»");
 });
 
 test("§B-hint: невозможное сочетание объяснено СЛОВАМИ, называя ВСЕ условия (серию тоже), а не пустым списком", () => {

@@ -421,7 +421,7 @@ test("productsForRoom: стандарт складывается В И-цепо�
 /* --- РЕАЛЬНЫЙ каталог VIMAR: числа выбора стандарта (замерено продакшн-функциями) ---
    Если перезалить прайс — тест упадёт осмысленно, а не молча пропустит смену состава. Обогащение
    стандартом делает data.js (catalog-vimar.js → catalog-vimar-attrs.js → data.js), как в браузере. */
-test("реальный каталог: IT → 1350 из 1631, DE → 560, стандарта нет → 1631; все 9 коллекций сохраняются", async () => {
+test("реальный каталог: IT → 1241 из 1593, DE → 609, стандарта нет → 1593; под немецким 4 IT-only серии уходят", async () => {
   const win = {};
   const ctx = vm.createContext({ window: win, structuredClone });
   const jsDir = path.join(__dirname, "..", "js");
@@ -429,28 +429,37 @@ test("реальный каталог: IT → 1350 из 1631, DE → 560, ста
     vm.runInContext(fs.readFileSync(path.join(jsDir, f), "utf8"), ctx, { filename: f });
   }
   const frames = (await win.DataService.getProducts()).filter(p => p.kind === "frame" && p.active);
-  assert.equal(frames.length, 1631, "активных накладок всего");
-  // распределение по стандарту: у каждой накладки ровно одно из трёх значений
+  assert.equal(frames.length, 1593, "активных накладок всего");
+  // распределение по стандарту: у каждой накладки ровно одно из трёх значений, UNKNOWN нет
+  // (решение владельца 18.10: «Накладной/Гермитичный монтаж» ушёл в accessory, мусорного
+  // стандарта в выборе накладки больше нет).
   const byStd = frames.reduce((m, f) => (m[f.standard] = (m[f.standard] || 0) + 1, m), {});
-  assert.deepEqual(byStd, { IT: 1071, DE: 281, BOTH: 279 }, "IT 1071 + DE 281 + BOTH 279 = 1631; все накладки со стандартом");
+  assert.deepEqual(byStd, { IT: 984, DE: 352, BOTH: 257 }, "IT 984 + DE 352 + BOTH 257 = 1593; все накладки со стандартом");
 
   const itPool = productsForRoom(frames, { standard: "IT" });
   const dePool = productsForRoom(frames, { standard: "DE" });
-  assert.equal(itPool.length, 1350, "итальянский: 1071 IT + 279 универсальных");
-  assert.equal(dePool.length, 560, "немецкий: 281 DE + 279 универсальных");
-  assert.equal(productsForRoom(frames, {}).length, 1631, "стандарт не выбран — весь каталог");
+  assert.equal(itPool.length, 1241, "итальянский: 984 IT + 257 универсальных");
+  assert.equal(dePool.length, 609, "немецкий: 352 DE + 257 универсальных");
+  assert.equal(productsForRoom(frames, {}).length, 1593, "стандарт не выбран — весь каталог");
 
-  // ни одна коллекция не исчезает: 9 при любом выборе (BOTH удерживает серии без своих DE-накладок)
+  // Коллекций в каталоге 10. Под ИТАЛЬЯНСКИМ присутствуют все 10. Под НЕМЕЦКИМ остаётся 6:
+  // 4 серии (Eikon Flat/Tactil/Tondo/Vintage) в файле заказчика имеют ТОЛЬКО итальянские
+  // накладки — ни своих DE, ни универсальных BOTH, — поэтому под немецкий они честно уходят.
+  // Это данные заказчика, а не поведение кода: прежний каталог держал все серии на BOTH.
   const all = productCollections(frames);
-  assert.equal(all.length, 9);
-  assert.equal(productCollections(itPool).length, 9, "итальянский — все 9 серий на месте");
-  assert.equal(productCollections(dePool).length, 9, "немецкий — все 9 серий на месте (иначе BOTH срезали бы 4 серии)");
+  assert.equal(all.length, 10);
+  assert.equal(productCollections(itPool).length, 10, "итальянский — все 10 серий на месте");
+  const deColls = productCollections(dePool);
+  assert.equal(deColls.length, 6, "немецкий — остаётся 6 серий (4 IT-only уходят)");
 
-  // именно эти 4 серии не имеют своих DE-накладок и держатся В немецкой выборке ТОЛЬКО на универсальных
-  const deOnlyByEquality = productCollections(frames.filter(f => f.standard === "DE"));
-  for (const coll of ["Arke Fit", "Eikon Flat", "Eikon Tactil", "Eikon Vintage"]) {
-    assert.ok(!deOnlyByEquality.includes(coll), `${coll}: своих DE-накладок нет`);
-    assert.ok(productCollections(dePool).includes(coll), `${coll}: держится под немецкий на универсальных накладках`);
+  // именно эти 4 серии в файле заказчика без DE и без универсальных накладок → под немецкий исчезают
+  for (const coll of ["Eikon Flat", "Eikon Tactil", "Eikon Tondo", "Eikon Vintage"]) {
+    assert.ok(all.includes(coll), `${coll}: в каталоге есть`);
+    assert.ok(!deColls.includes(coll), `${coll}: под немецкий отсутствует (нет ни DE, ни BOTH накладок)`);
+  }
+  // остальные 6 серий под немецкий на месте
+  for (const coll of ["Arke", "Eikon Evo", "Eikon Exe", "Linea", "Neve Up", "Plana"]) {
+    assert.ok(deColls.includes(coll), `${coll}: под немецкий держится`);
   }
 
   // селектор стандарта каталога — ровно два человеческих варианта

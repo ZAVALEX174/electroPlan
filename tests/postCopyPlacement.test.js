@@ -48,11 +48,12 @@ function roomFinishOf(frame) {
   return { collection: EPCatalog.productSeries(frame)[0], frameMaterial: frame.frameMaterial,
     frameShape: frame.frameShape, frameColor: frame.frameColor };
 }
-/* 1-модульная клавиша серии накладки (контрольная начинка; для сценария «подходит» состав не важен —
-   пост всё равно оставляет свою накладку, но валидный пост собрать нужно). */
+/* 1-модульная клавиша, совместимая с накладкой (контрольная начинка; для сценария «подходит» состав
+   не важен — пост всё равно оставляет свою накладку, но валидный пост собрать нужно). Берём через
+   НАСТОЯЩИЙ подбор приложения compatibleMechanisms, а не наивный матч по серии: у семейства Eikon
+   механизмы лежат в серии «Eikon», а накладки — в «Eikon Evo/Exe», и прямого пересечения серий нет. */
 function key1(frame) {
-  const ser = EPCatalog.productSeries(frame)[0];
-  return byKind("mechanism").find(m => EPCatalog.productSeries(m).includes(ser) && EPCatalog.mechanismSpan(m) === 1);
+  return EPCatalog.compatibleMechanisms(frame, byKind("mechanism")).find(m => EPCatalog.mechanismSpan(m) === 1);
 }
 
 const CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "frameFacingLabels",

@@ -730,11 +730,15 @@ const realDeps = {
 
 test("ИНВАРИАНТ на НАСТОЯЩЕМ каталоге: имена с «, » документы не расходят", () => {
   const mechs = commaNamed("mechanism"), frames = commaNamed("frame");
+  const commaAccessories = commaNamed("accessory");   // К2: крышки IP55 и т.п. ушли в accessory и несут «, »
   const allComma = realProducts.filter(p => p.name.includes(", "));
-  assert.equal(realProducts.length, 2146, "предпосылка: каталог отгружен целиком");
-  assert.equal(allComma.length, 966, "предпосылка: 966 имён каталога из 2146 содержат «, » — 45%");
-  assert.equal(mechs.length + frames.length + realSupports.length, allComma.length,
-    "все имена с «, » — это механизмы, накладки и суппорты; коробок и аксессуаров среди них нет");
+  assert.equal(realProducts.length, 2868, "предпосылка: каталог отгружен целиком");
+  assert.equal(allComma.length, 1577, "предпосылка: 1577 имён каталога содержат «, »");
+  /* В новой номенклатуре К2 «, » несут и аксессуары (накладные/настольные коробки, крышки IP55,
+     ушедшие в accessory решением владельца 18.10) — прежде их среди «, »-имён не было. Коробок
+     (socket_box) среди «, »-имён по-прежнему нет. */
+  assert.equal(mechs.length + frames.length + realSupports.length + commaAccessories.length, allComma.length,
+    "все имена с «, » — это механизмы, накладки, суппорты и аксессуары; коробок среди них нет");
 
   /* По посту на КАЖДУЮ накладку с «, », механизмы берём по кругу: в проект попадают все
      такие имена каталога до единого, а не удобная выборка. */
@@ -743,8 +747,12 @@ test("ИНВАРИАНТ на НАСТОЯЩЕМ каталоге: имена с
     mechanismIds: [0, 1, 2].map(k => mechs[(i * 3 + k) % mechs.length].id)
   }));
   /* Одиночные изделия плана: коробка (случай, на котором прежнее сравнение красило инвариант
-     ложно), механизм с «, » в имени и артикул, которого в каталоге нет вовсе. */
-  const devices = [{ productId: realByCode("V71303").id }, { productId: mechs[0].id }, { productId: -1 }];
+     ложно), артикул, которого в каталоге нет вовсе, И ВСЕ «, »-имена каталога как позиции плана.
+     Через devices они попадают в оба документа БЕЗ подбора/fit (в отличие от механизмов поста,
+     которые отсекаются, если не лезут в чужую накладку) — так инвариант гарантированно проходит по
+     КАЖДОМУ «, »-имени каталога, а не по удобной выборке (аксессуары уже внутри allComma). */
+  const devices = [{ productId: realByCode("V71303").id }, { productId: -1 }]
+    .concat(allComma.map(p => ({ productId: p.id })));
   const data = collect(specFromProject(posts, devices, realDeps));
   const est = estimateFromProject(posts, devices, realDeps);
 
@@ -754,9 +762,9 @@ test("ИНВАРИАНТ на НАСТОЯЩЕМ каталоге: имена с
      данных» остаётся словами. */
   const withComma = data.rows.filter(r => r.name.includes(", "));
   assert.equal(withComma.length, allComma.length,
-    "инвариант прогнан на ВСЕХ 966 товарах каталога, чьи имена содержат «, »");
-  assert.equal(new Set(withComma.map(r => r.name)).size, 919,
-    "919 различных имён: одно имя носят до четырёх артикулов, и в своде они остаются разными строками");
+    "инвариант прогнан на ВСЕХ товарах каталога, чьи имена содержат «, »");
+  assert.equal(new Set(withComma.map(r => r.name)).size, 1490,
+    "различных имён: одно имя носят несколько артикулов, и в своде они остаются разными строками");
   assert.ok(data.rows.some(r => r.kind === "support" && r.assumed), "немецко-французские планки помечены");
 });
 

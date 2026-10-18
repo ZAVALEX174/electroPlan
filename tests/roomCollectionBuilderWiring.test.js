@@ -5,8 +5,8 @@
    неподходящие рамки. Здесь фиксируем три вещи, которые легко сломать незаметно:
    1) ФИЛЬТР ЕСТЬ: в комнате коллекции Arke список накладок короче, чем без коллекции, и не
       содержит рамок чужой коллекции (Plana);
-   2) СОВПАДЕНИЕ — ПЕРЕСЕЧЕНИЕ МНОЖЕСТВ, НЕ РАВЕНСТВО СТРОК: мультиколлекционная накладка (14931 —
-      Arke/Arke Fit/Eikon Evo/Eikon Exe/Plana) обязана попасть в комнату Arke;
+   2) СОВПАДЕНИЕ ПО ЧЛЕНСТВУ В МНОЖЕСТВЕ СЕРИЙ: Arke-накладка обязана попасть в комнату Arke
+      (в новой номенклатуре К2 все накладки одноколлекционные — мультиколлекционных больше нет);
    3) МОЛЧАЛИВОГО ИЗМЕНЕНИЯ СОСТАВА НЕТ: пост, СТОЯЩИЙ в комнате Arke на накладке ЧУЖОЙ коллекции
       (Plana), при открытии держит свою накладку и цену — фильтр сужает только предлагаемое, но
       не переписывает уже собранный пост.
@@ -17,7 +17,7 @@
 
    ЧТО КРАСНЕЕТ (мутационная таблица — в отчёте):
    1) убрать сужение (collectionFramePool → allFrames): в комнате Arke появятся рамки Plana → §1;
-   2) заменить includes на равенство строк в productsForRoom: 14931 выпадет из Arke → §2;
+   2) заменить includes на равенство строк в productsForRoom: Arke-накладка выпадет из Arke → §2;
    3) перестать добавлять стоящую накладку в frameList / фильтровать её коллекцией: пост на
       Plana-рамке в Arke-комнате потеряет накладку и цену → §3.
    Запуск: node --test tests/ */
@@ -36,34 +36,32 @@ const byCode = code => PRODUCTS.find(p => p.code === code);
 const activeMech = PRODUCTS.filter(x => x.kind === "mechanism" && x.active);
 const seriesOf = p => (p && p.series) || [];
 
-/* Разведка каталога (см. tools-прогон в отчёте): count=2 несёт и Arke, и Plana-only, и
-   мультиколлекционную накладку. */
-const ARKE_MULTI = byCode("14931");     // Arke + Plana + ... (мультиколлекционная), 2 модуля
+/* Разведка каталога. ВАЖНО (К2, новая номенклатура 2026-10-10): в файле заказчика у каждой
+   НАКЛАДКИ ровно одна коллекция — мультиколлекционных накладок больше нет (прежняя 14931 несла
+   Arke+Arke Fit+Eikon Evo+Eikon Exe+Plana, теперь только Plana), а коллекция «Arke Fit» из каталога
+   ушла вовсе. Поэтому прежние мутационные края (пересечение-vs-равенство на мультиколлекционной
+   накладке; префикс-vs-членство на паре Arke/Arke Fit) на РЕАЛЬНЫХ данных больше не воспроизводятся
+   — см. отчёт. Здесь остаётся проверка самого ФИЛЬТРА: в комнате Arke предлагаются только Arke-
+   накладки, Plana-рамок нет, а уже собранный пост на чужой накладке не переписывается. */
+const ARKE_2 = byCode("19642.01");      // Arke, 2 модуля
 const PLANA_ONLY = byCode("14642.01");  // только Plana, 2 модуля
-assert.ok(ARKE_MULTI && PLANA_ONLY, "разведка: 14931 и 14642.01 должны быть в каталоге");
-const CNT = EPCatalog.frameSlotCount(ARKE_MULTI);
+assert.ok(ARKE_2 && PLANA_ONLY, "разведка: 19642.01 и 14642.01 должны быть в каталоге");
+const CNT = EPCatalog.frameSlotCount(ARKE_2);
 assert.equal(EPCatalog.frameSlotCount(PLANA_ONLY), CNT, "предпосылка: обе накладки одной модульности");
-assert.ok(seriesOf(ARKE_MULTI).includes("Arke") && seriesOf(ARKE_MULTI).includes("Plana"),
-  "предпосылка: 14931 живёт и в Arke, и в Plana");
+assert.ok(seriesOf(ARKE_2).includes("Arke"), "предпосылка: 19642.01 — коллекции Arke");
 assert.ok(seriesOf(PLANA_ONLY).includes("Plana") && !seriesOf(PLANA_ONLY).includes("Arke"),
   "предпосылка: 14642.01 — только Plana");
 
-/* Находка 5 (3-й состязательный проход): «только своя коллекция» проверялось на модульности 2, где
-   накладок ТОЛЬКО «Arke Fit» физически нет — все 2-модульные несут и «Arke». Поэтому префиксное
-   сравнение (Arke Fit startsWith Arke) там неотличимо от членства в множестве. Накладки ровно серии
-   ["Arke Fit"] существуют лишь на 3, 4 и 7 модулей (по 11). Проверяем на модульности 3: 14943 —
-   3-модульная накладка Arke; 19953.01 — накладка серии РОВНО ["Arke Fit"], 3 модуля, чужая для
-   комнаты Arke по членству, хотя «Arke» — её префикс. «Arke»/«Arke Fit» — единственная пара
-   имя-префикс среди 9 коллекций каталога. */
-const ARKE_3 = byCode("14943");
-const ARKE_FIT_ONLY = byCode("19953.01");
-assert.ok(ARKE_3 && ARKE_FIT_ONLY, "разведка: 14943 и 19953.01 должны быть в каталоге");
-assert.equal(EPCatalog.frameSlotCount(ARKE_3), 3, "предпосылка: 14943 — 3 модуля");
-assert.equal(EPCatalog.frameSlotCount(ARKE_FIT_ONLY), 3, "предпосылка: 19953.01 — 3 модуля");
-assert.ok(seriesOf(ARKE_3).includes("Arke"), "предпосылка: 14943 — коллекции Arke");
-assert.ok(seriesOf(ARKE_FIT_ONLY).length === 1 && seriesOf(ARKE_FIT_ONLY).includes("Arke Fit")
-  && !seriesOf(ARKE_FIT_ONLY).includes("Arke"),
-  "предпосылка: 19953.01 — ровно ['Arke Fit'], для комнаты Arke чужая по членству, но 'Arke' — её строковый префикс");
+/* На модульности 3 проверяем тот же фильтр по МНОЖЕСТВУ серий: 19653.01 — Arke-накладка комнаты,
+   14653.01 — Plana-накладка той же модульности, чужая комнате Arke по членству. */
+const ARKE_3 = byCode("19653.01");
+const PLANA_3 = byCode("14653.01");
+assert.ok(ARKE_3 && PLANA_3, "разведка: 19653.01 и 14653.01 должны быть в каталоге");
+assert.equal(EPCatalog.frameSlotCount(ARKE_3), 3, "предпосылка: 19653.01 — 3 модуля");
+assert.equal(EPCatalog.frameSlotCount(PLANA_3), 3, "предпосылка: 14653.01 — 3 модуля");
+assert.ok(seriesOf(ARKE_3).includes("Arke"), "предпосылка: 19653.01 — коллекции Arke");
+assert.ok(seriesOf(PLANA_3).includes("Plana") && !seriesOf(PLANA_3).includes("Arke"),
+  "предпосылка: 14653.01 — только Plana, для комнаты Arke чужая по членству");
 
 const slotsOf = (id, n) => EPBuilderSlots.fromPost({ mechanismIds: Array.from({ length: n }, () => Number(id)) }, () => false);
 const optionValues = html => [...html.matchAll(/<option value="([^"]*)"/g)].map(m => m[1]).filter(Boolean);
@@ -129,11 +127,12 @@ function openForN(post, room, frameId, mech, dom, n) {
   return { state, ctx };
 }
 
-test("E13: в комнате Arke на модульности 3 накладка-ПРЕФИКС «Arke Fit» НЕ предлагается — членство в множестве, не startsWith", () => {
-  // Находка 5: 14943 (Arke, 3М) в комнате Arke, селектор 3 модуля. Продакшн предлагает только Arke;
-  // префиксный мутант (some(s=>s.indexOf(collection)===0)) добавил бы 11 накладок серии ["Arke Fit"],
-  // потому что "Arke Fit".startsWith("Arke"). На модульности 2 (прежний кейс) таких накладок нет —
-  // там мутант зелёный, здесь обязан краснеть.
+test("E13: в комнате Arke на модульности 3 предлагаются ТОЛЬКО накладки Arke — чужая Plana-накладка той же модульности не просачивается", () => {
+  // 19653.01 (Arke, 3М) в комнате Arke, селектор 3 модуля. Продакшн предлагает только накладки с
+  // серией «Arke» в множестве; 14653.01 (Plana, 3М) — чужая по членству, её в списке быть не должно.
+  // ПРИМЕЧАНИЕ (К2): прежде этот кейс ловил ещё и префиксный мутант (some(s=>s.indexOf(collection)===0))
+  // на паре «Arke»/«Arke Fit» — но «Arke Fit» из каталога ушла, пары имя-префикс среди 10 коллекций
+  // не осталось, и именно этот мутационный край на реальных данных больше не воспроизвести (отчёт).
   const arke3Mech = EPCatalog.compatibleMechanisms(ARKE_3, activeMech).find(m => EPCatalog.mechanismSpan(m) === 1);
   assert.ok(arke3Mech, "разведка: у 3-модульной Arke-накладки есть совместимый одномодульный механизм");
 
@@ -142,29 +141,28 @@ test("E13: в комнате Arke на модульности 3 накладка
     { id: "r1", name: "Гостиная", collection: "Arke" }, ARKE_3.id, arke3Mech, dom, 3);
   const vals = optionValues(dom.els.postFrameSelect.innerHTML);
 
-  // отбор проверяем по СЕРИЯМ товара, а не по названию: ни одна предложенная накладка не должна
-  // быть чужой коллекции (серии без "Arke") — под префиксным сравнением сюда просочились бы ["Arke Fit"]
+  // отбор по СЕРИЯМ товара: ни одна предложенная накладка не должна быть чужой коллекции (без "Arke")
   const foreign = vals.filter(id => !seriesOf(product(id)).includes("Arke"));
   assert.deepEqual(foreign, [],
     `в комнате Arke каждая предложенная накладка обязана нести серию Arke; чужие по членству: ${foreign.join(", ")}`);
-  // точечно: накладки серии ровно ["Arke Fit"] (напр. 19953.01) в списке нет
-  assert.ok(!vals.includes(String(ARKE_FIT_ONLY.id)),
-    "накладка серии ['Arke Fit'] (19953.01) не предлагается в комнате Arke — 'Arke' лишь её префикс, а не член множества серий");
+  // точечно: Plana-накладка той же модульности (14653.01) в списке Arke-комнаты отсутствует
+  assert.ok(!vals.includes(String(PLANA_3.id)),
+    "Plana-накладка 14653.01 не предлагается в комнате Arke — она не член множества серий комнаты");
 });
 
 test("E13: в комнате Arke предлагаются ТОЛЬКО накладки Arke — Plana-рамки нет, список короче, чем без коллекции", () => {
-  const arkeMech = EPCatalog.compatibleMechanisms(ARKE_MULTI, activeMech).find(m => EPCatalog.mechanismSpan(m) === 1);
+  const arkeMech = EPCatalog.compatibleMechanisms(ARKE_2, activeMech).find(m => EPCatalog.mechanismSpan(m) === 1);
   assert.ok(arkeMech, "разведка: у 14931 есть совместимый одномодульный механизм");
 
   // тот же пост в комнате Arke и без коллекции — сравниваем списки предлагаемых накладок
   const domArke = makeDom();
-  openFor({ id: "p1", roomId: "r1", frameId: ARKE_MULTI.id, mechanismIds: [Number(arkeMech.id)] },
-    { id: "r1", name: "Гостиная", collection: "Arke" }, ARKE_MULTI.id, arkeMech, domArke);
+  openFor({ id: "p1", roomId: "r1", frameId: ARKE_2.id, mechanismIds: [Number(arkeMech.id)] },
+    { id: "r1", name: "Гостиная", collection: "Arke" }, ARKE_2.id, arkeMech, domArke);
   const arkeVals = optionValues(domArke.els.postFrameSelect.innerHTML);
 
   const domAll = makeDom();
-  openFor({ id: "p1", roomId: "r1", frameId: ARKE_MULTI.id, mechanismIds: [Number(arkeMech.id)] },
-    { id: "r1", name: "Гостиная" /* коллекции нет */ }, ARKE_MULTI.id, arkeMech, domAll);
+  openFor({ id: "p1", roomId: "r1", frameId: ARKE_2.id, mechanismIds: [Number(arkeMech.id)] },
+    { id: "r1", name: "Гостиная" /* коллекции нет */ }, ARKE_2.id, arkeMech, domAll);
   const allVals = optionValues(domAll.els.postFrameSelect.innerHTML);
 
   // §1 фильтр есть: с коллекцией список строго короче, каждый предложенный — из Arke, Plana-рамки нет
@@ -174,9 +172,9 @@ test("E13: в комнате Arke предлагаются ТОЛЬКО накл
   assert.ok(!arkeVals.includes(String(PLANA_ONLY.id)), "накладка чужой коллекции (Plana) не предлагается");
   assert.ok(allVals.includes(String(PLANA_ONLY.id)), "предпосылка: без коллекции Plana-рамка той же модульности предлагалась");
 
-  // §2 пересечение множеств: мультиколлекционная 14931 (Arke+Plana) в комнате Arke ЕСТЬ
-  assert.ok(arkeVals.includes(String(ARKE_MULTI.id)),
-    "мультиколлекционная накладка 14931 обязана попасть в комнату Arke — совпадение по МНОЖЕСТВУ серий");
+  // §2 отбор по членству в множестве серий: Arke-накладка 19642.01 в комнате Arke ЕСТЬ
+  assert.ok(arkeVals.includes(String(ARKE_2.id)),
+    "накладка 19642.01 (серия Arke) обязана попасть в комнату Arke — совпадение по МНОЖЕСТВУ серий");
 });
 
 test("E13: пост в комнате Arke на накладке ЧУЖОЙ коллекции (Plana) — накладка и цена держатся, состав не меняется молча", () => {
@@ -202,10 +200,10 @@ test("E13: пост в комнате Arke на накладке ЧУЖОЙ ко
 });
 
 test("E13: пост вне комнат (roomId null) — фильтра нет, предлагается весь каталог", () => {
-  const arkeMech = EPCatalog.compatibleMechanisms(ARKE_MULTI, activeMech).find(m => EPCatalog.mechanismSpan(m) === 1);
+  const arkeMech = EPCatalog.compatibleMechanisms(ARKE_2, activeMech).find(m => EPCatalog.mechanismSpan(m) === 1);
   const dom = makeDom();
-  openFor({ id: "p1", roomId: null, frameId: ARKE_MULTI.id, mechanismIds: [Number(arkeMech.id)] },
-    null, ARKE_MULTI.id, arkeMech, dom);
+  openFor({ id: "p1", roomId: null, frameId: ARKE_2.id, mechanismIds: [Number(arkeMech.id)] },
+    null, ARKE_2.id, arkeMech, dom);
   const vals = optionValues(dom.els.postFrameSelect.innerHTML);
   assert.ok(vals.includes(String(PLANA_ONLY.id)),
     "без комнаты (пост вне помещений) фильтра нет — Plana-рамка той же модульности предлагается");

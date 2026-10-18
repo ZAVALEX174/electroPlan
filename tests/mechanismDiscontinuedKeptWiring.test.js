@@ -54,9 +54,9 @@ assert.equal(EPCatalog.mechanismSpan(RAW.find(p => p.code === OFF_CODE)), 1, "п
 
 /* Механизм ЧУЖОЙ серии (Arke/Eikon…, не Neve Up) — для проверки, что смена серии по-прежнему
    выбрасывает несовместимый механизм и правило compatibleMechanisms не задето. */
-const OTHER = RAW.find(p => p.code === "03925");
+const OTHER = RAW.find(p => p.code === "20001.0");
 assert.ok(OTHER && !EPCatalog.productSeries(OTHER).includes("Neve Up"),
-  "разведка: 03925 — механизм другой серии (не Neve Up)");
+  "разведка: 20001.0 — механизм другой серии (не Neve Up)");
 
 const slotsOf = ids => EPBuilderSlots.fromPost({ mechanismIds: ids.map(Number) }, () => false);
 
@@ -146,12 +146,12 @@ test("renderBuilder: keepMechs удерживает снятый механиз�
 });
 
 test("renderBuilder: снятый механизм ЧУЖОЙ серии выпадает законно — правило compatibleMechanisms не задето", () => {
-  // Neve Up накладка + снятый механизм ДРУГОЙ серии (03925): смена серии — это отдельная причина,
+  // Neve Up накладка + снятый механизм ДРУГОЙ серии (20001.0): смена серии — это отдельная причина,
   // её мы намеренно НЕ удерживаем, иначе смешали бы два правила отсева.
-  const products = RAW.map(p => (p.code === "03925" ? { ...p, active: false } : { ...p }));
+  const products = RAW.map(p => (p.code === "20001.0" ? { ...p, active: false } : { ...p }));
   const dom = makeDom();
   const ctx = makeCtx(products, dom);
-  const OTHER_ID = products.find(p => p.code === "03925").id;
+  const OTHER_ID = products.find(p => p.code === "20001.0").id;
   ctx.state = { products, builder: { slots: slotsOf([OTHER_ID]), target: { mode: "add" }, editingPlacedId: null } };
   dom.$("postFrameSelect").dataset.preferredFrameId = String(FRAME.id);
   dom.$("postSlotCount").value = String(CAP);

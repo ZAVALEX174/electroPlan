@@ -36,9 +36,10 @@ test("catalog-vimar.js: ни у одной позиции нет заглушк�
 
 test("заглушечные позиции выглядят как «без фото»: полей imageUrl/previewImageUrl нет вовсе", () => {
   const byCode = new Map(loadCatalog().products.map(p => [p.code, p]));
-  // Три представителя всех трёх типов из 29 заглушечных (mechanism/frame/accessory) — как 14653.61,
-  // у которого фото нет: EPPostImage нарисует схему-фолбэк, productPicture — иконку программы.
-  for (const code of ["14003.SL", "14642.26", "00935.A"]) {
+  // Три представителя всех трёх типов (mechanism/frame/accessory), у которых фото нет: EPPostImage
+  // нарисует схему-фолбэк, productPicture — иконку программы. (14003.SL из прежнего каталога убран
+  // новой номенклатурой К2 — вместо него живой механизм без фото 02972.)
+  for (const code of ["02972", "14642.26", "00935.A"]) {
     const p = byCode.get(code);
     assert.ok(p, `позиция ${code} должна быть в каталоге`);
     assert.ok(!("imageUrl" in p), `${code}: поля imageUrl быть не должно`);

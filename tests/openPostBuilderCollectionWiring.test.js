@@ -110,11 +110,14 @@ const keySlotKind = vm.runInNewContext(
 /* Механизмы разной модульности для сборки поста с ЗАДАННОЙ суммой модулей (разведка каталога:
    span 1/2/3). Пост несёт РЕАЛЬНЫЕ mechanismIds — второе плечо capacity обязано считать ёмкость
    именно из НИХ, а не из формы формулы. */
-const MECH_SPAN_1 = 200048, MECH_SPAN_2 = 200040, MECH_SPAN_3 = 200274;
+/* Привязка по АРТИКУЛУ, а не по сборочному id: id новым артикулам выдаёт конвертер, и при смене
+   файла номенклатуры он другой (сборочный id — не контракт). Коды стабильны. */
+const byCode = code => PRODUCTS.find(p => String(p.code) === code);
+const MECH_SPAN_1 = byCode("20001.0").id, MECH_SPAN_2 = byCode("02970").id, MECH_SPAN_3 = byCode("14023").id;
 const repeatMech = (id, n) => Array.from({ length: n }, () => id);
-assert.equal(mechanismModulesTotal([MECH_SPAN_1]), 1, "разведка: механизм 200048 — 1 модуль");
-assert.equal(mechanismModulesTotal([MECH_SPAN_2]), 2, "разведка: механизм 200040 (02970) — 2 модуля");
-assert.equal(mechanismModulesTotal([MECH_SPAN_3]), 3, "разведка: механизм 200274 — 3 модуля");
+assert.equal(mechanismModulesTotal([MECH_SPAN_1]), 1, "разведка: механизм 20001.0 — 1 модуль");
+assert.equal(mechanismModulesTotal([MECH_SPAN_2]), 2, "разведка: механизм 02970 — 2 модуля");
+assert.equal(mechanismModulesTotal([MECH_SPAN_3]), 3, "разведка: механизм 14023 — 3 модуля");
 const seriesOf = p => (p && p.series) || [];
 const optionValues = html => [...html.matchAll(/<option value="([^"]*)"/g)].map(m => m[1]).filter(Boolean);
 

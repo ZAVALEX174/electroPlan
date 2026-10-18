@@ -20,126 +20,6 @@ window.EP_VIMAR_ATTRS = {
     "colors": "Номенклатура 2026-10-10.xls"
   },
   "standards": {
-    "14784": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14787": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14788": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14801": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14802": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14803": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14804": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14812": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14813": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14814": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14815": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14817": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14827": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14832": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14833": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14837": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14838": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14839": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14912": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14913": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14923": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14931": {
-      "standard": "BOTH",
-      "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE",
-      "frameMaterial": "Влагозащищенный технополимер",
-      "frameShape": "Классическая",
-      "frameColor": "Серая влагостойкая"
-    },
-    "14932": {
-      "standard": "BOTH",
-      "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE",
-      "frameMaterial": "Влагозащищенный технополимер",
-      "frameShape": "Классическая",
-      "frameColor": "Серая влагостойкая"
-    },
-    "14943": {
-      "standard": "IT",
-      "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE",
-      "frameMaterial": "Влагозащищенный технополимер",
-      "frameShape": "Классическая",
-      "frameColor": "Серая влагостойкая"
-    },
-    "14944": {
-      "standard": "IT",
-      "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE",
-      "frameMaterial": "Влагозащищенный технополимер",
-      "frameShape": "Классическая",
-      "frameColor": "Серая влагостойкая"
-    },
-    "14963": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
     "09661.01": {
       "standard": "BOTH",
       "postCount": null,
@@ -15313,318 +15193,6 @@ window.EP_VIMAR_ATTRS = {
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Сатинированная нержавеющая сталь"
-    },
-    "09802": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09803": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09804": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09902": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09903": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09904": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09911.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09911.04": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09912.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09912.04": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09913.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09913.04": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09914.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09914.04": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09920.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09920.04": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09920.14": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09920.SL": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09921.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09921.14": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09921.N": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09933": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09938": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09951.A": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09952.A": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09956": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09956.A": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09961": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09963": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09967.1": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09968": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09971.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09971.A": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09972.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09972.SL": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09973": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09973.A": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09974": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09974.A": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09975.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09975.A": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09976.04": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09976.14": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09983": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09983.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09983.N": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "09996": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14787.SL": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "14931.01": {
-      "standard": "BOTH",
-      "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE",
-      "frameMaterial": "Влагозащищенный технополимер",
-      "frameShape": "Классическая",
-      "frameColor": "Белая влагостойкая"
-    },
-    "14931.14": {
-      "standard": "BOTH",
-      "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE",
-      "frameMaterial": "Влагозащищенный технополимер",
-      "frameShape": "Классическая",
-      "frameColor": "Серый гранит влагостойкая"
-    },
-    "14932.01": {
-      "standard": "BOTH",
-      "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE",
-      "frameMaterial": "Влагозащищенный технополимер",
-      "frameShape": "Классическая",
-      "frameColor": "Белая влагостойкая"
-    },
-    "14932.14": {
-      "standard": "BOTH",
-      "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE",
-      "frameMaterial": "Влагозащищенный технополимер",
-      "frameShape": "Классическая",
-      "frameColor": "Серый гранит влагостойкая"
-    },
-    "14943.01": {
-      "standard": "IT",
-      "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE",
-      "frameMaterial": "Влагозащищенный технополимер",
-      "frameShape": "Классическая",
-      "frameColor": "Белая влагостойкая"
-    },
-    "14943.14": {
-      "standard": "IT",
-      "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE",
-      "frameMaterial": "Влагозащищенный технополимер",
-      "frameShape": "Классическая",
-      "frameColor": "Серый гранит влагостойкая"
-    },
-    "14944.01": {
-      "standard": "IT",
-      "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE",
-      "frameMaterial": "Влагозащищенный технополимер",
-      "frameShape": "Классическая",
-      "frameColor": "Белая влагостойкая"
-    },
-    "14944.14": {
-      "standard": "IT",
-      "postCount": null,
-      "principle": "NO_SUPPORT, AQUAPLATE",
-      "frameMaterial": "Влагозащищенный технополимер",
-      "frameShape": "Классическая",
-      "frameColor": "Серый гранит влагостойкая"
-    },
-    "30784.B": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "30784.G": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "30931.00": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "30931.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "30931.02": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "30932.00": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "30932.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "30932.02": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "30943.00": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "30943.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "30943.02": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "30944.00": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "30944.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
-    },
-    "30944.02": {
-      "standard": "UNKNOWN",
-      "postCount": null
     }
   },
   "supports": {
@@ -16177,6 +15745,18 @@ window.EP_VIMAR_ATTRS = {
     "14506": {
       "principle": "Bluetooth"
     },
+    "14931": {
+      "principle": "NO_SUPPORT, AQUAPLATE"
+    },
+    "14932": {
+      "principle": "NO_SUPPORT, AQUAPLATE"
+    },
+    "14943": {
+      "principle": "NO_SUPPORT, AQUAPLATE"
+    },
+    "14944": {
+      "principle": "NO_SUPPORT, AQUAPLATE"
+    },
     "19060": {
       "principle": "BUTTON"
     },
@@ -16575,6 +16155,30 @@ window.EP_VIMAR_ATTRS = {
     },
     "22008.88": {
       "principle": "BUTTON"
+    },
+    "14931.01": {
+      "principle": "NO_SUPPORT, AQUAPLATE"
+    },
+    "14931.14": {
+      "principle": "NO_SUPPORT, AQUAPLATE"
+    },
+    "14932.01": {
+      "principle": "NO_SUPPORT, AQUAPLATE"
+    },
+    "14932.14": {
+      "principle": "NO_SUPPORT, AQUAPLATE"
+    },
+    "14943.01": {
+      "principle": "NO_SUPPORT, AQUAPLATE"
+    },
+    "14943.14": {
+      "principle": "NO_SUPPORT, AQUAPLATE"
+    },
+    "14944.01": {
+      "principle": "NO_SUPPORT, AQUAPLATE"
+    },
+    "14944.14": {
+      "principle": "NO_SUPPORT, AQUAPLATE"
     }
   },
   "roles": {
@@ -18051,6 +17655,84 @@ window.EP_VIMAR_ATTRS = {
     "14506": {
       "group": "Клавиши BLUETOOTH",
       "subgroup": "Bluetooth"
+    },
+    "14784": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14787": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14788": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14801": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14802": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14803": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14804": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14812": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14813": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14814": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14815": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14817": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14827": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14832": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14833": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14837": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14838": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14839": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14912": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14913": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14923": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14931": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14932": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14943": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14944": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14963": {
+      "group": "Накладной или Гермитичный монтаж"
     },
     "19021": {
       "group": "Клавиша",
@@ -21344,6 +21026,216 @@ window.EP_VIMAR_ATTRS = {
     },
     "V54920": {
       "group": "Монтажная коробка для лючка в пол"
+    },
+    "09802": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09803": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09804": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09902": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09903": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09904": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09911.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09911.04": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09912.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09912.04": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09913.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09913.04": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09914.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09914.04": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09920.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09920.04": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09920.14": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09920.SL": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09921.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09921.14": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09921.N": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09933": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09938": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09951.A": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09952.A": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09956": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09956.A": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09961": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09963": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09967.1": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09968": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09971.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09971.A": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09972.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09972.SL": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09973": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09973.A": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09974": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09974.A": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09975.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09975.A": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09976.04": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09976.14": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09983": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09983.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09983.N": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "09996": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14787.SL": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14931.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14931.14": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14932.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14932.14": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14943.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14943.14": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14944.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "14944.14": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "30784.B": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "30784.G": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "30931.00": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "30931.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "30931.02": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "30932.00": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "30932.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "30932.02": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "30943.00": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "30943.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "30943.02": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "30944.00": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "30944.01": {
+      "group": "Накладной или Гермитичный монтаж"
+    },
+    "30944.02": {
+      "group": "Накладной или Гермитичный монтаж"
     }
   },
   "colors": {

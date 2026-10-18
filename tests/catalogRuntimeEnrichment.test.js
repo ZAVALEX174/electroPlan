@@ -35,7 +35,7 @@ test("runtime-каталог: data.js подмешивает реальные la
   const rawWithPlus = rawFrames.filter(p => plusPattern.test(String(p.name)));
   const runtimeWithPlus = runtimeFrames.filter(p => plusPattern.test(String(p.name)));
 
-  assert.equal(rawWithPlus.length, 378, "контрольная выборка сырого каталога");
+  assert.equal(rawWithPlus.length, 370, "контрольная выборка сырого каталога");
   assert.equal(rawWithPlus.filter(p => Array.isArray(p.layoutRows)).length, 0,
     "сырой catalog-vimar.js по архитектуре не должен дублировать производные атрибуты");
   assert.equal(runtimeWithPlus.length, rawWithPlus.length);

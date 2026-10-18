@@ -40,6 +40,7 @@ const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
 const EPPosts = require("../js/posts.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
+const EPSeriesMatch = require("../js/seriesMatch.js");
 
 const PRODUCTS = stand.loadVimarCatalog().products;
 const product = id => PRODUCTS.find(p => Number(p.id) === Number(id));
@@ -47,31 +48,21 @@ const byCode = code => PRODUCTS.find(p => p.code === code);
 const seriesOf = p => (p && p.series) || [];
 
 /* Разведка (числа заказчика): 14642.01 — накладка ТОЛЬКО коллекции Plana (чужая для комнаты Arke);
-   14931 — накладка сразу в пяти коллекциях, среди них Arke (проверка «членство в множестве, а не
-   равенство строк»). Обе на 2 модуля. */
+   19642.01 — накладка коллекции Arke (своя для комнаты Arke). Обе на 2 модуля.
+   ВАЖНО (К2, номенклатура 2026-10-10): в файле заказчика у каждой накладки ОДНА коллекция —
+   мультиколлекционных накладок больше нет (прежняя 14931 несла 5 коллекций, теперь только Plana),
+   а коллекция «Arke Fit» из каталога ушла. Поэтому прежние кейсы «note перечисляет ВСЕ коллекции
+   накладки (join, не [0])» и «префиксный сосед Arke/Arke Fit» на РЕАЛЬНЫХ данных больше не
+   воспроизводятся и сняты (см. отчёт); остальные ветки resolveMissingFrame проверяются как прежде. */
 const PLANA_ONLY = byCode("14642.01");
-const ARKE_MULTI = byCode("14931");
-/* 19953.01 — накладка коллекции РОВНО «Arke Fit» (одна серия, 3 модуля). «Arke Fit» — единственная
-   в каталоге коллекция, чьё имя начинается с имени другой коллекции («Arke»): на этой паре
-   членство-в-множестве отличимо от префиксного сравнения. Для комнаты «Arke» она ЧУЖАЯ, потому что
-   «Arke» ≠ «Arke Fit», хотя «Arke Fit».indexOf("Arke")===0. */
-const ARKE_FIT_ONLY = byCode("19953.01");
-assert.ok(PLANA_ONLY && ARKE_MULTI, "предпосылка: 14642.01 и 14931 есть в каталоге");
-assert.ok(ARKE_FIT_ONLY, "предпосылка: 19953.01 есть в каталоге");
+const ARKE_OWN = byCode("19642.01");
+assert.ok(PLANA_ONLY && ARKE_OWN, "предпосылка: 14642.01 и 19642.01 есть в каталоге");
 assert.ok(seriesOf(PLANA_ONLY).includes("Plana") && !seriesOf(PLANA_ONLY).includes("Arke"),
   "предпосылка: 14642.01 — только Plana, для комнаты Arke чужая");
-assert.ok(seriesOf(ARKE_MULTI).includes("Arke") && seriesOf(ARKE_MULTI).length > 1,
-  "предпосылка: 14931 мультиколлекционна и включает Arke — на этом держится проверка includes vs ===");
-/* Сравниваем по элементам, а не deepEqual: каталог исполняется в vm-песочнице (loadVimarCatalog),
-   его массивы из другого realm — deepStrictEqual валит на несовпадении прототипа. Соседний код тоже
-   работает с series через .join/индекс, а не deepEqual. */
-assert.equal(seriesOf(ARKE_FIT_ONLY).length, 1, "предпосылка: 19953.01 — ровно одна коллекция");
-assert.equal(seriesOf(ARKE_FIT_ONLY)[0], "Arke Fit", "предпосылка: эта коллекция — «Arke Fit»");
-assert.ok(!seriesOf(ARKE_FIT_ONLY).includes("Arke"),
-  "предпосылка: «Arke» — лишь ПРЕФИКС имени «Arke Fit», но НЕ его коллекция → для комнаты «Arke» накладка чужая");
+assert.ok(seriesOf(ARKE_OWN).includes("Arke"),
+  "предпосылка: 19642.01 — коллекции Arke, для комнаты Arke своя");
 assert.equal(EPCatalog.frameSlotCount(PLANA_ONLY), 2, "предпосылка: 14642.01 — 2 модуля");
-assert.equal(EPCatalog.frameSlotCount(ARKE_MULTI), 2, "предпосылка: 14931 — 2 модуля");
-assert.equal(EPCatalog.frameSlotCount(ARKE_FIT_ONLY), 3, "предпосылка: 19953.01 — 3 модуля");
+assert.equal(EPCatalog.frameSlotCount(ARKE_OWN), 2, "предпосылка: 19642.01 — 2 модуля");
 
 /* --- ЧАСТЬ А: сама resolveMissingFrame ------------------------------------------------------- */
 /* Контекст vm: findByExactCode/resolveMissingFrame настоящие; byKind даёт активные накладки,
@@ -83,6 +74,7 @@ function makeFn() {
     productSeries: seriesOf,
     frameSlotCount: EPCatalog.frameSlotCount,
     moduleWord: EPCatalog.moduleWord,
+    EPSeriesMatch,
     $: () => ({ value: "", dataset: {} }),
     changePostSlotCount: () => {},
     toast: () => {}
@@ -105,43 +97,23 @@ test("E13-А: артикул ЧУЖОЙ коллекции (Plana в комна�
   assert.ok(!("actionLabel" in res), "ветка коллекции действия не даёт — это отличает её от ветки числа модулей");
 });
 
-test("E13-А: артикул СВОЕЙ коллекции (14931 в Arke) ветку коллекции НЕ включает — разбор идёт на число модулей", () => {
+test("E13-А: артикул СВОЕЙ коллекции (19642.01 в Arke) ветку коллекции НЕ включает — разбор идёт на число модулей", () => {
   const fn = makeFn();
   // свой размер (2) → подсказки нет вовсе: список и так показал бы эту накладку
-  assert.equal(fn(ARKE_MULTI.code, 2, frameSelect, "Arke"), null,
+  assert.equal(fn(ARKE_OWN.code, 2, frameSelect, "Arke"), null,
     "накладка своей коллекции и своего размера скрытой не считается — null (при === её сочли бы чужой и вернули ветку коллекции)");
   // чужой размер (3) → подсказка ПРО МОДУЛИ, не про коллекцию: доказывает, что ветку коллекции проскочили
-  const res = fn(ARKE_MULTI.code, 3, frameSelect, "Arke");
+  const res = fn(ARKE_OWN.code, 3, frameSelect, "Arke");
   assert.ok(res, "под чужой размер подсказка есть");
   assert.equal(res.lead, "Артикул есть в каталоге, но скрыт фильтром по числу модулей.",
     "коллекция своя → разбор дошёл до числа модулей, а не остановился на коллекции");
   assert.equal(res.note, EPCatalog.moduleWord(2), "подсказка называет реальную модульность накладки (2)");
 });
 
-test("E13-А: МУЛЬТИКОЛЛЕКЦИОННАЯ накладка (14931, 5 коллекций) — note/reason перечисляют ВСЕ её коллекции, не первую", () => {
-  // Находка 3 (3-й состязательный проход): note/reason печатают productSeries(item).join(", ").
-  // Прежний кейс части А брал 14642.01 (PLANA_ONLY) — РОВНО одна коллекция, срез, где join(", ") и
-  // [0] неразличимы. 14931 живёт в пяти коллекциях; комната «Eikon Tactil» — реальная коллекция
-  // каталога, но НЕ входит в эти пять, поэтому ветка коллекции срабатывает, а текст обязан назвать
-  // все пять серий: усечение до первой («коллекция Arke») повело бы человека менять комнату на Arke,
-  // хотя накладка подошла бы и Arke Fit / Eikon Evo / Eikon Exe / Plana. Мутант productSeries(item)[0]
-  // здесь краснеет, срез с одной коллекцией — не ловил.
-  assert.ok(!seriesOf(ARKE_MULTI).includes("Eikon Tactil"),
-    "предпосылка: «Eikon Tactil» — чужая для 14931 коллекция (её нет в пяти сериях), ветка коллекции сработает");
-  const allSeries = "Arke, Arke Fit, Eikon Evo, Eikon Exe, Plana";
-  assert.equal(seriesOf(ARKE_MULTI).join(", "), allSeries,
-    "предпосылка: у 14931 ровно эти пять коллекций в этом порядке — на них держится дословный текст");
-  const res = makeFn()(ARKE_MULTI.code, 2, frameSelect, "Eikon Tactil");
-  assert.ok(res, "накладка чужой для комнаты коллекции обязана дать подсказку");
-  assert.equal(res.lead, "Артикул есть в каталоге, но другой коллекции.");
-  assert.equal(res.code, "14931");
-  // note/reason — дословно из resolveMissingFrame: перечислены ВСЕ пять коллекций, а не первая
-  assert.equal(res.note, `коллекция ${allSeries}`,
-    "note называет ВСЕ коллекции накладки (join), а не первую ([0]) — иначе совет «сменить коллекцию» ведёт не туда");
-  assert.equal(res.reason,
-    `помещение закреплено за коллекцией «Eikon Tactil», а эта накладка — коллекции «${allSeries}». Сменить коллекцию можно в свойствах комнаты.`,
-    "reason перечисляет все пять коллекций — усечённый список (мутант [0]) уронит эту проверку");
-});
+/* СНЯТО (К2): кейс «note/reason перечисляют ВСЕ коллекции мультиколлекционной накладки (join, не [0])»
+   держался на 14931 с пятью коллекциями. В новой номенклатуре заказчика мультиколлекционных накладок
+   нет вовсе (все одноколлекционные) — мутационный край join-vs-[0] на реальных данных не
+   воспроизвести. Зафиксировано в отчёте как утрата покрытия из-за смены данных. */
 
 test("E13-А: РАСХОДЯЩИЕСЯ коллекция и модульность (Plana 2М, селектор 3) — коллекция побеждает число модулей", () => {
   // 14642.01 в комнате Arke при выбранных 3 модулях: причин отсева ДВЕ сразу — чужая коллекция (Plana)
@@ -161,23 +133,10 @@ test("E13-А: РАСХОДЯЩИЕСЯ коллекция и модульнос�
     "ветка коллекции действия не даёт — кнопки «Переключить на 2 модуля» на чужую коллекцию быть не должно");
 });
 
-test("E13-А: ПРЕФИКСНЫЙ СОСЕД (Arke Fit в комнате Arke) — членство в множестве, а не префикс", () => {
-  // Пункт 1 (раунд 4): resolveMissingFrame сравнивает коллекцию через productSeries(item).includes(collection).
-  // Прежние кейсы части А брали 14642.01/14931, где имя коллекции комнаты не является ПРЕФИКСОМ имени серии
-  // накладки, поэтому мутация includes→some(x=>x.indexOf(collection)===0) оставалась зелёной. «Arke Fit» —
-  // единственная коллекция каталога, чьё имя начинается с имени другой («Arke»). 19953.01 живёт РОВНО в
-  // «Arke Fit»; для комнаты «Arke» она чужая, и подсказка про коллекцию ОБЯЗАНА появиться. Мутант-префикс
-  // счёл бы «Arke Fit» начинающейся с «Arke» → «своя» → ветку коллекции проскочил бы, а по числу модулей
-  // (3===3, выбран как раз 3) вернул бы null: список молча пуст, ни слова человеку — хуже смещения отбора.
-  const res = makeFn()(ARKE_FIT_ONLY.code, 3, frameSelect, "Arke");
-  assert.ok(res, "накладка «Arke Fit» для комнаты «Arke» чужая — подсказка обязана быть, а не null (мутант-префикс даёт null)");
-  assert.equal(res.lead, "Артикул есть в каталоге, но другой коллекции.",
-    "сработала ветка коллекции: «Arke» ≠ «Arke Fit», хотя одно префикс другого");
-  assert.equal(res.code, "19953.01");
-  assert.equal(res.note, "коллекция Arke Fit",
-    "подсказка называет ИМЕННО «Arke Fit» — при префиксном сравнении её сочли бы своей и не назвали бы");
-  assert.ok(!("actionLabel" in res), "ветка коллекции действия не даёт — это отличает её от ветки числа модулей");
-});
+/* СНЯТО (К2): кейс «префиксный сосед Arke/Arke Fit» (членство-в-множестве, а не startsWith) держался
+   на 19953.01 коллекции «Arke Fit» — единственной паре имя-префикс. В новой номенклатуре «Arke Fit»
+   из каталога ушла, пары имя-префикс среди 10 коллекций не осталось, и мутант includes→startsWith на
+   реальных данных неотличим. Зафиксировано в отчёте. */
 
 test("E13-А: коллекция комнаты НЕ ЗАДАНА (проект до E13, collection=null) — работает разбор по числу модулей", () => {
   // Пункт 4 (раунд 4): у ветки коллекции есть нижняя граница — guard `collection&&`. Проект, сохранённый до
@@ -213,7 +172,7 @@ function builderCtx(state, dom, captured) {
     mechanismSpan: EPCatalog.mechanismSpan,
     moduleWord: EPCatalog.moduleWord,
     esc: s => String(s == null ? "" : s),
-    EPCatalog, EPRoom, EPPosts, EPBuilderSlots,
+    EPCatalog, EPRoom, EPPosts, EPBuilderSlots, EPSeriesMatch,
     productSeries: seriesOf,
     productOptionLabel: i => `[${i.code}] ${i.name}`,
     // перехват: забираем options.resolveMissing, отрисовку списка не трогаем

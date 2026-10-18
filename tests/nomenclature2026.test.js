@@ -42,7 +42,9 @@ test("wallTypeOf2026: «Бетон» и «Кирпич» → solid, «ГКЛ» �
 test("kindOf2026: новые имена групп → прежние виды", () => {
   assert.equal(N.kindOf2026("Рамка"), "frame");
   assert.equal(N.kindOf2026("Рамка и Клавиша"), "frame");
-  assert.equal(N.kindOf2026("Накладной или Гермитичный монтаж"), "frame");
+  // Накладные/настольные коробки и крышки IP55 — НЕ накладки (решение владельца 18.10):
+  // уходят в accessory, чтобы не попадать в выбор накладки поста и не тянуть стандарт UNKNOWN.
+  assert.equal(N.kindOf2026("Накладной или Гермитичный монтаж"), "accessory");
   assert.equal(N.kindOf2026("Суппорт"), "support");
   assert.equal(N.kindOf2026("Суппорта"), "support");
   assert.equal(N.kindOf2026("Монтажная коробка"), "socket_box");

@@ -62,14 +62,15 @@ const EPLightingGroups = require("../js/lightingGroups.js");
 
 const PRODUCTS = stand.loadVimarCatalog().products;
 const activeFrames = PRODUCTS.filter(x => x.kind === "frame" && x.active);
-/* Разведка каталога (замерено на js/catalog-vimar.js): 9 коллекций накладок по алфавиту.
+/* Разведка каталога (замерено на js/catalog-vimar.js): 10 коллекций накладок по алфавиту.
    Число НЕ хардкодим ниже в assert — берём длину CATALOG_COLLECTIONS, чтобы перезалив прайса
-   заказчиком уронил тест осмысленно, а не подогнанной константой. */
+   заказчиком уронил тест осмысленно, а не подогнанной константой. (Новая номенклатура К2:
+   «Arke Fit» ушла, добавились «Eikon Tondo» и «Linea».) */
 const CATALOG_COLLECTIONS = EPCatalog.productCollections(activeFrames);
 assert.deepEqual(
   CATALOG_COLLECTIONS,
-  ["Arke", "Arke Fit", "Eikon Evo", "Eikon Exe", "Eikon Flat", "Eikon Tactil", "Eikon Vintage", "Neve Up", "Plana"],
-  "предпосылка: в каталоге ровно 9 коллекций накладок по алфавиту"
+  ["Arke", "Eikon Evo", "Eikon Exe", "Eikon Flat", "Eikon Tactil", "Eikon Tondo", "Eikon Vintage", "Linea", "Neve Up", "Plana"],
+  "предпосылка: в каталоге ровно 10 коллекций накладок по алфавиту"
 );
 
 const spy = () => { const f = () => { f.calls++; }; f.calls = 0; return f; };
@@ -180,19 +181,19 @@ test("§2 selected на действующей коллекции комнаты
   assert.equal(sel[0].value, "Plana", "selected стоит на действующей коллекции комнаты");
 });
 
-test("§2 selected — ЧЛЕНСТВО, а не префикс: у комнаты «Arke» selected только на «Arke», не на «Arke Fit»", () => {
-  /* Пункт 2 (раунд 4): selected опции стоит по `name===roomColl`. Прежний §2 брал «Plana» — у неё в
-     каталоге нет коллекции, чьё имя начинается с «Plana», поэтому мутация `name===roomColl` →
-     `roomColl&&name.indexOf(roomColl)===0` оставалась зелёной. «Arke Fit» — единственная коллекция,
-     чьё имя начинается с имени другой («Arke»). На комнате «Arke» точное сравнение выбирает РОВНО
-     одну опцию; префиксный мутант пометил бы selected И «Arke», И «Arke Fit» → sel.length===2. */
-  assert.ok(CATALOG_COLLECTIONS.includes("Arke") && CATALOG_COLLECTIONS.includes("Arke Fit"),
-    "предпосылка: в каталоге есть обе — «Arke» и её префиксный сосед «Arke Fit»");
+test("§2 selected — ЧЛЕНСТВО коллекции: у комнаты «Arke» selected стоит РОВНО на «Arke»", () => {
+  /* Пункт 2 (раунд 4): selected опции стоит по `name===roomColl`. Прежний §2 ловил мутацию
+     `name===roomColl` → `name.indexOf(roomColl)===0` на паре «Arke»/«Arke Fit» (единственная пара,
+     где имя одной коллекции — префикс другой). В новой номенклатуре К2 «Arke Fit» из каталога ушла,
+     и пары «имя-префикс-другого» среди 10 коллекций не осталось вовсе — отличить префиксный мутант
+     на РЕАЛЬНЫХ данных больше нечем. Оставляем поведенческую проверку членства (ровно одна выбранная
+     опция, и это «Arke»); утрата именно префиксного мутационного края зафиксирована в отчёте. */
+  assert.ok(CATALOG_COLLECTIONS.includes("Arke"), "предпосылка: коллекция «Arke» в каталоге есть");
   const { props } = renderRoom({ id: "r1", name: "Кухня", area: "", polygon: null, collection: "Arke" });
   const opts = collectionOptions(props);
   const sel = opts.filter(o => o.selected);
-  assert.equal(sel.length, 1, "выбрана РОВНО одна опция (мутант-префикс пометил бы и «Arke», и «Arke Fit»)");
-  assert.equal(sel[0].value, "Arke", "selected стоит именно на «Arke», а не съезжает на префиксного соседа «Arke Fit»");
+  assert.equal(sel.length, 1, "выбрана РОВНО одна опция");
+  assert.equal(sel[0].value, "Arke", "selected стоит именно на «Arke»");
 });
 
 test("§1-подпись КОЛЛЕКЦИЯ ЗАДАНА: текст «предлагает накладки только этой коллекции» + класс own", () => {

@@ -109,18 +109,22 @@ test("замена 09001: switch→переключатель 09005, switch→и
   assert.equal(EPLightingPlan.resolveReplacement({ role: "switch", source: src }, mechs, deps).product.code, "09001");
 });
 
-test("данные Arke: 19101.B (осевой выключатель) → переключатель НЕ найден — честный пробел, не 19181.B (датчик) и не 19105.B", () => {
+test("данные Arke: 19108.B (осевой механизм) → переключатель НЕ найден — честный пробел, не датчик 19181.B; инвертор есть (19113.B)", () => {
+  // Осевой ВЫКЛЮЧАТЕЛЬ Arke (прежний 19101.B) новой номенклатурой К2 убран; берём живой осевой
+  // механизм Arke той же семьи — кнопку 19108.B. В «Осевых механизмах» Arke переключателя
+  // (changeover) по-прежнему нет (есть только у Eikon 20105.*, другой серии) → пробел; инвертор
+  // Arke есть — 19113.B.
   const mechs = PRODUCTS.filter(p => p.kind === "mechanism" && p.active);
   const deps = {
     seriesOf: EPCatalog.productSeries, spanOf: EPCatalog.mechanismSpan,
     colorKeyOf: item => (item && item.elementColor ? EPCatalog.facingColorKey(item.elementColor) : null),
     fgOf: item => (item && item.functionalGroup) || null, fsgOf: item => (item && item.functionalSubgroup) || null
   };
-  const src = byCode("19101.B");
+  const src = byCode("19108.B");
   const changeover = EPLightingPlan.resolveReplacement({ role: "changeover", source: src }, mechs, deps);
-  assert.equal(changeover.product, null, "переключателя в осевых механизмах Arke нет (у 19105.B в данных роль switch) — пробел");
+  assert.equal(changeover.product, null, "переключателя в осевых механизмах Arke нет (changeover только у Eikon 20105.*) — пробел");
   assert.equal(changeover.ambiguous, false, "ноль кандидатов — это пробел, а не неоднозначность");
-  /* датчик движения 19181.B той же роли switch НЕ утекает в замену: другая functionalSubgroup */
+  /* датчик движения 19181.B НЕ утекает в замену: другая functionalSubgroup (Датчики движения) */
   const inverter = EPLightingPlan.resolveReplacement({ role: "inverter", source: src }, mechs, deps);
   assert.equal(inverter.product.code, "19113.B", "инвертор в осевых механизмах Arke есть — 19113.B");
 });
