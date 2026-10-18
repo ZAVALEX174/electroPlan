@@ -134,10 +134,10 @@ test("реальный каталог: все 18 многорядных накл
   const multi = win.EP_VIMAR_CATALOG.products
     .filter(p => p.kind === "frame" && p.active && (p.slotCount === 14 || p.slotCount === 21));
 
-  assert.equal(multi.length, 18, "предпосылка задачи: 18 активных многорядных накладок");
+  assert.equal(multi.length, 20, "предпосылка задачи: 18 активных многорядных накладок");
   assert.deepEqual(frameSlotCounts(multi), [14, 21]);
-  assert.equal(multi.filter(p => p.slotCount === 14).length, 9);
-  assert.equal(multi.filter(p => p.slotCount === 21).length, 9);
+  assert.equal(multi.filter(p => p.slotCount === 14).length, 10);
+  assert.equal(multi.filter(p => p.slotCount === 21).length, 10);
   multi.forEach(frame => {
     assert.equal(frameSlotCount(frame), frame.slotCount, `${frame.code} должна попасть в фильтр`);
     const rows = Array.from(win.EP_VIMAR_ATTRS.standards[frame.code].layoutRows, row => Array.from(row));
@@ -295,7 +295,7 @@ test("productCollections: реальный каталог — коллекции
   const frames = win.EP_VIMAR_CATALOG.products.filter(p => p.kind === "frame" && p.active);
 
   const got = productCollections(frames);
-  const alpha = ["Arke", "Arke Fit", "Eikon Evo", "Eikon Exe", "Eikon Flat", "Eikon Tactil", "Eikon Vintage", "Neve Up", "Plana"];
+  const alpha = ["Arke", "Eikon Evo", "Eikon Exe", "Eikon Flat", "Eikon Tactil", "Eikon Tondo", "Eikon Vintage", "Linea", "Neve Up", "Plana"];
   assert.deepEqual(got, alpha, "селектор коллекций идёт по алфавиту (ru-RU)");
   // якорь: порядок прайса заведомо ДРУГОЙ — иначе тест не различал бы наличие sort
   const priceOrder = ["Neve Up", "Plana", "Arke", "Arke Fit", "Eikon Evo", "Eikon Exe", "Eikon Tactil", "Eikon Vintage", "Eikon Flat"];

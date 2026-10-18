@@ -5411,7 +5411,9 @@ window.EP_VIMAR_ATTRS = {
       "postCount": 2,
       "layoutRows": [
         [
-          7,
+          7
+        ],
+        [
           7
         ]
       ],
@@ -5514,8 +5516,12 @@ window.EP_VIMAR_ATTRS = {
       "postCount": 3,
       "layoutRows": [
         [
-          7,
-          7,
+          7
+        ],
+        [
+          7
+        ],
+        [
           7
         ]
       ],

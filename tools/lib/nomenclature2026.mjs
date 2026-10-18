@@ -312,6 +312,7 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
     const name = norm(at(row, COL.name));
 
     // --- Размер в модулях: новый файл главнее; пусто → из прежнего файла ---
+    const moduleRaw = String(at(row, COL.moduleSize) ?? "");
     let moduleSize = moduleCountOf2026(at(row, COL.moduleSize));
     if (moduleSize == null && old && old.moduleSize != null) { moduleSize = old.moduleSize; bump("moduleSize"); }
 
@@ -332,6 +333,15 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
     // --- Уровни рамки: в новом файле почти пусто → из прежнего (нужны для раскладки на ряды) ---
     let levels = toNum(at(row, COL.levels));
     if (levels == null && old && old.levels != null) { levels = old.levels; bump("levels"); }
+    // Многорядная накладка «N+N(+N)» без явных уровней: число рядов = число слагаемых (решение
+    // владельца 18.10 по 14690.27/14691.27, сверено с vimar.com — 2 и 3 ряда по 7). Гейт
+    // moduleSize>8 отделяет истинно многорядные от боковых «1+1»/«3+3»/«4+4» (≤8 модулей — один
+    // физический ряд, напр. 09679 «по бокам»): их не трогаем. Будущие большие «N+N» получат
+    // ряды сами, без правки по артикулам.
+    if (levels == null && kind === "frame" && moduleRaw.includes("+") && moduleSize > 8) {
+      const parts = (moduleRaw.match(/\d+/g) || []).length;
+      if (parts >= 2) { levels = parts; bump("levelsFromPlus"); }
+    }
 
     // --- Цвет элемента (начинки): в новом файле пуст у всех → из прежнего ---
     let color = norm(at(row, COL.color)) || null;

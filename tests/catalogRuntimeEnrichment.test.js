@@ -35,7 +35,7 @@ test("runtime-каталог: data.js подмешивает реальные la
   const rawWithPlus = rawFrames.filter(p => plusPattern.test(String(p.name)));
   const runtimeWithPlus = runtimeFrames.filter(p => plusPattern.test(String(p.name)));
 
-  assert.equal(rawWithPlus.length, 291, "контрольная выборка сырого каталога");
+  assert.equal(rawWithPlus.length, 378, "контрольная выборка сырого каталога");
   assert.equal(rawWithPlus.filter(p => Array.isArray(p.layoutRows)).length, 0,
     "сырой catalog-vimar.js по архитектуре не должен дублировать производные атрибуты");
   assert.equal(runtimeWithPlus.length, rawWithPlus.length);
@@ -43,9 +43,9 @@ test("runtime-каталог: data.js подмешивает реальные la
     "после data.js ни одна накладка с явной раскладкой не должна остаться плоской");
 
   const multi = runtimeFrames.filter(p => p.slotCount === 14 || p.slotCount === 21);
-  assert.equal(multi.length, 18);
-  assert.equal(multi.filter(p => p.slotCount === 14).length, 9);
-  assert.equal(multi.filter(p => p.slotCount === 21).length, 9);
+  assert.equal(multi.length, 20);
+  assert.equal(multi.filter(p => p.slotCount === 14).length, 10);
+  assert.equal(multi.filter(p => p.slotCount === 21).length, 10);
 
   for (const frame of multi) {
     const expectedRows = Array.from({ length: frame.slotCount / 7 }, () => [7]);
