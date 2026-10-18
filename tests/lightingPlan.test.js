@@ -533,3 +533,35 @@ test("подписи не падают на пустом и битом расч�
   assert.equal(LP.planSignature(null), "[]");
   assert.equal(LP.kitSignature({}), "[]");
 });
+
+/* ── НАСТОЯЩИЙ каталог VIMAR: точное совпадение серии главнее семейного (решение владельца 18.10) ──
+   Денежный край К2: на запросе «Eikon» (общее семейство) переключатель совместим и с 20005.0 (серия
+   «Eikon», ТОЧНО), и с 22104 (серия «Eikon Flat/Tondo», через базу семейства). Без приоритета точного
+   подбор ложно-неоднозначен и пост-переключатель теряет механизм (пара проходных: 131.62 € вместо
+   157.41 €). Грузим каталог как приложение (vm), чтобы правило проверялось на реальных сериях, а не
+   на фикстуре. */
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+function catalogMechanisms() {
+  const JS = path.join(__dirname, "..", "js");
+  const win = {};
+  const ctx = vm.createContext({ window: win, structuredClone });
+  for (const f of ["catalog-vimar.js", "catalog-vimar-attrs.js", "data.js"]) {
+    vm.runInContext(fs.readFileSync(path.join(JS, f), "utf8"), ctx, { filename: f });
+  }
+  return win.EP_DATA.products.filter(x => x.kind === "mechanism");
+}
+
+test("каталог: Eikon changeover → 20005.0 (точная серия), Flat changeover → 22104 (точная подсерия)", () => {
+  const mechs = catalogMechanisms();
+  const eikon = LP.resolveMechanism({ role: "changeover", series: ["Eikon"] }, mechs);
+  assert.equal(eikon.ambiguous, false, "«Eikon» changeover не должен быть неоднозначным — точная серия 20005.0 главнее семейной 22104");
+  assert.equal(eikon.product && eikon.product.code, "20005.0");
+  const flat = LP.resolveMechanism({ role: "changeover", series: ["Eikon Flat"] }, mechs);
+  assert.equal(flat.ambiguous, false);
+  assert.equal(flat.product && flat.product.code, "22104", "для подсерии Flat точный 22104 выигрывает у семейного 20005.0 (К1 сохранён)");
+  /* выключатель серии «Eikon» — своя точная серия 20001.0 */
+  const sw = LP.resolveMechanism({ role: "switch", series: ["Eikon"] }, mechs);
+  assert.equal(sw.product && sw.product.code, "20001.0");
+});

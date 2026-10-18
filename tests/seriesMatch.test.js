@@ -42,3 +42,35 @@ test("мультиколлекционный товар совместим, ес
   assert.equal(SM.seriesCompatible(["Arke", "Eikon"], ["Eikon Exe"]), true);   // через Eikon-базу
   assert.equal(SM.seriesCompatible(["Arke", "Plana"], ["Neve Up"]), false);
 });
+
+/* ── matchLevel: точное совпадение серии главнее семейного (решение владельца 18.10) ── */
+test("matchLevel: exact при точном совпадении серии (в т.ч. подсерия↔та же подсерия)", () => {
+  assert.equal(SM.matchLevel(["Eikon"], ["Eikon"]), "exact");
+  assert.equal(SM.matchLevel(["Eikon Flat"], ["Eikon Flat"]), "exact");
+  assert.equal(SM.matchLevel(["EIKON EXE"], ["eikon exe"]), "exact");   // регистр не важен
+  assert.equal(SM.matchLevel(["Plana"], ["Plana"]), "exact");
+});
+
+test("matchLevel: family при совпадении ТОЛЬКО через базу семейства, точного нет", () => {
+  assert.equal(SM.matchLevel(["Eikon"], ["Eikon Flat"]), "family");
+  assert.equal(SM.matchLevel(["Eikon Tondo"], ["Eikon"]), "family");
+  assert.equal(SM.matchLevel(["Eikon"], ["Eikon Сверхновая"]), "family");
+});
+
+test("matchLevel: none у несовместимых серий", () => {
+  assert.equal(SM.matchLevel(["Eikon Evo"], ["Eikon Exe"]), "none");
+  assert.equal(SM.matchLevel(["Arke"], ["Plana"]), "none");
+  assert.equal(SM.matchLevel(["Arke"], ["Arke Fit"]), "none");   // семья только у Eikon
+});
+
+test("matchLevel: exact выигрывает у family, даже если есть обе пары (денежный край 20005.0 vs 22104)", () => {
+  // запрос «Eikon» против кандидата с сериями «Eikon» (точно) и «Eikon Flat» (семейно) — общий уровень exact
+  assert.equal(SM.matchLevel(["Eikon"], ["Eikon", "Eikon Flat"]), "exact");
+  // мультиколлекция, где есть точное пересечение И семейное — тоже exact
+  assert.equal(SM.matchLevel(["Eikon", "Arke"], ["Arke"]), "exact");
+});
+
+test("matchLevel: пустая сторона совместима, но НЕ точно (family) — точный кандидат рядом главнее", () => {
+  assert.equal(SM.matchLevel([], ["Eikon Exe"]), "family");
+  assert.equal(SM.matchLevel(["Plana"], []), "family");
+});

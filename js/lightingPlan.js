@@ -223,6 +223,18 @@ function resolveMechanism(query, mechanisms, deps) {
     const alt = seriesRoleFallback(q.series, role);
     if (alt) candidates = pick(alt);
   }
+  /* ТОЧНОЕ СОВПАДЕНИЕ СЕРИИ ГЛАВНЕЕ СЕМЕЙНОГО (решение владельца 18.10). seriesMatch пускает в
+     кандидаты и точную серию («Eikon»→«Eikon»), и семейную («Eikon»→«Eikon Flat/Tondo» через базу),
+     и на запросе «Eikon» переключатель ложно-неоднозначен: 20005.0 (серия «Eikon», точно) против
+     22104 (серия «Eikon Flat», семейно) — пост терял механизм (131.62 € вместо 157.41 €). Уровень
+     совпадения — одно место (EPSeriesMatch.matchLevel, §7.1): есть кандидаты с точной серией —
+     семейные из выбора уходят; неоднозначность остаётся, только если точных несколько (это уже не
+     про семью, а про реальный выбор человека). Для Flat-запроса 22104 сам точный, а 20005.0 семейный
+     — выигрывает 22104 (К1 сохранён). */
+  if (candidates.length > 1) {
+    const exact = candidates.filter(item => EPSeriesMatch.matchLevel(q.series, seriesOf(item)) === "exact");
+    if (exact.length) candidates = exact;
+  }
   if (candidates.length > 1) {
     const mains = candidates.filter(item => !isExtraLowVoltage(item));
     if (mains.length) candidates = mains;
