@@ -53,12 +53,14 @@ test("§1 селектор «Коллекция комнаты» (renderProperti
     byKind,
     EPCatalog,
     EPRoom,
+    EPRoomWalls: require("../js/roomWalls.js"),
     EPLightingGroups: { SCHEMES: [{ id: "classic", label: "Классическая", supported: true }] },
     lightingScheme: () => "classic",
     findSelectedEntity: () => room,
     getObjectsInRoom: () => [],
     roomAutoAreaText: () => "18 м²",
     flushRoomDraft: () => {},
+    persistProject: () => {},   /* К4в: bindRoomFields читает его при рендере ветки комнаты */
     updateSelectionCount: () => {},   /* Б5: «Выделено: N» — здесь не проверяется */
     renderTemplates: () => {},   /* renderProperties синхронит библиотеку готовых постов; здесь не проверяется */
     /* Вид отделки из EPPrefs — заглушка отдаёт fallback «списком»: тест про содержимое селектора. */

@@ -66,3 +66,20 @@ test("E13: у старой авто-комнаты коллекции нет —
   assert.ok(!("collection" in room),
     "без коллекции у источника поле создаваться не должно — безусловная запись материализовала бы пустую коллекцию");
 });
+
+test("К4в: отметки стен (wallKinds) старой авто-комнаты применяются на пересчитанную новую", () => {
+  const oldR = rect("old1", 0, 0, 100, 100, { name: "Комната 1", wallKinds: ["solid"], autoPolygon: true });
+  const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
+  const [room] = runCarry([oldR], [newR]);
+  assert.deepEqual(room.wallKinds, ["solid"],
+    "отметки обязаны переехать — без строки `if(t.wallKinds!=null)room.wallKinds=...` они исчезали бы при правке линий");
+  assert.notEqual(room.wallKinds, oldR.wallKinds, "кладётся КОПИЯ (slice) — комната не делит массив со старой/памятью");
+});
+
+test("К4в: у старой авто-комнаты отметок нет — поле wallKinds на новой НЕ создаётся", () => {
+  const oldR = rect("old1", 0, 0, 100, 100, { name: "Кухня", autoPolygon: true });
+  const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
+  const [room] = runCarry([oldR], [newR]);
+  assert.equal(room.name, "Кухня", "предпосылка: перенос состоялся");
+  assert.ok(!("wallKinds" in room), "без отметок у источника поле не материализуется");
+});

@@ -1,6 +1,6 @@
 [
   { "name": "N1: новое сообщение того же вида ДОБАВЛЯЕТСЯ, а не заменяет (снят dismiss в show) — часть 2б", "file": "js/notices.js",
-    "from": "function show(kind,text,pruneWhen){\n    dismiss(kind);", "to": "function show(kind,text,pruneWhen){\n    void 0;" },
+    "from": "function show(kind,text,pruneWhen,action){\n    dismiss(kind);", "to": "function show(kind,text,pruneWhen,action){\n    void 0;" },
 
   { "name": "N2: крестик закрывает ВСЕ сообщения, а не только своё — часть 2б", "file": "js/notices.js",
     "from": "btn.onclick=()=>dismiss(kind);", "to": "btn.onclick=()=>{for(const k of Object.keys(live))dismiss(k);};" },

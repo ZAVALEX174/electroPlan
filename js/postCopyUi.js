@@ -27,7 +27,7 @@
    возвращает то, что app.js продолжает звать из document.onkeydown. Вызывается один раз из app.js. */
 function attach(ctx){
 const {
-  canvasPointer,clientToWorld,frameForRoomPlacement,getRoomForPoint,notices,renderAll,renderProperties,renderSummary,state,toast,uid
+  canvasPointer,clientToWorld,frameForRoomPlacement,getRoomForPoint,notices,renderAll,renderProperties,renderSummary,state,toast,uid,warnWallMismatch
 }=ctx;
 
 /* ---- Копирование и вставка постов (Б9). Владелец: «вставить те же посты в соседний номер — отели».
@@ -103,6 +103,10 @@ function pastePosts(){
      (EPSelection.isSelected). normalize сведёт один к {kind:"post"}, группу — к {kind:"posts"}. */
   state.selected=EPSelection.normalize(placed.map(p=>p.id),state.posts.map(p=>p.id));
   renderAll();renderSummary();renderProperties();
+  /* К4в: среди вставленных копий могут быть посты, чья стена не совпала со стенами комнаты вставки
+     (копия сохраняет свой wallType) — предупреждение с кнопкой замены. roomId копий уже проставил
+     renderAll (recalculateRoomAssignments). Отдельный вид сообщения, своей вставке он не мешает. */
+  if(typeof warnWallMismatch==="function")warnWallMismatch(placed);
   /* Сообщения этой вставки привязаны к её постам: pruneWhen вернёт true, когда ни одной вставленной копии
      на плане не осталось (Ctrl+Z убрал вставку одним шагом). app.js зовёт notices.prune() после undoPlan. */
   const placedIds=placed.map(p=>String(p.id));

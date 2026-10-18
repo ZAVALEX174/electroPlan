@@ -55,6 +55,16 @@ function defaultGeom() {
   return null;
 }
 
+/* Нормализация отметок стен комнаты (К4в, room.wallKinds) живёт в EPRoomWalls — зовём ЕЁ, а не свою
+   копию, чтобы «что такое валидная стена» было одним правилом (§7.1). Как defaultGeom: в браузере
+   namespace уже загружен (roomWalls.js подключён раньше), в Node — через require; обе ветки
+   опциональны, нет модуля → отметки не переносим (а не падаем). */
+function roomWalls() {
+  if (typeof window !== "undefined" && window.EPRoomWalls) return window.EPRoomWalls;
+  if (typeof require !== "undefined") return require("./roomWalls.js");
+  return null;
+}
+
 /* Авто-имя — то, что пересчёт раздаёт сам: «Комната N» и «Помещение N». Такие имена переносить
    НЕЛЬЗЯ: они конфликтуют с нумерацией новых комнат и родят дубли. Правило распознавания живёт
    здесь одно (не размазано по вызывающим). «Новая комната» (ручная) сюда не входит намеренно —
@@ -111,7 +121,17 @@ function normUserFields(o) {
   const frameMaterial = facing(o.frameMaterial);
   const frameShape = facing(o.frameShape);
   const frameColor = facing(o.frameColor);
-  return { name, area, lightingScheme, standard, collection, frameMaterial, frameShape, frameColor };
+  /* Отметки стен комнаты (К4в, room.wallKinds) — такое же введённое человеком поле, как коллекция:
+     пересчёт контуров выбрасывает авто-комнаты, и без переноса отметки «бетон/ГКЛ» исчезали бы при
+     каждой правке линий разметки (молчаливая потеря настройки, из-за которой предупреждение К4в
+     перестало бы срабатывать). В отличие от строковых полей это МАССИВ: нормализуем единым правилом
+     EPRoomWalls.normalizeKinds (валидные виды, без повторов) и переносим ТОЛЬКО непустой — пустой/нет
+     поля = «отметки не заданы», материализовать нельзя. Новый массив (slice в normalizeKinds) —
+     старая и новая комнаты его не делят. */
+  const rw = roomWalls();
+  const kindsArr = rw ? rw.normalizeKinds(o.wallKinds) : [];
+  const wallKinds = kindsArr.length ? kindsArr : null;
+  return { name, area, lightingScheme, standard, collection, frameMaterial, frameShape, frameColor, wallKinds };
 }
 
 /* Есть ли в наборе полей хоть одно переносимое (не null). Одно правило «нести/помнить нечего» —
@@ -119,13 +139,14 @@ function normUserFields(o) {
    Раздельные копии этого условия молча разъехались бы при добавлении нового поля в normUserFields. */
 function hasAnyField(f) {
   return f.name != null || f.area != null || f.lightingScheme != null || f.standard != null
-    || f.collection != null || f.frameMaterial != null || f.frameShape != null || f.frameColor != null;
+    || f.collection != null || f.frameMaterial != null || f.frameShape != null || f.frameColor != null
+    || f.wallKinds != null;
 }
 
 /* carry(oldRooms, newRooms[, geom]) → массив переносов
-   [{ toId, fromId, name, area, lightingScheme, standard, collection, frameMaterial, frameShape, frameColor }].
+   [{ toId, fromId, name, area, lightingScheme, standard, collection, frameMaterial, frameShape, frameColor, wallKinds }].
    Каждый перенос — на ОДНУ новую комнату (toId); каждое поле = значение для записи либо null, если оно
-   не переносится. В массив попадают только пары, где переносить есть хоть что-то. geom по умолчанию —
+   не переносится (wallKinds — непустой нормализованный массив либо null). В массив попадают только пары, где переносить есть хоть что-то. geom по умолчанию —
    EPGeom (defaultGeom); из него берётся roomMatchPoint — точка сопоставления ВНУТРИ контура (В13). */
 function carry(oldRooms, newRooms, geom) {
   geom = geom || defaultGeom();
@@ -167,7 +188,7 @@ function carry(oldRooms, newRooms, geom) {
     if (!hasAnyField(f)) { usedSrc.add(c.s.room); usedDst.add(c.d.room); return; }
     usedSrc.add(c.s.room); usedDst.add(c.d.room);
     out.push({ toId: c.d.room.id, fromId: c.s.room.id, name: f.name, area: f.area, lightingScheme: f.lightingScheme,
-      standard: f.standard, collection: f.collection, frameMaterial: f.frameMaterial, frameShape: f.frameShape, frameColor: f.frameColor });
+      standard: f.standard, collection: f.collection, frameMaterial: f.frameMaterial, frameShape: f.frameShape, frameColor: f.frameColor, wallKinds: f.wallKinds });
   });
   return out;
 }
@@ -252,7 +273,7 @@ function reconcile(oldRooms, newRooms, memory, geom) {
     usedMem.add(c.s.i); usedDst.add(c.d.room);
     const f = c.s.fields;
     transfers.push({ toId: c.d.room.id, fromId: null, name: f.name, area: f.area, lightingScheme: f.lightingScheme,
-      standard: f.standard, collection: f.collection, frameMaterial: f.frameMaterial, frameShape: f.frameShape, frameColor: f.frameColor });
+      standard: f.standard, collection: f.collection, frameMaterial: f.frameMaterial, frameShape: f.frameShape, frameColor: f.frameColor, wallKinds: f.wallKinds });
   });
 
   /* Обновлённая память: НЕвыданные прежние записи (usedMem убирает розданные — запись забывается сразу

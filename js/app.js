@@ -1490,6 +1490,7 @@ function renderProperties(){
     <label class="room-scheme-field">Схема электрики<select id="roomSchemeSelect">${schemeOptions}</select></label>
     <small class="prop-hint prop-scheme-source${ownScheme?" own":""}">${ownScheme?"Своя схема комнаты":`Унаследована от проекта: ${esc(projSchemeItem?projSchemeItem.label:projScheme)}`}</small>
     ${curSchemeItem&&curSchemeItem.note?`<small class="prop-hint prop-scheme-note">${esc(curSchemeItem.note)}</small>`:""}
+    ${EPRoomWalls.wallKindsFieldHtml(r)}
     ${facingBlockHtml}`;
     mountedRoomId=r.id;   /* этим полям принадлежит комната r — flushRoomDraft коммитит именно в неё */
     /* Владелец подтвердил автосохранение 03.09: кнопки «Сохранить изменения» больше нет.
@@ -1569,6 +1570,7 @@ function renderProperties(){
          Список потребителей тот же, что у схемы ПРОЕКТА (applyProjectSettings). */
       renderAll();renderProperties();renderSummary();persistProject();
     };
+    EPRoomWalls.bindRoomFields(r,{$,persistProject});   /* К4в: привязка чекбоксов отметок стен — в модуле (разметка вставлена выше) */
   }
 }
 /* ---- Группы света и схема электрики проекта (C8) ------------------------------------
@@ -2384,6 +2386,7 @@ function addPending(x,y){
   setTool("select");renderAll();renderSummary();
   if(room)toast(`Объект добавлен в комнату «${room.name}»`);
   else if(outside)toast("Объект размещён вне комнаты");
+  if(created.roomId!=null&&state.posts.indexOf(created)>=0&&typeof warnWallMismatch==="function")warnWallMismatch([created]);   /* К4в: пост в комнату с чужой стеной → предупреждение (только пост; typeof-гейт — для поведенческого стенда) */
 }
 /* Шаг сетки теперь настройка проекта (state.gridStep), а не константа: владелец
    просил уметь менять его. Фолбэк на дефолт — для устойчивости, если поле пустое. */
@@ -4115,6 +4118,10 @@ const {addRoomLinePoint,drawRoomLines,finishRoomLineChain,removeLastRoomLinePoin
   showTraceProgress,state,toast,uid,updateStatus,wallRadiusFor
 });
 
+/* Сообщения с крестиком (EPNotices, Б9/2б) и оркестратор предупреждения о стене (К4в, весь в roomWalls.js).
+   Нужны ДО EPCanvasInput.attach: warnWallMismatch пробрасывается в ctx трёх жестов (ниже и addPending). */
+const notices=EPNotices.attach({host:$("notices"),doc:document});
+const {warnWallMismatch}=EPRoomWalls.attach({state,notices,EPPosts,renderAll,renderSummary,renderProperties,persistProject});
 /* Ввод на холсте (клики, перенос, панорама, зум) вынесен в js/canvasInput.js (И1, кусок 4). Поднимаем
    его ОДИН раз здесь и ОБЯЗАТЕЛЬНО ДО EPRooms.attach: слой комнат ниже берёт из ctx makeDraggable и
    placePendingAtEvent, а они теперь const из этого attach — окажись он позже, чтение этих имён при
@@ -4130,7 +4137,7 @@ const {makeDraggable,placePendingAtEvent,onSpaceKeydown,canvasPointer}=EPCanvasI
   buildSpaceComponents,canvas,canvasScroll,clientToWorld,endGesture,ensureSelectTool,getRoomForPoint,hideHover,markCanvasUsed,
   tightestRoomAtPoint,refreshAfterRoomAssignments,removeEntity,renderAll,renderGroupLinks,renderProperties,
   renderRooms:()=>renderRooms(),renderSummary,scheduleSave,selectEntity,setTool,state,toast,uid,
-  updateObjectRoom,updateStatus,view,zoomBy
+  updateObjectRoom,updateStatus,view,warnWallMismatch,zoomBy
 });
 
 /* Копирование/вставка постов (Б9, И2) вынесено в js/postCopyUi.js. Поднимаем ПОСЛЕ EPCanvasInput.attach:
@@ -4138,11 +4145,8 @@ const {makeDraggable,placePendingAtEvent,onSpaceKeydown,canvasPointer}=EPCanvasI
    top-level app.js (frameForRoomPlacement/getRoomForPoint/clientToWorld/uid/state/toast/render*) — к этому
    моменту уже объявлены. Возвращённые copyPosts/pastePosts/copyBufferFilled зовёт document.onkeydown выше:
    он — отложенный обработчик, на момент его присваивания эти const ещё в TDZ, но вызывается он уже после. */
-/* Всплывающие сообщения с крестиком (не гаснут сами) вынесены в js/notices.js (EPNotices.attach, Б9/2б):
-   контейнер #notices в правом нижнем углу, undoPlan зовёт notices.prune(). Передаём инстанс в copyUi. */
-const notices=EPNotices.attach({host:$("notices"),doc:document});
 const {copyPosts,pastePosts,copyBufferFilled}=EPPostCopyUi.attach({
-  canvasPointer,clientToWorld,frameForRoomPlacement,getRoomForPoint,notices,renderAll,renderProperties,renderSummary,state,toast,uid
+  canvasPointer,clientToWorld,frameForRoomPlacement,getRoomForPoint,notices,renderAll,renderProperties,renderSummary,state,toast,uid,warnWallMismatch
 });
 
 /* Слой комнат (таблички, контуры, правка вершин) вынесен в js/rooms.js (И1, кусок 2). Поднимаем его

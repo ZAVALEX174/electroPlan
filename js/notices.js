@@ -66,9 +66,10 @@ function attach(opts){
   }
 
   /* Показать сообщение вида kind с текстом text. pruneWhen (необязательно) — функция: вернёт true, когда
-     сообщение пора убрать при prune() (посты его вставки с плана ушли). Старое сообщение того же вида
-     заменяется (владелец: не копить два одинаковых). */
-  function show(kind,text,pruneWhen){
+     сообщение пора убрать при prune() (посты его вставки с плана ушли). action (необязательно, К4в) —
+     КНОПКА ДЕЙСТВИЯ в самом сообщении {label, onClick}: нажатие делает действие и закрывает сообщение
+     (проблема решена). Старое сообщение того же вида заменяется (владелец: не копить два одинаковых). */
+  function show(kind,text,pruneWhen,action){
     dismiss(kind);
     const box=doc.createElement("div");
     box.className="notice";
@@ -76,6 +77,17 @@ function attach(opts){
     const msg=doc.createElement("span");
     msg.className="notice__text";
     msg.textContent=text;                        /* textContent, не innerHTML — имена групп в разметку не идут */
+    box.appendChild(msg);
+    /* Кнопка действия (К4в): «Перевести пост(ы) на бетон/ГКЛ». Текст — textContent (не innerHTML).
+       Клик выполняет действие и закрывает это сообщение — несоответствие устранено, держать нечего. */
+    if(action&&typeof action.onClick==="function"){
+      const act=doc.createElement("button");
+      act.type="button";
+      act.className="notice__action";
+      act.textContent=action.label||"";
+      act.onclick=()=>{dismiss(kind);action.onClick();};
+      box.appendChild(act);
+    }
     const btn=doc.createElement("button");
     btn.type="button";
     btn.className="notice__close";
@@ -83,7 +95,6 @@ function attach(opts){
     btn.title="Закрыть";
     btn.textContent="×";
     btn.onclick=()=>dismiss(kind);
-    box.appendChild(msg);
     box.appendChild(btn);
     host.appendChild(box);
     live[kind]={el:box,pruneWhen:typeof pruneWhen==="function"?pruneWhen:null};

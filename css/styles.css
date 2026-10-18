@@ -520,6 +520,17 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .notice__close{flex:none;appearance:none;border:0;background:transparent;color:#fff;font-size:16px;line-height:1;cursor:pointer;padding:0 3px;border-radius:6px}
 .notice__close:hover{background:rgba(255,255,255,.18)}
 .notice__close:focus-visible{outline:2px solid #fff;outline-offset:1px}
+/* Кнопка действия в сообщении (К4в): «Перевести пост(ы) на бетон/ГКЛ» — заметная, но не ярче крестика. */
+.notice__action{flex:none;align-self:center;appearance:none;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);color:#fff;font-size:10px;font-weight:700;line-height:1.2;padding:5px 9px;border-radius:7px;cursor:pointer;white-space:nowrap}
+.notice__action:hover{background:rgba(255,255,255,.22)}
+.notice__action:focus-visible{outline:2px solid #fff;outline-offset:1px}
+/* Отметки стен комнаты (К4в) в панели свойств: заголовок и два чекбокса столбиком. */
+.room-walls-field{display:flex;flex-direction:column;gap:5px;margin-top:9px}
+.room-walls-title{font-size:11px;font-weight:700;color:var(--text)}
+.room-walls-opt{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--text);cursor:pointer}
+/* width:auto перебивает глобальное `label input{width:100%}` — иначе чекбокс растягивается на всю
+   ширину панели и толкает подпись «Бетон…» за край (обрезка «Бе/ки/сп/ст»). */
+.room-walls-opt input{flex:none;width:auto;margin:0}
 @media(max-width:1100px){.workspace{grid-template-columns:270px 1fr}.right-panel{display:none}
 /* На узких ноутбуках 560px сборки + каталог карточками рядом не помещаются — складываем
    в одну колонку со сквозным скроллом тела окна (сборка сверху, каталог под ней).

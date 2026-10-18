@@ -1,0 +1,61 @@
+[
+  { "name": "K4v M1: забыли перенос wallKinds в normUserFields — отметки стен теряются при пересборке контуров",
+    "file": "js/roomCarry.js",
+    "from": "  return { name, area, lightingScheme, standard, collection, frameMaterial, frameShape, frameColor, wallKinds };",
+    "to": "  return { name, area, lightingScheme, standard, collection, frameMaterial, frameShape, frameColor, wallKinds: null };" },
+
+  { "name": "K4v M2: забыли применить wallKinds в carryUserRoomFields (5-е место) — отметки не доезжают до новой комнаты",
+    "file": "js/roomDetect.js",
+    "from": "    if(t.wallKinds!=null)room.wallKinds=t.wallKinds.slice();",
+    "to": "    void 0;" },
+
+  { "name": "K4v M3: забыли wallKinds в hasAnyField — пара с ОДНИМИ отметками не создаёт переноса, отметки гибнут",
+    "file": "js/roomCarry.js",
+    "from": "    || f.collection != null || f.frameMaterial != null || f.frameShape != null || f.frameColor != null\n    || f.wallKinds != null;",
+    "to": "    || f.collection != null || f.frameMaterial != null || f.frameShape != null || f.frameColor != null;" },
+
+  { "name": "K4v M4: предупреждение у комнаты БЕЗ отметок (mismatch игнорирует пустые kinds) — шум на старых проектах",
+    "file": "js/roomWalls.js",
+    "from": "  const kinds = roomWallKinds(room);\n  if (!kinds.length) return false;\n  return kinds.indexOf(postWall) < 0;",
+    "to": "  const kinds = roomWallKinds(room);\n  return kinds.indexOf(postWall) < 0;" },
+
+  { "name": "K4v M5: кнопка переводит ВСЕ несовпадающие посты проекта, а не только посты жеста (live по state.posts)",
+    "file": "js/roomWalls.js",
+    "from": "        const live = liveMismatched(g.postIds);\n        if (!live.length) return;",
+    "to": "        const live = liveMismatched((state.posts || []).map(p => p.id));\n        if (!live.length) return;" },
+
+  { "name": "K4v M6: жест Ctrl+V не проверяет несоответствие стены (вызов warnWallMismatch снят)",
+    "file": "js/postCopyUi.js",
+    "from": "  if(typeof warnWallMismatch===\"function\")warnWallMismatch(placed);",
+    "to": "  void 0;" },
+
+  { "name": "K4v M7: одиночное перетаскивание предупреждает ВСЕГДА, даже без смены комнаты (условие → true)",
+    "file": "js/canvasInput.js",
+    "from": "      if(kind===\"post\"&&(obj.roomId??null)!==before&&typeof warnWallMismatch===\"function\")warnWallMismatch([obj]);",
+    "to": "      if(kind===\"post\"&&typeof warnWallMismatch===\"function\")warnWallMismatch([obj]);" },
+
+  { "name": "K4v M8: перенос группы предупреждает о ВСЕХ членах, даже не сменивших комнату (group-условие → true)",
+    "file": "js/canvasInput.js",
+    "from": "        const changed=group.filter(m=>(m.obj.roomId??null)!==(m.beforeRoomId??null)).map(m=>m.obj);",
+    "to": "        const changed=group.filter(m=>true).map(m=>m.obj);" },
+
+  { "name": "K4v M9: кнопка без ПОВТОРНОЙ проверки (liveMismatched берёт все посты, игнорируя совпадение стены)",
+    "file": "js/roomWalls.js",
+    "from": "      if (!mismatch(wall, room)) return;\n      out.push({ post: p, wall: targetWall(wall, room) });",
+    "to": "      out.push({ post: p, wall: targetWall(wall, room) });" },
+
+  { "name": "K4v M10: kind сообщения ОБЩИЙ для всех жестов — следующее предупреждение затирает предыдущее",
+    "file": "js/roomWalls.js",
+    "from": "  return \"wallMismatch:\" + (posts || []).map(p => String(p && p.id)).sort().join(\",\");",
+    "to": "  return \"wallMismatch\";" },
+
+  { "name": "K4v M11: prune/проверка по ССЫЛКЕ, а не по id — Ctrl+Z (JSON-клоны) снимает живые сообщения о стенах",
+    "file": "js/roomWalls.js",
+    "from": "      const p = (state.posts || []).find(x => String(x.id) === String(id));",
+    "to": "      const p = (state.posts || []).find(x => x === id);" },
+
+  { "name": "K4v M12: кнопка не зовёт renderProperties — карточка поста показывает старую стену и цену",
+    "file": "js/roomWalls.js",
+    "from": "        renderAll(); renderSummary(); renderProperties(); persistProject();",
+    "to": "        renderAll(); renderSummary(); persistProject();" }
+]

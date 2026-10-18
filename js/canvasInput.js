@@ -55,7 +55,7 @@ const {
   buildSpaceComponents,canvas,canvasScroll,clientToWorld,endGesture,ensureSelectTool,getRoomForPoint,hideHover,markCanvasUsed,
   tightestRoomAtPoint,refreshAfterRoomAssignments,removeEntity,renderAll,renderGroupLinks,renderProperties,
   renderRooms,renderSummary,scheduleSave,selectEntity,setTool,state,toast,uid,updateObjectRoom,
-  updateStatus,view,zoomBy
+  updateStatus,view,warnWallMismatch,zoomBy
 }=ctx;
 
 /* PointerEvent есть у всех браузеров нижней границы проекта (Chrome 80/FF 72/Safari 13.4).
@@ -162,8 +162,10 @@ function makeDraggable(el,obj,kind){
          к базе КАЖДОГО, поэтому все едут на одну мировую дельту, а взаимное расположение сохраняется.
          Узел ведущего — это el, остальные ищем по глобально уникальному data-id. Выделение не трогаем. */
       const idset=new Set(state.selected.ids.map(String));
+      /* beforeRoomId — комната члена ДО переноса: предупреждение К4в даём только тем постам, чья
+         комната сменилась (решение владельца 3), и сверяем это после пересчёта привязки в finishDrag. */
       group=state.posts.filter(p=>idset.has(String(p.id)))
-        .map(p=>({obj:p,el:String(p.id)===String(obj.id)?el:canvas.querySelector('.plan-icon[data-id="'+p.id+'"]'),bx:p.x,by:p.y}));
+        .map(p=>({obj:p,el:String(p.id)===String(obj.id)?el:canvas.querySelector('.plan-icon[data-id="'+p.id+'"]'),bx:p.x,by:p.y,beforeRoomId:p.roomId??null}));
     }else{
       state.selected={kind,id:obj.id};
       applySelectionClasses();renderProperties();   /* выделяем точечно, без renderAll */
@@ -245,13 +247,22 @@ function makeDraggable(el,obj,kind){
          а save-параметр даёт РОВНО один scheduleSave — второго в конце не нужно (ранний return). */
       refreshAfterRoomAssignments(renderRooms, scheduleSave);
       updateStatus("Группа постов перенесена");
+      /* К4в: предупреждаем о несовпадении стены только по тем членам, чья комната сменилась (решение
+         владельца 3). Привязку к комнатам уже пересчитал refreshAfterRoomAssignments — roomId свежий. */
+      if(typeof warnWallMismatch==="function"){
+        const changed=group.filter(m=>(m.obj.roomId??null)!==(m.beforeRoomId??null)).map(m=>m.obj);
+        if(changed.length)warnWallMismatch(changed);
+      }
       return;
     }else{
       /* финальную привязку считаем свежей картой (updateObjectRoom): объект мог уехать за
          габарит превью-карты; она годится только для подсветки на лету, не для итога */
+      const before=obj.roomId??null;
       const room=updateObjectRoom(obj);
       renderRooms();renderGroupLinks();renderProperties();renderSummary();
       updateStatus(room?`Объект прикреплён к комнате: ${room.name}`:"Объект находится вне назначенных комнат");
+      /* К4в: одиночный перенос ПОСТА — предупреждение, только если комната сменилась (решение владельца 3). */
+      if(kind==="post"&&(obj.roomId??null)!==before&&typeof warnWallMismatch==="function")warnWallMismatch([obj]);
     }
     scheduleSave();   /* новая позиция — часть проекта: перенос закончился, сохраняем */
   }

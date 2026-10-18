@@ -118,6 +118,11 @@ function carryUserRoomFields(oldAutoRooms,newRooms){
     if(t.frameMaterial!=null)room.frameMaterial=t.frameMaterial;
     if(t.frameShape!=null)room.frameShape=t.frameShape;
     if(t.frameColor!=null)room.frameColor=t.frameColor;
+    /* Отметки стен комнаты (К4в: бетон/ГКЛ) — тем же путём, что отделка: перенос собрал их в
+       EPRoomCarry.normUserFields нормализованным массивом, здесь только применяем. Кладём КОПИЮ
+       (slice) — новая комната не делит массив с памятью/старой. Отсутствие в переносе (==null)
+       поля не создаёт: комната остаётся без отметок (предупреждения К4в тогда нет). */
+    if(t.wallKinds!=null)room.wallKinds=t.wallKinds.slice();
   });
 }
 function loadOpenCv(){

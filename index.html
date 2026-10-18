@@ -634,7 +634,8 @@
 <script src="js/roomsFromLines.js?v=20260801.1"></script>
 <script src="js/roomDraft.js?v=20260828.2"></script>
 <script src="js/room.js?v=20260915.1"></script>
-<script src="js/roomCarry.js?v=20261003.4"></script>
+<script src="js/roomWalls.js?v=20261018.1"></script>
+<script src="js/roomCarry.js?v=20261018.1"></script>
 <script src="js/roomAssign.js?v=20260831.1"></script>
 <script src="js/planTrace.js?v=20260727.1"></script>
 <script src="js/roomSegmentation.js?v=20260723"></script>
@@ -663,12 +664,12 @@
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него
      makeDraggable и placePendingAtEvent). -->
-<script src="js/canvasInput.js?v=20261010.2"></script>
+<script src="js/canvasInput.js?v=20261018.1"></script>
 <!-- Распознавание и разметка помещений: инструмент «Разметка» (линии, магниты, сборка помещений
      buildRoomsFromLines) и автоопределение комнат (detectRooms/detectRoomsML), перенос ручных полей
      carryUserRoomFields. Вынесено из app.js (И1, последний кусок). Грузится ДО app.js, который зовёт
      EPRoomDetect.attach(ctx) ДО EPCanvasInput.attach (тот берёт из него addRoomLinePoint). -->
-<script src="js/roomDetect.js?v=20261006.1"></script>
+<script src="js/roomDetect.js?v=20261018.1"></script>
 <script src="js/history.js?v=20261005.2"></script>
 <!-- Копирование постов (Ctrl+C/Ctrl+V): чистый модуль (ни DOM, ни state) — снимок выделенного для
      буфера, сборка копий с новыми id/номерами/координатами и новыми номерами проходных. Грузится ДО
@@ -677,8 +678,8 @@
 <!-- Копирование постов — оркестровка (Ctrl+C/Ctrl+V): буфер в памяти страницы, copyPosts/pastePosts,
      ответ «буфер не пуст?». Вынесено из app.js (Б9, И2). Грузится ДО app.js, который зовёт
      EPPostCopyUi.attach(ctx) ПОСЛЕ EPCanvasInput.attach (оттуда приходит canvasPointer). -->
-<script src="js/notices.js?v=20261010.1"></script>
-<script src="js/postCopyUi.js?v=20261010.2"></script>
-<script src="js/app.js?v=20261018.1"></script>
+<script src="js/notices.js?v=20261018.1"></script>
+<script src="js/postCopyUi.js?v=20261018.1"></script>
+<script src="js/app.js?v=20261018.2"></script>
 </body>
 </html>

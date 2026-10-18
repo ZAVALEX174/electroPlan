@@ -283,7 +283,7 @@ function renderPropsLibrary(state, dom) {
   const ctx = {
     state, props: stand.makeElement(), $: dom.$, esc: s => String(s == null ? "" : s),
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
-    frameProduct: product, EPCatalog, EPRoom, EPPosts, EPLightingGroups,
+    frameProduct: product, EPCatalog, EPRoom, EPPosts, EPLightingGroups, EPRoomWalls: require("../js/roomWalls.js"),
     frameSlotCount: EPCatalog.frameSlotCount, moduleWord: EPCatalog.moduleWord,
     mechanismModulesTotal: ids => (ids || []).reduce((s, id) => s + EPCatalog.mechanismSpan(product(id)), 0),
     assembledPostHtml: () => "<post-preview>", document: { querySelectorAll: () => [] },

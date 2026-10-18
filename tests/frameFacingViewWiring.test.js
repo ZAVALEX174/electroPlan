@@ -65,7 +65,7 @@ function renderRoomView(view, room) {
     roomAutoAreaText: () => "",
     polygonAreaPx: () => 0,
     lightingScheme: () => "classic",
-    EPLightingGroups, EPRoom, EPCatalog,
+    EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"),
     /* EPPrefs отдаёт запрошенный вид — привычка человека; тест доказывает, что renderProperties им
        управляется (а не проектом). */
     EPPrefs: { get: (k, fb) => (k === "frameFacingView" ? view : fb), set: () => {} },
@@ -166,7 +166,7 @@ function makeLive(room, view) {
     findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
     applySelectionClasses: spy(), getObjectsInRoom: () => [], roomAutoAreaText: () => "",
     polygonAreaPx: () => 0, lightingScheme: () => "classic",
-    EPLightingGroups, EPRoom, EPCatalog, EPFramePicker,
+    EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"), EPFramePicker,
     EPPrefs: { get: (k, fb) => (k in prefs ? prefs[k] : fb), set: (k, v) => { prefs[k] = v; } },
     setTool: spy(), persistProject: spy(), renderSummary: spy(), renderAll: spy(),
     mountedRoomId: null

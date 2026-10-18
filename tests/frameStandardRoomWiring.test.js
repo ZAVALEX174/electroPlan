@@ -97,7 +97,7 @@ function renderList(room) {
     findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
     applySelectionClasses: spy(), getObjectsInRoom: () => [], roomAutoAreaText: () => "",
     polygonAreaPx: () => 0, lightingScheme: () => "classic",
-    EPLightingGroups, EPRoom, EPCatalog,
+    EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"),
     EPPrefs: { get: (k, fb) => (k === "frameFacingView" ? "list" : fb), set: () => {} },
     setTool: spy(), persistProject: spy(), renderSummary: spy(), renderAll: spy(), mountedRoomId: null
   };
@@ -132,7 +132,7 @@ test("§picker-read: openFramePicker сеет sel.standard из room.standard (�
   const stub = () => ({ classList: { add() {}, remove() {} }, querySelector: () => null });
   const ctx = {
     framePickerRoomId: null, framePickerSel: null, framePickerStep: 0,
-    byKind: byKindOf, EPCatalog, EPRoom, EPFramePicker,
+    byKind: byKindOf, EPCatalog, EPRoom, EPFramePicker, EPRoomWalls: require("../js/roomWalls.js"),
     renderFramePicker: () => {}, $: stub, setTimeout: () => 0
   };
   stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "openFramePicker"], ctx)(
