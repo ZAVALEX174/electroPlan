@@ -21,6 +21,11 @@
 (() => {
 "use strict";
 
+/* Правило совместимости коллекций — единый модуль js/seriesMatch.js (шаг 3 К2). Браузер берёт
+   из window.EPSeriesMatch (подключён до этого файла), Node (тесты) — через require. */
+const EPSeriesMatch = (typeof module !== "undefined" && module.exports)
+  ? require("./seriesMatch.js") : (typeof window !== "undefined" ? window.EPSeriesMatch : undefined);
+
 /* Группа — только строка (см. builderSlots.js: 4.10 → 4.1 и склейка разных групп). */
 const groupText = v => (v === null || v === undefined) ? "" : String(v);
 const text = v => (v === null || v === undefined) ? "" : String(v);
@@ -133,11 +138,13 @@ function collect(posts, deps) {
    EPCatalog.compatibleMechanisms. Серии приходят в написании места (модуль их регистр не
    трогает), а в каталоге записаны своим написанием — сравнивать их побуквенно значило бы
    не найти ничего на первом же «EIKON EVO». */
+/* Делегируем единому правилу совместимости коллекций (js/seriesMatch.js, шаг 3 К2): так
+   «Eikon» без подсерии подбирает механизм к любой подсерии Eikon. Раньше здесь было своё
+   пересечение по точному совпадению — оно и промахивалось на базовой «Eikon». ⚠ Семантика
+   пустой серии теперь «подходит всем» (решение владельца), а не «подбирать не в чем»; на
+   реальных данных мест с пустой серией нет (серия берётся с накладки, у неё она есть). */
 function seriesMatch(a, b) {
-  const left = (Array.isArray(a) ? a : []).map(s => text(s).trim().toLocaleLowerCase("ru-RU")).filter(Boolean);
-  const right = (Array.isArray(b) ? b : []).map(s => text(s).trim().toLocaleLowerCase("ru-RU")).filter(Boolean);
-  if (!left.length || !right.length) return false;   /* нет серии — подбирать не в чем */
-  return left.some(s => right.includes(s));
+  return EPSeriesMatch.seriesCompatible(a, b);
 }
 
 /* Малое напряжение в названии изделия. Нужно ровно для одного разбора: в серии Neve Up на роль

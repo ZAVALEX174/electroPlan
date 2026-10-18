@@ -66,23 +66,23 @@ test("§filter: критерий комнаты несёт монтажный с
   assert.equal(filterFor({ standard: "IT" }).standard, "IT");
 });
 
-test("§pool-de: немецкий сужает пул до 560 (DE + универсальные), а не оставляет весь каталог", () => {
-  assert.equal(poolFor({ standard: "DE" }).length, 560);
+test("§pool-de: немецкий сужает пул до 615 (DE + универсальные), а не оставляет весь каталог", () => {
+  assert.equal(poolFor({ standard: "DE" }).length, 615);
 });
 
-test("§pool-it: итальянский сужает пул до 1350 (IT + универсальные)", () => {
-  assert.equal(poolFor({ standard: "IT" }).length, 1350);
+test("§pool-it: итальянский сужает пул до 1253 (IT + универсальные)", () => {
+  assert.equal(poolFor({ standard: "IT" }).length, 1253);
 });
 
 test("§dead: мёртвый (не из каталога) стандарт валидируется в точке вызова → null → фильтра нет", () => {
   const f = filterFor({ standard: "FR" });   /* французского стандарта у накладок нет */
   assert.equal(f.standard, null, "мёртвый стандарт → null");
-  assert.equal(poolFor({ standard: "FR" }).length, 1631, "пул не сужен — как без стандарта");
+  assert.equal(poolFor({ standard: "FR" }).length, 1689, "пул не сужен — как без стандарта");
 });
 
-test("§old: старый проект без room.standard → стандарт не сужает, пул = весь каталог (1631)", () => {
+test("§old: старый проект без room.standard → стандарт не сужает, пул = весь каталог (1689)", () => {
   assert.equal(filterFor({}).standard, null, "нет поля → null");
-  assert.equal(poolFor({}).length, 1631, "выдача как раньше — стандарт ничего не срезает");
+  assert.equal(poolFor({}).length, 1689, "выдача как раньше — стандарт ничего не срезает");
 });
 
 /* --- §list: вид «Списком» рисует, ЧИТАЕТ и ПИШЕТ ту же настройку room.standard --- */

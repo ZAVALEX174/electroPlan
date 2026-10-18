@@ -36,6 +36,11 @@
 (() => {
 "use strict";
 
+/* Правило совместимости коллекций — единый модуль js/seriesMatch.js (шаг 3 К2). Браузер берёт
+   из window.EPSeriesMatch (подключён до этого файла), Node (тесты) — через require. */
+const EPSeriesMatch = (typeof module !== "undefined" && module.exports)
+  ? require("./seriesMatch.js") : (typeof window !== "undefined" ? window.EPSeriesMatch : undefined);
+
 const upStd = s => String(s || "").toUpperCase();
 const num = v => Number(v) || 0;
 /* Круглые стандарты — одна круглая коробка на пост. Итальянский (IT) — прямоугольная
@@ -264,7 +269,9 @@ function resolveSupport(opts) {
      указана, фильтровать нечем — работаем по всему списку (как раньше). */
   let pool = supports;
   if (frameSeries.length) {
-    pool = supports.filter(s => ser(s).some(v => frameSeries.includes(v)));
+    // Единое правило совместимости коллекций (шаг 3 К2): суппорт «Eikon» без подсерии подходит
+    // любой накладке Eikon (Evo/Exe/Flat/Vintage/Tactil/Tondo), суппорт без коллекции — всем.
+    pool = supports.filter(s => EPSeriesMatch.seriesCompatible(frameSeries, ser(s)));
     if (!pool.length) return NONE;
   }
   const supModules = s => num(s.moduleCount) || num(s.modules) || 0;

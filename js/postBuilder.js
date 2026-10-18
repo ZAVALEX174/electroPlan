@@ -25,6 +25,11 @@
 (() => {
 "use strict";
 
+/* Правило совместимости коллекций — единый модуль js/seriesMatch.js (шаг 3 К2). Браузер берёт
+   из window.EPSeriesMatch (подключён до этого файла), Node (тесты) — через require. */
+const EPSeriesMatch = (typeof module !== "undefined" && module.exports)
+  ? require("./seriesMatch.js") : (typeof window !== "undefined" ? window.EPSeriesMatch : undefined);
+
 /* Фабрика окна поста: раскладывает зависимости из ctx, поднимает все функции конструктора и провязку
    #postModal, возвращает то, что app.js продолжает звать по имени. Вызывается один раз из app.js. */
 function attach(ctx){
@@ -53,7 +58,7 @@ const {
 function resolveMissingFrame(query,currentCount,frameSelect,collection){
   const item=findByExactCode(byKind("frame"),query);
   if(!item)return null;
-  if(collection&&!productSeries(item).includes(collection)){
+  if(collection&&!EPSeriesMatch.seriesCompatible(productSeries(item),collection)){
     return{
       lead:"Артикул есть в каталоге, но другой коллекции.",
       code:item.code||"без артикула",

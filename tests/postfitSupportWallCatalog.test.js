@@ -37,8 +37,11 @@ function pickSupport(products, frameCode, boxCode) {
   assert.ok(frame, `накладка ${frameCode} должна быть в каталоге`);
   const box = products.find(p => p.code === boxCode);
   assert.ok(box, `коробка ${boxCode} должна быть в каталоге`);
-  const supports = products.filter(p => p.kind === "support" &&
-    (p.series || []).some(s => (frame.series || []).includes(s)));
+  // Передаём ВСЕ суппорты каталога, как это делает приложение (app.js: supports:byKind("support")).
+  // Отбор по серии — работа resolveSupport (pool через EPSeriesMatch.seriesCompatible), а не теста:
+  // прежний пре-фильтр точным совпадением серий выкидывал суппорт «Eikon» (база) у накладки
+  // «Eikon Exe» (шаг 3 К2 — именно это и чиним). Подбор по типу стены/модульности не меняется.
+  const supports = products.filter(p => p.kind === "support");
   const r = postfit.resolveSupport({
     supports, frame, standard: frame.standard,
     modules: frame.slotCount,                 // полное число мест накладки (6 или 4), не 2

@@ -1,0 +1,460 @@
+/*
+ * Чтение номенклатуры заказчика образца 2026-10-10 (задача К2, шаги 1–2).
+ *
+ * Новый файл заказчика отличается от прежнего («Номенклатура новая.xls») структурно:
+ *   - данные на листе «VIMAR » (с пробелом в конце), первый лист служебный (BExRepositorySheet);
+ *   - шапка в 3-й строке, данные с 4-й; 21 столбец вместо 25;
+ *   - группы переименованы: «Рамка» вместо «Декоративные накладки», «Суппорт»/«Суппорта»
+ *     вместо «Суппорты», «Монтажная коробка», «Механизм» (ед. ч.) вместо «Механизмы»;
+ *   - «Количество модулей» несёт «7+7»/«3+3» (сумма — многорядная накладка/суппорт) и
+ *     «1, 2»/«6, 7» (диапазон — коробки, максимум);
+ *   - «Тип стены» — «Бетон» вместо прежнего «Кирпич»;
+ *   - «Примечание» — 49 вертикальных объединённых ячеек на 388 строк (значение только в
+ *     верхней строке диапазона);
+ *   - НЕТ столбцов «Принцип обработки», «Подгруппы», «Модульность для коробки», «Группа
+ *     доступа»; пусты «Цвет накладки/Материал/Форма» (отделка) и «Цвет механизма».
+ *
+ * Поэтому: читаем новый файл в ту же форму записи, что даёт readNomenclature (её едят
+ * buildAttrs и оба конвертера), а поля, которых в новом файле нет или пусто/не распознаётся,
+ * у ОБЩИХ с прежним файлом артикулов берём из прежнего файла по артикулу (решение владельца
+ * К2, п.2: «если значение в новом файле есть и распознаётся — главнее новый файл»). Отделку
+ * 405 новых накладок берём из docs/К2-отделка-новых-накладок/new-frames-finish.csv (решение
+ * владельца К2, п.3 — данные, не код).
+ *
+ * Чистые функции классификации (standardOf, boxShapeOf, seriesListOf, categoryAndIcon,
+ * controlRoleOf, partRoleOf, pitchOf, buildAttrs и т. д.) переиспользуем из nomenclature.mjs
+ * без изменений — один источник классификации, не разъедется. Здесь только то, что в новом
+ * файле иначе: карта групп, тип стены с «Бетоном», разбор «Количество модулей», разбор CSV
+ * отделки и сам проход с бэкфиллом.
+ */
+
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import {
+  standardOf, boxShapeOf, boxStandardsOf, seriesListOf, pitchOf,
+  categoryAndIcon, controlRoleOf, partRoleOf, readNomenclature,
+} from "./nomenclature.mjs";
+
+const require = createRequire(import.meta.url);
+const XLSX = require("xlsx");
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.resolve(here, "../..");     // electroplan-project/
+const repoRoot = path.resolve(projectRoot, "..");     // electro/
+
+// Пути по умолчанию держим рядом с прочими исходными данными (как DEFAULT_NOMENCLATURE в
+// nomenclature.mjs) — стабильно для воспроизводимой сборки. Оригинал заказчика не трогаем.
+export const DEFAULT_NOMENCLATURE_2026 = path.join(repoRoot, "Номенклатура 2026-10-10.xls");
+export const DEFAULT_OLD_NOMENCLATURE = path.join(repoRoot, "Номенклатура новая.xls");
+export const DEFAULT_FINISH_CSV = path.join(projectRoot, "docs/К2-отделка-новых-накладок/new-frames-finish.csv");
+export const DEFAULT_FACING_OVERRIDES = path.resolve(here, "../data/frame-facing-overrides.json");
+
+/* Быстросъёмные механизмы с клеммами WAGO (артикул с сегментом «.FX») — решение владельца
+   18.10: «если сейчас мы никак не можем это использовать, можно пока эти артикулы не вносить в
+   базу». Исключаем ПРАВИЛОМ по артикулу, а не списком 27 кодов, — тогда и новые «.FX» в
+   следующем файле заказчика не попадут в каталог сами. «.FX» — именно сегмент кода (между
+   точками или в конце: 14000.FX.0, 14208.FX, 20208.FX.C.N), а не подстрока в произвольном месте. */
+export const FX_CODE_RE = /\.FX(\.|$)/i;
+
+const norm = (v) => String(v ?? "").trim();
+
+/* Функциональная группа нового файла → тип товара (kind). Имена групп переименованы, но
+   классифицируются ТАК ЖЕ, как их прежние эквиваленты (сверено по общим артикулам: для
+   каждой группы ниже старый kind однозначен). Группы без прежнего эквивалента (лючки в пол,
+   защита суппорта, листы этикеток и пр.) падают в mechanism по умолчанию — свой вид им никто
+   не утверждал; перечисляются в статистике (unmappedGroups). */
+const GROUP_KIND_2026 = new Map([
+  ["рамка", "frame"],
+  ["рамка и клавиша", "frame"],
+  ["накладной или гермитичный монтаж", "frame"],   // IP40-коробки/крышки — в прежнем файле это накладки
+  ["суппорт", "support"],
+  ["суппорта", "support"],
+  ["суппорт накладной bluetooth", "support"],
+  ["монтажная коробка", "socket_box"],
+]);
+export function kindOf2026(group) {
+  return GROUP_KIND_2026.get(norm(group).toLowerCase()) || "mechanism";
+}
+const MAPPED_GROUP_KEYS = new Set(GROUP_KIND_2026.keys());
+
+/* Тип стены нового файла: «Бетон» и «Кирпич» → solid (сплошная), «ГКЛ» → hollow. «Бетон» —
+   новое написание того же, что прежде звалось «Кирпич» (решение К2: «Бетон» понимается как
+   прежний «Кирпич»). Оба → unknown, как в прежней модели. Своей функции (не wallTypeOf из
+   nomenclature.mjs), потому что та «Бетон» не узнаёт. */
+export function wallTypeOf2026(raw) {
+  const s = norm(raw).toLowerCase();
+  const solid = s.includes("бетон") || s.includes("кирпич");
+  const hollow = s.includes("гкл");
+  if (solid && hollow) return "unknown";
+  if (hollow) return "hollow";
+  if (solid) return "solid";
+  return "unknown";
+}
+
+/* «Количество модулей» нового файла → число модулей (ёмкость):
+   - число (3) → как есть;
+   - десятичная доля («0.5» у фальшблоков 1/2 модуля) → как есть (не список, не сумма);
+   - со знаком «+» («7+7», «3+3», «7+7+7») → СУММА слагаемых: это многорядная накладка/суппорт,
+     её ёмкость равна сумме мест по рядам (7+7 = 14 мест, а не 7);
+   - список через запятую («1, 2», «6, 7», «12, 14») → МАКСИМУМ: диапазон вместимости коробки
+     (как делал moduleCountOf прежде для круглых коробок «1, 2»).
+   Прежний moduleCountOf брал максимум ВСЕГДА — на «7+7» он дал бы 7 вместо 14 (накладка на
+   14 мест превратилась бы в 7), поэтому для нового файла нужен раздельный разбор. */
+export function moduleCountOf2026(raw) {
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  const s = norm(raw);
+  if (!s) return null;
+  if (/^\d+[.,]\d+$/.test(s)) return Number(s.replace(",", "."));
+  const nums = (s.match(/\d+/g) || []).map(Number);
+  if (!nums.length) return null;
+  if (s.includes("+")) return nums.reduce((a, b) => a + b, 0);
+  return Math.max(...nums);
+}
+
+/* Разбор одной строки CSV с кавычками и разделителем «;» (поля «Источник»/«Примечание» могут
+   содержать «;» внутри кавычек). Минимальный парсер — внешних зависимостей во фронтенде и
+   инструментах не заводим сверх xlsx. */
+function parseCsvLine(line) {
+  const out = [];
+  let cur = "", quoted = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; }   // экранированная кавычка ""
+        else quoted = false;
+      } else cur += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ";") { out.push(cur); cur = ""; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+/* Отделка 405 новых накладок (решение К2, п.3): артикул → {frameColor, frameMaterial,
+   frameShape}. Файл UTF-8 с BOM, разделитель «;». Нет файла — пустая карта (сборка не падает,
+   как с kind-overrides). Берём только три колонки отделки; «Источник»/«Примечание» — для
+   человека, в данные каталога не идут. */
+export function readFinishCsv(csvPath = DEFAULT_FINISH_CSV) {
+  const map = new Map();
+  let text;
+  try { text = fs.readFileSync(csvPath, "utf8"); } catch { return map; }
+  text = text.replace(/^﻿/, "");
+  const lines = text.split(/\r?\n/).filter((l) => l.length);
+  if (!lines.length) return map;
+  const header = parseCsvLine(lines[0]).map(norm);
+  const iCode = header.indexOf("Артикул");
+  const iCol = header.indexOf("Цвет накладки");
+  const iMat = header.indexOf("Материал накладки");
+  const iShp = header.indexOf("Форма накладки");
+  for (let i = 1; i < lines.length; i++) {
+    const f = parseCsvLine(lines[i]);
+    const code = norm(f[iCode]);
+    if (!code) continue;
+    map.set(code, {
+      frameColor: (iCol >= 0 && norm(f[iCol])) || null,
+      frameMaterial: (iMat >= 0 && norm(f[iMat])) || null,
+      frameShape: (iShp >= 0 && norm(f[iShp])) || null,
+    });
+  }
+  return map;
+}
+
+/* Ручные правки отделки накладок (решения владельца 18.10 по docs/К2-отделка-новых-накладок/
+   ОТЧЁТ.md, раздел «Расхождения»): артикул → { frameColor?, frameMaterial?, frameShape? }.
+   ОДИН видимый файл-источник того, что поправлено руками и почему (поле why рядом). Применяется
+   ПОВЕРХ и CSV (новые накладки), и бэкфилла из старого файла (общие) — одинаково для любого
+   источника. Нет файла — пустая карта (сборка не падает, как с kind-overrides). */
+export function readFacingOverrides(jsonPath = DEFAULT_FACING_OVERRIDES) {
+  const map = new Map();
+  let text;
+  try { text = fs.readFileSync(jsonPath, "utf8"); } catch { return map; }
+  let doc;
+  try { doc = JSON.parse(text.replace(/^﻿/, "")); } catch { return map; }
+  for (const [code, ov] of Object.entries(doc.overrides || {})) {
+    if (ov && typeof ov === "object") map.set(code, ov);
+  }
+  return map;
+}
+
+// Имена столбцов нового файла (шапка 3-й строки). Нормализация поиска гасит расхождения по
+// пробелам — как в readNomenclature с «Подгруппы ». Столбцов principle/subgroup/boxModularity/
+// accessGroup в новом файле НЕТ — их at() вернёт null, и они возьмутся из прежнего файла.
+const COL = {
+  code: "Артикул", name: "Наименование", price: "Прайс розница РФ, Евро",
+  pack: "Кол-во в упаковке", note: "Примечание", moduleSize: "Количество модулей",
+  series: "Коллекция", control: "Тип управления", group: "Функциональная группа",
+  wall: "Тип стены", standard: "Монтажный стандарт", levels: "Количество уровней в рамке",
+  color: "Цвет механизма",
+  frameColor: "Цвет накладки", frameMaterial: "Материал накладки", frameShape: "Форма накладки",
+  askBacklight: "Спрашивать подсветку 1 - да, пусто - нет",
+  backlightColor: "Цвет подсветки",
+  backlightPosition: "Позиция подсветки 1 - верх, 2 - центр, 3 - низ",
+};
+
+// Позицию подсветки новый файл пишет строкой («1»/«2»/«3»), прежний — числом. Приводим к числу.
+const toNum = (v) => {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  const s = norm(v);
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+};
+
+/*
+ * Читает новый файл номенклатуры и возвращает { header, records, stats } в том же формате,
+ * что readNomenclature, + статистику бэкфилла и разведки для отчёта. oldXlsPath — прежний
+ * файл (источник недостающих полей по артикулу), finishCsv — отделка новых накладок.
+ * excludeSeries — как прежде (IDEA пока не включаем; в файле её и нет).
+ */
+export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
+  oldXlsPath = DEFAULT_OLD_NOMENCLATURE,
+  finishCsv = DEFAULT_FINISH_CSV,
+  facingOverridesPath = DEFAULT_FACING_OVERRIDES,
+  excludeSeries = ["idea"],
+} = {}) {
+  const wb = XLSX.readFile(xlsPath);
+  // Лист данных — «VIMAR » (с пробелом); первый лист (BExRepositorySheet) служебный. По trim,
+  // как ищет лист прайса в build-catalog.mjs; на крайний случай — последний лист книги.
+  const sheetName = wb.SheetNames.find((n) => n.trim() === "VIMAR") || wb.SheetNames[wb.SheetNames.length - 1];
+  const ws = wb.Sheets[sheetName];
+  const grid = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: true });
+
+  // Объединённые ячейки «Примечание» (49 вертикальных объединений на 388 строк): значение
+  // стоит только в верхней строке диапазона, у остальных null. Раскрываем на весь диапазон —
+  // иначе у ~339 строк примечание читалось бы пустым. ТОЛЬКО одностолбцовые (вертикальные)
+  // объединения: горизонтальных в файле нет (проверено), а копировать значение поперёк колонок
+  // было бы ошибкой (затёрло бы соседние поля).
+  for (const m of (ws["!merges"] || [])) {
+    if (m.s.c !== m.e.c) continue;
+    const top = grid[m.s.r] ? grid[m.s.r][m.s.c] : null;
+    if (top == null) continue;
+    for (let rr = m.s.r + 1; rr <= m.e.r; rr++) {
+      if (!grid[rr]) grid[rr] = [];
+      if (grid[rr][m.s.c] == null) grid[rr][m.s.c] = top;
+    }
+  }
+
+  const HEADER_ROW = 2;                        // шапка в 3-й строке (индекс 2), данные с 4-й
+  const header = (grid[HEADER_ROW] || []).map(norm);
+  const colIndex = new Map();
+  header.forEach((h, i) => { if (h && !colIndex.has(h)) colIndex.set(h, i); });
+  const at = (row, name) => {
+    const i = colIndex.get(norm(name));
+    return i == null ? null : row[i];
+  };
+
+  // Прежний файл — источник недостающих полей по артикулу; CSV — отделка новых накладок.
+  const { records: oldRecords } = readNomenclature(oldXlsPath, { excludeSeries });
+  const oldByCode = new Map(oldRecords.map((r) => [r.code, r]));
+  const finishByCode = readFinishCsv(finishCsv);
+  const facingOverrides = readFacingOverrides(facingOverridesPath);
+
+  const excluded = new Set(excludeSeries.map((s) => norm(s).toLowerCase()));
+
+  const records = [];
+  const stats = {
+    sheet: sheetName, ref: ws["!ref"], totalRows: grid.length - (HEADER_ROW + 1),
+    withCode: 0, excluded: 0, blankRows: 0, noCodeRows: 0,
+    byKind: {}, bySeries: {}, byStandard: {}, byGroup: {}, dupCodes: [], missingModule: 0,
+    withSubgroup: 0, byPartRole: {}, byControlRole: {},
+    // Разведка для отчёта:
+    commonWithOld: 0, newArticles: 0,               // пересечение с прежним файлом
+    unmappedGroups: {},                             // новые группы без прежнего эквивалента → mechanism
+    backfill: {},                                   // поле → сколько значений взято из прежнего файла
+    finishFromCsv: 0,                               // накладок с отделкой из CSV
+    facingOverridden: 0,                            // накладок с ручной правкой отделки (оверрайд)
+    excludedFx: 0, excludedFxCodes: [],             // быстросъёмные «.FX», исключённые из каталога
+    newFramesWithoutFinish: [],                     // новые накладки без отделки ни из CSV, ни из old
+    unrecognizedControl: {},                        // «тип управления» непуст, но роль не распознана (новые)
+  };
+  const bump = (field) => { stats.backfill[field] = (stats.backfill[field] || 0) + 1; };
+  const seen = new Set();
+
+  for (let r = HEADER_ROW + 1; r < grid.length; r++) {
+    const row = grid[r];
+    if (!row) { stats.blankRows++; continue; }
+    const code = norm(at(row, COL.code));
+    if (!code) {
+      // строка-разделитель (вся пустая) или строка без артикула, но с данными (их 2 — в отчёт)
+      if (row.every((v) => v == null || norm(v) === "")) stats.blankRows++;
+      else stats.noCodeRows++;
+      continue;
+    }
+    stats.withCode++;
+    if (seen.has(code)) { stats.dupCodes.push(code); continue; }
+    seen.add(code);
+
+    // Быстросъёмные «.FX» (WAGO) — не вносим в каталог (решение владельца 18.10). Правило по
+    // артикулу → новые «.FX» следующего файла тоже отсеются сами.
+    if (FX_CODE_RE.test(code)) { stats.excludedFx++; stats.excludedFxCodes.push(code); continue; }
+
+    const seriesRaw = norm(at(row, COL.series));
+    const seriesRawList = seriesRaw.split(/[,;]/).map((x) => norm(x).toLowerCase()).filter(Boolean);
+    if (seriesRawList.length && seriesRawList.every((s) => excluded.has(s))) {
+      stats.excluded++;
+      continue;
+    }
+
+    const old = oldByCode.get(code) || null;
+    if (old) stats.commonWithOld++; else stats.newArticles++;
+
+    const group = norm(at(row, COL.group));
+    const groupKey = group.toLowerCase();
+    if (group && !MAPPED_GROUP_KEYS.has(groupKey) && kindOf2026(group) === "mechanism" && !old) {
+      // новая группа без прежнего эквивалента, легла в mechanism по умолчанию — в отчёт
+      stats.unmappedGroups[group] = (stats.unmappedGroups[group] || 0) + 1;
+    }
+    const kind = kindOf2026(group);
+    const name = norm(at(row, COL.name));
+
+    // --- Размер в модулях: новый файл главнее; пусто → из прежнего файла ---
+    let moduleSize = moduleCountOf2026(at(row, COL.moduleSize));
+    if (moduleSize == null && old && old.moduleSize != null) { moduleSize = old.moduleSize; bump("moduleSize"); }
+
+    // --- Монтажный стандарт: новый главнее, если распознан; иначе из прежнего ---
+    let standardRaw = norm(at(row, COL.standard));
+    let standard = standardOf(standardRaw);
+    if (standard === "UNKNOWN" && old && old.standard && old.standard !== "UNKNOWN") {
+      standard = old.standard; standardRaw = old.standardRaw; bump("standard");
+    }
+
+    // --- Тип стены: новый главнее, если распознан; иначе из прежнего ---
+    let wallRaw = norm(at(row, COL.wall));
+    let wallType = wallTypeOf2026(wallRaw);
+    if (wallType === "unknown" && old && old.wallType && old.wallType !== "unknown") {
+      wallType = old.wallType; wallRaw = old.wallRaw; bump("wallType");
+    }
+
+    // --- Уровни рамки: в новом файле почти пусто → из прежнего (нужны для раскладки на ряды) ---
+    let levels = toNum(at(row, COL.levels));
+    if (levels == null && old && old.levels != null) { levels = old.levels; bump("levels"); }
+
+    // --- Цвет элемента (начинки): в новом файле пуст у всех → из прежнего ---
+    let color = norm(at(row, COL.color)) || null;
+    if (!color && old && old.color) { color = old.color; bump("color"); }
+
+    // --- Отделка накладки: новый файл пуст у всех накладок → из прежнего (общие), иначе из CSV (новые) ---
+    let frameColorRaw = norm(at(row, COL.frameColor)) || null;
+    let frameMaterialRaw = norm(at(row, COL.frameMaterial)) || null;
+    let frameShapeRaw = norm(at(row, COL.frameShape)) || null;
+    if (old) {
+      if (!frameColorRaw && old.frameColorRaw) { frameColorRaw = old.frameColorRaw; bump("frameColor"); }
+      if (!frameMaterialRaw && old.frameMaterialRaw) { frameMaterialRaw = old.frameMaterialRaw; bump("frameMaterial"); }
+      if (!frameShapeRaw && old.frameShapeRaw) { frameShapeRaw = old.frameShapeRaw; bump("frameShape"); }
+    }
+    if (kind === "frame" && !(frameColorRaw || frameMaterialRaw || frameShapeRaw)) {
+      const fin = finishByCode.get(code);
+      if (fin && (fin.frameColor || fin.frameMaterial || fin.frameShape)) {
+        frameColorRaw = fin.frameColor; frameMaterialRaw = fin.frameMaterial; frameShapeRaw = fin.frameShape;
+        stats.finishFromCsv++;
+      } else {
+        stats.newFramesWithoutFinish.push(code);
+      }
+    }
+    // Ручная правка отделки (frame-facing-overrides.json, решения владельца 18.10) — ПОВЕРХ и
+    // CSV, и бэкфилла: цвет/материал/форма задаются явно для перечисленных артикулов.
+    const fo = facingOverrides.get(code);
+    if (fo) {
+      if (fo.frameColor != null) frameColorRaw = norm(fo.frameColor) || null;
+      if (fo.frameMaterial != null) frameMaterialRaw = norm(fo.frameMaterial) || null;
+      if (fo.frameShape != null) frameShapeRaw = norm(fo.frameShape) || null;
+      stats.facingOverridden++;
+    }
+
+    // --- Тип управления: новый главнее; пусто → из прежнего. Роль пересчитываем по итогу ---
+    let controlType = norm(at(row, COL.control)) || null;
+    if (!controlType && old && old.controlType) { controlType = old.controlType; bump("controlType"); }
+    const controlRole = controlRoleOf(controlType);
+    if (controlType && !controlRole && !old) {
+      // непустой, но нераспознанный тип управления у НОВОГО артикула — значение не выдумываем
+      (stats.unrecognizedControl[controlType] ||= []).push(code);
+    }
+
+    // --- Монтажное правило и подгруппа: столбцов в новом файле НЕТ → только из прежнего ---
+    let principle = old && old.principle ? old.principle : null;
+    if (principle) bump("principle");
+    let subgroup = old && old.subgroup ? old.subgroup : null;
+    if (subgroup) bump("subgroup");
+    let boxModularity = old && old.boxModularity != null ? old.boxModularity : null;
+    if (boxModularity != null) bump("boxModularity");
+    let accessGroup = old && old.accessGroup != null ? old.accessGroup : null;
+    if (accessGroup != null) bump("accessGroup");
+
+    // --- Подсветка клавиш: новый главнее; если в новом пусто, а в прежнем есть — из прежнего ---
+    const rAsk = toNum(at(row, COL.askBacklight));
+    let askBacklight = rAsk === 1;
+    let backlightColor = norm(at(row, COL.backlightColor)) || null;
+    let backlightPosition = toNum(at(row, COL.backlightPosition));
+    if (rAsk == null && !backlightColor && backlightPosition == null && old) {
+      if (old.askBacklight) { askBacklight = true; bump("askBacklight"); }
+      if (old.backlightColor) { backlightColor = old.backlightColor; bump("backlightColor"); }
+      if (old.backlightPosition != null) { backlightPosition = old.backlightPosition; bump("backlightPosition"); }
+    }
+
+    const priceCell = at(row, COL.price);
+    const nomPrice = typeof priceCell === "number" && Number.isFinite(priceCell) ? priceCell : null;
+
+    const { categoryId, icon } = categoryAndIcon(kind, name);
+    // Роль детали: «голый механизм» требует группы «Механизмы»; в новом файле она зовётся
+    // «Механизм» (ед. ч.). Нормализуем для partRoleOf, чтобы 18 голых механизмов определялись
+    // как прежде (иначе их осталось бы 4 — только из «Механизмы»).
+    const groupForRole = (groupKey === "механизм" || groupKey === "механизмы") ? "механизмы" : group;
+
+    const rec = {
+      sourceRow: r + 1,
+      code,
+      brand: "VIMAR",                             // «Бренд» в новом файле отдельной колонкой не вынесен
+      name,
+      group,
+      kind,
+      categoryId,
+      icon,
+      series: seriesListOf(seriesRaw),
+      seriesRaw,
+      moduleSize,
+      standard,
+      standardRaw,
+      wallType,
+      wallRaw,
+      levels,
+      boxModularity,
+      accessGroup,
+      color,
+      frameColorRaw,
+      frameMaterialRaw,
+      frameShapeRaw,
+      controlType,
+      controlRole,
+      partRole: partRoleOf({ group: groupForRole, controlRole, name }),
+      principle,
+      subgroup,
+      note: norm(at(row, COL.note)) || null,
+      askBacklight,
+      backlightColor,
+      backlightPosition,
+      nomPrice,
+    };
+    if (moduleSize == null && kind === "frame") stats.missingModule++;
+
+    if (kind === "frame") rec.slotCount = moduleSize;
+    if (kind === "support") rec.pitchMm = pitchOf(name);
+    if (kind === "socket_box") {
+      rec.boxShape = boxShapeOf(name);
+      rec.boxStandards = boxStandardsOf(rec.boxShape);
+    }
+
+    records.push(rec);
+    stats.byKind[kind] = (stats.byKind[kind] || 0) + 1;
+    stats.byGroup[group] = (stats.byGroup[group] || 0) + 1;
+    stats.byStandard[standard] = (stats.byStandard[standard] || 0) + 1;
+    if (rec.subgroup) stats.withSubgroup++;
+    if (rec.partRole) stats.byPartRole[rec.partRole] = (stats.byPartRole[rec.partRole] || 0) + 1;
+    if (rec.controlRole) stats.byControlRole[rec.controlRole] = (stats.byControlRole[rec.controlRole] || 0) + 1;
+    for (const s of rec.series) stats.bySeries[s] = (stats.bySeries[s] || 0) + 1;
+  }
+  return { header, records, stats };
+}

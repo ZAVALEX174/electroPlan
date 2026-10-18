@@ -30,7 +30,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { createRequire } from "node:module";
-import { readNomenclature, applyKindOverrides, resolveCatalogPrice, DEFAULT_NOMENCLATURE } from "./lib/nomenclature.mjs";
+import { applyKindOverrides, resolveCatalogPrice } from "./lib/nomenclature.mjs";
+import { readNomenclature2026, DEFAULT_NOMENCLATURE_2026 } from "./lib/nomenclature2026.mjs";
 
 const require = createRequire(import.meta.url);
 const XLSX = require("xlsx");
@@ -52,7 +53,7 @@ const { values: args } = parseArgs({
   },
 });
 const resolveArg = (val, fallback) => (val ? path.resolve(val) : fallback);
-const NOM = resolveArg(args.nom, DEFAULT_NOMENCLATURE);
+const NOM = resolveArg(args.nom, DEFAULT_NOMENCLATURE_2026);
 const PRICE = resolveArg(args.xls, path.join(repoRoot, "Прайс VIMAR Евро 01.07.26 (2) (2).xls"));
 const IMAGES_RU = resolveArg(args.images, path.join(repoRoot, "outputs/db_price_import_20260723/vimar-ru-image-index.json"));
 const IMAGES_OFFICIAL = resolveArg(args["images-official"], path.join(repoRoot, "outputs/db_price_import_20260723/vimar-image-index.json"));
@@ -107,7 +108,7 @@ function readPrices(file) {
 }
 
 async function main() {
-  const { records, stats } = readNomenclature(NOM);
+  const { records, stats } = readNomenclature2026(NOM);
   // Явные переклассификации kind (утверждены владельцем) применяем ПОСЛЕ чтения
   // номенклатуры, тем же оверрайдом, что и build-catalog-attrs.mjs → каталог и attrs
   // согласованы. Пустой/отсутствующий файл — просто ноль правок (сборка не падает).
@@ -140,13 +141,24 @@ async function main() {
 
   for (const rec of records) {
     const pr = priceByCode.get(rec.code);
-    const { price, source: priceSource } = resolveCatalogPrice(rec.nomPrice, pr);
-    if (priceSource === "price") {
-      merge.fromPrice++;
-      if (rec.nomPrice != null && Math.round(rec.nomPrice * 100) !== Math.round(pr.price * 100)) merge.priceDiffs++;
-    } else {
+    // ЦЕНА — из номенклатуры заказчика (столбец «Прайс розница РФ, Евро»): решение владельца
+    // К2 — «цены и состав как в файле заказчика». Прежде источником цены был отдельный прайс
+    // 01.07.26, но в нём у части позиций устаревшие/ошибочные значения (20506 — 173,43 € против
+    // верных 6,99 €; 03925 — 136,99 € против 181,86 €), поэтому теперь цену берём из файла
+    // заказчика. Прайс оставлен ЗАПАСНЫМ источником — на случай позиции без цены в номенклатуре
+    // (в текущем файле таких нет: цена заполнена у всех). priceDiffs меряет расхождение
+    // номенклатуры с прайсом для сверки при пересборке.
+    let price, priceSource;
+    if (rec.nomPrice != null && Number.isFinite(rec.nomPrice) && rec.nomPrice > 0) {
+      price = Math.round(rec.nomPrice * 100) / 100;
+      priceSource = "nomenclature";
       merge.fromNomenclature++;
-      merge.missingInPrice.push(rec.code);
+      if (pr && pr.price > 0 && Math.round(pr.price * 100) !== Math.round(price * 100)) merge.priceDiffs++;
+    } else {
+      const fallback = resolveCatalogPrice(null, pr);
+      price = fallback.price;
+      priceSource = fallback.source;
+      if (price > 0) merge.fromPrice++; else merge.missingInPrice.push(rec.code);
     }
 
     // стабильный id по артикулу; новому — из диапазона 200000+ (детерминировано по строке)
@@ -232,7 +244,7 @@ async function main() {
   const kindCount = (k) => products.filter((p) => p.kind === k).length;
   const meta = {
     source: path.basename(NOM),
-    priceSource: path.basename(PRICE),
+    priceSource: path.basename(NOM),   // цены теперь из номенклатуры заказчика (решение К2)
     priceDate: PRICE_DATE_ISO,
     currency: CURRENCY,
     generatedAt: new Date().toISOString().slice(0, 10),
@@ -253,7 +265,7 @@ async function main() {
   await fs.writeFile(IDS, JSON.stringify({ ...idsFile, ids: sortedIds }, null, 2) + "\n", "utf8");
 
   const banner =
-    `/* Generated from «${path.basename(NOM)}» (состав/атрибуты) + «${path.basename(PRICE)}» (цены, ${PRICE_DATE_ISO}).\n` +
+    `/* Generated from «${path.basename(NOM)}» (состав, атрибуты и цены — решение К2: цены как в файле заказчика).\n` +
     `   Пересобирается: npm run build:catalog (tools/build-catalog.mjs). РУЧНЫЕ ПРАВКИ ЗДЕСЬ ТЕРЯЮТСЯ.\n` +
     `   JSON без форматирования (одна строка) — файл грузится синхронно при каждом открытии,\n` +
     `   минификация втрое уменьшает вес; читать/править исходники, не этот файл.\n` +

@@ -34,18 +34,19 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { readNomenclature, applyKindOverrides, buildAttrs, DEFAULT_NOMENCLATURE } from "./lib/nomenclature.mjs";
+import { applyKindOverrides, buildAttrs } from "./lib/nomenclature.mjs";
+import { readNomenclature2026, DEFAULT_NOMENCLATURE_2026 } from "./lib/nomenclature2026.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(here, "..");
 
 const { values: args } = parseArgs({ options: { nom: { type: "string" }, out: { type: "string" }, overrides: { type: "string" } } });
-const NOM = args.nom ? path.resolve(args.nom) : DEFAULT_NOMENCLATURE;
+const NOM = args.nom ? path.resolve(args.nom) : DEFAULT_NOMENCLATURE_2026;
 const OUT = args.out ? path.resolve(args.out) : path.join(projectRoot, "js/catalog-vimar-attrs.js");
 const OVERRIDES = args.overrides ? path.resolve(args.overrides) : path.join(here, "data/kind-overrides.json");
 
 async function main() {
-  const { records, stats } = readNomenclature(NOM);
+  const { records, stats } = readNomenclature2026(NOM);
   // Тот же оверрайд kind, что и в build-catalog.mjs: attrs автосостава должны совпадать
   // с каталогом. 14901–14904 → socket_box попадут сюда в boxes с их признаками (тип
   // стены/форма/модульность), accessory-позиции автосостава поста не имеют → не в attrs.

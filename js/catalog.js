@@ -10,6 +10,11 @@
 (() => {
 "use strict";
 
+/* Правило совместимости коллекций — единый модуль js/seriesMatch.js (шаг 3 К2). Браузер берёт
+   из window.EPSeriesMatch (подключён до этого файла), Node (тесты) — через require. */
+const EPSeriesMatch = (typeof module !== "undefined" && module.exports)
+  ? require("./seriesMatch.js") : (typeof window !== "undefined" ? window.EPSeriesMatch : undefined);
+
 /* Счётчик подписи: ЧИСЛО либо «числовая строка», иначе null («считать нечего»).
    Голый Number() здесь врал бы молча: Number(null) === 0, и «счётчик не задан» становилось бы
    честным нулём — подпись «0 мест» утверждала бы про проект то, чего расчёт не говорил. */
@@ -201,12 +206,11 @@ function productsForRoom(items, criteria) {
 /* Механизмы, совместимые с рамкой по серии. Если у рамки серия не указана или
    совпадений нет — возвращаем исходный список (лучше показать всё, чем ничего). */
 function compatibleMechanisms(frame, mechanisms) {
-  const frameSeries = productSeries(frame).map(x => x.toLocaleLowerCase("ru-RU"));
+  const frameSeries = productSeries(frame);
   if (!frameSeries.length) return mechanisms;
-  const compatible = mechanisms.filter(item => {
-    const series = productSeries(item).map(x => x.toLocaleLowerCase("ru-RU"));
-    return series.some(value => frameSeries.includes(value));
-  });
+  // Единое правило совместимости коллекций (шаг 3 К2): механизм «Eikon» без подсерии подходит
+  // накладке любой подсерии Eikon, механизм без коллекции — любой накладке.
+  const compatible = mechanisms.filter(item => EPSeriesMatch.seriesCompatible(frameSeries, productSeries(item)));
   return compatible.length ? compatible : mechanisms;
 }
 
