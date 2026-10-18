@@ -14,8 +14,9 @@
  *
  * ID товаров стабильны: сопоставляются по артикулу через tools/data/catalog-ids.json
  * (сид снят из прежнего каталога — старые сохранённые проекты сохраняют ссылки). Новым
- * артикулам выдаётся id из диапазона 200000+ и дописывается в тот же файл. Так повторный
- * запуск даёт тот же результат (см. README).
+ * артикулам выдаётся id ВЫШЕ максимального из уже выданных (без привязки к номеру строки —
+ * иначе смена файла даёт коллизию id; см. tools/lib/stable-ids.mjs) и дописывается в тот же
+ * файл. Так повторный запуск даёт тот же результат (см. README).
  *
  * Флаги (пути по умолчанию — от корня electro/, переопределяемы):
  *   --nom     файл номенклатуры (.xls)
@@ -32,6 +33,7 @@ import { parseArgs } from "node:util";
 import { createRequire } from "node:module";
 import { applyKindOverrides, resolveCatalogPrice } from "./lib/nomenclature.mjs";
 import { readNomenclature2026, DEFAULT_NOMENCLATURE_2026 } from "./lib/nomenclature2026.mjs";
+import { assignStableIds, assertUniqueIds } from "./lib/stable-ids.mjs";
 
 const require = createRequire(import.meta.url);
 const XLSX = require("xlsx");
@@ -65,7 +67,6 @@ const OUT = resolveArg(args.out, path.join(projectRoot, "js/catalog-vimar.js"));
 const PRICE_DATE_ISO = "2026-07-01";
 const CURRENCY = "EUR";
 const UNIT = "шт.";
-const NEW_ID_BASE = 200000;   // новые артикулы — вне диапазона сид-id (≤107360), без коллизий
 
 const norm = (v) => String(v ?? "").trim();
 
@@ -134,10 +135,13 @@ async function main() {
   }
 
   const idsFile = await readJson(IDS, { ids: {} });
-  const idMap = { ...(idsFile.ids || {}) };
+  // Выдаём id ДО цикла сборки: новым артикулам — выше максимального из уже выданных, в
+  // отсортированном по коду порядке (tools/lib/stable-ids.mjs). Детерминированно и без
+  // коллизий; порядок записей каталога (по коду) от этого не зависит.
+  const { idMap, assigned: newIdAssignments } = assignStableIds(idsFile.ids || {}, records.map((r) => r.code));
 
   const products = [];
-  const merge = { fromPrice: 0, fromNomenclature: 0, missingInPrice: [], priceDiffs: 0, withImage: 0, newIds: 0 };
+  const merge = { fromPrice: 0, fromNomenclature: 0, missingInPrice: [], priceDiffs: 0, withImage: 0, newIds: newIdAssignments.length };
 
   for (const rec of records) {
     const pr = priceByCode.get(rec.code);
@@ -161,13 +165,8 @@ async function main() {
       if (price > 0) merge.fromPrice++; else merge.missingInPrice.push(rec.code);
     }
 
-    // стабильный id по артикулу; новому — из диапазона 200000+ (детерминировано по строке)
-    let id = idMap[rec.code];
-    if (id == null) {
-      id = NEW_ID_BASE + rec.sourceRow;
-      idMap[rec.code] = id;
-      merge.newIds++;
-    }
+    // стабильный id по артикулу (карта уже полна — выдана выше в assignStableIds)
+    const id = idMap[rec.code];
 
     const image = imageByCode.get(rec.code.toUpperCase()) || null;
     if (image) merge.withImage++;
@@ -241,6 +240,10 @@ async function main() {
 
   products.sort((a, b) => a.code.localeCompare(b.code, "en"));
 
+  // Страховка от повторения дефекта коллизии id: если два товара делят один id, сборка
+  // падает с перечнем столкнувшихся артикулов, а не отдаёт посту чужую цену/состав (§7.1).
+  assertUniqueIds(products);
+
   const kindCount = (k) => products.filter((p) => p.kind === k).length;
   const meta = {
     source: path.basename(NOM),
@@ -281,7 +284,7 @@ async function main() {
   console.log(`  фото-оверрайдов:    ${imageOverridesApplied} (tools/data/image-overrides.json)`);
   console.log(`  цена из прайса:     ${merge.fromPrice} (расхождений ном/прайс: ${merge.priceDiffs})`);
   console.log(`  цена из номенкл.:   ${merge.fromNomenclature} (нет в прайсе)`);
-  console.log(`  новых id (200000+): ${merge.newIds}, стабильных по сиду: ${products.length - merge.newIds}`);
+  console.log(`  новых id:           ${merge.newIds}, стабильных по сиду: ${products.length - merge.newIds}`);
   console.log(`  с картинкой:        ${merge.withImage}`);
   if (merge.missingInPrice.length) {
     console.log(`  нет в прайсе (первые 20): ${merge.missingInPrice.slice(0, 20).join(", ")}${merge.missingInPrice.length > 20 ? " …" : ""}`);
