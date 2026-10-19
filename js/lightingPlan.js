@@ -204,6 +204,16 @@ function isExtraLowVoltage(item) {
 const AXIAL_RE = /осев|аксиальн/i;
 const isAxialItem = item => AXIAL_RE.test(text(item && item.name));
 const moduleSpanOf = item => { const n = Number(item && item.moduleSpan); return n > 0 ? n : null; };
+/* РАЗМЕР КЛАВИШИ, ПОД КОТОРУЮ СДЕЛАН МЕХАНИЗМ, — из названия («…осевой для клавишей на 1 модуль»).
+   У механизмов Plana moduleSpan не задан, а размер клавиши записан только словами; без него 1-модульный
+   механизм 14100.0 ложно подходил 2-модульной осевой клавише 14132. Явный moduleSpan главнее; размер из
+   названия берём, только когда он пуст. Одно место правила «размер механизма под клавишу» (§7.1). */
+const mechanismKeySpan = (item, spanOf) => {
+  const explicit = spanOf(item);
+  if (explicit) return explicit;
+  const m = String((item && item.name) || "").match(/для\s+клавиш\S*\s+на\s+([1-8])\s*модул/i);
+  return m ? Number(m[1]) : null;
+};
 
 /* Серии, где голого механизма нужной роли нет, а владелец разрешил подставить механизм ДРУГОЙ
    роли (решение 17.10, Eikon Flat: выключатель → переключатель 22104). Это ДАННЫЕ, а не логика:
@@ -314,6 +324,12 @@ function resolveMechanism(query, mechanisms, deps) {
   if (candidates.length > 1 && q.key) {
     const byAxial = candidates.filter(item => axialOf(item) === axialOf(q.key));
     if (byAxial.length) candidates = byAxial;
+  }
+  /* Механизм с названным размером клавиши другому размеру НЕ подходит, даже если он единственный:
+     честный пробел лучше механизма не под ту клавишу (Plana 14132: голого осевого 2М нет). Стоит ПОСЛЕ
+     осевого фильтра: иначе вместо пробела остался бы неосевой 14001.0 (не та конструкция). */
+  if (candidates.length && q.key && spanOf(q.key)) {
+    candidates = candidates.filter(item => { const n = mechanismKeySpan(item, spanOf); return !n || n === spanOf(q.key); });
   }
   if (candidates.length > 1) {
     const mains = candidates.filter(item => !isExtraLowVoltage(item));
