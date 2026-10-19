@@ -356,8 +356,13 @@ function updateSelectionCount(){
 }
 function markCanvasUsed(){$("canvasEmpty").style.display="none"}
 
-async function init(){
-  state.products=await DataService.getProducts();
+/* Загрузка проекта из ProjectStore в интерфейс: восстановление снимка плюс ВЕСЬ хвост рендера (курс,
+   шапка документов, вид, история). Вынесено из init одной функцией, чтобы «Открыть проект из файла»
+   (EPProjectFile) шло ТЕМ ЖЕ путём — положил объект в ProjectStore, позвал loadProjectIntoUi, — а не
+   повторял хвост своей копией (иначе у копии появятся края: §7.1). Возвращает восстановленный снимок
+   (или null). Порядок вызовов и их набор — дословно прежний init: restore → курс → документы → рендер
+   → вид → _autosaveOn → базовая точка истории. */
+async function loadProjectIntoUi(){
   state.templates=await DataService.getSavedPosts();
   renderOfferOptions();   /* restoreProject синхронизирует уже существующие чекбоксы */
   renderRequisitesInputs();   /* поля блоков «Мои реквизиты»/«Реквизиты заказчика» из EPDocRequisites */
@@ -374,8 +379,21 @@ async function init(){
   syncRotateModeUi();   /* режим/поле/подсказка/гейт органов поворота — из восстановленного rotateTarget (Б3, ч.2а) */
   _autosaveOn=true;   /* включаем ПОСЛЕ восстановления, иначе пустой старт затрёт сохранённое */
   /* Базовая точка истории — восстановленный (или пустой) план. История НЕ переживает перезагрузку
-     (решение владельца): отсчёт «Отменить» начинается здесь, с открытого состояния. */
+     (решение владельца): отсчёт «Отменить» начинается здесь, с открытого состояния. ВАЖНО для «Открыть
+     из файла»: после подмены проекта стек обнуляется этим снимком, иначе Ctrl+Z откатил бы в прошлый
+     проект (разведка). */
   _history.reset(projectSnapshot());syncHistoryUi();
+  return restored;
+}
+
+async function init(){
+  state.products=await DataService.getProducts();
+  const restored=await loadProjectIntoUi();
+  /* Чистый старт (проекта в браузере нет) считаем «скачанным»: терять нечего, «Новый проект» не должен
+     переспрашивать на пустом холсте. Непустой восстановленный проект опорную подпись НЕ трогает — её
+     держит localStorage с прошлого скачивания; не скачан ни разу → подписи нет → «Новый проект»
+     предупредит (решение владельца 3). */
+  if(!restored)setCleanBaseline(projectSnapshot());
   if(restored){
     const objects=state.devices.length+state.posts.length;
     const when=restored.savedAt?new Date(restored.savedAt).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
@@ -3995,7 +4013,7 @@ document.onkeydown=e=>{
   /* Отмена/возврат плана (Б4, ч.А). Решение по нажатию — чистый EPHistory.hotkeyAction: он сам
      пропускает текстовые поля (там Ctrl+Z — браузерная отмена ввода), разбирает Ctrl/⌘+Z/Y/Shift+Z и
      молчит при открытой модалке. Модалки, при которых не работаем, — те же пять окон, что и везде. */
-  const anyModalOpen=["postModal","framePickerModal","scaleModal","pdfPageModal","wallScopeModal"]
+  const anyModalOpen=["postModal","framePickerModal","scaleModal","pdfPageModal","wallScopeModal","projectConfirmModal"]
     .some(id=>{const m=$(id);return m&&m.classList.contains("open")});
   const histAction=EPHistory.hotkeyAction(e,{modalOpen:anyModalOpen});
   if(histAction){e.preventDefault();histAction==="undo"?undoPlan():redoPlan();return}
@@ -4027,6 +4045,9 @@ document.onkeydown=e=>{
     /* Мастер отделки — самостоятельная модалка (открыт из свойств комнаты, не поверх конструктора):
        Esc закрывает её, отбрасывая черновик, как у остальных простых окон. */
     if($("framePickerModal").classList.contains("open")){closeFramePicker();return}
+    /* Окно подтверждения «проект в файл» (EPProjectFile) — самостоятельное: Esc = «Отмена», просто
+       убираем .open; промисов за кнопками нет, действие идёт только по явному клику. */
+    if($("projectConfirmModal").classList.contains("open")){$("projectConfirmModal").classList.remove("open");return}
     if($("pdfPageModal").classList.contains("open")){finishPdfPageSelection(null);return}
     /* Вопрос об охвате правки типа стены висит ПОВЕРХ конструктора, поэтому разбирается
        раньше конструктора: иначе Esc закрыл бы окно поста из-под неразрешённого промиса. */
@@ -4181,6 +4202,18 @@ const {renderRooms,relabelContourRooms,updateRoomLabelText}=EPRooms.attach({
   $,SVG_NS,beginGesture,canvas,clientToWorld,endGesture,esc,formatArea,getObjectsInRoom,makeDraggable,persistProject,placePendingAtEvent,
   refreshAfterRoomAssignments,removeEntity,roomAreaM2,roomDisplayArea,roomLabelPoint,roomNamePoint,
   selectEntity,state,toast,updateStatus
+});
+
+/* Проект в файл — скачать/открыть/новый (EPProjectFile.attach). Поднимаем ОДИН раз здесь, на самом
+   низу: к этому моменту определены projectSnapshot/loadProjectIntoUi/docHeader (нет TDZ), а init ниже
+   уже вправе звать setCleanBaseline. attach сам провязывает три кнопки шапки и окно подтверждения;
+   возвращает setCleanBaseline — его зовёт init на чистом старте. readTemplates/writeTemplates — та же
+   память шаблонов, что у DataService (ep_post_templates): читаем из уже загруженного state.templates,
+   пишем в тот же ключ (в прототипе DataService.mock держит шаблоны там). */
+const {setCleanBaseline}=EPProjectFile.attach({
+  $,projectSnapshot,loadProject:loadProjectIntoUi,docHeader,toast,
+  readTemplates:()=>state.templates,
+  writeTemplates:list=>{try{localStorage.setItem("ep_post_templates",JSON.stringify(list))}catch(e){/* квота */}}
 });
 
 init().catch(e=>reportFailure("Инициализация не завершилась:",e));

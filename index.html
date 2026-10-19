@@ -15,6 +15,12 @@
     </div>
     <div class="top-actions">
       <button class="btn ghost" id="saveProjectBtn">Сохранить проект</button>
+      <!-- Проект в файл: скачать на компьютер / открыть любой такой файл / начать чистый проект
+           (EPProjectFile). #saveProjectBtn (автосейв в браузере) оставлен как есть. -->
+      <button class="btn ghost" id="downloadProjectBtn">Скачать проект</button>
+      <button class="btn ghost" id="openProjectBtn">Открыть проект</button>
+      <input id="openProjectInput" type="file" accept=".json,.electroplan.json,application/json" hidden>
+      <button class="btn ghost" id="newProjectBtn">Новый проект</button>
       <button class="btn ghost" id="installSheetBtn">Лист монтажника</button>
       <button class="btn primary" id="pdfBtn">Коммерческое предложение PDF</button>
       <button class="btn ghost" id="xlsxBtn">Спецификация Excel</button>
@@ -521,6 +527,26 @@
   </div>
 </div>
 
+<!-- Подтверждение «проект в файл» (EPProjectFile): перед «Новым проектом» и «Открытием» поверх не
+     скачанного. Три действия (решение владельца 19.10, п.4/5): скачать и продолжить / продолжить без
+     скачивания / отмена. Разметка — та же конвенция, что у #scaleModal/#wallScopeModal; тексты заголовка,
+     сообщения и обеих кнопок действия ставит askConfirm в projectFile.js (для «Нового» и «Открыть» они
+     разные). Закрытие: «Отмена», крестик, клик мимо и Esc (в глобальном onkeydown). -->
+<div class="modal-backdrop" id="projectConfirmModal" role="dialog" aria-modal="true" aria-labelledby="projectConfirmTitle">
+  <div class="modal scale-modal">
+    <div class="modal-header">
+      <div><span class="eyebrow">Проект</span><h2 id="projectConfirmTitle">Новый проект</h2></div>
+      <button class="modal-close" id="projectConfirmClose" type="button" aria-label="Закрыть">×</button>
+    </div>
+    <p class="scale-modal-copy" id="projectConfirmMsg"></p>
+    <div class="modal-footer">
+      <button class="btn ghost" id="projectConfirmCancel" type="button">Отмена</button>
+      <button class="btn ghost" id="projectConfirmProceed" type="button">Начать без скачивания</button>
+      <button class="btn primary" id="projectConfirmDownload" type="button">Скачать и начать новый</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="scaleModal" role="dialog" aria-modal="true" aria-labelledby="scaleModalTitle">
   <div class="modal scale-modal">
     <div class="modal-header">
@@ -684,6 +710,7 @@
      EPPostCopyUi.attach(ctx) ПОСЛЕ EPCanvasInput.attach (оттуда приходит canvasPointer). -->
 <script src="js/notices.js?v=20261018.1"></script>
 <script src="js/postCopyUi.js?v=20261018.1"></script>
-<script src="js/app.js?v=20261019.1"></script>
+<script src="js/projectFile.js?v=20261019.1"></script>
+<script src="js/app.js?v=20261019.2"></script>
 </body>
 </html>

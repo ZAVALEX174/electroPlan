@@ -201,6 +201,9 @@ test("D10: init создаёт поля до восстановления — п
     /* Б4: init ставит базовую точку истории после восстановления — шпионы на стек и снимок */
     _history: { reset: () => {}, canUndo: () => false, canRedo: () => false },
     projectSnapshot: () => ({}),
+    /* init перенёс хвост загрузки в loadProjectIntoUi и помечает чистый старт опорной подписью
+       (EPProjectFile.setCleanBaseline) — здесь это шпион-пустышка, проверяем только порядок полей. */
+    setCleanBaseline: () => {},
     restoreProject: async () => {
       assert.match(dom.$("offerOptionsFields").innerHTML, /id="offer-layout-box"/,
         "restoreProject вызывает syncOfferOptions: к этому моменту поля должны быть созданы");
@@ -212,5 +215,5 @@ test("D10: init создаёт поля до восстановления — п
     "renderProjectBacklight",
     "renderPostSlotCountSelect", "applyGridStyle", "syncMarkupControls", "updateZoomUi", "applyView", "syncRotateModeUi", "syncHistoryUi"])
     ctx[name] = () => {};
-  await stand.run(["customOfferPresets", "highlightActiveOfferPreset", "renderCustomOfferPresets", "syncOfferOptions", "renderOfferOptions", "init"], ctx)();
+  await stand.run(["customOfferPresets", "highlightActiveOfferPreset", "renderCustomOfferPresets", "syncOfferOptions", "renderOfferOptions", "loadProjectIntoUi", "init"], ctx)();
 });
