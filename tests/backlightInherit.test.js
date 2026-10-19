@@ -63,7 +63,7 @@ test("inheritFields: брат того же артикула до последн
 
 test("inheritFields: братья без данных или расходящиеся — не угадываем", () => {
   assert.equal(M.inheritFields(nw("22672.2.87"), [fr("22672.2.01", null, null)], ["principle", "boxModularity"]).rule, "nodata");
-  const d = M.inheritFields(nw("22682.RN.1.01"), [fr("22682.1.01", "1M_CENTRAL", 2), fr("22682.2.01", null, null)], ["principle", "boxModularity"]);
+  const d = M.inheritFields(nw("22682.9.87"), [fr("22682.1.01", "1M_CENTRAL", 2), fr("22682.2.01", null, null)], ["principle", "boxModularity"]);
   assert.equal(d.rule, "diverge"); assert.equal(d.values, undefined);
 });
 
@@ -82,4 +82,13 @@ test("факт на каталоге: суппорт-определяющие п
   assert.equal(m["14652U.01"].principle, "2M_CENTRAL");
   assert.equal(m["19641.B26"].boxModularity, 2);
   assert.equal(m["22683.2.87"].principle, "2M_CENTRAL");
+});
+
+test("inheritFields: Tondo RN.K ↔ Eikon того же артикула .K; вариант без данных не наследуется", () => {
+  const pool = [fr("22683.1.01", "1M_CENTRAL_3", 3), fr("22683.2.01", "2M_CENTRAL", 3), fr("22683.3.01", null, null)];
+  const f = ["principle", "boxModularity"];
+  const a = M.inheritFields(nw("22683.RN.1.01"), pool, f);
+  assert.equal(a.rule, "tondo"); assert.equal(a.values.principle, "1M_CENTRAL_3");
+  assert.equal(M.inheritFields(nw("22683.RN.2.07"), pool, f).values.principle, "2M_CENTRAL");
+  assert.equal(M.inheritFields(nw("22683.RN.3.01"), pool, f).rule, "nodata");
 });

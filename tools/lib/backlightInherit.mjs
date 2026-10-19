@@ -24,6 +24,10 @@ const isTondo = (series) => (series || []).some((s) => String(s).toLowerCase() =
 /*
  * Братья новой записи в пуле прежних записей, по убыванию близости:
  *  base  — тот же код без последнего суффикса (22672.1.87 ↔ 22672.1.*);
+ *  tondo — круглая Tondo `NNNNN.RN.K.отделка` ↔ Eikon `NNNNN.K.*` того же артикула без RN
+ *          (22683.RN.1.01 ↔ 22683.1.*). Источник — vimar.com: «3-module cover plate for a Tondo
+ *          control… blank modules 21041 in the free slots» — та же рамка на тот же суппорт и те же
+ *          заглушки, что у Eikon 22683.1/22683.2; у варианта K Eikon данных нет — не наследуется;
  *  root  — тот же первый сегмент (19641.12.01 ↔ 19641.*);
  *  plana — первый сегмент без «U» (14641U.01 ↔ 14641.*): Plana Up садится на тот же суппорт,
  *          что Plana, и модульность/принцип те же (docs/совместимость-vimar-внешние-источники.md,
@@ -33,11 +37,15 @@ const isTondo = (series) => (series || []).some((s) => String(s).toLowerCase() =
  */
 const rootOf = (code) => code.split(".")[0];
 const planaRootOf = (code) => { const m = /^(\d{5})U$/.exec(rootOf(code)); return m ? m[1] : null; };
-export function findBrothers(rec, pool, tiers = ["base", "root", "plana"]) {
+export function findBrothers(rec, pool, tiers = ["base", "tondo", "root", "plana"]) {
   const others = pool.filter((o) => o.code !== rec.code);
   for (const tier of tiers) {
     let brothers = [];
     if (tier === "base") { const b = baseCode(rec.code); brothers = others.filter((o) => baseCode(o.code) === b); }
+    else if (tier === "tondo") {
+      const m = /^(\d{5})\.RN\.(\d+)\.[^.]+$/.exec(rec.code);
+      if (m) { const pre = m[1] + "." + m[2] + "."; brothers = others.filter((o) => o.code.startsWith(pre) && !o.code.includes(".RN.")); }
+    }
     else if (tier === "root") { const rt = rootOf(rec.code); brothers = others.filter((o) => rootOf(o.code) === rt); }
     else if (tier === "plana") { const rt = planaRootOf(rec.code); if (rt) brothers = others.filter((o) => rootOf(o.code) === rt); }
     if (brothers.length) return { tier, brothers };

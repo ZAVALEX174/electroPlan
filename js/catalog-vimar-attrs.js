@@ -13790,6 +13790,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.1.01": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL_3",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Белая матовая"
@@ -13797,6 +13799,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.1.03": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL_3",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Антрацит"
@@ -13804,6 +13808,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.1.11": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL_3",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Никель матовый"
@@ -13811,6 +13817,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.1.12": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL_3",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Темная бронза"
@@ -13818,6 +13826,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.1.82": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL_3",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Золото"
@@ -13825,6 +13835,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.1.87": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL_3",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Сатинированная античная бронза"
@@ -13832,6 +13844,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.1.88": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL_3",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Сатинированное золото"
@@ -13839,6 +13853,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.1.89": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL_3",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Сатинированная латунь"
@@ -13846,6 +13862,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.1.90": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL_3",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Вороненая сталь"
@@ -13853,6 +13871,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.1.91": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL_3",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Бронза"
@@ -13860,6 +13880,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.2.01": {
       "standard": "IT",
       "postCount": null,
+      "principle": "2M_CENTRAL",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Белая матовая"
@@ -13867,6 +13889,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.2.03": {
       "standard": "IT",
       "postCount": null,
+      "principle": "2M_CENTRAL",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Антрацит"
@@ -13874,6 +13898,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.2.11": {
       "standard": "IT",
       "postCount": null,
+      "principle": "2M_CENTRAL",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Никель матовый"
@@ -13881,6 +13907,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.2.12": {
       "standard": "IT",
       "postCount": null,
+      "principle": "2M_CENTRAL",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Темная бронза"
@@ -13888,6 +13916,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.2.82": {
       "standard": "IT",
       "postCount": null,
+      "principle": "2M_CENTRAL",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Золото"
@@ -13895,6 +13925,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.2.87": {
       "standard": "IT",
       "postCount": null,
+      "principle": "2M_CENTRAL",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Сатинированная античная бронза"
@@ -13902,6 +13934,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.2.88": {
       "standard": "IT",
       "postCount": null,
+      "principle": "2M_CENTRAL",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Сатинированное золото"
@@ -13909,6 +13943,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.2.89": {
       "standard": "IT",
       "postCount": null,
+      "principle": "2M_CENTRAL",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Сатинированная латунь"
@@ -13916,6 +13952,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.2.90": {
       "standard": "IT",
       "postCount": null,
+      "principle": "2M_CENTRAL",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Вороненая сталь"
@@ -13923,6 +13961,8 @@ window.EP_VIMAR_ATTRS = {
     "22683.RN.2.91": {
       "standard": "IT",
       "postCount": null,
+      "principle": "2M_CENTRAL",
+      "boxModularity": 3,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Бронза"
