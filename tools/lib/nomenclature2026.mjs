@@ -28,6 +28,7 @@
  * отделки и сам проход с бэкфиллом.
  */
 
+import { inheritBacklight } from "./backlightInherit.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -303,7 +304,8 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
     // Разведка для отчёта:
     commonWithOld: 0, newArticles: 0,               // пересечение с прежним файлом
     unmappedGroups: {},                             // новые группы без прежнего эквивалента → mechanism
-    backfill: {},                                   // поле → сколько значений взято из прежнего файла
+    backlightInherited: {},                         // правило → сколько новых клавиш получили подсветку
+    backfill: {},                                  // поле → сколько значений взято из прежнего файла
     finishFromCsv: 0,                               // накладок с отделкой из CSV
     facingOverridden: 0,                            // накладок с ручной правкой отделки (оверрайд)
     excludedFx: 0, excludedFxCodes: [],             // быстросъёмные «.FX», исключённые из каталога
@@ -495,6 +497,19 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
       nomPrice,
     };
     if (moduleSize == null && kind === "frame") stats.missingModule++;
+
+    // Новая клавиша без признаков подсветки: брат по базовому артикулу / Tondo-аналог Flat
+    // (backlightInherit.mjs, решение владельца 19.10). Старые артикулы сюда не попадают.
+    if (!old) {
+      const inh = inheritBacklight(rec, oldRecords);
+      if (inh && inh.rule === "diverge") (stats.backlightDiverge ||= []).push({ code, brothers: inh.brothers });
+      else if (inh) {
+        rec.askBacklight = inh.askBacklight;
+        rec.backlightPosition = inh.backlightPosition;
+        rec.backlightColor = inh.backlightColor;
+        stats.backlightInherited[inh.rule] = (stats.backlightInherited[inh.rule] || 0) + 1;
+      }
+    }
 
     if (kind === "frame") rec.slotCount = moduleSize;
     if (kind === "support") rec.pitchMm = pitchOf(name);
