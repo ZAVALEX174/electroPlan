@@ -28,7 +28,7 @@
  * отделки и сам проход с бэкфиллом.
  */
 
-import { inheritBacklight } from "./backlightInherit.mjs";
+import { inheritBacklight, inheritFields } from "./backlightInherit.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -305,6 +305,10 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
     commonWithOld: 0, newArticles: 0,               // пересечение с прежним файлом
     unmappedGroups: {},                             // новые группы без прежнего эквивалента → mechanism
     backlightInherited: {},                         // правило → сколько новых клавиш получили подсветку
+    mountInherited: {},                             // уровень брата → сколько новых накладок получили principle/boxModularity
+    mountDiverge: [],                               // новые накладки: братья расходятся — поля не угаданы
+    mountNoData: [],                                // новые накладки: у братьев данных нет
+    controlFromOld: [],                             // тип управления не распознан → роль взята из прежнего файла
     backfill: {},                                  // поле → сколько значений взято из прежнего файла
     finishFromCsv: 0,                               // накладок с отделкой из CSV
     facingOverridden: 0,                            // накладок с ручной правкой отделки (оверрайд)
@@ -426,7 +430,14 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
     // --- Тип управления: новый главнее; пусто → из прежнего. Роль пересчитываем по итогу ---
     let controlType = norm(at(row, COL.control)) || null;
     if (!controlType && old && old.controlType) { controlType = old.controlType; bump("controlType"); }
-    const controlRole = controlRoleOf(controlType);
+    let controlRole = controlRoleOf(controlType);
+    // Новое значение не распознано (у 14007 «В, П»), а в прежнем файле роль была → берём её
+    // (решение владельца). Исключение — «ДД»: IR-выключатели 09181/19181/20181 переведены в
+    // датчики движения сознательно, их прежняя роль выключателя больше не верна.
+    if (controlType && !controlRole && old && old.controlRole && norm(controlType).toLowerCase() !== "дд") {
+      controlRole = old.controlRole;
+      stats.controlFromOld.push({ code, now: controlType, role: controlRole });
+    }
     if (controlType && !controlRole && !old) {
       // непустой, но нераспознанный тип управления у НОВОГО артикула — значение не выдумываем
       (stats.unrecognizedControl[controlType] ||= []).push(code);
@@ -508,6 +519,19 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
         rec.backlightPosition = inh.backlightPosition;
         rec.backlightColor = inh.backlightColor;
         stats.backlightInherited[inh.rule] = (stats.backlightInherited[inh.rule] || 0) + 1;
+      }
+    }
+
+    // Новая накладка без принципа/модульности коробки: значения братьев (backlightInherit.mjs),
+    // иначе подбор суппорта ошибается (22672.1.87 → 21600.0 вместо 21601.0). Расходящихся или
+    // безданных братьев не угадываем — в статистику.
+    if (!old && kind === "frame") {
+      const inh = inheritFields(rec, oldRecords.filter((o) => o.kind === "frame"), ["principle", "boxModularity"]);
+      if (inh && inh.rule === "diverge") stats.mountDiverge.push({ code, brothers: inh.brothers });
+      else if (inh && inh.rule === "nodata") stats.mountNoData.push({ code, brothers: inh.brothers });
+      else if (inh) {
+        Object.assign(rec, inh.values);
+        stats.mountInherited[inh.rule] = (stats.mountInherited[inh.rule] || 0) + 1;
       }
     }
 

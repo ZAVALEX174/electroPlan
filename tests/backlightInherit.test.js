@@ -50,3 +50,36 @@ test("в собранном каталоге новые клавиши 22751.89 
     assert.ok(p, code); assert.equal(p.askBacklight, true, code); assert.equal(p.backlightPosition, 2, code);
   }
 });
+
+/* Монтажные поля новых накладок (principle + boxModularity): findBrothers/inheritFields. */
+const fr = (code, principle, box) => ({ code, kind: "frame", principle, boxModularity: box });
+const nw = (code) => ({ code, kind: "frame", principle: null, boxModularity: null });
+
+test("inheritFields: брат того же артикула до последнего сегмента", () => {
+  const pool = [fr("22672.1.01", "1M_CENTRAL", 2), fr("22672.1.03", "1M_CENTRAL", 2), fr("22672.2.01", null, null)];
+  const r = M.inheritFields(nw("22672.1.87"), pool, ["principle", "boxModularity"]);
+  assert.equal(r.rule, "base"); assert.deepEqual(r.values, { principle: "1M_CENTRAL", boxModularity: 2 });
+});
+
+test("inheritFields: братья без данных или расходящиеся — не угадываем", () => {
+  assert.equal(M.inheritFields(nw("22672.2.87"), [fr("22672.2.01", null, null)], ["principle", "boxModularity"]).rule, "nodata");
+  const d = M.inheritFields(nw("22682.RN.1.01"), [fr("22682.1.01", "1M_CENTRAL", 2), fr("22682.2.01", null, null)], ["principle", "boxModularity"]);
+  assert.equal(d.rule, "diverge"); assert.equal(d.values, undefined);
+});
+
+test("inheritFields: корень и Plana Up ↔ Plana; чужую серию с U не сопоставляем", () => {
+  assert.equal(M.inheritFields(nw("19641.12.01"), [fr("19641.01", "1M_CENTRAL", 2)], ["principle"]).rule, "root");
+  const p = M.inheritFields(nw("14641U.01"), [fr("14641.01", "1M_CENTRAL", 2)], ["principle", "boxModularity"]);
+  assert.equal(p.rule, "plana"); assert.equal(p.values.boxModularity, 2);
+  assert.equal(M.inheritFields(nw("1464U.01"), [fr("1464.01", "X", 1)], ["principle"]), null);
+});
+
+test("факт на каталоге: суппорт-определяющие поля новых накладок", () => {
+  const w = {}; new Function("window", fs.readFileSync(path.join(ROOT, "js", "catalog-vimar-attrs.js"), "utf8"))(w);
+  const m = Object.values(w)[0].standards;
+  assert.deepEqual([m["22672.1.87"].principle, m["22672.1.87"].boxModularity], ["1M_CENTRAL", 2]);
+  assert.equal(m["14641U.01"].principle, "1M_CENTRAL");
+  assert.equal(m["14652U.01"].principle, "2M_CENTRAL");
+  assert.equal(m["19641.B26"].boxModularity, 2);
+  assert.equal(m["22683.2.87"].principle, "2M_CENTRAL");
+});

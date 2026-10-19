@@ -1,4 +1,8 @@
 /*
+ * «Унаследовать поля от брата» — ОДНО правило для новых артикулов, которых нет в прежнем файле:
+ * подсветка клавиш (решение владельца 19.10) и монтажные поля новых накладок (principle +
+ * boxModularity). Брата ищет findBrothers; поля потребители берут сами. Ниже — подсветка.
+ *
  * Подсветка НОВЫХ клавиш (решение владельца 19.10). В новом файле заказчика колонки подсветки
  * пусты у клавиш, которых нет в прежнем файле, — подсветка им не считалась и осевая 00937/00938
  * не подбиралась. Два правила, оба по данным, а не списком артикулов:
@@ -17,6 +21,52 @@ export const TONDO_REFERENCE_CODE = "22751.11";
 const TONDO_BACKLIT_RE = /подсвечиваем/i;
 const isTondo = (series) => (series || []).some((s) => String(s).toLowerCase() === "eikon tondo");
 
+/*
+ * Братья новой записи в пуле прежних записей, по убыванию близости:
+ *  base  — тот же код без последнего суффикса (22672.1.87 ↔ 22672.1.*);
+ *  root  — тот же первый сегмент (19641.12.01 ↔ 19641.*);
+ *  plana — первый сегмент без «U» (14641U.01 ↔ 14641.*): Plana Up садится на тот же суппорт,
+ *          что Plana, и модульность/принцип те же (docs/совместимость-vimar-внешние-источники.md,
+ *          S1 стр. 326). Для других серий «U» не отбрасываем — только пятизначная база с U.
+ * Возвращает { tier, brothers } первого уровня, где братья есть (даже без данных — решает
+ * потребитель), иначе null. Себя в братьях нет.
+ */
+const rootOf = (code) => code.split(".")[0];
+const planaRootOf = (code) => { const m = /^(\d{5})U$/.exec(rootOf(code)); return m ? m[1] : null; };
+export function findBrothers(rec, pool, tiers = ["base", "root", "plana"]) {
+  const others = pool.filter((o) => o.code !== rec.code);
+  for (const tier of tiers) {
+    let brothers = [];
+    if (tier === "base") { const b = baseCode(rec.code); brothers = others.filter((o) => baseCode(o.code) === b); }
+    else if (tier === "root") { const rt = rootOf(rec.code); brothers = others.filter((o) => rootOf(o.code) === rt); }
+    else if (tier === "plana") { const rt = planaRootOf(rec.code); if (rt) brothers = others.filter((o) => rootOf(o.code) === rt); }
+    if (brothers.length) return { tier, brothers };
+  }
+  return null;
+}
+
+/*
+ * Поля от брата: fields — имена полей, которых у rec нет (null/undefined). Братья уровня
+ * сравниваются по совокупности ВСЕХ полей, включая пустые: если часть братьев данных не имеет
+ * (22682.2.* без принципа) или они расходятся — не угадываем. Результат:
+ * { rule: tier, values, brothers } | { rule: "diverge"|"nodata", brothers } | null (братьев нет).
+ */
+export function inheritFields(rec, pool, fields) {
+  const missing = fields.filter((f) => rec[f] == null);
+  if (!missing.length) return null;
+  const found = findBrothers(rec, pool);
+  if (!found) return null;
+  const sigOf = (o) => JSON.stringify(missing.map((f) => o[f] ?? null));
+  const sigs = new Set(found.brothers.map(sigOf));
+  const codes = found.brothers.map((b) => b.code);
+  if (sigs.size > 1) return { rule: "diverge", brothers: codes };
+  const b = found.brothers[0];
+  if (missing.every((f) => b[f] == null)) return { rule: "nodata", brothers: codes };
+  const values = {};
+  for (const f of missing) if (b[f] != null) values[f] = b[f];
+  return { rule: found.tier, values, brothers: codes };
+}
+
 const sig = (r) => `${!!r.askBacklight}|${r.backlightPosition ?? ""}|${r.backlightColor ?? ""}`;
 
 /*
@@ -26,8 +76,8 @@ const sig = (r) => `${!!r.askBacklight}|${r.backlightPosition ?? ""}|${r.backlig
  */
 export function inheritBacklight(rec, oldRecords) {
   if (rec.partRole !== "key" || rec.askBacklight || rec.backlightPosition != null || rec.backlightColor) return null;
-  const base = baseCode(rec.code);
-  const brothers = oldRecords.filter((o) => o.code !== rec.code && baseCode(o.code) === base);
+  const found = findBrothers(rec, oldRecords, ["base"]);
+  const brothers = found ? found.brothers : [];
   if (brothers.length) {
     const sigs = new Set(brothers.map(sig));
     if (sigs.size > 1) return { rule: "diverge", brothers: brothers.map((b) => b.code) };
