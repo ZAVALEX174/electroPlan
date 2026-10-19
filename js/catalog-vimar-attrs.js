@@ -17449,6 +17449,33 @@ window.EP_VIMAR_ATTRS = {
     "22751.91": {
       "part": "key"
     },
+    "22761.RN.01": {
+      "part": "key"
+    },
+    "22761.RN.03": {
+      "part": "key"
+    },
+    "22761.RN.11": {
+      "part": "key"
+    },
+    "22761.RN.12": {
+      "part": "key"
+    },
+    "22761.RN.82": {
+      "part": "key"
+    },
+    "22761.RN.88": {
+      "part": "key"
+    },
+    "22761.RN.89": {
+      "part": "key"
+    },
+    "22761.RN.90": {
+      "part": "key"
+    },
+    "22761.RN.91": {
+      "part": "key"
+    },
     "30000.2": {
       "part": "bare_mechanism",
       "control": "switch"

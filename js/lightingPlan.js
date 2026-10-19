@@ -171,9 +171,16 @@ function isExtraLowVoltage(item) {
    роли (решение 17.10, Eikon Flat: выключатель → переключатель 22104). Это ДАННЫЕ, а не логика:
    артикулы по-прежнему не зашиты (подбор по роли+серии через обычный pick), здесь только карта
    «в этой серии роль X исполняется механизмом роли Y». Ключ серии — в нижнем регистре, как её
-   приводит seriesMatch. Инвертор и кнопку сюда НЕ кладём: кнопка в Flat своя (22108), а инвертора
-   нет и заменять его нечем — честный пробел NOT_IN_SERIES. */
-const SERIES_ROLE_FALLBACK = { "eikon flat": { switch: "changeover" } };
+   приводит seriesMatch. Инвертор и кнопку сюда НЕ кладём: кнопка в серии своя (22108), а инвертора
+   нет и заменять его нечем — честный пробел NOT_IN_SERIES.
+   Eikon Tondo (шаг 5 К2) — та же физика, что Flat: своих голых выключателя и инвертора нет, а осевые
+   22104 (переключатель) и 22108 (кнопка) несут обе серии («Eikon Flat, Eikon Tondo»), поэтому под
+   клавишу Tondo 22761.RN садятся те же 22104/22108 (решение владельца). Присутствие серии в этой карте
+   делает её «выделенной» (seriesIsDedicated): общий механизм базового «Eikon» к ней не цепляется. */
+const SERIES_ROLE_FALLBACK = {
+  "eikon flat": { switch: "changeover" },
+  "eikon tondo": { switch: "changeover" }
+};
 const seriesKeys = series => (Array.isArray(series) ? series : (series == null ? [] : [series]))
   .map(s => text(s).trim().toLocaleLowerCase("ru-RU"));
 function seriesRoleFallback(series, role) {
@@ -184,11 +191,11 @@ function seriesRoleFallback(series, role) {
   return null;
 }
 /* «ВЫДЕЛЕННАЯ» СЕРИЯ — у неё есть СВОЯ линейка механизмов, перечисленная в SERIES_ROLE_FALLBACK
-   (пока одна — Eikon Flat). Для такой серии общий механизм базового семейства (family-совпадение
+   (Eikon Flat и Eikon Tondo). Для такой серии общий механизм базового семейства (family-совпадение
    «Eikon»→«Eikon Flat») НЕ годится: владелец (К1, 17.10) требует механизм самой серии (22104/22108),
    а своего на роль нет — подмену роли или честный пробел, ровно как было до шага 3. Для обычной
    подсерии (Eikon Evo/Exe) общий «Eikon» — штатный путь (своих механизмов у неё в каталоге нет),
-   её это не касается. Tondo в карту не входит (шаг 5) — к ней правило не применяется. */
+   её это не касается. */
 const seriesIsDedicated = series => seriesKeys(series).some(s => SERIES_ROLE_FALLBACK[s]);
 
 /* resolveMechanism({role, series}, mechanisms, deps) → { product, candidates, ambiguous }
@@ -220,7 +227,7 @@ function resolveMechanism(query, mechanisms, deps) {
     && roleOf(item) === wanted
     && text(codeOf(item)).trim() !== ""
     && seriesMatch(q.series, seriesOf(item)));
-  /* У ВЫДЕЛЕННОЙ серии (Eikon Flat) общий механизм базового семейства не годится — только точное
+  /* У ВЫДЕЛЕННОЙ серии (Eikon Flat / Eikon Tondo) общий механизм базового семейства не годится — только точное
      совпадение серии (22104/22108). Поэтому у неё family-кандидаты отсеиваем ДО проверки «пусто ли»:
      иначе общий 20001.0 (Eikon) удержал бы роль switch и подмена на 22104 не сработала бы, а инвертор
      получил бы общий 20013.0 вместо честного пробела (поведение К1 до шага 3). Обычной подсерии

@@ -585,3 +585,44 @@ test("каталог: Eikon Flat берёт свои 22104/22108, общий Eik
   assert.equal(evo("changeover"), "20005.0");
   assert.equal(evo("inverter"), "20013.0");
 });
+
+/* ── НАСТОЯЩИЙ каталог: Eikon Tondo (шаг 5 К2) — та же выделенная логика, что Flat ──
+   Под клавишу Tondo 22761.RN садятся осевые 22104 (выключатель/проходной) и 22108 (кнопка), которые
+   несут обе серии «Eikon Flat, Eikon Tondo»; инвертора в серии нет — честный пробел. Общий «Eikon»
+   (20001.0/20013.0) к Tondo цепляться не должен, как и к Flat. Клавиша 22761.RN (электромеханическая)
+   опознаётся клавишей, а 22751.RN (KNX/автоматика) — НЕ клавиша и механизм не получает. */
+function catalogProducts() {
+  const JS = path.join(__dirname, "..", "js");
+  const win = {};
+  const ctx = vm.createContext({ window: win, structuredClone });
+  for (const f of ["catalog-vimar.js", "catalog-vimar-attrs.js", "data.js"]) {
+    vm.runInContext(fs.readFileSync(path.join(JS, f), "utf8"), ctx, { filename: f });
+  }
+  return win.EP_DATA.products;
+}
+/* Вид места управления — та же формула, что в app.js (controlPlaceKind): key → своё место с
+   подбором голого механизма; не-клавиша без роли управления → null (места нет, механизм не ищется). */
+const placeKind = item => !item ? null : item.partRole === "key" ? "key"
+  : (!item.partRole && ["switch", "changeover", "inverter", "button"].includes(item.controlRole) ? "integrated" : null);
+
+test("каталог: Eikon Tondo берёт свои 22104/22108 (switch→22104, inverter→null), Flat не затронут", () => {
+  const mechs = catalogMechanisms();
+  const t = role => { const x = LP.resolveMechanism({ role, series: ["Eikon Tondo"] }, mechs); return x.product ? x.product.code : null; };
+  assert.equal(t("switch"), "22104", "Tondo switch → 22104 (подмена роли); мутация «убрать Tondo из выделенных» дала бы общий 20001.0");
+  assert.equal(t("changeover"), "22104");
+  assert.equal(t("button"), "22108");
+  assert.equal(t("inverter"), null, "инвертора в Tondo нет; общий 20013.0 через семейство подставляться НЕ должен");
+  /* Flat остаётся прежним (не задет добавлением Tondo). */
+  const f = role => { const x = LP.resolveMechanism({ role, series: ["Eikon Flat"] }, mechs); return x.product ? x.product.code : null; };
+  assert.deepEqual([f("switch"), f("changeover"), f("button"), f("inverter")], ["22104", "22104", "22108", null]);
+});
+
+test("каталог: клавиша Tondo 22761.RN опознаётся клавишей; KNX 22751.RN — не клавиша, механизм не подбирается", () => {
+  const P = catalogProducts();
+  const byCode = c => P.find(p => p.code === c);
+  assert.equal(byCode("22761.RN.01").partRole, "key", "электромеханическая круглая клавиша → key");
+  assert.equal(placeKind(byCode("22761.RN.01")), "key", "22761.RN — место управления, механизм (22104/22108) ему подбирается");
+  /* KNX-клавиша: механизм не получает (KNX в программе не считаем). */
+  assert.notEqual(byCode("22751.RN.01").partRole, "key", "KNX-клавиша клавишей НЕ считается");
+  assert.equal(placeKind(byCode("22751.RN.01")), null, "22751.RN — не место управления, механизм не ищется");
+});

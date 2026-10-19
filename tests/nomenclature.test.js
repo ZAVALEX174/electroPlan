@@ -469,20 +469,27 @@ test("собранный js/catalog-vimar-attrs.js несёт роли по ре
   /* Проверяем ОТГРУЖАЕМЫЙ артефакт, а не только чистые функции: между ними стоит конвертер,
      и регресс в нём тесты чистых функций не поймают. Числа — замер по НОВОЙ номенклатуре
      заказчика (2026-10-10, К2; прежний файл давал 18 голых / 46 клавиш): 28 голых механизмов
-     и 252 клавиши (новый файл несёт собственную группу «Клавиша» на 254 позиции + плоские
-     Eikon Flat 22751.*; осевые Flat 22104/22108 и Neve Up на месте). Плоская клавиша K1 —
-     см. FLAT_KEY_NAME_RE в tools/lib/nomenclature.mjs. */
+     и 261 клавиша (254 собственной группы «Клавиша» + плоские Eikon Flat 22751.* + круглые
+     Eikon Tondo 22761.RN, 9 — шаг 5 К2; осевые Flat/Tondo 22104/22108 и Neve Up на месте).
+     Плоская клавиша K1 — FLAT_KEY_NAME_RE, круглая Tondo — ROUND_KEY_NAME_RE в
+     tools/lib/nomenclature.mjs. */
   const box = {};
   new Function("window", "\"use strict\";" + fs.readFileSync(path.join(__dirname, "../js/catalog-vimar-attrs.js"), "utf8"))(box);
   const roles = box.EP_VIMAR_ATTRS.roles;
   const parts = Object.values(roles).filter((r) => r.part === "bare_mechanism");
   assert.equal(parts.length, 28);
-  assert.equal(Object.values(roles).filter((r) => r.part === "key").length, 252);
+  assert.equal(Object.values(roles).filter((r) => r.part === "key").length, 261);
   /* Плоские клавиши Flat — именно клавиши (part=key), без роли управления (её им даёт расчёт).
      Радиочастотные «Пара клавиш…» EnOcean клавишами НЕ становятся (у них нет слова «плоск»). */
   assert.deepEqual(roles["22751.11"], { part: "key" });
   assert.deepEqual(roles["22751.0.01"], { part: "key" });
   assert.equal(Object.keys(roles).filter((c) => /^22751/.test(c) && roles[c].part === "key").length, 65);
+  /* Круглые клавиши Eikon Tondo 22761.RN «…для электромеханических устройств» — клавиши (part=key),
+     все 9 отделок. KNX-близнецы 22751.RN «…для устройств автоматики/KNX» в той же словесной форме
+     клавишами НЕ становятся (KNX не поддерживаем — им не подбирается механизм). */
+  assert.deepEqual(roles["22761.RN.01"], { part: "key" });
+  assert.equal(Object.keys(roles).filter((c) => /^22761\.RN/.test(c) && roles[c].part === "key").length, 9);
+  assert.equal(roles["22751.RN.01"] && roles["22751.RN.01"].part, undefined, "KNX круглая клавиша клавишей не считается");
   // Широкая клавиша EnOcean клавишей НЕ становится: part не ставится (роль управления Bluetooth — есть).
   assert.equal(roles["20506.2"].part, undefined, "широкая клавиша EnOcean клавишей не считается");
   const bareByControl = {};
