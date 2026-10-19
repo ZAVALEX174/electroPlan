@@ -124,7 +124,7 @@ window.EP_DATA = {
     // суффикс после точки кодирует и цвет, и число модулей — 09001.0.250 это 1М, 09001.2.CM это 2М).
     // EPCatalog.moduleFace читает это поле; нет файла/записи → механизм рисуется клавишей-фолбэком.
     const faces = window.EP_VIMAR_FACES || {};
-    return list.map(p => {
+    const enriched = list.map(p => {
       if (p.kind === "frame") {
         let out = p;
         if (attrs.standards[p.code]) {
@@ -219,6 +219,18 @@ window.EP_DATA = {
       }
       return out;
     });
+    /* Снятые с производства (В23 / решение владельца К2): артикулы прежнего каталога, убранные
+       номенклатурой К2, лежат ОТДЕЛЬНЫМ глобалом EP_VIMAR_DISCONTINUED (js/catalog-vimar-discontinued.js)
+       с active=false, прежними id/ценой и уже вмешанными признаками автосостава. Держим их вне
+       EP_VIMAR_CATALOG/EP_VIMAR_ATTRS специально: те два файла описывают ОТГРУЖАЕМЫЙ каталог по
+       текущей номенклатуре (на их счётчики опираются тесты), а снятые — это хвост для уже
+       сохранённых проектов. В рантайме же подбор один: product()/frameProduct ищут по всему
+       списку, byKind фильтрует active — поэтому снятые новым постам не предлагаются, но
+       сохранённый проект считает их по своей цене. Признаки у них уже inline (снимок снят из
+       рантайма 732ae3a), поэтому через enrichCatalog повторно не прогоняем — ключей в текущих
+       attrs для этих кодов нет, и мерж всё равно оставил бы их как есть. */
+    const discontinued = (window.EP_VIMAR_DISCONTINUED && window.EP_VIMAR_DISCONTINUED.products) || [];
+    return discontinued.length ? enriched.concat(discontinued) : enriched;
   })()
 };
 

@@ -35,7 +35,7 @@ function loadRuntimeProducts() {
   const jsDir = path.join(__dirname, "..", "js");
   const win = {};
   const context = vm.createContext({ window: win, structuredClone });
-  for (const file of ["catalog-vimar.js", "catalog-vimar-attrs.js", "data.js"]) {
+  for (const file of ["catalog-vimar.js", "catalog-vimar-attrs.js", "catalog-vimar-discontinued.js", "data.js"]) {
     vm.runInContext(fs.readFileSync(path.join(jsDir, file), "utf8"), context, { filename: file });
   }
   return win.EP_DATA.products;
