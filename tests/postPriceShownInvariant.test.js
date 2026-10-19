@@ -42,12 +42,12 @@ const PRODUCTS = win.EP_DATA.products;
 function makeApp(settings) {
   const EP_DATA = { settings };
   const state = { products: PRODUCTS };
-  const ctx = vm.createContext({ state, EP_DATA, EPPostFit, EPPosts, EPCatalog, console });
+  const ctx = vm.createContext({ state, EP_DATA, EPPostFit, EPPosts, EPCatalog, EPCatalogPool: require("../js/catalogPool.js"), console });
   const code = [
     "const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,frameSlotOptions}=EPCatalog;",
-    stand.constBlock("product"), stand.constBlock("byKind"), stand.constBlock("socketBox"),
+    stand.constBlock("product"), stand.constBlock("byKind"), stand.constBlock("byKindOff"), stand.constBlock("socketBox"),
     stand.constBlock("frameProduct"), stand.constBlock("wantedWall"), stand.constBlock("findBox"),
-    stand.constBlock("fallbackBox"), stand.constBlock("findSupport"), stand.constBlock("resolveSupport"),
+    stand.constBlock("fallbackBox"), stand.constBlock("supportFound"), stand.constBlock("findSupport"), stand.constBlock("resolveSupport"),
     stand.constBlock("findBacklight"), stand.constBlock("postDeps"), stand.constBlock("postCost"),
     stand.constBlock("postComposition"),
     ";({product,frameProduct,postCost,postComposition,productSeries,frameSlotCount,mechanismSpan});"

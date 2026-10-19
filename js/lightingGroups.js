@@ -826,7 +826,12 @@ function plan(input, deps) {
   const cacheKeyOf = (role, series, kind, sourceId) => JSON.stringify([role, series, kind, sourceId]);
   const lookup = (role, series, place) => {
     const kind = place && place.controlKind === "integrated" ? "integrated" : "key";
-    const sourceId = kind === "integrated" ? keyIdOf(place) : null;
+    /* Для клавиши в ключ кэша добавляем подпись её физической конструкции (place.keyVariant: осевая/
+       обычная + число модулей, собрана в EPLightingPlan.collect). Без неё клавиши одной серии+роли, но
+       разной посадки под механизм (осевая против обычной, 1М против 2М), делили бы один кэш-ключ, и
+       вторая получала бы механизм, подобранный для первой (зависимость от порядка входа — §7.1). Пусто
+       у старых мест без подписи → ключ как раньше. Цельное изделие по-прежнему разводится по артикулу. */
+    const sourceId = kind === "integrated" ? keyIdOf(place) : ((place && place.keyVariant) || null);
     const key = cacheKeyOf(role, series, kind, sourceId);
     if (cache.has(key)) return cache.get(key);
     let result = { product: null, failed: false };

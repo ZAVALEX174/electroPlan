@@ -30,6 +30,21 @@ const EPSeriesMatch = (typeof module !== "undefined" && module.exports)
 const groupText = v => (v === null || v === undefined) ? "" : String(v);
 const text = v => (v === null || v === undefined) ? "" : String(v);
 
+/* keyOf из js/catalogSections.js — ЕДИНОЕ правило нормализации имени функциональной группы (регистр,
+   пробелы, ё→е). Нужно resolveReplacement (Д5): снятые изделия несут группу строчными («управление
+   светом»), активные — с заглавной («Управление светом»), и строгое сравнение переставало находить
+   замену снятому изделию. Node (тесты) берёт модуль через require; в браузере catalogSections.js
+   грузится ПОСЛЕ этого файла, поэтому window.EPCatalogSections читаем в МОМЕНТ вызова (подбор идёт уже
+   после загрузки всех скриптов), а не на этапе загрузки. Инлайн-фолбэк повторяет keyOf буква в букву
+   только на случай запуска модуля в полной изоляции — это не второй источник правила. */
+const CS = (typeof module !== "undefined" && module.exports) ? require("./catalogSections.js") : null;
+function groupKey(v) {
+  const keyOf = (CS && CS.keyOf)
+    || (typeof window !== "undefined" && window.EPCatalogSections ? window.EPCatalogSections.keyOf : null);
+  return keyOf ? keyOf(v)
+    : text(v).replace(/\s+/g, " ").trim().toLocaleLowerCase("ru-RU").replace(/ё/g, "е");
+}
+
 /* ─────────────────────── места управления ─────────────────────── */
 
 /* collect(posts, deps) → места управления для EPLightingGroups.plan.
@@ -124,6 +139,13 @@ function collect(posts, deps) {
         /* Вид места (клавиша/цельное) для plan: он решает подбор голого механизма против замены
            артикула. lostKey несёт null — до подбора он не доходит (пробел KEY_UNKNOWN раньше). */
         controlKind: kind,
+        /* Подпись физической конструкции клавиши (Д1): осевая/обычная + число модулей. Нужна КЭШУ
+           подбора в EPLightingGroups: без неё осевая и обычная (либо 1М и 2М) клавиши одной серии+роли
+           делили бы один кэш-ключ и получали механизм, подобранный для соседа, — зависело бы от порядка
+           входа (§7.1, тот же класс дефекта, что склеиваемый ключ). Признаки — те же функции, что в
+           resolveMechanism. Только у клавиши (kind==="key"); иначе пусто — у цельного изделия кэш
+           разводит по его артикулу, у потерянной клавиши подбора нет. */
+        keyVariant: (isPlace && kind === "key") ? ((isAxialItem(item) ? "A" : "-") + (moduleSpanOf(item) || 0)) : "",
         /* служебное для документов: имя поста и сам товар места (может быть не найден) */
         postName: p.name, key: item || null
       });
@@ -166,6 +188,22 @@ function isExtraLowVoltage(item) {
   }
   return low && !mains;
 }
+
+/* ФИЗИЧЕСКАЯ КОНСТРУКЦИЯ КЛАВИШИ/МЕХАНИЗМА (Д1). В одной серии на одну роль бывает НЕСКОЛЬКО голых
+   механизмов, различающихся не электрикой, а посадкой под клавишу: «осевой» механизм (Plana 14100.0)
+   встаёт под осевую клавишу (14131 «для осевых устройств»), обычный (14001.0) — под обычную; у
+   многомодульных серий (Linea) размер клавиши в модулях задаёт размер механизма (1М 30000 против 2М
+   30000.2). Оба признака берём с САМОЙ клавиши, и оба — ОДНО место на модуль (§7.1): их же читает
+   resolveMechanism при подборе и collect при сборке ключа кэша, иначе различение разъехалось бы.
+     • Осевой/нет — ТОЛЬКО по названию: отдельной колонки под это в номенклатуре нет. В прайсе осевое
+       пишется двумя словами — «осев…» (Plana, механизмы «осевой», клавиши «для осевых устройств») и
+       «аксиальн…» (Linea «аксиальная»); «выровненная» клавиша Linea осевой НЕ считается. Проверено на
+       каталоге: признак ловит ровно 8 клавиш (14131/14132 с цветами) и 4 механизма (14100.0/14104.0 и
+       осевые 22104/22108 Eikon Flat/Tondo), ни одной обычной позиции.
+     • Число модулей — moduleSpan (у механизма бывает не задан: тогда по нему не различаем, см. ниже). */
+const AXIAL_RE = /осев|аксиальн/i;
+const isAxialItem = item => AXIAL_RE.test(text(item && item.name));
+const moduleSpanOf = item => { const n = Number(item && item.moduleSpan); return n > 0 ? n : null; };
 
 /* Серии, где голого механизма нужной роли нет, а владелец разрешил подставить механизм ДРУГОЙ
    роли (решение 17.10, Eikon Flat: выключатель → переключатель 22104). Это ДАННЫЕ, а не логика:
@@ -219,6 +257,9 @@ function resolveMechanism(query, mechanisms, deps) {
   const roleOf = d.roleOf || (item => item && item.controlRole);
   const seriesOf = d.seriesOf || (item => (item && item.series) || []);
   const codeOf = d.codeOf || (item => item && item.code);
+  /* Признаки клавиши/механизма для различения кандидатов (Д1) — те же функции, что и в collect. */
+  const axialOf = d.axialOf || isAxialItem;
+  const spanOf = d.spanOf || moduleSpanOf;
   const role = text(q.role);
   if (!role) return { product: null, candidates: [], ambiguous: false };
   const list = Array.isArray(mechanisms) ? mechanisms : [];
@@ -257,6 +298,22 @@ function resolveMechanism(query, mechanisms, deps) {
   if (candidates.length > 1) {
     const exact = candidates.filter(item => EPSeriesMatch.matchLevel(q.series, seriesOf(item)) === "exact");
     if (exact.length) candidates = exact;
+  }
+  /* РАЗЛИЧЕНИЕ ПО ФИЗИЧЕСКОЙ КОНСТРУКЦИИ КЛАВИШИ (Д1), рядом с уровнем совпадения серии. Серия уже
+     совпала (несколько кандидатов одной роли и серии), но различаются посадкой под клавишу — размером
+     в модулях и осевой/обычной конструкцией. Берём признак с q.key (самой клавиши) и оставляем
+     механизмы, ему соответствующие. Каждый фильтр сужает, ТОЛЬКО если оставляет кандидата: у серии без
+     осевого механизма осевая клавиша (Linea 31000A) не теряет механизм — фильтр осевого пуст и
+     пропускается, а размер уже выбрал 1М/2М. У Plana, где у механизмов moduleSpan не задан, пуст фильтр
+     размера, и выбор делает осевой признак (14021 → 14001.0, осевая 14131 → 14100.0). Клавиши q.key
+     нет (старый вызов без неё) — различение неактивно, поведение прежнее. */
+  if (candidates.length > 1 && q.key) {
+    const bySpan = candidates.filter(item => spanOf(item) === spanOf(q.key));
+    if (bySpan.length) candidates = bySpan;
+  }
+  if (candidates.length > 1 && q.key) {
+    const byAxial = candidates.filter(item => axialOf(item) === axialOf(q.key));
+    if (byAxial.length) candidates = byAxial;
   }
   if (candidates.length > 1) {
     const mains = candidates.filter(item => !isExtraLowVoltage(item));
@@ -305,7 +362,9 @@ function resolveReplacement(query, products, deps) {
   if (roleOf(source) === role) return { product: source, candidates: [source], ambiguous: false };
   const span = spanOf(source);
   const colorKey = colorKeyOf(source);
-  const fg = fgOf(source), fsg = fsgOf(source);
+  /* Функциональную группу/подгруппу сравниваем НОРМАЛИЗОВАННО (Д5): снятое изделие несёт их строчными,
+     активное — с заглавной, и строгое === теряло замену снятому. groupKey — одно правило на проект. */
+  const fg = groupKey(fgOf(source)), fsg = groupKey(fsgOf(source));
   const candidates = (Array.isArray(products) ? products : []).filter(item =>
     item && item !== source
     && !partOf(item)
@@ -313,8 +372,8 @@ function resolveReplacement(query, products, deps) {
     && text(codeOf(item)).trim() !== ""
     && spanOf(item) === span
     && colorKeyOf(item) === colorKey
-    && fgOf(item) === fg
-    && fsgOf(item) === fsg
+    && groupKey(fgOf(item)) === fg
+    && groupKey(fsgOf(item)) === fsg
     && seriesMatch(seriesOf(source), seriesOf(item)));
   if (candidates.length === 1) return { product: candidates[0], candidates, ambiguous: false };
   return { product: null, candidates, ambiguous: candidates.length > 1 };

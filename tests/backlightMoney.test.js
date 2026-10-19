@@ -43,7 +43,11 @@ function costWith(backlight) {
     resolveSupport: () => ({ support: null, assumed: false }),
     EPPostFit,
     EP_DATA: { settings },
-    byKind: kind => { poolCalls.push(kind); return kind === "accessory" ? [ACC] : []; }
+    byKind: kind => { poolCalls.push(kind); return kind === "accessory" ? [ACC] : []; },
+    /* Д2: двухпроходный пул (активные + снятые). Снятых в этом тесте нет → запас пуст, подбор
+       идёт по активным, как раньше; поведение M1/M2/M3 не меняется. */
+    byKindOff: () => [],
+    EPCatalogPool: require("../js/catalogPool.js")
   };
   const code = stand.constSource("findBacklight") + "\n" + stand.constBlock("postDeps") + "\n;postDeps;";
   vm.createContext(ctx);

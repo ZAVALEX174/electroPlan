@@ -603,16 +603,18 @@
 <!-- Связка модуля групп света с проектом: сборка мест управления из постов, строгий подбор
      механизма по роли и серии, печатный блок для документов. Грузится ПОСЛЕ lightingGroups
      (использует его тексты пробелов) и до estimate/installSheet, которые его результат печатают. -->
-<script src="js/lightingPlan.js?v=20261019.2"></script>
+<script src="js/lightingPlan.js?v=20261019.3"></script>
 <!-- Чистый модуль (ни DOM, ни state): раскрой расчёта групп света ПО КОМНАТАМ и слияние обратно
      в один план. Грузится ПОСЛЕ lightingGroups/lightingPlan (использует их plan и форму мест) и
      до app.js, который через него считает projectLighting. -->
 <script src="js/lightingByRoom.js?v=20260920.1"></script>
-<script src="js/postfit.js?v=20261018.1"></script>
+<script src="js/postfit.js?v=20261019.1"></script>
+<!-- Пул с запасом из снятых позиций для автоподбора детали (Д2). До app.js. -->
+<script src="js/catalogPool.js?v=20261019.1"></script>
 <script src="js/posts.js?v=20261018.1"></script>
 <script src="js/picker.js?v=20260801.1"></script>
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
-<script src="js/catalogSections.js?v=20261018.1"></script>
+<script src="js/catalogSections.js?v=20261019.1"></script>
 <script src="js/builderSlots.js?v=20260914.2"></script>
 <script src="js/offerOptions.js?v=20260926.1"></script>
 <script src="js/docRequisites.js?v=20261003.1"></script>
@@ -682,6 +684,6 @@
      EPPostCopyUi.attach(ctx) ПОСЛЕ EPCanvasInput.attach (оттуда приходит canvasPointer). -->
 <script src="js/notices.js?v=20261018.1"></script>
 <script src="js/postCopyUi.js?v=20261018.1"></script>
-<script src="js/app.js?v=20261018.2"></script>
+<script src="js/app.js?v=20261019.1"></script>
 </body>
 </html>

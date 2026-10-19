@@ -26,7 +26,7 @@ const byKind = kind => kind === "accessory" ? ACC : [];
 function makeCtx(over) {
   const dom = stand.makeDom({ selects: ["backlightColorSelect", "backlightVoltageSelect", "currencySelect"] });
   const settings = { backlight: { enabled: false, color: "Белая", voltage: "110-250V" } };
-  const ctx = { $: dom.$, esc: String, byKind, EPPostFit, EP_DATA: { settings } };
+  const ctx = { $: dom.$, esc: String, byKind, byKindOff: () => [], EPPostFit, EP_DATA: { settings } };
   return { dom, ctx: Object.assign(ctx, over || {}) };
 }
 
@@ -77,7 +77,7 @@ function restoreStand(snapshot, startBacklight) {
   const state = {};
   const settings = { backlight: startBacklight };
   const noop = () => {};
-  const ctx = { $: dom.$, esc: String, byKind, EPPostFit, EPPosts, EPOfferOptions, EPEstimate, state,
+  const ctx = { $: dom.$, esc: String, byKind, byKindOff: () => [], EPPostFit, EPPosts, EPOfferOptions, EPEstimate, state,
     EP_DATA: { settings },
     ProjectStore: { load: () => snapshot },
     EPConfig: { gridSteps: [10], gridDefault: 10, viewMinScale: 0.1, viewMaxScale: 10 },

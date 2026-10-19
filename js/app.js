@@ -91,6 +91,10 @@ const money=(n)=>moneyShown((Number(n)||0)*displayRate());
 const rubRate=n=>(Number(n)||0).toFixed(4).replace(".",",");
 const product=id=>state.products.find(x=>Number(x.id)===Number(id));
 const byKind=kind=>state.products.filter(x=>x.kind===kind&&x.active);
+/* Снятые с производства позиции вида (active===false) — ЗАПАС для автоподбора детали поста (Д2):
+   их видит только двухпроходный EPCatalogPool.pick (сначала активные, снятые — если активной нет),
+   а в списки ВЫБОРА (byKind) они не попадают — новым постам снятое не предлагаем. */
+const byKindOff=kind=>state.products.filter(x=>x.kind===kind&&x.active===false);
 /* Разумный фолбэк-подрозетник (для хранения socketBoxProductId и крайних случаев):
    самая универсальная коробка. Логика — в чистом EPPostFit (js/postfit.js). */
 const socketBox=()=>EPPostFit.socketBox(byKind("socket_box"));
@@ -210,22 +214,26 @@ function toast(text){const e=$("toast");e.textContent=text;e.classList.add("show
    дефолт для поста без своей стены всегда «бетон» (solid). Старые проекты от этого не страдают:
    при открытии их постам стену проекта проставляет EPPosts.applyProjectWallToPosts. */
 const wantedWall=()=>"solid";
-const findBox=({frame,standard,modules,wallType}={})=>EPPostFit.findBox({
-  boxes:byKind("socket_box"),frame,standard,modules,frameModules:frameSlotCount(frame),wantedWall:wallType||wantedWall()});
-const fallbackBox=({frame,standard,modules,wallType}={})=>EPPostFit.fallbackBox({
-  boxes:byKind("socket_box"),frame,standard,modules,frameModules:frameSlotCount(frame),wantedWall:wallType||wantedWall()});
+/* Все автоподборы детали идут через EPCatalogPool.pick: активные главнее, снятые — запас (Д2). */
+const findBox=({frame,standard,modules,wallType}={})=>EPCatalogPool.pick(boxes=>EPPostFit.findBox({
+  boxes,frame,standard,modules,frameModules:frameSlotCount(frame),wantedWall:wallType||wantedWall()}),byKind("socket_box"),byKindOff("socket_box"),b=>!!b);
+const fallbackBox=({frame,standard,modules,wallType}={})=>EPCatalogPool.pick(boxes=>EPPostFit.fallbackBox({
+  boxes,frame,standard,modules,frameModules:frameSlotCount(frame),wantedWall:wallType||wantedWall()}),byKind("socket_box"),byKindOff("socket_box"),b=>!!b);
 /* box — подобранная коробка поста: по правилу заказчика её артикул (71001/71701) задаёт
    тип суппорта (602/603). Пробрасываем в чистый EPPostFit.findSupport. */
-const findSupport=({frame,standard,modules,box}={})=>EPPostFit.findSupport({
-  supports:byKind("support"),frame,standard,modules,frameModules:frameSlotCount(frame),seriesOf:productSeries,box});
+/* isFound суппорта: подбор «состоялся», если есть планка ИЛИ она посту НЕ нужна (крышки IP55 —
+   NONE означает «не требуется», а не «не нашли»; иначе запас из снятых подставил бы лишнюю планку). */
+const supportFound=(r,frame)=>!!(r&&r.support)||!EPPostFit.supportRequired(frame);
+const findSupport=({frame,standard,modules,box}={})=>EPCatalogPool.pick(supports=>EPPostFit.findSupport({
+  supports,frame,standard,modules,frameModules:frameSlotCount(frame),seriesOf:productSeries,box}),byKind("support"),byKindOff("support"),s=>supportFound({support:s},frame));
 /* resolveSupport — тот же подбор, но с признаком «артикул подобран нами, заказчиком не
    подтверждён» (assumed): состав поста несёт его дальше в смету, лист монтажника и панель
    состава, где он печатается пометкой «(предположительно)». */
-const resolveSupport=({frame,standard,modules,box}={})=>EPPostFit.resolveSupport({
-  supports:byKind("support"),frame,standard,modules,frameModules:frameSlotCount(frame),seriesOf:productSeries,box});
-/* Подбор аксессуара-подсветки под механизм — чистый EPPostFit.findBacklight, каталог
-   аксессуаров подкладываем здесь (как boxes/supports у findBox/findSupport). */
-const findBacklight=(opts)=>EPPostFit.findBacklight(Object.assign({accessories:byKind("accessory")},opts||{}));
+const resolveSupport=({frame,standard,modules,box}={})=>EPCatalogPool.pick(supports=>EPPostFit.resolveSupport({
+  supports,frame,standard,modules,frameModules:frameSlotCount(frame),seriesOf:productSeries,box}),byKind("support"),byKindOff("support"),r=>supportFound(r,frame));
+/* Подбор аксессуара-подсветки под механизм — чистый EPPostFit.findBacklight; активные аксессуары
+   главнее, снятые (напр. снятый вариант 120 В в сохранённом проекте) — запас (Д2). */
+const findBacklight=(opts)=>EPCatalogPool.pick(accessories=>EPPostFit.findBacklight(Object.assign({accessories},opts||{})),byKind("accessory"),byKindOff("accessory"),a=>!!a);
 /* Единый набор зависимостей для чистой логики поста (EPPosts): каталог, подбор
    суппорта/коробки (точный findBox + стандартно-совместимый фолбэк fallbackBox), признак
    «суппорт вообще не нужен» (крышки IP55 по номенклатуре монтируются без планки), дефолт
@@ -1617,6 +1625,7 @@ function lightingScheme(){
 function lightingFor(posts){
   const places=EPLightingPlan.collect(posts,{product,seriesOf:productSeries,controlKind:controlPlaceKind});
   const mechs=byKind("mechanism");
+  const mechsOff=byKindOff("mechanism");   // снятые механизмы — запас для сохранённых проектов (Д2)
   /* ⚠️ ПОДБОР — СВОЙ (EPLightingPlan.resolveMechanism), а НЕ EPCatalog.compatibleMechanisms:
      тот при отсутствии пересечения серий возвращает ВЕСЬ список («лучше показать всё, чем
      ничего»), и механизм чужой серии молча уехал бы в смету — клавиша Plana с механизмом
@@ -1646,7 +1655,10 @@ function lightingFor(posts){
         if(rep.ambiguous)ambiguous.set("i|"+(source&&source.id)+"|"+role,{role,series:productSeries(source),candidates:rep.candidates});
         return rep.product;
       }
-      const found=EPLightingPlan.resolveMechanism({role,series},mechs);
+      /* Двухпроходно (Д2): активные механизмы главнее, снятые — запас. Запас НЕ подключаем, когда
+         среди активных подбор уже однозначен ИЛИ законно неоднозначен (выбор за человеком, а не пробел):
+         иначе снятые механизмы добавились бы в неоднозначность активных. */
+      const found=EPCatalogPool.pick(pool=>EPLightingPlan.resolveMechanism({role,series,key:source},pool),mechs,mechsOff,r=>!!r.product||r.ambiguous);
       if(found.ambiguous)ambiguous.set(role+"|"+series.join("|"),{role,series,candidates:found.candidates});
       return found.product;
     }
@@ -1967,6 +1979,16 @@ function backlightCatalogOptions(){
     if(a.backlightColor&&!colors.includes(a.backlightColor))colors.push(a.backlightColor);
     const v=EPPostFit.backlightVoltage(a.code);
     if(v&&!volts.includes(v))volts.push(v);
+  });
+  /* Вариант, которого среди активных уже нет, показываем ТОЛЬКО если он выбран в проекте (Д2):
+     сохранённый проект на снятой подсветке 120 В обязан видеть свой вариант в списке (иначе он
+     молча слетел бы на соседний), а новым проектам снятое не предлагаем. Запас — снятые аксессуары. */
+  const setting=EP_DATA.settings.backlight||{};
+  byKindOff("accessory").forEach(a=>{
+    if(!a||!a.askBacklight)return;
+    if(a.backlightColor&&a.backlightColor===setting.color&&!colors.includes(a.backlightColor))colors.push(a.backlightColor);
+    const v=EPPostFit.backlightVoltage(a.code);
+    if(v&&v===setting.voltage&&!volts.includes(v))volts.push(v);
   });
   return {colors,volts};
 }

@@ -160,7 +160,11 @@ function build(items, opts) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { build, DEFAULT_ORDER, NO_GROUP_LABEL };
+/* keyOf экспортируем, чтобы правило нормализации имени группы (регистр, пробелы, ё→е) было ОДНИМ на
+   весь проект (§7.1): его переиспользует EPLightingPlan.resolveReplacement при сравнении functionalGroup
+   снятых и активных изделий (Д5), где снятые записаны строчными («управление светом»), а активные — с
+   заглавной. Второй копии этого правила быть не должно — она разъедется. */
+const api = { build, keyOf, DEFAULT_ORDER, NO_GROUP_LABEL };
 if (typeof window !== "undefined") window.EPCatalogSections = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
