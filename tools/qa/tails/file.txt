@@ -1,0 +1,141 @@
+  // ===================================================================================================
+  // «ПРОЕКТ В ФАЙЛ» (js/projectFile.js), браузерный хвост `file`. Кнопки шапки «Скачать проект»,
+  // «Открыть проект», «Новый проект», окно #projectConfirmModal, скрытый #openProjectInput.
+  // Скачивание перехватываем подменой URL.createObjectURL + HTMLAnchorElement.prototype.click (в
+  // headless-хроме файл на диск не попадёт), Blob держим в window.__blob, имя — в window.__fileName.
+  // Файл «открываем» через DataTransfer + change на #openProjectInput. Ctrl+Z — настоящее событие CDP.
+  // Любое расхождение → assertOk бросает → exit 1 (см. хвост shoot.mjs).
+  // ===================================================================================================
+  const assertOk = (cond, msg) => { log.push((cond ? "ОК" : "FAIL") + ": " + msg); if (!cond) throw new Error(msg); };
+  const settle = () => sleep(900);   /* автосейв дебаунсится на 700 мс */
+  const hotkey = async (code, vk, keyChar, mods = 2) => {
+    await c.send("Input.dispatchKeyEvent", { type: "keyDown", modifiers: mods, code, key: keyChar, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
+    await c.send("Input.dispatchKeyEvent", { type: "keyUp",   modifiers: mods, code, key: keyChar, windowsVirtualKeyCode: vk, nativeVirtualKeyCode: vk });
+    await sleep(500);
+  };
+  const state = () => ev(`var t=document.getElementById("grandTotal");var im=document.getElementById("planImage");
+    return {posts:document.querySelectorAll(".plan-icon.post").length,rooms:document.querySelectorAll(".room-label").length,
+      total:t?t.textContent.trim():null,planSrcLen:im?(im.getAttribute("src")||"").length:0,planShown:!!(im&&im.offsetParent)};`);
+  const hook = () => ev(`window.__blob=null;window.__fileName=null;
+    URL.createObjectURL=function(b){window.__blob=b;return "blob:fake";};
+    HTMLAnchorElement.prototype.click=function(){window.__fileName=this.download||null;};return 1;`);
+  const toastText = () => ev(`return document.getElementById("toast").textContent`);
+  const modalState = () => ev(`var m=document.getElementById("projectConfirmModal");var o=m.classList.contains("open");
+    return {open:o,title:document.getElementById("projectConfirmTitle").textContent,msg:document.getElementById("projectConfirmMsg").textContent,
+      buttons:["projectConfirmCancel","projectConfirmProceed","projectConfirmDownload"].map(function(i){var b=document.getElementById(i);return {id:i,text:b.textContent.trim(),visible:!!b.offsetParent};})};`);
+  const openFile = (text, name) => ev(`var dt=new DataTransfer();dt.items.add(new File([${JSON.stringify(text)}],${JSON.stringify(name)},{type:"application/json"}));
+    var i=document.getElementById("openProjectInput");i.files=dt.files;i.dispatchEvent(new Event("change",{bubbles:true}));return 1;`);
+  const reloadWait = async () => { await sleep(5000); await hook(); };
+
+  await setVal($("currencySelect"), "EUR"); await sleep(400);
+  await hook();
+  await settle();
+
+  // --- 1. ДО ---
+  const before = await state();
+  log.push("ДО: " + JSON.stringify(before));
+  assertOk(before.posts >= 1 && before.rooms === 2, "ДО: есть пост(ы) и две комнаты");
+  assertOk(/\d/.test(before.total || "") && !/^0\s/.test(before.total), "ДО: итог найден и не нулевой: " + before.total);
+  await shot("file-1-before", [$("downloadProjectBtn"), $("grandTotal")]);
+
+  // --- 2. Скачать проект ---
+  await click($("downloadProjectBtn")); await sleep(600);
+  const dl = await ev(`var b=window.__blob;if(!b)return null;var t=await b.text();return {name:window.__fileName,blobSize:b.size,bytes:new TextEncoder().encode(t).length,text:t};`);
+  assertOk(!!dl, "скачивание перехвачено (Blob создан)");
+  const fileText = dl.text;
+  const fj = JSON.parse(fileText);
+  log.push("ФАЙЛ: имя=" + dl.name + ", размер=" + dl.bytes + " байт (blob.size=" + dl.blobSize + ")");
+  log.push("ФАЙЛ: format=" + fj.format + ", version=" + fj.version + ", project.posts=" + (fj.project && (fj.project.posts || []).length) +
+    ", project.rooms=" + (fj.project && (fj.project.rooms || []).length) + ", prefs-ключи=" + JSON.stringify(Object.keys(fj.prefs || {})) +
+    ", postTemplates=" + (fj.postTemplates || []).length);
+  log.push("тост после скачивания: " + await toastText());
+  assertOk(/\.json$/.test(dl.name || ""), "имя файла заканчивается на .json: " + dl.name);
+  assertOk(fj.format === "electroplan-project" && fj.version === 1, "format/version файла");
+  assertOk(Array.isArray(fj.project && fj.project.posts) && fj.project.posts.length === before.posts, "в файле project.posts = " + before.posts);
+  assertOk(dl.bytes === dl.blobSize, "размер в байтах = blob.size");
+  await shot("file-2-downloaded", [$("downloadProjectBtn")]);
+
+  // --- 3a. «Новый проект» на только что скачанном: окна НЕТ ---
+  await click($("newProjectBtn")); await sleep(300);
+  const mClean = await modalState();
+  log.push("«Новый проект» на скачанном: окно open=" + mClean.open);
+  await shot("file-3a-new-on-clean", [$("newProjectBtn")]);
+  assertOk(mClean.open === false, "на не изменённом (скачанном) проекте окна подтверждения нет");
+  await reloadWait();
+  const afterNewClean = await state();
+  log.push("после «Нового» на скачанном (перезагрузка): " + JSON.stringify(afterNewClean));
+  assertOk(afterNewClean.posts === 0, "после «Нового» постов 0");
+
+  // --- 4. «Открыть проект» из файла ---
+  // Текущий проект пуст после «Нового»; если программа всё же спросит подтверждение — фиксируем и идём «без скачивания».
+  await openFile(fileText, dl.name); await sleep(1200);
+  const mOpen = await modalState();
+  log.push("«Открыть» поверх пустого проекта: окно open=" + mOpen.open + (mOpen.open ? " msg=«" + mOpen.msg + "»" : ""));
+  if (mOpen.open) {
+    await shot("file-4a-open-confirm-on-empty", [$("projectConfirmProceed")]);
+    await click($("projectConfirmProceed")); await sleep(1500);
+  }
+  await settle();
+  const after = await state();
+  log.push("ПОСЛЕ: " + JSON.stringify(after));
+  log.push("тост после открытия: " + await toastText());
+  await shot("file-4-opened", [$("grandTotal")]);
+  assertOk(after.posts === before.posts, "ПОСЛЕ: постов " + after.posts + " = ДО " + before.posts);
+  assertOk(after.rooms === before.rooms, "ПОСЛЕ: комнат " + after.rooms + " = ДО " + before.rooms);
+  assertOk(after.total === before.total, "ПОСЛЕ: итог «" + after.total + "» = ДО «" + before.total + "»");
+  assertOk(after.planSrcLen === before.planSrcLen && after.planShown === before.planShown, "ПОСЛЕ: план-подложка как до (src " + before.planSrcLen + "→" + after.planSrcLen + ", видна " + before.planShown + "→" + after.planShown + ")");
+  // Ctrl+Z после открытия: история сброшена, пустой проект не возвращается.
+  await ev(`document.activeElement&&document.activeElement.blur&&document.activeElement.blur();return 1;`);
+  await hotkey("KeyZ", 90, "z");
+  const afterUndo = await state();
+  log.push("после Ctrl+Z: " + JSON.stringify(afterUndo));
+  assertOk(afterUndo.posts === before.posts, "Ctrl+Z после открытия не опустошил проект: постов " + afterUndo.posts);
+  await shot("file-4b-after-ctrlz", [$("grandTotal")]);
+
+  // --- 3b. Изменение → «Новый проект» → окно с тремя кнопками ---
+  await hook();
+  const pr = await rect(`document.querySelector(".plan-icon.post")`);
+  await drag(pr.x + pr.w / 2, pr.y + pr.h / 2, 60, 40);
+  await settle();
+  const moved = await ev(`var j=JSON.parse(localStorage.getItem(ProjectStore.key)||"{}");return (j.posts||[]).map(function(p){return [p.x,p.y];});`);
+  const srcPosts = fj.project.posts.map(p => [p.x, p.y]);
+  log.push("координаты постов: файл " + JSON.stringify(srcPosts) + " -> после сдвига " + JSON.stringify(moved));
+  assertOk(JSON.stringify(moved) !== JSON.stringify(srcPosts), "пост реально сдвинут (проект изменён)");
+  await click($("newProjectBtn")); await sleep(400);
+  const mDirty = await modalState();
+  log.push("ОКНО «Новый проект» (изменён): " + JSON.stringify(mDirty));
+  await shot("file-5-new-confirm", [$("projectConfirmCancel"), $("projectConfirmProceed"), $("projectConfirmDownload")]);
+  assertOk(mDirty.open === true, "на изменённом проекте окно подтверждения появилось");
+  assertOk(mDirty.buttons.length === 3 && mDirty.buttons.every(b => b.visible), "в окне три видимые кнопки");
+  // Отмена: проект на месте.
+  await click($("projectConfirmCancel")); await sleep(400);
+  const afterCancel = await state();
+  const cancelOpen = (await modalState()).open;
+  log.push("после «Отмена»: окно open=" + cancelOpen + ", " + JSON.stringify(afterCancel));
+  assertOk(afterCancel.posts === before.posts && cancelOpen === false, "«Отмена» закрыла окно, посты на месте");
+  // Начать без скачивания
+  await click($("newProjectBtn")); await sleep(400);
+  await click($("projectConfirmProceed"));
+  await reloadWait();
+  const afterNew = await state();
+  log.push("после «Начать без скачивания» и перезагрузки: " + JSON.stringify(afterNew));
+  await shot("file-6-after-new", [$("newProjectBtn")]);
+  assertOk(afterNew.posts === 0, "после «Начать без скачивания» постов 0");
+
+  // --- 5. Битый файл ---
+  await openFile(fileText, dl.name); await sleep(1200);
+  if ((await modalState()).open) { await click($("projectConfirmProceed")); await sleep(1500); }
+  await settle();
+  const base5 = await state();
+  assertOk(base5.posts === before.posts, "подготовка к п.5: проект снова открыт, постов " + base5.posts);
+  await ev(`document.getElementById("toast").classList.remove("show");document.getElementById("toast").textContent="";return 1;`);
+  await openFile("не json", "broken.json"); await sleep(600);
+  const bad = await state();
+  const badToast = await toastText();
+  const badModal = (await modalState()).open;
+  log.push("БИТЫЙ ФАЙЛ: тост=«" + badToast + "», окно open=" + badModal + ", " + JSON.stringify(bad));
+  await shot("file-7-broken", [$("toast")]);
+  assertOk(bad.posts === base5.posts && bad.total === base5.total, "битый файл: посты и итог остались");
+  assertOk(badToast.length > 0 && !/^Проект открыт/.test(badToast), "битый файл: сообщение об ошибке показано");
+  assertOk(badModal === false, "битый файл: окно подтверждения не открывалось");
+  log.push("ИТОГ: все assertOk ОК.");
