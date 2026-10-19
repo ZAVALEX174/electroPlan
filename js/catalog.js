@@ -112,7 +112,11 @@ function productStandards(items) {
   (items || []).forEach(item => {
     const s = item && item.standard;
     if (s === "BOTH") { set.add("IT"); set.add("DE"); }
-    else if (s) set.add(s);
+    // "UNKNOWN" — служебное значение «стандарт не определён» (напр. герметичная крышка, которой
+    // монтажный стандарт заказчиком ещё не подтверждён), а НЕ выбираемый стандарт: в выбор стандарта
+    // комнаты не пускаем, как и "BOTH". Накладку с UNKNOWN productsForRoom и так отсекает из
+    // выбранной IT/DE-комнаты (предикат standard===c.standard||BOTH), поэтому в UI она не всплывает.
+    else if (s && s !== "UNKNOWN") set.add(s);
   });
   return [...set].sort((a, b) => a.localeCompare(b, "ru-RU"));
 }

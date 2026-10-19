@@ -421,7 +421,7 @@ test("productsForRoom: стандарт складывается В И-цепо�
 /* --- РЕАЛЬНЫЙ каталог VIMAR: числа выбора стандарта (замерено продакшн-функциями) ---
    Если перезалить прайс — тест упадёт осмысленно, а не молча пропустит смену состава. Обогащение
    стандартом делает data.js (catalog-vimar.js → catalog-vimar-attrs.js → data.js), как в браузере. */
-test("реальный каталог: IT → 1241 из 1593, DE → 609, стандарта нет → 1593; под немецким 4 IT-only серии уходят", async () => {
+test("реальный каталог: IT → 1253 из 1627, DE → 615, стандарта нет → 1627; под немецким 4 IT-only серии уходят", async () => {
   const win = {};
   const ctx = vm.createContext({ window: win, structuredClone });
   const jsDir = path.join(__dirname, "..", "js");
@@ -429,18 +429,21 @@ test("реальный каталог: IT → 1241 из 1593, DE → 609, ста
     vm.runInContext(fs.readFileSync(path.join(jsDir, f), "utf8"), ctx, { filename: f });
   }
   const frames = (await win.DataService.getProducts()).filter(p => p.kind === "frame" && p.active);
-  assert.equal(frames.length, 1593, "активных накладок всего");
-  // распределение по стандарту: у каждой накладки ровно одно из трёх значений, UNKNOWN нет
-  // (решение владельца 18.10: «Накладной/Гермитичный монтаж» ушёл в accessory, мусорного
-  // стандарта в выборе накладки больше нет).
+  assert.equal(frames.length, 1627, "активных накладок всего");
+  // Распределение по стандарту. Решение владельца 19.10: 34 герметичные крышки/накладки IP44/IP55
+  // группы «Накладной или Гермитичный монтаж» ВЕРНУЛИСЬ в накладки (kind=frame). У 12 из них
+  // (Plana 14931*/14932* → BOTH, 14943*/14944* → IT) монтажный стандарт был в каталоге 732ae3a; у
+  // 22 новых (Neve Up/Linea и 2 Plana) он заказчиком ещё не подтверждён → UNKNOWN (вынесено
+  // владельцу). UNKNOWN — служебное «не определён», в ВЫБОР стандарта комнаты не идёт: его
+  // отсекает productStandards (см. ниже) и productsForRoom (накладка UNKNOWN не проходит ни IT, ни DE).
   const byStd = frames.reduce((m, f) => (m[f.standard] = (m[f.standard] || 0) + 1, m), {});
-  assert.deepEqual(byStd, { IT: 984, DE: 352, BOTH: 257 }, "IT 984 + DE 352 + BOTH 257 = 1593; все накладки со стандартом");
+  assert.deepEqual(byStd, { IT: 990, DE: 352, BOTH: 263, UNKNOWN: 22 }, "IT 990 + DE 352 + BOTH 263 + UNKNOWN 22 = 1627");
 
   const itPool = productsForRoom(frames, { standard: "IT" });
   const dePool = productsForRoom(frames, { standard: "DE" });
-  assert.equal(itPool.length, 1241, "итальянский: 984 IT + 257 универсальных");
-  assert.equal(dePool.length, 609, "немецкий: 352 DE + 257 универсальных");
-  assert.equal(productsForRoom(frames, {}).length, 1593, "стандарт не выбран — весь каталог");
+  assert.equal(itPool.length, 1253, "итальянский: 990 IT + 263 универсальных (UNKNOWN не входит)");
+  assert.equal(dePool.length, 615, "немецкий: 352 DE + 263 универсальных (UNKNOWN не входит)");
+  assert.equal(productsForRoom(frames, {}).length, 1627, "стандарт не выбран — весь каталог");
 
   // Коллекций в каталоге 10. Под ИТАЛЬЯНСКИМ присутствуют все 10. Под НЕМЕЦКИМ остаётся 6:
   // 4 серии (Eikon Flat/Tactil/Tondo/Vintage) в файле заказчика имеют ТОЛЬКО итальянские

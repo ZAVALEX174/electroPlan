@@ -84,6 +84,21 @@ export function kindOf2026(group) {
 }
 const MAPPED_GROUP_KEYS = new Set(GROUP_KIND_2026.keys());
 
+/* Группа «Накладной или Гермитичный монтаж» целиком размечена как accessory (выше), но часть её
+   позиций — ГЕРМЕТИЧНЫЕ КРЫШКИ/НАКЛАДКИ IP44/IP55: это ЛИЦЕВЫЕ накладки, из них собирается
+   герметичный пост, значит kind=frame (решение владельца 19.10, «да»). Отличаем крышку/накладку от
+   коробки/лампы/розетки/базы той же группы по НАЗВАНИЮ (начинается с «Крышка» или «Накладка») —
+   правилом, не списком 34 кодов: новые крышки следующего файла заказчика станут накладками сами, а
+   «Коробка …» / «Суппорт …» / «Лампа …» останутся accessory. Гейт по группе обязателен: слово
+   «Накладка» несут и обычные рамки группы «Рамка» — их этот перевод не касается. */
+export const HERMETIC_GROUP_KEY = "накладной или гермитичный монтаж";
+// Без \b после кириллицы: в JS \w ASCII-only, границы слова между кириллицей и пробелом нет —
+// \b тут не срабатывает. Достаточно якоря начала строки: имена уже нормализованы (trim).
+export const HERMETIC_COVER_NAME_RE = /^(Крышка|Накладка)/i;
+export function isHermeticCover(group, name) {
+  return norm(group).toLowerCase() === HERMETIC_GROUP_KEY && HERMETIC_COVER_NAME_RE.test(norm(name));
+}
+
 /* Тип стены нового файла: «Бетон» и «Кирпич» → solid (сплошная), «ГКЛ» → hollow. «Бетон» —
    новое написание того же, что прежде звалось «Кирпич» (решение К2: «Бетон» понимается как
    прежний «Кирпич»). Оба → unknown, как в прежней модели. Своей функции (не wallTypeOf из
@@ -313,8 +328,11 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
       // новая группа без прежнего эквивалента, легла в mechanism по умолчанию — в отчёт
       stats.unmappedGroups[group] = (stats.unmappedGroups[group] || 0) + 1;
     }
-    const kind = kindOf2026(group);
     const name = norm(at(row, COL.name));
+    // Герметичные крышки/накладки группы «Накладной или Гермитичный монтаж» — лицевые накладки
+    // (kind=frame), а не accessory: см. isHermeticCover. Правило по названию внутри группы.
+    let kind = kindOf2026(group);
+    if (isHermeticCover(group, name)) kind = "frame";
 
     // --- Размер в модулях: новый файл главнее; пусто → из прежнего файла ---
     const moduleRaw = String(at(row, COL.moduleSize) ?? "");

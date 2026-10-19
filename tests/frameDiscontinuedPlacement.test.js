@@ -59,10 +59,13 @@ function roomFinishOf(frame) {
   return { collection: EPCatalog.productSeries(frame)[0], frameMaterial: frame.frameMaterial,
     frameShape: frame.frameShape, frameColor: frame.frameColor };
 }
-/* 1-модульная клавиша серии накладки (контрольная начинка). */
+/* 1-модульная клавиша, совместимая с накладкой (контрольная начинка). Подбор — НАСТОЯЩИЙ
+   EPCatalog.compatibleMechanisms (как в приложении и в postCopyPlacement «★ соседний номер»),
+   а НЕ наивное точное совпадение серии: по правилу шага 3 К2 механизм серии «Eikon» подходит
+   накладке любой подсерии Eikon (Eikon Exe и пр.), и своей серии «Eikon Exe» у механизмов в
+   новом каталоге нет — наивный матч не нашёл бы клавишу. */
 function key1(frame) {
-  const ser = EPCatalog.productSeries(frame)[0];
-  return byKind("mechanism").find(m => EPCatalog.productSeries(m).includes(ser) && EPCatalog.mechanismSpan(m) === 1);
+  return EPCatalog.compatibleMechanisms(frame, byKind("mechanism")).find(m => EPCatalog.mechanismSpan(m) === 1);
 }
 
 const CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "frameFacingLabels",

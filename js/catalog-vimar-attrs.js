@@ -8,7 +8,7 @@
    начинки (раздел colors — «Цвет элемента», по нему конструктор сужает начинку
    под цвет комнаты). Подмешиваются к товарам в js/data.js. */
 window.EP_VIMAR_ATTRS = {
-  "generatedAt": "2026-10-18",
+  "generatedAt": "2026-10-19",
   "source": {
     "standards": "Номенклатура 2026-10-10.xls",
     "supports": "Номенклатура 2026-10-10.xls",
@@ -20,6 +20,46 @@ window.EP_VIMAR_ATTRS = {
     "colors": "Номенклатура 2026-10-10.xls"
   },
   "standards": {
+    "14923": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "14931": {
+      "standard": "BOTH",
+      "postCount": null,
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая влагостойкая"
+    },
+    "14932": {
+      "standard": "BOTH",
+      "postCount": null,
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая влагостойкая"
+    },
+    "14943": {
+      "standard": "IT",
+      "postCount": null,
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая влагостойкая"
+    },
+    "14944": {
+      "standard": "IT",
+      "postCount": null,
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серая влагостойкая"
+    },
+    "14963": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
     "09661.01": {
       "standard": "BOTH",
       "postCount": null,
@@ -15193,6 +15233,150 @@ window.EP_VIMAR_ATTRS = {
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Сатинированная нержавеющая сталь"
+    },
+    "09911.01": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "09911.04": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "09912.01": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "09912.04": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "09913.01": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "09913.04": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "09914.01": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "09914.04": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "14931.01": {
+      "standard": "BOTH",
+      "postCount": null,
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая влагостойкая"
+    },
+    "14931.14": {
+      "standard": "BOTH",
+      "postCount": null,
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серый гранит влагостойкая"
+    },
+    "14932.01": {
+      "standard": "BOTH",
+      "postCount": null,
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая влагостойкая"
+    },
+    "14932.14": {
+      "standard": "BOTH",
+      "postCount": null,
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серый гранит влагостойкая"
+    },
+    "14943.01": {
+      "standard": "IT",
+      "postCount": null,
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая влагостойкая"
+    },
+    "14943.14": {
+      "standard": "IT",
+      "postCount": null,
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серый гранит влагостойкая"
+    },
+    "14944.01": {
+      "standard": "IT",
+      "postCount": null,
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая влагостойкая"
+    },
+    "14944.14": {
+      "standard": "IT",
+      "postCount": null,
+      "principle": "NO_SUPPORT, AQUAPLATE",
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Серый гранит влагостойкая"
+    },
+    "30931.00": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "30931.01": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "30931.02": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "30932.00": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "30932.01": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "30932.02": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "30943.00": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "30943.01": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "30943.02": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "30944.00": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "30944.01": {
+      "standard": "UNKNOWN",
+      "postCount": null
+    },
+    "30944.02": {
+      "standard": "UNKNOWN",
+      "postCount": null
     }
   },
   "supports": {
@@ -15745,18 +15929,6 @@ window.EP_VIMAR_ATTRS = {
     "14506": {
       "principle": "Bluetooth"
     },
-    "14931": {
-      "principle": "NO_SUPPORT, AQUAPLATE"
-    },
-    "14932": {
-      "principle": "NO_SUPPORT, AQUAPLATE"
-    },
-    "14943": {
-      "principle": "NO_SUPPORT, AQUAPLATE"
-    },
-    "14944": {
-      "principle": "NO_SUPPORT, AQUAPLATE"
-    },
     "19060": {
       "principle": "BUTTON"
     },
@@ -16155,30 +16327,6 @@ window.EP_VIMAR_ATTRS = {
     },
     "22008.88": {
       "principle": "BUTTON"
-    },
-    "14931.01": {
-      "principle": "NO_SUPPORT, AQUAPLATE"
-    },
-    "14931.14": {
-      "principle": "NO_SUPPORT, AQUAPLATE"
-    },
-    "14932.01": {
-      "principle": "NO_SUPPORT, AQUAPLATE"
-    },
-    "14932.14": {
-      "principle": "NO_SUPPORT, AQUAPLATE"
-    },
-    "14943.01": {
-      "principle": "NO_SUPPORT, AQUAPLATE"
-    },
-    "14943.14": {
-      "principle": "NO_SUPPORT, AQUAPLATE"
-    },
-    "14944.01": {
-      "principle": "NO_SUPPORT, AQUAPLATE"
-    },
-    "14944.14": {
-      "principle": "NO_SUPPORT, AQUAPLATE"
     }
   },
   "roles": {
@@ -17714,24 +17862,6 @@ window.EP_VIMAR_ATTRS = {
       "group": "Накладной или Гермитичный монтаж"
     },
     "14913": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "14923": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "14931": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "14932": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "14943": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "14944": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "14963": {
       "group": "Накладной или Гермитичный монтаж"
     },
     "19021": {
@@ -21045,30 +21175,6 @@ window.EP_VIMAR_ATTRS = {
     "09904": {
       "group": "Накладной или Гермитичный монтаж"
     },
-    "09911.01": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "09911.04": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "09912.01": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "09912.04": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "09913.01": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "09913.04": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "09914.01": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "09914.04": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
     "09920.01": {
       "group": "Накладной или Гермитичный монтаж"
     },
@@ -21171,70 +21277,10 @@ window.EP_VIMAR_ATTRS = {
     "14787.SL": {
       "group": "Накладной или Гермитичный монтаж"
     },
-    "14931.01": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "14931.14": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "14932.01": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "14932.14": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "14943.01": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "14943.14": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "14944.01": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "14944.14": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
     "30784.B": {
       "group": "Накладной или Гермитичный монтаж"
     },
     "30784.G": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "30931.00": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "30931.01": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "30931.02": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "30932.00": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "30932.01": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "30932.02": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "30943.00": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "30943.01": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "30943.02": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "30944.00": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "30944.01": {
-      "group": "Накладной или Гермитичный монтаж"
-    },
-    "30944.02": {
       "group": "Накладной или Гермитичный монтаж"
     }
   },
