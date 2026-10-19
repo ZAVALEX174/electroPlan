@@ -1,0 +1,28 @@
+{
+  "_readme": "Ручная разметка монтажного стандарта накладок поверх распознанного из номенклатуры/старого файла. Применяется конвертерами через tools/lib/nomenclature2026.mjs (readFrameStandardOverrides) — один видимый файл того, какой стандарт проставлен руками и почему. Ключ — артикул; standard ∈ {IT, DE, BOTH}. Нужен для позиций, у которых «Монтажный стандарт» в номенклатуре пуст и в старом файле их нет (новые герметичные крышки К2).",
+  "_source": "Решение владельца 19.10.2026: 22 новые герметичные крышки/накладки IP44/IP55 группы «Накладной или Гермитичный монтаж» (возвращены в kind=frame). Стандарт сверен владельцем по vimar.com. Правило: 2-модульные (для коробок ø60 мм) → BOTH (как 14931/14932); 3–4-модульные (для прямоугольных встраиваемых коробок) → IT (как 14943/14944). 14963 → IT (сайт: монтаж на 3-модульную встраиваемую коробку).",
+  "overrides": {
+    "09911.01": { "standard": "BOTH", "why": "Neve Up 2M, с распорками — как 14931/14932 (BOTH); vimar.com 30931.00 «for ø 60 mm flush mounting boxes»" },
+    "09911.04": { "standard": "BOTH", "why": "Neve Up 2M, с распорками — BOTH (как 14931/14932)" },
+    "09912.01": { "standard": "BOTH", "why": "Neve Up 2M, с винтами — BOTH (как 14931/14932)" },
+    "09912.04": { "standard": "BOTH", "why": "Neve Up 2M, с винтами — BOTH (как 14931/14932)" },
+    "09913.01": { "standard": "IT", "why": "Neve Up 3M — IT (как 14943); vimar.com 30943.00 «for 3-module flush mounting boxes»" },
+    "09913.04": { "standard": "IT", "why": "Neve Up 3M — IT (как 14943)" },
+    "09914.01": { "standard": "IT", "why": "Neve Up 4M — IT (как 14944)" },
+    "09914.04": { "standard": "IT", "why": "Neve Up 4M — IT (как 14944)" },
+    "14923": { "standard": "IT", "why": "Plana 3M IP44 — IT (как 14943)" },
+    "14963": { "standard": "IT", "why": "Plana — vimar.com: монтаж на 3-модульную встраиваемую коробку → IT (в названии «2M, вкл. 3M», стандарт по сайту)" },
+    "30931.00": { "standard": "BOTH", "why": "LINEA 2M, с распорками — BOTH; vimar.com 30931.00 «for ø 60 mm flush mounting boxes»" },
+    "30931.01": { "standard": "BOTH", "why": "LINEA 2M, с распорками — BOTH" },
+    "30931.02": { "standard": "BOTH", "why": "LINEA 2M, с распорками — BOTH" },
+    "30932.00": { "standard": "BOTH", "why": "LINEA 2M, с винтами — BOTH (как 14931/14932)" },
+    "30932.01": { "standard": "BOTH", "why": "LINEA 2M, с винтами — BOTH" },
+    "30932.02": { "standard": "BOTH", "why": "LINEA 2M, с винтами — BOTH" },
+    "30943.00": { "standard": "IT", "why": "LINEA 3M — IT; vimar.com 30943.00 «for 3-module flush mounting boxes»" },
+    "30943.01": { "standard": "IT", "why": "LINEA 3M — IT" },
+    "30943.02": { "standard": "IT", "why": "LINEA 3M — IT" },
+    "30944.00": { "standard": "IT", "why": "LINEA 4M — IT (как 14944)" },
+    "30944.01": { "standard": "IT", "why": "LINEA 4M — IT" },
+    "30944.02": { "standard": "IT", "why": "LINEA 4M — IT" }
+  }
+}

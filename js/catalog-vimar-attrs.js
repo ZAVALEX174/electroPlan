@@ -21,8 +21,10 @@ window.EP_VIMAR_ATTRS = {
   },
   "standards": {
     "14923": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "IT",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая"
     },
     "14931": {
       "standard": "BOTH",
@@ -57,8 +59,10 @@ window.EP_VIMAR_ATTRS = {
       "frameColor": "Серая влагостойкая"
     },
     "14963": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "IT",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая"
     },
     "09661.01": {
       "standard": "BOTH",
@@ -15235,36 +15239,60 @@ window.EP_VIMAR_ATTRS = {
       "frameColor": "Сатинированная нержавеющая сталь"
     },
     "09911.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "BOTH",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09911.04": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "BOTH",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "09912.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "BOTH",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09912.04": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "BOTH",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "09913.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "IT",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09913.04": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "IT",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "09914.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "IT",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "09914.04": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "IT",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "14931.01": {
       "standard": "BOTH",
@@ -15331,52 +15359,88 @@ window.EP_VIMAR_ATTRS = {
       "frameColor": "Серый гранит влагостойкая"
     },
     "30931.00": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "BOTH",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "30931.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "BOTH",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Конопляная"
     },
     "30931.02": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "BOTH",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "30932.00": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "BOTH",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "30932.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "BOTH",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Конопляная"
     },
     "30932.02": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "BOTH",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "30943.00": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "IT",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "30943.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "IT",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Конопляная"
     },
     "30943.02": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "IT",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     },
     "30944.00": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "IT",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Белая"
     },
     "30944.01": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "IT",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Конопляная"
     },
     "30944.02": {
-      "standard": "UNKNOWN",
-      "postCount": null
+      "standard": "IT",
+      "postCount": null,
+      "frameMaterial": "Влагозащищенный технополимер",
+      "frameShape": "Классическая",
+      "frameColor": "Чёрная"
     }
   },
   "supports": {

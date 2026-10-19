@@ -66,12 +66,12 @@ test("§filter: критерий комнаты несёт монтажный с
   assert.equal(filterFor({ standard: "IT" }).standard, "IT");
 });
 
-test("§pool-de: немецкий сужает пул до 615 (DE + универсальные), а не оставляет весь каталог", () => {
-  assert.equal(poolFor({ standard: "DE" }).length, 615);
+test("§pool-de: немецкий сужает пул до 625 (DE + универсальные), а не оставляет весь каталог", () => {
+  assert.equal(poolFor({ standard: "DE" }).length, 625);
 });
 
-test("§pool-it: итальянский сужает пул до 1253 (IT + универсальные)", () => {
-  assert.equal(poolFor({ standard: "IT" }).length, 1253);
+test("§pool-it: итальянский сужает пул до 1275 (IT + универсальные)", () => {
+  assert.equal(poolFor({ standard: "IT" }).length, 1275);
 });
 
 test("§dead: мёртвый (не из каталога) стандарт валидируется в точке вызова → null → фильтра нет", () => {

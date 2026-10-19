@@ -50,6 +50,7 @@ export const DEFAULT_NOMENCLATURE_2026 = path.join(repoRoot, "Номенклат
 export const DEFAULT_OLD_NOMENCLATURE = path.join(repoRoot, "Номенклатура новая.xls");
 export const DEFAULT_FINISH_CSV = path.join(projectRoot, "docs/К2-отделка-новых-накладок/new-frames-finish.csv");
 export const DEFAULT_FACING_OVERRIDES = path.resolve(here, "../data/frame-facing-overrides.json");
+export const DEFAULT_FRAME_STANDARD_OVERRIDES = path.resolve(here, "../data/frame-standard-overrides.json");
 
 /* Быстросъёмные механизмы с клеммами WAGO (артикул с сегментом «.FX») — решение владельца
    18.10: «если сейчас мы никак не можем это использовать, можно пока эти артикулы не вносить в
@@ -200,6 +201,22 @@ export function readFacingOverrides(jsonPath = DEFAULT_FACING_OVERRIDES) {
   return map;
 }
 
+/* Ручная разметка монтажного стандарта накладок (frame-standard-overrides.json, решение владельца
+   19.10): артикул → "IT"|"DE"|"BOTH". Нужна позициям, у которых «Монтажный стандарт» в номенклатуре
+   пуст и в старом файле их нет (новые герметичные крышки). Применяется ПОВЕРХ распознавания и
+   бэкфилла — задаёт стандарт явно. Нет файла/битый JSON — пустая карта (сборка не падает). */
+export function readFrameStandardOverrides(jsonPath = DEFAULT_FRAME_STANDARD_OVERRIDES) {
+  const map = new Map();
+  let text;
+  try { text = fs.readFileSync(jsonPath, "utf8"); } catch { return map; }
+  let doc;
+  try { doc = JSON.parse(text.replace(/^﻿/, "")); } catch { return map; }
+  for (const [code, ov] of Object.entries(doc.overrides || {})) {
+    if (ov && typeof ov === "object" && ov.standard) map.set(code, String(ov.standard).trim().toUpperCase());
+  }
+  return map;
+}
+
 // Имена столбцов нового файла (шапка 3-й строки). Нормализация поиска гасит расхождения по
 // пробелам — как в readNomenclature с «Подгруппы ». Столбцов principle/subgroup/boxModularity/
 // accessGroup в новом файле НЕТ — их at() вернёт null, и они возьмутся из прежнего файла.
@@ -234,6 +251,7 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
   oldXlsPath = DEFAULT_OLD_NOMENCLATURE,
   finishCsv = DEFAULT_FINISH_CSV,
   facingOverridesPath = DEFAULT_FACING_OVERRIDES,
+  frameStandardOverridesPath = DEFAULT_FRAME_STANDARD_OVERRIDES,
   excludeSeries = ["idea"],
 } = {}) {
   const wb = XLSX.readFile(xlsPath);
@@ -272,6 +290,7 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
   const oldByCode = new Map(oldRecords.map((r) => [r.code, r]));
   const finishByCode = readFinishCsv(finishCsv);
   const facingOverrides = readFacingOverrides(facingOverridesPath);
+  const frameStandardOverrides = readFrameStandardOverrides(frameStandardOverridesPath);
 
   const excluded = new Set(excludeSeries.map((s) => norm(s).toLowerCase()));
 
@@ -345,6 +364,10 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
     if (standard === "UNKNOWN" && old && old.standard && old.standard !== "UNKNOWN") {
       standard = old.standard; standardRaw = old.standardRaw; bump("standard");
     }
+    // Ручная разметка стандарта (frame-standard-overrides.json) — ПОВЕРХ распознавания и бэкфилла:
+    // для новых герметичных крышек стандарт нигде в данных не распознаётся, задаём явно (решение 19.10).
+    const stdOverride = frameStandardOverrides.get(code);
+    if (stdOverride) { standard = stdOverride; standardRaw = standardRaw || stdOverride; bump("standardOverride"); }
 
     // --- Тип стены: новый главнее, если распознан; иначе из прежнего ---
     let wallRaw = norm(at(row, COL.wall));

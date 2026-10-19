@@ -421,7 +421,7 @@ test("productsForRoom: стандарт складывается В И-цепо�
 /* --- РЕАЛЬНЫЙ каталог VIMAR: числа выбора стандарта (замерено продакшн-функциями) ---
    Если перезалить прайс — тест упадёт осмысленно, а не молча пропустит смену состава. Обогащение
    стандартом делает data.js (catalog-vimar.js → catalog-vimar-attrs.js → data.js), как в браузере. */
-test("реальный каталог: IT → 1253 из 1627, DE → 615, стандарта нет → 1627; под немецким 4 IT-only серии уходят", async () => {
+test("реальный каталог: IT → 1275 из 1627, DE → 625, стандарта нет → 1627; под немецким 4 IT-only серии уходят", async () => {
   const win = {};
   const ctx = vm.createContext({ window: win, structuredClone });
   const jsDir = path.join(__dirname, "..", "js");
@@ -431,18 +431,17 @@ test("реальный каталог: IT → 1253 из 1627, DE → 615, ста
   const frames = (await win.DataService.getProducts()).filter(p => p.kind === "frame" && p.active);
   assert.equal(frames.length, 1627, "активных накладок всего");
   // Распределение по стандарту. Решение владельца 19.10: 34 герметичные крышки/накладки IP44/IP55
-  // группы «Накладной или Гермитичный монтаж» ВЕРНУЛИСЬ в накладки (kind=frame). У 12 из них
-  // (Plana 14931*/14932* → BOTH, 14943*/14944* → IT) монтажный стандарт был в каталоге 732ae3a; у
-  // 22 новых (Neve Up/Linea и 2 Plana) он заказчиком ещё не подтверждён → UNKNOWN (вынесено
-  // владельцу). UNKNOWN — служебное «не определён», в ВЫБОР стандарта комнаты не идёт: его
-  // отсекает productStandards (см. ниже) и productsForRoom (накладка UNKNOWN не проходит ни IT, ни DE).
+  // группы «Накладной или Гермитичный монтаж» ВЕРНУЛИСЬ в накладки (kind=frame). Стандарт у всех 34
+  // проставлен: 12 (Plana 14931*/14932* → BOTH, 14943*/14944* → IT) из каталога 732ae3a, 22 новых
+  // (Neve Up/Linea и 2 Plana) — ручной разметкой tools/data/frame-standard-overrides.json, сверено
+  // владельцем по vimar.com (2M → BOTH, 3/4M → IT). UNKNOWN среди активных накладок нет.
   const byStd = frames.reduce((m, f) => (m[f.standard] = (m[f.standard] || 0) + 1, m), {});
-  assert.deepEqual(byStd, { IT: 990, DE: 352, BOTH: 263, UNKNOWN: 22 }, "IT 990 + DE 352 + BOTH 263 + UNKNOWN 22 = 1627");
+  assert.deepEqual(byStd, { IT: 1002, DE: 352, BOTH: 273 }, "IT 1002 + DE 352 + BOTH 273 = 1627; все накладки со стандартом");
 
   const itPool = productsForRoom(frames, { standard: "IT" });
   const dePool = productsForRoom(frames, { standard: "DE" });
-  assert.equal(itPool.length, 1253, "итальянский: 990 IT + 263 универсальных (UNKNOWN не входит)");
-  assert.equal(dePool.length, 615, "немецкий: 352 DE + 263 универсальных (UNKNOWN не входит)");
+  assert.equal(itPool.length, 1275, "итальянский: 1002 IT + 273 универсальных");
+  assert.equal(dePool.length, 625, "немецкий: 352 DE + 273 универсальных");
   assert.equal(productsForRoom(frames, {}).length, 1627, "стандарт не выбран — весь каталог");
 
   // Коллекций в каталоге 10. Под ИТАЛЬЯНСКИМ присутствуют все 10. Под НЕМЕЦКИМ остаётся 6:
