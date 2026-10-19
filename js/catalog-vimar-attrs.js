@@ -12704,6 +12704,8 @@ window.EP_VIMAR_ATTRS = {
     "22671.1.01": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL",
+      "boxModularity": 2,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Белая матовая"
@@ -12711,6 +12713,8 @@ window.EP_VIMAR_ATTRS = {
     "22671.1.03": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL",
+      "boxModularity": 2,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Антрацит"
@@ -13198,6 +13202,8 @@ window.EP_VIMAR_ATTRS = {
     "22681.1.01": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL",
+      "boxModularity": 2,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Белая матовая"
@@ -13205,6 +13211,8 @@ window.EP_VIMAR_ATTRS = {
     "22681.1.03": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL",
+      "boxModularity": 2,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Антрацит"
@@ -13372,6 +13380,8 @@ window.EP_VIMAR_ATTRS = {
     "22682.RN.1.01": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL",
+      "boxModularity": 2,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Белая матовая"
@@ -13379,6 +13389,8 @@ window.EP_VIMAR_ATTRS = {
     "22682.RN.1.03": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL",
+      "boxModularity": 2,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Антрацит"
@@ -13386,6 +13398,8 @@ window.EP_VIMAR_ATTRS = {
     "22682.RN.1.11": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL",
+      "boxModularity": 2,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Никель матовый"
@@ -13393,6 +13407,8 @@ window.EP_VIMAR_ATTRS = {
     "22682.RN.1.12": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL",
+      "boxModularity": 2,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Темная бронза"
@@ -13400,6 +13416,8 @@ window.EP_VIMAR_ATTRS = {
     "22682.RN.1.82": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL",
+      "boxModularity": 2,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Золото"
@@ -13407,6 +13425,8 @@ window.EP_VIMAR_ATTRS = {
     "22682.RN.1.87": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL",
+      "boxModularity": 2,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Сатинированная античная бронза"
@@ -13414,6 +13434,8 @@ window.EP_VIMAR_ATTRS = {
     "22682.RN.1.88": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL",
+      "boxModularity": 2,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Сатинированное золото"
@@ -13421,6 +13443,8 @@ window.EP_VIMAR_ATTRS = {
     "22682.RN.1.89": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL",
+      "boxModularity": 2,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Сатинированная латунь"
@@ -13428,6 +13452,8 @@ window.EP_VIMAR_ATTRS = {
     "22682.RN.1.90": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL",
+      "boxModularity": 2,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Вороненая сталь"
@@ -13435,6 +13461,8 @@ window.EP_VIMAR_ATTRS = {
     "22682.RN.1.91": {
       "standard": "IT",
       "postCount": null,
+      "principle": "1M_CENTRAL",
+      "boxModularity": 2,
       "frameMaterial": "Металл",
       "frameShape": "Классическая",
       "frameColor": "Бронза"

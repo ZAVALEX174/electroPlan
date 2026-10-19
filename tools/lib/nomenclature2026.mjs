@@ -28,6 +28,7 @@
  * отделки и сам проход с бэкфиллом.
  */
 
+import { mountFromNote } from "./mountNote.mjs";
 import { inheritBacklight, inheritFields } from "./backlightInherit.mjs";
 import fs from "node:fs";
 import path from "node:path";
@@ -306,6 +307,10 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
     unmappedGroups: {},                             // новые группы без прежнего эквивалента → mechanism
     backlightInherited: {},                         // правило → сколько новых клавиш получили подсветку
     mountInherited: {},                             // уровень брата → сколько новых накладок получили principle/boxModularity
+    mountFromNote: {},                              // правило примечания → сколько новых накладок получили принцип из «Примечания»
+    mountNoteConflict: [],                          // принцип старого файла ≠ принцип из примечания (старый НЕ перезаписан)
+    mountNoteUnparsed: [],                          // примечание про монтаж, формулировки в таблице нет
+    mountNoteNoSupport: [],                         // «В суппорт N», а у N принципа нет
     mountDiverge: [],                               // новые накладки: братья расходятся — поля не угаданы
     mountNoData: [],                                // новые накладки: у братьев данных нет
     controlFromOld: [],                             // тип управления не распознан → роль взята из прежнего файла
@@ -522,19 +527,6 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
       }
     }
 
-    // Новая накладка без принципа/модульности коробки: значения братьев (backlightInherit.mjs),
-    // иначе подбор суппорта ошибается (22672.1.87 → 21600.0 вместо 21601.0). Расходящихся или
-    // безданных братьев не угадываем — в статистику.
-    if (!old && kind === "frame") {
-      const inh = inheritFields(rec, oldRecords.filter((o) => o.kind === "frame"), ["principle", "boxModularity"]);
-      if (inh && inh.rule === "diverge") stats.mountDiverge.push({ code, brothers: inh.brothers });
-      else if (inh && inh.rule === "nodata") stats.mountNoData.push({ code, brothers: inh.brothers });
-      else if (inh) {
-        Object.assign(rec, inh.values);
-        stats.mountInherited[inh.rule] = (stats.mountInherited[inh.rule] || 0) + 1;
-      }
-    }
-
     if (kind === "frame") rec.slotCount = moduleSize;
     if (kind === "support") rec.pitchMm = pitchOf(name);
     if (kind === "socket_box") {
@@ -550,6 +542,38 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
     if (rec.partRole) stats.byPartRole[rec.partRole] = (stats.byPartRole[rec.partRole] || 0) + 1;
     if (rec.controlRole) stats.byControlRole[rec.controlRole] = (stats.byControlRole[rec.controlRole] || 0) + 1;
     for (const s of rec.series) stats.bySeries[s] = (stats.bySeries[s] || 0) + 1;
+  }
+  // Монтаж накладок: порядок — старый файл (уже в rec) → «Примечание» → брат. Примечание ссылается
+  // на суппорты, поэтому разбираем после прохода по всем строкам. Расхождение примечания со
+  // старым файлом не перезаписываем молча, а выносим в stats.mountNoteConflict.
+  const supportsByCode = new Map(records.filter((x) => x.kind === "support")
+    .map((x) => [x.code, { principle: x.principle, boxModularity: x.boxModularity }]));
+  const oldFrames = oldRecords.filter((o) => o.kind === "frame");
+  for (const rec of records) {
+    if (rec.kind !== "frame" || !rec.note) continue;
+    const fromNote = mountFromNote(rec.note, supportsByCode);
+    if (!fromNote) continue;
+    if (fromNote.rule === "unparsed") { stats.mountNoteUnparsed.push(rec.code + ": " + rec.note); continue; }
+    if (fromNote.rule === "nosupportdata") { stats.mountNoteNoSupport.push(rec.code + ": " + rec.note); continue; }
+    if (oldByCode.has(rec.code)) {
+      if (rec.principle && (rec.principle !== fromNote.principle || (rec.boxModularity ?? null) !== (fromNote.boxModularity ?? null)))
+        stats.mountNoteConflict.push({ code: rec.code, old: rec.principle + "/" + rec.boxModularity, note: fromNote.principle + "/" + fromNote.boxModularity });
+      continue;
+    }
+    let used = false;
+    if (rec.principle == null) { rec.principle = fromNote.principle; used = true; }
+    if (rec.boxModularity == null && fromNote.boxModularity != null) { rec.boxModularity = fromNote.boxModularity; used = true; }
+    if (used) stats.mountFromNote[fromNote.rule] = (stats.mountFromNote[fromNote.rule] || 0) + 1;
+  }
+  for (const rec of records) {
+    if (rec.kind !== "frame" || oldByCode.has(rec.code)) continue;
+    const inh = inheritFields(rec, oldFrames, ["principle", "boxModularity"]);
+    if (inh && inh.rule === "diverge") stats.mountDiverge.push({ code: rec.code, brothers: inh.brothers });
+    else if (inh && inh.rule === "nodata") stats.mountNoData.push({ code: rec.code, brothers: inh.brothers });
+    else if (inh) {
+      Object.assign(rec, inh.values);
+      stats.mountInherited[inh.rule] = (stats.mountInherited[inh.rule] || 0) + 1;
+    }
   }
   return { header, records, stats };
 }

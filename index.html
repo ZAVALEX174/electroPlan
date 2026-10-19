@@ -583,7 +583,7 @@
 <!-- Сообщения с крестиком, не гаснущие сами (Б9/2б): стоят над toast, одно над другим. Наполняет EPNotices. -->
 <div class="notices" id="notices"></div>
   <script src="js/catalog-vimar.js?v=20261019.2"></script>
-  <script src="js/catalog-vimar-attrs.js?v=20261019.4"></script>
+  <script src="js/catalog-vimar-attrs.js?v=20261019.5"></script>
   <script src="js/catalog-vimar-openings.js?v=20260920.1"></script>
   <script src="js/catalog-vimar-faces.js?v=20260801.2"></script>
   <script src="js/catalog-vimar-discontinued.js?v=20261019.1"></script>
@@ -599,11 +599,11 @@
 <script src="js/catalog.js?v=20261019.1"></script>
 <!-- Чистый модуль (ни DOM, ни state): подбор механизма по группе света и схеме электрики.
      Считается по ВСЕМУ проекту, результат отдаётся в состав поста, поэтому грузится до postfit/posts. -->
-<script src="js/lightingGroups.js?v=20260919.1"></script>
+<script src="js/lightingGroups.js?v=20261019.2"></script>
 <!-- Связка модуля групп света с проектом: сборка мест управления из постов, строгий подбор
      механизма по роли и серии, печатный блок для документов. Грузится ПОСЛЕ lightingGroups
      (использует его тексты пробелов) и до estimate/installSheet, которые его результат печатают. -->
-<script src="js/lightingPlan.js?v=20261019.1"></script>
+<script src="js/lightingPlan.js?v=20261019.2"></script>
 <!-- Чистый модуль (ни DOM, ни state): раскрой расчёта групп света ПО КОМНАТАМ и слияние обратно
      в один план. Грузится ПОСЛЕ lightingGroups/lightingPlan (использует их plan и форму мест) и
      до app.js, который через него считает projectLighting. -->
