@@ -10,6 +10,41 @@
   const kpOpen = () => ev(`return document.getElementById("kpSetupModal").classList.contains("open")`);
   const val = sel => ev(`const e=${sel};return e?e.value:null`);
 
+  // --- 0. Потеря данных: клавиши холста НЕ трогают проект, пока открыто окно «Данные КП» ---
+  // (состязательная находка: стрелки двигали пост, Delete удалял его, Enter открывал конструктор).
+  await click(`document.querySelector(".plan-icon.post")`); await sleep(400);   // выделяем размещённый пост
+  assertOk(await ev(`return !!${btnText("Редактировать")}`), "пост выделен (в свойствах есть «Редактировать»)");
+  await click($("kpDataBtn")); await sleep(400);
+  // фокус как после клика по заголовку окна / на кнопке состава КП — НЕ в поле ввода
+  await ev(`document.activeElement&&document.activeElement.blur&&document.activeElement.blur();const s=document.querySelector("#offerOptions summary");s&&s.focus();return 1;`);
+  const keyEv = (k, code) => ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:${JSON.stringify(k)},code:${JSON.stringify(code || k)},bubbles:true,cancelable:true}));return 1;`);
+  const snap = () => ev(`const l=document.querySelectorAll(".plan-icon.post");const e=l[0];const v=document.getElementById("planVisibilityBtn");
+    return {count:l.length,left:e?e.style.left:null,top:e?e.style.top:null,vis:v?v.textContent.trim():null,builder:document.getElementById("postModal").classList.contains("open")};`);
+  const guardBefore = await snap();
+  log.push("до клавиш холста: " + JSON.stringify(guardBefore));
+  await keyEv("ArrowRight"); await keyEv("ArrowRight"); await keyEv("ArrowUp");
+  await keyEv("Delete");
+  await keyEv("b", "KeyB"); await keyEv(" ", "Space");
+  await sleep(300);
+  const guardAfter = await snap();
+  log.push("после клавиш холста: " + JSON.stringify(guardAfter));
+  assertOk(guardAfter.count === guardBefore.count && guardAfter.count >= 1, "Delete при открытом окне не удалил пост: " + guardBefore.count + "→" + guardAfter.count);
+  assertOk(guardAfter.left === guardBefore.left && guardAfter.top === guardBefore.top, "стрелки при открытом окне не сдвинули пост: " + guardBefore.left + "/" + guardBefore.top + " → " + guardAfter.left + "/" + guardAfter.top);
+  assertOk(guardAfter.vis === guardBefore.vis, "B при открытом окне не переключил подложку: " + guardBefore.vis + " → " + guardAfter.vis);
+  assertOk(guardAfter.builder === false, "пробел/клавиши при открытом окне не открыли конструктор");
+  // Enter на «Готово»: окно закрывается нативно (клик кнопки), конструктор НЕ открывается.
+  await ev(`document.getElementById("kpSetupDone").focus();return 1;`);
+  // Для нативной активации кнопки по Enter в Chromium нужен ещё char-эвент (\r), иначе клик не сработает.
+  await c.send("Input.dispatchKeyEvent", { type: "rawKeyDown", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, code: "Enter", key: "Enter" });
+  await c.send("Input.dispatchKeyEvent", { type: "char", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, code: "Enter", key: "Enter", text: "\r", unmodifiedText: "\r" });
+  await c.send("Input.dispatchKeyEvent", { type: "keyUp", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13, code: "Enter", key: "Enter" });
+  await sleep(400);
+  const afterEnter = await ev(`return {kp:document.getElementById("kpSetupModal").classList.contains("open"),builder:document.getElementById("postModal").classList.contains("open")};`);
+  log.push("Enter на «Готово»: " + JSON.stringify(afterEnter));
+  assertOk(afterEnter.builder === false, "Enter при открытом окне не открыл конструктор выделенного поста");
+  assertOk(afterEnter.kp === false, "Enter на «Готово» закрыл окно нативно");
+  await shot("kpsetup-0-keyguard", [$("kpDataBtn")]);
+
   // --- 1. Открыть окно кнопкой шапки, заполнить мои реквизиты (ep_prefs) и заказчика/объект (проект) ---
   await click($("kpDataBtn")); await sleep(400);
   assertOk(await kpOpen(), "кнопка «Данные КП» открыла окно");
