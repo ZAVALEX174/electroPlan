@@ -1,0 +1,89 @@
+  // ===================================================================================================
+  // ОКНО «ДАННЫЕ ПРОЕКТА И КП» (js/projectSetup.js), браузерный хвост `kpsetup`. Кнопка шапки «Данные КП»
+  // (#kpDataBtn), окно #kpSetupModal с полями объекта/адреса, заказчика, моих реквизитов и условий сметы,
+  // «Готово» (#kpSetupDone). Проверяем: авто-открытие на новом проекте, подстановку моих реквизитов из
+  // прошлого и пустые поля заказчика/объекта, печать КП с введёнными реквизитами, отсутствие авто-открытия
+  // на существующем проекте. Любое расхождение → assertOk бросает → exit 1 (см. хвост shoot.mjs).
+  // ===================================================================================================
+  const assertOk = (cond, msg) => { log.push((cond ? "ОК" : "FAIL") + ": " + msg); if (!cond) throw new Error(msg); };
+  const reqField = (block, key) => `document.querySelector('[data-req-block="${block}"][data-req-key="${key}"]')`;
+  const kpOpen = () => ev(`return document.getElementById("kpSetupModal").classList.contains("open")`);
+  const val = sel => ev(`const e=${sel};return e?e.value:null`);
+
+  // --- 1. Открыть окно кнопкой шапки, заполнить мои реквизиты (ep_prefs) и заказчика/объект (проект) ---
+  await click($("kpDataBtn")); await sleep(400);
+  assertOk(await kpOpen(), "кнопка «Данные КП» открыла окно");
+  await shot("kpsetup-1-open", [$("kpSetupModal")]);
+  await setVal(reqField("my", "fio"), "Иван Мастеров");
+  await setVal(reqField("my", "phone"), "+7 900 111-22-33");
+  await setVal(reqField("my", "email"), "master@electro.pro");
+  await setVal($("docProject"), "Квартира на Светлой");
+  await setVal($("docAddress"), "Москва, ул. Светлая, 1");
+  await setVal(reqField("customer", "fio"), "Петрова А.С.");
+  await setVal(reqField("customer", "phone"), "+7 921 555-44-33");
+  await setVal(reqField("customer", "email"), "petrova@mail.ru");
+  await sleep(900);   // автосейв дебаунсится ~700 мс — ждём, чтобы проектные поля записались
+  await click($("kpSetupDone")); await sleep(300);
+  assertOk(!(await kpOpen()), "«Готово» скрыло окно");
+  const custVisible = await ev(`const e=${reqField("customer", "fio")};return !!(e&&e.offsetParent)`);
+  assertOk(custVisible === false, "после «Готово» полей на рабочем экране не видно");
+  await shot("kpsetup-2-done", [$("kpDataBtn")]);
+
+  // --- 1б. КП (подмена window.open) содержит введённые реквизиты. Делаем здесь, пока в проекте есть пост
+  //        (из общего сценария): на пустом «новом» проекте КП не генерируется. ---
+  await ev('window.__kp="";window.open=()=>({closed:false,document:{open(){},write(h){window.__kp+=h},close(){},title:""},focus(){},print(){},close(){},addEventListener(){},location:{}});return 1;');
+  await click($("pdfBtn")); await sleep(1200);
+  const kp = await ev("return window.__kp");
+  log.push("КП длиной " + kp.length + "; заказчик Петрова: " + /Петрова/.test(kp) + "; исполнитель Мастеров: " + /Мастеров/.test(kp));
+  assertOk(kp.length > 0, "КП сгенерировано (в проекте есть пост)");
+  assertOk(/Петрова/.test(kp), "КП содержит введённого заказчика");
+  assertOk(/Мастеров/.test(kp), "КП содержит мои реквизиты (исполнитель)");
+
+  // --- 2. «Новый проект»: проект изменён (не скачан) → подтверждение → без скачивания → перезагрузка ---
+  await click($("newProjectBtn")); await sleep(400);
+  if (await ev(`return document.getElementById("projectConfirmModal").classList.contains("open")`)) {
+    await click($("projectConfirmProceed"));
+  }
+  await sleep(5000);
+
+  // --- 3. На чистом старте окно открылось САМО: мои реквизиты из прошлого, заказчик/объект пустые ---
+  assertOk(await kpOpen(), "на новом проекте окно «Данные проекта и КП» открылось само");
+  await shot("kpsetup-3-autoopen", [$("kpSetupModal")]);
+  const myFio = await val(reqField("my", "fio"));
+  const custFio = await val(reqField("customer", "fio"));
+  const addr = await val($("docAddress"));
+  const proj = await val($("docProject"));
+  log.push("новый проект: myFio=" + JSON.stringify(myFio) + " custFio=" + JSON.stringify(custFio) + " addr=" + JSON.stringify(addr) + " proj=" + JSON.stringify(proj));
+  assertOk(myFio === "Иван Мастеров", "мои реквизиты подставлены из прошлого (ep_prefs)");
+  assertOk(custFio === "", "ФИО заказчика в новом проекте пустое");
+  assertOk(addr === "" && proj === "", "объект и адрес в новом проекте пустые");
+
+  // --- 4. Заполнить заказчика/объект заново, «Готово» ---
+  await setVal($("docProject"), "Дом в Твери");
+  await setVal($("docAddress"), "Тверь, пр. Мира, 10");
+  await setVal(reqField("customer", "fio"), "Сидоров В.В.");
+  await setVal(reqField("customer", "phone"), "+7 930 777-88-99");
+  await setVal(reqField("customer", "email"), "sidorov@mail.ru");
+  await sleep(900);
+  await click($("kpSetupDone")); await sleep(300);
+  assertOk(!(await kpOpen()), "«Готово» снова скрыло окно");
+
+  // --- 5. «Данные КП» открывает окно с введёнными значениями ---
+  await click($("kpDataBtn")); await sleep(400);
+  assertOk(await kpOpen(), "«Данные КП» открыла окно повторно");
+  assertOk(await val($("docProject")) === "Дом в Твери", "в окне — введённый объект");
+  assertOk(await val(reqField("customer", "fio")) === "Сидоров В.В.", "в окне — введённый заказчик");
+  assertOk(await val(reqField("my", "fio")) === "Иван Мастеров", "в окне — мои реквизиты на месте");
+  await shot("kpsetup-4-reopen", [$("kpSetupModal")]);
+  await click($("kpSetupDone")); await sleep(300);
+
+  // --- 6. Перезагрузка: окно само НЕ открывается (проект уже есть), данные на месте ---
+  await c.send("Page.reload"); await sleep(5000);
+  const openAfter = await kpOpen();
+  log.push("после перезагрузки: окно open=" + openAfter);
+  assertOk(openAfter === false, "на существующем проекте окно само не открывается");
+  await click($("kpDataBtn")); await sleep(400);
+  assertOk(await val($("docProject")) === "Дом в Твери", "после перезагрузки объект на месте");
+  assertOk(await val(reqField("customer", "fio")) === "Сидоров В.В.", "после перезагрузки заказчик на месте");
+  await shot("kpsetup-5-after-reload", [$("kpSetupModal")]);
+  log.push("ИТОГ: все assertOk ОК.");

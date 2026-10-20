@@ -394,6 +394,10 @@ async function init(){
      держит localStorage с прошлого скачивания; не скачан ни разу → подписи нет → «Новый проект»
      предупредит (решение владельца 3). */
   if(!restored)setCleanBaseline(projectSnapshot());
+  /* Окно «Данные проекта и КП» открывается само только на чистом старте — новый/первый запуск (решение
+     владельца 20.10). «Открыть из файла» этот путь не проходит (loadProjectIntoUi без init), поэтому
+     своё окно сам не поднимает. */
+  maybeOpenKpSetup(restored);
   if(restored){
     const objects=state.devices.length+state.posts.length;
     const when=restored.savedAt?new Date(restored.savedAt).toLocaleString("ru-RU",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
@@ -4013,7 +4017,7 @@ document.onkeydown=e=>{
   /* Отмена/возврат плана (Б4, ч.А). Решение по нажатию — чистый EPHistory.hotkeyAction: он сам
      пропускает текстовые поля (там Ctrl+Z — браузерная отмена ввода), разбирает Ctrl/⌘+Z/Y/Shift+Z и
      молчит при открытой модалке. Модалки, при которых не работаем, — те же пять окон, что и везде. */
-  const anyModalOpen=["postModal","framePickerModal","scaleModal","pdfPageModal","wallScopeModal","projectConfirmModal"]
+  const anyModalOpen=["postModal","framePickerModal","scaleModal","pdfPageModal","wallScopeModal","projectConfirmModal","kpSetupModal"]
     .some(id=>{const m=$(id);return m&&m.classList.contains("open")});
   const histAction=EPHistory.hotkeyAction(e,{modalOpen:anyModalOpen});
   if(histAction){e.preventDefault();histAction==="undo"?undoPlan():redoPlan();return}
@@ -4048,6 +4052,9 @@ document.onkeydown=e=>{
     /* Окно подтверждения «проект в файл» (EPProjectFile) — самостоятельное: Esc = «Отмена», просто
        убираем .open; промисов за кнопками нет, действие идёт только по явному клику. */
     if($("projectConfirmModal").classList.contains("open")){$("projectConfirmModal").classList.remove("open");return}
+    /* Окно «Данные проекта и КП» (EPProjectSetup) — самостоятельное: Esc = «Готово», просто скрываем.
+       Значения уже записаны по ходу ввода, промисов за кнопками нет. */
+    if($("kpSetupModal").classList.contains("open")){closeKpSetup();return}
     if($("pdfPageModal").classList.contains("open")){finishPdfPageSelection(null);return}
     /* Вопрос об охвате правки типа стены висит ПОВЕРХ конструктора, поэтому разбирается
        раньше конструктора: иначе Esc закрыл бы окно поста из-под неразрешённого промиса. */
@@ -4215,6 +4222,13 @@ const {setCleanBaseline}=EPProjectFile.attach({
   readTemplates:()=>state.templates,
   writeTemplates:list=>{try{localStorage.setItem("ep_post_templates",JSON.stringify(list))}catch(e){/* квота */}}
 });
+
+/* Окно «Данные проекта и КП» (EPProjectSetup.attach, решение владельца 20.10). Провязывает кнопку шапки
+   «Данные КП», «Готово», крестик и клик мимо внутри себя; возвращает maybeOpenKpSetup (его зовёт init на
+   чистом старте — окно открывается само только когда проекта нет) и closeKpSetup (его зовёт Esc-диспетчер
+   выше: const инициализирован к моменту нажатия клавиши, TDZ нет). Поля окна читают/пишут прежние функции
+   app.js по id — тут только показ/скрытие окна. */
+const {close:closeKpSetup,maybeOpenOnLoad:maybeOpenKpSetup}=EPProjectSetup.attach({$});
 
 init().catch(e=>reportFailure("Инициализация не завершилась:",e));
 })();

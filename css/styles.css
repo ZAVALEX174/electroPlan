@@ -217,6 +217,12 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .scale-modal{width:min(420px,100%)}
 .scale-modal-copy{margin:14px 0 0;color:var(--muted);font-size:11px;overflow-wrap:anywhere}
 .scale-modal-form{display:block;margin-top:14px;color:var(--muted);font-size:10px;font-weight:800}.scale-modal-form input{margin-top:6px}
+/* Окно «Данные проекта и КП» (#kpSetupModal): те же блоки, что раньше были в правой панели, поэтому
+   их собственные стили (.doc-header-form/.doc-requisites/.terms-row/.offer-options) работают как есть —
+   тут только ширина окна поуже и вертикальный ритм тела. */
+.kp-setup-modal{width:min(560px,100%)}
+.kp-setup-body{margin-top:14px}
+.kp-setup-body>.doc-req-head:first-child{margin-top:0}
 /* Схема электрики проекта в панели «Спецификация»: подпись как у полей условий сделки
    (.terms-row label), поле на всю ширину — рядом стоит блок «Группы света», который она
    и определяет. */

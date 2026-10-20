@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261010.1">
+  <link rel="stylesheet" href="css/styles.css?v=20261020.1">
 </head>
 <body>
 <div class="app">
@@ -21,6 +21,10 @@
       <button class="btn ghost" id="openProjectBtn">Открыть проект</button>
       <input id="openProjectInput" type="file" accept=".json,.electroplan.json,application/json" hidden>
       <button class="btn ghost" id="newProjectBtn">Новый проект</button>
+      <!-- Данные проекта и КП (EPProjectSetup): объект/адрес, заказчик, мои реквизиты, условия сметы.
+           На чистом старте окно открывается само; эта кнопка открывает его для правки (решение
+           владельца 20.10). Поля живут в окне #kpSetupModal — у значения один источник. -->
+      <button class="btn ghost" id="kpDataBtn">Данные КП</button>
       <button class="btn ghost" id="installSheetBtn">Лист монтажника</button>
       <button class="btn primary" id="pdfBtn">Коммерческое предложение PDF</button>
       <button class="btn ghost" id="xlsxBtn">Спецификация Excel</button>
@@ -225,69 +229,9 @@
         <div id="properties" class="empty-properties">Выберите объект на плане</div>
       </section>
 
-      <section>
-        <div class="section-head"><h3>Реквизиты КП</h3></div>
-        <div class="doc-header-form">
-          <label>Проект<input id="docProject" autocomplete="off" placeholder="Название проекта"></label>
-          <label>Адрес объекта<input id="docAddress" autocomplete="off" placeholder="Адрес"></label>
-          <label>Разработчик<input id="docDeveloper" autocomplete="off" placeholder="Кто составил"></label>
-          <label class="doc-req-check"><input type="checkbox" id="docDeveloperShow">показывать «Разработчик» в шапке КП</label>
-          <label>Дата<input id="docDate" type="date"></label>
-          <label>Номер КП<input id="docNumber" autocomplete="off" placeholder="№"></label>
-        </div>
-        <!-- Реквизиты (A5): «Мои» — общий бланк человека (как логотип); «Заказчика» — свои у проекта.
-             Поля и галочки строит app.js из EPDocRequisites (один источник с печатью КП). -->
-        <div class="doc-requisites">
-          <div class="doc-req-head">Мои реквизиты <small>— заполняются один раз, стоят во всех проектах</small></div>
-          <div id="myRequisites" class="doc-req-fields"></div>
-          <div class="doc-req-head">Реквизиты заказчика <small>— свои у каждого проекта</small></div>
-          <div id="customerRequisites" class="doc-req-fields"></div>
-        </div>
-        <div class="doc-logo-row">
-          <button class="btn ghost small" type="button" id="docLogoBtn">Логотип компании…</button>
-          <button class="btn ghost small" type="button" id="docLogoRemove" hidden>Убрать</button>
-          <input type="file" id="docLogoInput" accept="image/*" hidden>
-          <div class="doc-logo-preview" id="docLogoPreview" hidden></div>
-        </div>
-        <div class="doc-logo-row">
-          <button class="btn ghost small" type="button" id="docSignatureBtn">Подпись…</button>
-          <button class="btn ghost small" type="button" id="docSignatureRemove" hidden>Убрать</button>
-          <input type="file" id="docSignatureInput" accept="image/*" hidden>
-          <div class="doc-logo-preview" id="docSignaturePreview" hidden></div>
-        </div>
-        <div class="doc-logo-row">
-          <button class="btn ghost small" type="button" id="docStampBtn">Печать…</button>
-          <button class="btn ghost small" type="button" id="docStampRemove" hidden>Убрать</button>
-          <input type="file" id="docStampInput" accept="image/*" hidden>
-          <div class="doc-logo-preview" id="docStampPreview" hidden></div>
-        </div>
-        <label class="doc-terms-field">Условия сделки в подвале КП
-          <textarea id="docTerms" rows="4" autocomplete="off" placeholder="Условия оплаты, сроки поставки, претензии, срок действия цен — печатаются в конце КП"></textarea>
-        </label>
-        <small class="hint-line">Поля печатаются в шапке КП и листа монтажника (пустые не выводятся) и сохраняются в этом проекте. Логотип, подпись, печать и условия сделки — общие для всех ваших проектов. Логотип идёт в шапку; условия, подпись и печать — в конец КП (не в лист монтажника); пока не загружены/не заполнены — их в документе нет.</small>
-        <details class="offer-options" id="offerOptions">
-          <summary>Настройка состава КП</summary>
-          <div class="offer-presets">
-            <button class="btn ghost small" type="button" data-offer-preset="builder">Для строителя</button>
-            <button class="btn ghost small" type="button" data-offer-preset="client">Для клиента</button>
-            <button class="btn ghost small" type="button" data-offer-preset="designer">Для дизайнера</button>
-            <button class="btn ghost small" type="button" data-offer-preset="boxes">Монтажные коробки</button>
-          </div>
-          <div class="offer-presets offer-presets-custom" id="offerCustomPresets"></div>
-          <small class="hint-line">Свои наборы (до 3) сохраняются в браузере и доступны в любом проекте. Кнопка «↻» перезаписывает набор текущим составом. Активный набор подсвечен.</small>
-          <label><input type="checkbox" id="offer-articles" data-offer-key="articles">Печатать артикулы во всех разделах КП</label>
-          <label><input type="checkbox" id="offer-prices" data-offer-key="prices">Печатать цены и итоги</label>
-          <div id="offerOptionsFields"></div>
-          <small class="hint-line">Сохраняется в проекте. Выбранные столбцы и разделы лист монтажника не меняют — на него влияет только «Вид поста» ниже. Наименование в спецификации остаётся всегда; раскладка без выбранных столбцов не печатается. Коды на исходном плане, фотографиях и в тексте, введённом вручную, не редактируются.</small>
-          <label class="offer-assembly">Вид поста в листе монтажника
-            <select id="offer-assemblyView" data-offer-key="assemblyView">
-              <option value="exploded">Взрыв-схема</option>
-              <option value="assembled">Общая сборка</option>
-            </select>
-          </label>
-          <small class="hint-line">«Взрыв-схема» — пост разложен по деталям с артикулами (по умолчанию). «Общая сборка» — собранная накладка с клавишами, как в раскладке КП.</small>
-        </details>
-      </section>
+      <!-- Реквизиты КП, мои реквизиты, картинки бланка, условия сделки и состав КП переехали в окно
+           «Данные проекта и КП» (#kpSetupModal, кнопка «Данные КП» в шапке). На рабочем экране их
+           больше нет — вводятся на первом этапе создания проекта (решение владельца 20.10). -->
 
       <section>
         <div class="section-head"><h3>Стоимость проекта</h3></div>
@@ -317,17 +261,10 @@
         <!-- Итог обязан ОГОВОРИТЬ позиции без цены (артикул пропал из прайса), а не молча
              просуммировать остальное: иначе КП уходит заказчику заниженным и без предупреждения. -->
         <div class="price-note" id="pricelessStatus" role="status" aria-live="polite" hidden></div>
+        <!-- Условия сметы (работы/материалы/скидка/надбавка/НДС/режим НДС) переехали в окно «Данные
+             проекта и КП» (#kpSetupModal). Валюта и курс остаются здесь: ими правят по ходу работы,
+             это не данные КП (решение владельца 20.10, список полей в задаче). -->
         <div class="terms-row">
-          <label>Работы, %<input id="workInput" type="number" min="0" max="200" step="1" value="18"></label>
-          <label>Материалы, %<input id="materialsInput" type="number" min="0" max="200" step="1" value="7"></label>
-          <label>Скидка, %<input id="discountInput" type="number" min="0" max="100" step="1" value="0"></label>
-          <label title="Надбавка к курсу ЦБ РФ. К курсу, введённому вручную, не применяется">Надбавка к курсу, %<input id="surchargeInput" type="number" min="0" max="100" step="1" value="3"></label>
-          <label>НДС<select id="vatMode">
-            <option value="none">Не учитывать</option>
-            <option value="included">Выделить в стоимости</option>
-            <option value="surcharge" selected>Начислить сверху</option>
-          </select></label>
-          <label>НДС, %<input id="vatInput" type="number" min="0" max="30" step="1" value="20"></label>
           <label>Валюта
             <select id="currencySelect">
               <option value="EUR">Евро (прайс)</option>
@@ -547,6 +484,101 @@
   </div>
 </div>
 
+<!-- Данные проекта и КП (EPProjectSetup): на чистом старте открывается само, кнопкой «Данные КП» —
+     для правки (решение владельца 20.10). Здесь живут ТЕ ЖЕ поля, что раньше были на рабочем экране
+     (панель «Реквизиты КП» и условия сметы) — у значения один источник и одна запись в проект/ep_prefs,
+     второй копии полей нет. «Мои реквизиты», логотип/подпись/печать, условия сделки и наборы столбцов —
+     бланк человека (ep_prefs): в новом проекте подставляются из прошлого. Объект/адрес и заказчик —
+     свои у проекта: в новом проекте пустые. Закрытие: «Готово», крестик, клик мимо, Esc. -->
+<div class="modal-backdrop" id="kpSetupModal" role="dialog" aria-modal="true" aria-labelledby="kpSetupTitle">
+  <div class="modal kp-setup-modal">
+    <div class="modal-header">
+      <div><span class="eyebrow">Проект</span><h2 id="kpSetupTitle">Данные проекта и КП</h2></div>
+      <button class="modal-close" id="kpSetupClose" type="button" aria-label="Закрыть">×</button>
+    </div>
+    <div class="kp-setup-body">
+      <div class="doc-header-form">
+        <label>Проект<input id="docProject" autocomplete="off" placeholder="Название проекта"></label>
+        <label>Адрес объекта<input id="docAddress" autocomplete="off" placeholder="Адрес"></label>
+        <label>Разработчик<input id="docDeveloper" autocomplete="off" placeholder="Кто составил"></label>
+        <label class="doc-req-check"><input type="checkbox" id="docDeveloperShow">показывать «Разработчик» в шапке КП</label>
+        <label>Дата<input id="docDate" type="date"></label>
+        <label>Номер КП<input id="docNumber" autocomplete="off" placeholder="№"></label>
+      </div>
+      <!-- Реквизиты (A5): «Мои» — общий бланк человека (как логотип); «Заказчика» — свои у проекта.
+           Поля и галочки строит app.js из EPDocRequisites (один источник с печатью КП). -->
+      <div class="doc-requisites">
+        <div class="doc-req-head">Мои реквизиты <small>— заполняются один раз, стоят во всех проектах</small></div>
+        <div id="myRequisites" class="doc-req-fields"></div>
+        <div class="doc-req-head">Реквизиты заказчика <small>— свои у каждого проекта</small></div>
+        <div id="customerRequisites" class="doc-req-fields"></div>
+      </div>
+      <div class="doc-logo-row">
+        <button class="btn ghost small" type="button" id="docLogoBtn">Логотип компании…</button>
+        <button class="btn ghost small" type="button" id="docLogoRemove" hidden>Убрать</button>
+        <input type="file" id="docLogoInput" accept="image/*" hidden>
+        <div class="doc-logo-preview" id="docLogoPreview" hidden></div>
+      </div>
+      <div class="doc-logo-row">
+        <button class="btn ghost small" type="button" id="docSignatureBtn">Подпись…</button>
+        <button class="btn ghost small" type="button" id="docSignatureRemove" hidden>Убрать</button>
+        <input type="file" id="docSignatureInput" accept="image/*" hidden>
+        <div class="doc-logo-preview" id="docSignaturePreview" hidden></div>
+      </div>
+      <div class="doc-logo-row">
+        <button class="btn ghost small" type="button" id="docStampBtn">Печать…</button>
+        <button class="btn ghost small" type="button" id="docStampRemove" hidden>Убрать</button>
+        <input type="file" id="docStampInput" accept="image/*" hidden>
+        <div class="doc-logo-preview" id="docStampPreview" hidden></div>
+      </div>
+      <label class="doc-terms-field">Условия сделки в подвале КП
+        <textarea id="docTerms" rows="4" autocomplete="off" placeholder="Условия оплаты, сроки поставки, претензии, срок действия цен — печатаются в конце КП"></textarea>
+      </label>
+      <small class="hint-line">Поля печатаются в шапке КП и листа монтажника (пустые не выводятся) и сохраняются в этом проекте. Логотип, подпись, печать и условия сделки — общие для всех ваших проектов. Логотип идёт в шапку; условия, подпись и печать — в конец КП (не в лист монтажника); пока не загружены/не заполнены — их в документе нет.</small>
+      <!-- Условия сметы — работы/материалы/скидка/надбавка к курсу/НДС/режим НДС. Те же поля, что
+           раньше стояли в «Стоимость проекта»; валюта и курс остались там (правятся по ходу работы). -->
+      <div class="doc-req-head">Условия сметы</div>
+      <div class="terms-row kp-setup-terms">
+        <label>Работы, %<input id="workInput" type="number" min="0" max="200" step="1" value="18"></label>
+        <label>Материалы, %<input id="materialsInput" type="number" min="0" max="200" step="1" value="7"></label>
+        <label>Скидка, %<input id="discountInput" type="number" min="0" max="100" step="1" value="0"></label>
+        <label title="Надбавка к курсу ЦБ РФ. К курсу, введённому вручную, не применяется">Надбавка к курсу, %<input id="surchargeInput" type="number" min="0" max="100" step="1" value="3"></label>
+        <label>НДС<select id="vatMode">
+          <option value="none">Не учитывать</option>
+          <option value="included">Выделить в стоимости</option>
+          <option value="surcharge" selected>Начислить сверху</option>
+        </select></label>
+        <label>НДС, %<input id="vatInput" type="number" min="0" max="30" step="1" value="20"></label>
+      </div>
+      <details class="offer-options" id="offerOptions">
+        <summary>Настройка состава КП</summary>
+        <div class="offer-presets">
+          <button class="btn ghost small" type="button" data-offer-preset="builder">Для строителя</button>
+          <button class="btn ghost small" type="button" data-offer-preset="client">Для клиента</button>
+          <button class="btn ghost small" type="button" data-offer-preset="designer">Для дизайнера</button>
+          <button class="btn ghost small" type="button" data-offer-preset="boxes">Монтажные коробки</button>
+        </div>
+        <div class="offer-presets offer-presets-custom" id="offerCustomPresets"></div>
+        <small class="hint-line">Свои наборы (до 3) сохраняются в браузере и доступны в любом проекте. Кнопка «↻» перезаписывает набор текущим составом. Активный набор подсвечен.</small>
+        <label><input type="checkbox" id="offer-articles" data-offer-key="articles">Печатать артикулы во всех разделах КП</label>
+        <label><input type="checkbox" id="offer-prices" data-offer-key="prices">Печатать цены и итоги</label>
+        <div id="offerOptionsFields"></div>
+        <small class="hint-line">Сохраняется в проекте. Выбранные столбцы и разделы лист монтажника не меняют — на него влияет только «Вид поста» ниже. Наименование в спецификации остаётся всегда; раскладка без выбранных столбцов не печатается. Коды на исходном плане, фотографиях и в тексте, введённом вручную, не редактируются.</small>
+        <label class="offer-assembly">Вид поста в листе монтажника
+          <select id="offer-assemblyView" data-offer-key="assemblyView">
+            <option value="exploded">Взрыв-схема</option>
+            <option value="assembled">Общая сборка</option>
+          </select>
+        </label>
+        <small class="hint-line">«Взрыв-схема» — пост разложен по деталям с артикулами (по умолчанию). «Общая сборка» — собранная накладка с клавишами, как в раскладке КП.</small>
+      </details>
+    </div>
+    <div class="modal-footer">
+      <button class="btn primary" id="kpSetupDone" type="button">Готово</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="scaleModal" role="dialog" aria-modal="true" aria-labelledby="scaleModalTitle">
   <div class="modal scale-modal">
     <div class="modal-header">
@@ -711,6 +743,9 @@
 <script src="js/notices.js?v=20261018.1"></script>
 <script src="js/postCopyUi.js?v=20261018.1"></script>
 <script src="js/projectFile.js?v=20261019.1"></script>
-<script src="js/app.js?v=20261019.2"></script>
+<!-- Окно «Данные проекта и КП» (#kpSetupModal): открыть/закрыть, авто-открытие на чистом старте
+     (решение владельца 20.10). Чистая функция shouldOpenOnLoad + тонкий attach. До app.js. -->
+<script src="js/projectSetup.js?v=20261020.1"></script>
+<script src="js/app.js?v=20261020.1"></script>
 </body>
 </html>

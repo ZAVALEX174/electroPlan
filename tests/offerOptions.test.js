@@ -210,6 +210,7 @@ test("D10: init создаёт поля до восстановления — п
       return null;
     }
   };
+  ctx.maybeOpenKpSetup = () => {};   /* окно «Данные проекта и КП» (EPProjectSetup) — зависимость init, здесь шпион-пустышка */
   for (const name of ["loadCachedRate", "renderRequisitesInputs", "fillDocHeaderInputs", "renderDocImage", "renderCompanyTerms", "renderTemplates", "renderAll", "renderSummary",
     "updateScaleUi", "updateRateUi", "applyPlanVisibility", "applyPlanRotation", "renderLightingSchemeSelect", "renderProjectWallTypeSelect",
     "renderProjectBacklight",

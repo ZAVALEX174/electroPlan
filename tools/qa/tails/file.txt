@@ -25,7 +25,9 @@
       buttons:["projectConfirmCancel","projectConfirmProceed","projectConfirmDownload"].map(function(i){var b=document.getElementById(i);return {id:i,text:b.textContent.trim(),visible:!!b.offsetParent};})};`);
   const openFile = (text, name) => ev(`var dt=new DataTransfer();dt.items.add(new File([${JSON.stringify(text)}],${JSON.stringify(name)},{type:"application/json"}));
     var i=document.getElementById("openProjectInput");i.files=dt.files;i.dispatchEvent(new Event("change",{bubbles:true}));return 1;`);
-  const reloadWait = async () => { await sleep(5000); await hook(); };
+  // После перезагрузки на пустом проекте окно «Данные проекта и КП» (EPProjectSetup) открывается само и
+  // перекрыло бы холст/кнопки шапки — закрываем его, как человек кнопкой «Готово» (его тест — kpsetup).
+  const reloadWait = async () => { await sleep(5000); await ev('const m=document.getElementById("kpSetupModal");if(m)m.classList.remove("open");return 1;'); await hook(); };
 
   await setVal($("currencySelect"), "EUR"); await sleep(400);
   await hook();

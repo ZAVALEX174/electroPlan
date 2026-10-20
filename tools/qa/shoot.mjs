@@ -61,6 +61,10 @@ async function main() {
     if (r.exceptionDetails) throw new Error("JS: " + JSON.stringify(r.exceptionDetails).slice(0, 400));
     return r.result.value;
   };
+  // Окно «Данные проекта и КП» (EPProjectSetup) на чистом старте (профиль QA пересоздаётся — проекта нет)
+  // открывается само и перекрыло бы холст. Закрываем его, как человек кнопкой «Готово», чтобы сценарий
+  // работал с планом. Собственный тест авто-открытия — tails/kpsetup.txt (там оно и проверяется).
+  await ev('const m=document.getElementById("kpSetupModal");if(m)m.classList.remove("open");return 1;');
   const rect = async (sel) => ev(`const e=${sel};if(!e)return null;e.scrollIntoView({block:"center",inline:"nearest"});const r=e.getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height};`);
   const mouse = async (x, y, type) => c.send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 });
   const click = async (sel, dx = null, dy = null) => {

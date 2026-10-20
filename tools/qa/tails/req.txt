@@ -1,4 +1,7 @@
   // --- A5: реквизиты КП («Мои» + «Заказчик», галочки «показывать в КП») ---
+  // Поля реквизитов переехали в окно «Данные проекта и КП» (EPProjectSetup): открываем его кнопкой
+  // шапки, чтобы заполнять и снимать панель. Значения пишутся теми же функциями app.js по id.
+  await click($("kpDataBtn")); await sleep(400);
   // Селекторы полей/галочек блоков реквизитов (строятся app.js из EPDocRequisites).
   const reqField = (block, key) => `document.querySelector('[data-req-block="${block}"][data-req-key="${key}"]')`;
   const reqCheck = (block, key) => `document.querySelector('[data-req-block="${block}"][data-req-check="${key}"]')`;
@@ -30,6 +33,9 @@
   // Снимок панели (обведены оба блока и галочка «Разработчик»).
   await ev(`document.querySelector(".doc-requisites").scrollIntoView({block:"center"});return 1;`); await sleep(300);
   await shot("req-panel", [`document.getElementById("myRequisites")`, `document.getElementById("customerRequisites")`, `document.getElementById("docDeveloperShow")`]);
+
+  // Закрываем окно «Готово» — иначе его подложка перекрыла бы кнопку «КП» в шапке.
+  await click($("kpSetupDone")); await sleep(300);
 
   // Печать КП: перехватываем окно, копим HTML в window.__kp (как в num/disc).
   await ev('window.__kp="";window.open=()=>({closed:false,document:{open(){},write(h){window.__kp+=h},close(){},title:""},focus(){},print(){},close(){},addEventListener(){},location:{}});return 1;');
