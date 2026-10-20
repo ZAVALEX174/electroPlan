@@ -179,6 +179,11 @@ async function main() {
   await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(300);
 
   // --- Подпись и печать ---
+  // Кнопки «Логотип…», «Подпись…», «Печать…» переехали в окно «Данные проекта и КП»
+  // (#kpSetupModal). На старте сценарий его закрыл (строка 67), поэтому перед секцией
+  // открываем его, как человек, — кнопкой «Данные КП» в шапке; иначе клики по docLogoBtn/
+  // docSignatureBtn/docStampBtn бьют по скрытым элементам и секция падает.
+  await click($("kpDataBtn")); await sleep(400);
   const mk = async (kind) => ev(`const c=document.createElement("canvas");c.width=360;c.height=${kind === "sig" ? 140 : 360};const g=c.getContext("2d");
     if(${kind === "sig"}){g.strokeStyle="#1d3a8a";g.lineWidth=5;g.lineCap="round";g.beginPath();g.moveTo(20,100);g.bezierCurveTo(60,10,90,130,130,60);g.bezierCurveTo(160,20,180,120,220,70);g.bezierCurveTo(250,40,280,110,340,50);g.stroke();}
     else{g.strokeStyle="rgba(29,58,138,.85)";g.lineWidth=8;g.beginPath();g.arc(180,180,160,0,7);g.stroke();g.lineWidth=3;g.beginPath();g.arc(180,180,120,0,7);g.stroke();g.fillStyle="rgba(29,58,138,.85)";g.font="bold 34px Arial";g.textAlign="center";g.fillText("ОБРАЗЕЦ",180,170);g.font="22px Arial";g.fillText("ПЕЧАТЬ",180,210);}
@@ -195,6 +200,9 @@ async function main() {
   }
   await ev(`document.getElementById("docStampBtn").scrollIntoView({block:"center"});return 1;`); await sleep(300);
   await shot("sign-loaded", [`document.getElementById("docSignaturePreview")`, `document.getElementById("docStampPreview")`]);
+  // Закрываем окно «Данные проекта и КП» кнопкой «Готово»: кнопка «Коммерческое предложение PDF»
+  // (#pdfBtn) живёт в шапке рабочего экрана, вне модалки, и под открытым окном была бы перекрыта.
+  await click($("kpSetupDone")); await sleep(400);
 
   // КП — новое окно
   await ev('window.__kp="";window.open=()=>({closed:false,document:{open(){},write(h){window.__kp+=h},close(){},title:""},focus(){},print(){},close(){},addEventListener(){},location:{}});return 1;');

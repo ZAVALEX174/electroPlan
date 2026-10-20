@@ -305,7 +305,7 @@ const f09679 = { code: "09679.01", standard: "IT", slotCount: 2, series: ["Neve 
 const EIKON_CENTRAL_SUP = [
   { code: "21601.0", price: 1.80, kind: "support", standard: "BOTH", moduleCount: 1, series: ["Eikon Vintage", "Eikon Flat"], principle: "1M_CENTRAL", boxModularity: 2 },
   { code: "21612", price: 2.90, kind: "support", standard: "IT", moduleCount: 2, series: ["Eikon Vintage", "Eikon Flat"], principle: "2M_CENTRAL", boxModularity: 3 },
-  { code: "21613", price: 2.50, kind: "support", standard: "IT", moduleCount: 3, series: ["Eikon Vintage", "Eikon Flat"] },
+  { code: "21613", price: 2.50, kind: "support", standard: "IT", moduleCount: 3, series: ["Eikon"] },   // в каталоге серия базовая «Eikon» — годна всем подсериям (Vintage/Flat/Tondo)
 ];
 const f22673 = { code: "22673.1.01", standard: "IT", slotCount: 1, series: ["Eikon Vintage"], principle: "1M_CENTRAL_3", boxModularity: 3 };
 const f22683 = { code: "22683.1.01", standard: "IT", slotCount: 1, series: ["Eikon Flat"], principle: "1M_CENTRAL_3", boxModularity: 3 };
@@ -324,16 +324,31 @@ test("resolveSupport 09679: вторая накладка Neve Up (2_OFFSET) —
   assert.equal(r.support.code, "09613");
   assert.equal(r.assumed, false, "подтверждение по КОЛЛЕКЦИИ, а не по принципу монтажа — 2_OFFSET тоже снят");
 });
-test("resolveSupport 22673.1 / 22683.1: Eikon заказчик НЕ называл — пометка ОСТАЁТСЯ", () => {
-  /* Eikon Vintage/Flat садятся на суппорт 21613 по тому же общему правилу, что и Neve Up, но
-     подтверждения заказчика по ним нет — assumed обязан остаться true. Иначе пометка снялась бы
-     у всех центральных накладок, а заказчик высказался лишь про Neve Up. */
+test("resolveSupport 22673.1 / 22683.1: заказчик НАЗВАЛ 21613 (20.10) — пометка СНЯТА", () => {
+  /* Заказчик 20.10: «Суппорт для всех типов рамок 22673 и 22683 вне зависимости от количества
+     отверстий всегда 21613». Поимённая пара (FRAME_SUPPORT_OVERRIDE, шаг 0) задаёт 21613 адресно,
+     поэтому assumed=false: артикул назван заказчиком, а не подобран нами. Прежде эти 12 Eikon
+     оставались помеченными — теперь нет. */
   const vintage = resolveSupport({ supports: EIKON_CENTRAL_SUP, frame: f22673, standard: "IT", frameModules: 1, box: BOX.V71303, seriesOf: p => p.series });
-  assert.equal(vintage.support.code, "21613", "суппорт Eikon не менялся");
-  assert.equal(vintage.assumed, true, "Eikon Vintage — заказчик суппорт не называл");
+  assert.equal(vintage.support.code, "21613", "суппорт Eikon Vintage — 21613");
+  assert.equal(vintage.assumed, false, "заказчик назвал 21613 поимённо (20.10)");
   const flat = resolveSupport({ supports: EIKON_CENTRAL_SUP, frame: f22683, standard: "IT", frameModules: 1, box: BOX.V71303, seriesOf: p => p.series });
   assert.equal(flat.support.code, "21613");
-  assert.equal(flat.assumed, true, "Eikon Flat — пометка тоже остаётся");
+  assert.equal(flat.assumed, false, "Eikon Flat — пометка тоже снята");
+});
+test("resolveSupport 22673/22683: поимённая пара 21613 ГЛАВНЕЕ парного 21612 и числа отверстий", () => {
+  /* Накладка «на 2 выключателя» (2M_CENTRAL, коробка на 3) по шагу 1 брала центральный 21612.
+     Поимённое указание заказчика (20.10) главнее: все накладки 22673 и 22683 дают 21613, вне
+     зависимости от количества отверстий. Мутация: убрать шаг 0 (FRAME_SUPPORT_OVERRIDE) — вернётся 21612, тест
+     покраснеет. Также Eikon Tondo 22683.RN.* (первый сегмент тоже 22683) попадает под правило. */
+  const f22673_2 = { code: "22673.2.01", standard: "IT", slotCount: 2, series: ["Eikon Vintage"], principle: "2M_CENTRAL", boxModularity: 3 };
+  const f22683_rn = { code: "22683.RN.1.01", standard: "IT", slotCount: 1, series: ["Eikon Tondo"], principle: "1M_CENTRAL_3", boxModularity: 3 };
+  const r2 = resolveSupport({ supports: EIKON_CENTRAL_SUP, frame: f22673_2, standard: "IT", frameModules: 2, box: BOX.V71303, seriesOf: p => p.series });
+  assert.equal(r2.support.code, "21613", "поимённая пара победила парный 21612");
+  assert.equal(r2.assumed, false);
+  const rrn = resolveSupport({ supports: EIKON_CENTRAL_SUP, frame: f22683_rn, standard: "IT", frameModules: 1, box: BOX.V71303, seriesOf: p => p.series });
+  assert.equal(rrn.support.code, "21613", "Eikon Tondo 22683.RN — тоже 21613");
+  assert.equal(rrn.assumed, false);
 });
 test("resolveSupport: подтверждён только НАЗВАННЫЙ артикул 09613, не любой 3М-суппорт Neve Up", () => {
   /* Заказчик назвал КОНКРЕТНЫЙ код. Если в обещанном новом прайсе появится ВТОРОЙ 3М-суппорт

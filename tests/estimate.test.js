@@ -434,16 +434,21 @@ test("подтверждённый суппорт печатается БЕЗ п
 test("документ (смета): пост Neve Up 09671 печатается БЕЗ «(предположительно)» — сквозной путь", () => {
   /* Сквозная проверка правки: реальный EPPostFit.resolveSupport → postComposition → build.
      Заказчик подтвердил суппорт Neve Up (ответ на письмо 26.08) — в НАПЕЧАТАННОМ составе поста
-     пометки быть не должно. Eikon рядом (22673.1) её сохраняет — иначе тест был бы тавтологией. */
+     пометки быть не должно. Для контраста (иначе тест был бы тавтологией) рядом — синтетическая
+     Plana-накладка с монтажным правилом, но БЕЗ пары и БЕЗ поимённого указания заказчика: её
+     суппорт подобран общим шагом 3, остаётся assumed. Eikon 22673.1 для контраста больше не годится:
+     заказчик назвал 21613 поимённо (20.10) — теперь он подтверждён. */
   const frame09671 = { id: 71, code: "09671.01", kind: "frame", name: "Накладка Neve Up 09671", standard: "IT", slotCount: 1, series: ["Neve Up"], principle: "1M_CENTRAL_3", boxModularity: 3, price: 3.12 };
+  const framePlana = { id: 74, code: "14653.X", kind: "frame", name: "Накладка Plana 14653", standard: "IT", slotCount: 1, series: ["Plana"], principle: "1M_CENTRAL_3", boxModularity: 3, price: 5.0 };
   const frame22673 = { id: 73, code: "22673.1.01", kind: "frame", name: "Накладка Eikon Vintage 22673", standard: "IT", slotCount: 1, series: ["Eikon Vintage"], principle: "1M_CENTRAL_3", boxModularity: 3, price: 5.0 };
   const sup09613 = { id: 613, code: "09613", kind: "support", name: "Суппорт 09613", standard: "IT", moduleCount: 3, series: ["Neve Up"], price: 1.48 };
-  const sup21613 = { id: 216, code: "21613", kind: "support", name: "Суппорт 21613", standard: "IT", moduleCount: 3, series: ["Eikon Vintage"], price: 2.50 };
+  const sup14613 = { id: 146, code: "14613", kind: "support", name: "Суппорт 14613", standard: "IT", moduleCount: 3, series: ["Plana"], price: 2.20 };
+  const sup21613 = { id: 216, code: "21613", kind: "support", name: "Суппорт 21613", standard: "IT", moduleCount: 3, series: ["Eikon"], price: 2.50 };
   const box3 = { id: 3, code: "V71303", kind: "socket_box", name: "Коробка 3М", wallType: "solid", boxShape: "rect", boxModules: 3, boxStandards: ["IT"], price: 1.04 };
   const mech = { id: 1, code: "M1", kind: "mechanism", name: "Механизм", price: 5, moduleSpan: 1 };
-  const cat = { 71: frame09671, 73: frame22673, 613: sup09613, 216: sup21613, 3: box3, 1: mech };
+  const cat = { 71: frame09671, 74: framePlana, 73: frame22673, 613: sup09613, 146: sup14613, 216: sup21613, 3: box3, 1: mech };
   const productSeries = p => (p && p.series) || [];
-  const supports = [sup09613, sup21613];
+  const supports = [sup09613, sup14613, sup21613];
   /* deps.resolveSupport оборачивает чистый EPPostFit.resolveSupport, подкладывая пул суппортов
      и seriesOf — ровно как app.js (postComposition их не передаёт). */
   const deps = {
@@ -457,12 +462,17 @@ test("документ (смета): пост Neve Up 09671 печатается
   assert.equal(compNeve.supportAssumed, false, "Neve Up подтверждён — флага нет уже в составе");
   const compEikon = POSTS.postComposition({ frameId: 73, mechanismIds: [1] }, deps);
   assert.equal(compEikon.support.code, "21613");
-  assert.equal(compEikon.supportAssumed, true, "Eikon не подтверждён — флаг остаётся");
+  assert.equal(compEikon.supportAssumed, false, "Eikon 22673 — заказчик назвал 21613 поимённо (20.10), пометки нет");
+  const compPlana = POSTS.postComposition({ frameId: 74, mechanismIds: [1] }, deps);
+  assert.equal(compPlana.support.code, "14613");
+  assert.equal(compPlana.supportAssumed, true, "Plana без пары и без поимённого указания — флаг остаётся");
 
   const eNeve = run({ posts: [{ name: "Пост Neve Up", frameId: 71, mechanismIds: [1] }], postCost: () => 1, postComposition: () => compNeve });
   assert.ok(!/предположительно/.test(eNeve.groups[0].composition), "в напечатанном составе Neve Up пометки нет");
   const eEikon = run({ posts: [{ name: "Пост Eikon", frameId: 73, mechanismIds: [1] }], postCost: () => 1, postComposition: () => compEikon });
-  assert.match(eEikon.groups[0].composition, /предположительно/, "у Eikon пометка на месте — тест не тавтология");
+  assert.ok(!/предположительно/.test(eEikon.groups[0].composition), "у Eikon 22673 пометки больше нет — назван заказчиком");
+  const ePlana = run({ posts: [{ name: "Пост Plana", frameId: 74, mechanismIds: [1] }], postCost: () => 1, postComposition: () => compPlana });
+  assert.match(ePlana.groups[0].composition, /предположительно/, "у Plana пометка на месте — тест не тавтология");
 });
 
 test("нулевые проценты дают чистое оборудование", () => {
