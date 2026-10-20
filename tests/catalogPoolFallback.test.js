@@ -17,6 +17,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const POOL = require("../js/catalogPool.js");
 const PF = require("../js/postfit.js");
+const BP = require("../js/backlightPick.js");
 
 /* ── pick в изоляции ─────────────────────────────────────────────────────── */
 test("pick: активная найдена → запас из снятых НЕ запрашивается", () => {
@@ -84,13 +85,15 @@ test("сохранённый пост Arke Fit 19953.01: суппорт берё
   }
 });
 
-test("подсветка 120 В: активной нет → берётся снятая 00936.120.*", () => {
-  const mech = PRODUCTS.find(p => p.askBacklight && Number(p.backlightPosition) === 3 && p.active);
-  assert.ok(mech, "есть активный механизм под подсветку pos3");
+test("подсветка 120 В: активной нет → берётся снятая 00936.120.* (EPBacklightPick, как в app.js)", () => {
+  // Обычная клавиша (класс ordinary). Подбор идёт через EPBacklightPick.pick двухпроходным пулом —
+  // ровно так, как findBacklight в app.js, которым и пользуется приложение (не старый EPPostFit).
+  const mech = PRODUCTS.find(p => p.kind === "mechanism" && BP.classify(p) === "ordinary" && p.active);
+  assert.ok(mech, "есть активная обычная клавиша");
   const opts = { mechanism: mech, color: "Белая", voltage: "120V" };
-  const activeOnly = PF.findBacklight(Object.assign({ accessories: act("accessory") }, opts));
+  const activeOnly = BP.pick(Object.assign({ accessories: act("accessory") }, opts));
   assert.equal(activeOnly, null, "активной подсветки 120 В нет");
-  const bl = POOL.pick(accessories => PF.findBacklight(Object.assign({ accessories }, opts)), act("accessory"), off("accessory"), a => !!a);
+  const bl = POOL.pick(accessories => BP.pick(Object.assign({ accessories }, opts)), act("accessory"), off("accessory"), a => !!a);
   assert.ok(bl, "подсветка 120 В подобрана из запаса");
   assert.equal(bl.active, false, "это снятый вариант");
   assert.match(bl.code, /^00936\.120/);

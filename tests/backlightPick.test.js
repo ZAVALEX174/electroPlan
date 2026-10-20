@@ -16,13 +16,32 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
+const POOL = require("../js/catalogPool.js");
 const BP = require("../js/backlightPick.js");
 
 const CATALOG = stand.loadVimarCatalog();
 const PRODUCTS = CATALOG.products || [];
 const ACCESSORIES = PRODUCTS.filter(p => p.kind === "accessory");
 const byCode = code => PRODUCTS.find(p => String(p.code) === code);
+
+/* Снятые позиции (Д2): нужны для 120 В (00936.120.*) и снятых осевых Arke 19101/19105 —
+   они живут только в каталоге снятого. Пул подбора — активные + снятые, как в app.js. */
+const DISCONTINUED = (() => {
+  const win = {};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "js", "catalog-vimar-discontinued.js"), "utf8"), { window: win });
+  return (win.EP_VIMAR_DISCONTINUED && win.EP_VIMAR_DISCONTINUED.products) || [];
+})();
+const ALL = PRODUCTS.concat(DISCONTINUED);
+const byCodeAll = code => ALL.find(p => String(p.code) === code);
+const ACC_ACTIVE = ALL.filter(p => p.kind === "accessory" && p.active);
+const ACC_OFF = ALL.filter(p => p.kind === "accessory" && !p.active);
+/* Двухпроходный подбор по пулу (активные → запас из снятых) — копия связки app.js findBacklight. */
+const pickPooled = (code, color, voltage) =>
+  POOL.pick(acc => BP.pick({ mechanism: byCodeAll(code), color, voltage, accessories: acc }), ACC_ACTIVE, ACC_OFF, a => !!a);
 
 /* Подбор на настоящем пуле аксессуаров (как делает приложение через findBacklight). */
 const pick = (code, color, voltage) =>
@@ -120,6 +139,36 @@ test("клавиша без символов и 31506 → null даже при �
   assert.equal(pick("31506.B", "Белая", "110-250V"), null);
 });
 
-test("напряжение 120 В в правило не входит → null (легаси, заказчик не заказывал)", () => {
-  assert.equal(pick("20021", "Белая", "120V"), null);
+/* --- 5. Фолбэк по askBacklight/backlightPosition (осевые семейства, снятые) ------------- */
+
+test("осевые устройства 20105/20108/20113 → axial, 00937/00938 (не теряются без явного списка)", () => {
+  ["20105", "20108", "20113"].forEach(code => {
+    assert.equal(BP.classify(byCode(code)), "axial", code);
+    assert.equal(pick(code, "Белая", "12-24V").code, "00937.W", code + " 12-24V");
+    assert.equal(pick(code, "Белая", "110-250V").code, "00938.W", code + " 230V");
+  });
+});
+
+test("снятые осевые Arke 19101/19105 → axial, светодиод из запаса (дефект сохранённых проектов)", () => {
+  ["19101", "19101.2.B", "19105", "19105.B"].forEach(code => {
+    assert.equal(BP.classify(byCodeAll(code)), "axial", code);
+  });
+  // полный путь app.js: активных нет → двухпроходный пул даёт осевой LED, а не молчит
+  assert.equal(pickPooled("19101", "Белая", "110-250V").code, "00938.W");
+  assert.equal(pickPooled("19105.B", "Белая", "12-24V").code, "00937.W");
+});
+
+/* --- 6. 120 В — обратная совместимость сохранённых проектов (Д2) ------------------------ */
+
+test("120 В: обычная клавиша 19021 через пул → снятый 00936.120.* (а не null/пробел)", () => {
+  // в активном пуле 120 В нет — честный null; через двухпроходный пул берётся снятый вариант.
+  assert.equal(pick("19021", "Белая", "120V"), null);
+  const bl = pickPooled("19021", "Белая", "120V");
+  assert.ok(bl && bl.active === false, "подобран снятый вариант 120 В");
+  assert.equal(bl.code, "00936.120.W");
+});
+
+test("120 В только у обычных клавиш: осевая/LINEA на 120 В → честный пробел (null)", () => {
+  assert.equal(pickPooled("14131", "Белая", "120V"), null, "осевая 120 В — нет семейства");
+  assert.equal(pickPooled("31000.B", "Белая", "120V"), null, "LINEA 120 В — нет семейства");
 });
