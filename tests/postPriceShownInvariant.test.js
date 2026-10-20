@@ -42,7 +42,7 @@ const PRODUCTS = win.EP_DATA.products;
 function makeApp(settings) {
   const EP_DATA = { settings };
   const state = { products: PRODUCTS };
-  const ctx = vm.createContext({ state, EP_DATA, EPPostFit, EPPosts, EPCatalog, EPCatalogPool: require("../js/catalogPool.js"), console });
+  const ctx = vm.createContext({ state, EP_DATA, EPPostFit, EPPosts, EPCatalog, EPCatalogPool: require("../js/catalogPool.js"), EPBacklightPick: require("../js/backlightPick.js"), console });
   const code = [
     "const {moduleWord,mechanismSpan,productSeries,compatibleMechanisms,frameSlotCount,frameSlotOptions}=EPCatalog;",
     stand.constBlock("product"), stand.constBlock("byKind"), stand.constBlock("byKindOff"), stand.constBlock("socketBox"),

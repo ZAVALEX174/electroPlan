@@ -17,10 +17,11 @@ const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
 const EPPosts = require("../js/posts.js");
 const EPPostFit = require("../js/postfit.js");
+const EPBacklightPick = require("../js/backlightPick.js");
 
-/* Механизм принимает подсветку (askBacklight, позиция 3 — обычная клавиша), цена 10.
-   Аксессуар-подсветка «Белая / 110-250V» (напряжение читается из семейства кода 00936.250), цена 5. */
-const MECH = { id: 1, code: "20001.0", kind: "mechanism", active: true, askBacklight: true, backlightPosition: 3, price: 10 };
+/* Обычная клавиша Arke 19021 (класс ordinary по EPBacklightPick) — подсветку принимает, цена 10.
+   Аксессуар-подсветка «Белая / 110-250V» семейства 00936.250 (светодиод внизу), цена 5. */
+const MECH = { id: 1, code: "19021", kind: "mechanism", active: true, series: ["Arke"], price: 10 };
 const ACC = { id: 9, code: "00936.250.W", kind: "accessory", active: true, askBacklight: true, backlightPosition: 3, backlightColor: "Белая", price: 5 };
 const BY_ID = { 1: MECH, 9: ACC };
 const POST = { id: "p1", frameId: null, mechanismIds: [1] };
@@ -42,6 +43,7 @@ function costWith(backlight) {
     findSupport: () => null,
     resolveSupport: () => ({ support: null, assumed: false }),
     EPPostFit,
+    EPBacklightPick,
     EP_DATA: { settings },
     byKind: kind => { poolCalls.push(kind); return kind === "accessory" ? [ACC] : []; },
     /* Д2: двухпроходный пул (активные + снятые). Снятых в этом тесте нет → запас пуст, подбор

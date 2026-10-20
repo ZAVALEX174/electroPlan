@@ -231,9 +231,10 @@ const findSupport=({frame,standard,modules,box}={})=>EPCatalogPool.pick(supports
    состава, где он печатается пометкой «(предположительно)». */
 const resolveSupport=({frame,standard,modules,box}={})=>EPCatalogPool.pick(supports=>EPPostFit.resolveSupport({
   supports,frame,standard,modules,frameModules:frameSlotCount(frame),seriesOf:productSeries,box}),byKind("support"),byKindOff("support"),r=>supportFound(r,frame));
-/* Подбор аксессуара-подсветки под механизм — чистый EPPostFit.findBacklight; активные аксессуары
-   главнее, снятые (напр. снятый вариант 120 В в сохранённом проекте) — запас (Д2). */
-const findBacklight=(opts)=>EPCatalogPool.pick(accessories=>EPPostFit.findBacklight(Object.assign({accessories},opts||{})),byKind("accessory"),byKindOff("accessory"),a=>!!a);
+/* Подбор аксессуара-подсветки под механизм — чистое правило ПО ТИПУ КЛАВИШИ
+   (EPBacklightPick.pick, ОЗ-1): класс клавиши + напряжение + цвет → артикул светодиода.
+   Активные аксессуары главнее, снятые — запас (Д2). */
+const findBacklight=(opts)=>EPCatalogPool.pick(accessories=>EPBacklightPick.pick(Object.assign({accessories},opts||{})),byKind("accessory"),byKindOff("accessory"),a=>!!a);
 /* Единый набор зависимостей для чистой логики поста (EPPosts): каталог, подбор
    суппорта/коробки (точный findBox + стандартно-совместимый фолбэк fallbackBox), признак
    «суппорт вообще не нужен» (крышки IP55 по номенклатуре монтируются без планки), дефолт
@@ -243,7 +244,9 @@ const findBacklight=(opts)=>EPCatalogPool.pick(accessories=>EPPostFit.findBackli
    при отсутствии settings.backlight — состав и цена остаются прежними. */
 const postDeps=()=>({product,frameProduct,socketBox,mechanismSpan,findBox,fallbackBox,findSupport,resolveSupport,
   supportRequired:EPPostFit.supportRequired,wallType:"solid",
-  findBacklight,backlight:EP_DATA.settings.backlight||{enabled:false}});
+  /* acceptsBacklight — тот же EPBacklightPick, что и подбор: признак «клавиша принимает подсветку»
+     даёт класс клавиши, а не поле askBacklight каталога (у новых клавиш оно неверное — см. модуль). */
+  findBacklight,acceptsBacklight:EPBacklightPick.accepts,backlight:EP_DATA.settings.backlight||{enabled:false}});
 const postCost=p=>EPPosts.postCost(p,postDeps());
 const postComposition=p=>EPPosts.postComposition(p,postDeps());
 /* Единое изображение собранного поста (EPPostImage): собираем spec из каталога — накладка,
