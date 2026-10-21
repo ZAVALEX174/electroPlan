@@ -140,8 +140,12 @@ test("В26: цена поста (postPriceShown) == «Цена» строки с
       /* Ключ строки → индекс (та же группировка build, что у specShown). */
       const idx = new Map();
       est.groups.forEach((g, j) => idx.set(g.key, j));
-      /* specShown полной сметы по каждому курсу — ОДИН раз на проект (не в цикле постов). */
-      const specByRate = new Map(RATES.map(rate => [rate, EPEstimate.specShown(est, rate)]));
+      /* specShown полной сметы по каждому курсу И валюте показа — ОДИН раз на проект (не в цикле
+         постов). К7: в рублях цена изделия вверх до рубля, в евро — копейка; инвариант «цена поста =
+         «Цена» строки» обязан держаться в ОБЕИХ валютах (ядро pricedUnit получает currency). */
+      const CURR = ["EUR", "RUB"];
+      const specByKey = new Map();
+      for (const rate of RATES) for (const cur of CURR) specByKey.set(rate + "|" + cur, EPEstimate.specShown(est, rate, cur));
       if (settings.backlight.enabled) kinds.backlight += ps.length;
       ps.forEach((p, pi) => {
         posts++;
@@ -155,30 +159,31 @@ test("В26: цена поста (postPriceShown) == «Цена» строки с
         /* 5 КУРСОВ — через ядро pricedUnit (оно и у postPriceShown, и у строки спецификации): цена
            единицы строки одиночного поста обязана совпасть с «Ценой» строки того же поста в полной
            смете до копейки при любом курсе. Это мат.инвариант, build не повторяем. */
-        for (const rate of RATES) {
+        for (const rate of RATES) for (const cur of CURR) {
           rateChecks++;
-          const unit = one ? EPEstimate.pricedUnit(one.items, rate).price : 0;
-          const specRows = specByRate.get(rate).rows;
+          const unit = one ? EPEstimate.pricedUnit(one.items, rate, cur).price : 0;
+          const specRows = specByKey.get(rate + "|" + cur).rows;
           const rowPrice = (j != null && specRows[j]) ? specRows[j].price : null;
           if (rowPrice == null) {
             mismatch++;
-            if (samples.length < 5) samples.push({ why: "нет строки", rate, key: one && one.key, post: p });
+            if (samples.length < 5) samples.push({ why: "нет строки", rate, cur, key: one && one.key, post: p });
             continue;
           }
           if (K(unit) !== K(rowPrice)) {
             mismatch++;
-            if (samples.length < 5) samples.push({ rate, unit, rowPrice, post: p });
+            if (samples.length < 5) samples.push({ rate, cur, unit, rowPrice, post: p });
           }
         }
         /* Сама ОБЁРТКА postPriceShown (build одного поста + pricedUnit) — проверяем на НАСТОЯЩЕМ
-           вызове, по одному курсу на пост (ротация по индексу покрывает все пять): её результат
-           обязан равняться ядру на том же составе. */
+           вызове, по одному курсу и валюте на пост (ротация по индексу покрывает все сочетания): её
+           результат обязан равняться ядру на том же составе. */
         const rate = RATES[(i + pi) % RATES.length];
-        const pp = EPEstimate.postPriceShown(p, deps, rate);
-        const unit = one ? EPEstimate.pricedUnit(one.items, rate).price : 0;
+        const cur = CURR[(i + pi) % CURR.length];
+        const pp = EPEstimate.postPriceShown(p, deps, rate, cur);
+        const unit = one ? EPEstimate.pricedUnit(one.items, rate, cur).price : 0;
         if (K(pp) !== K(unit)) {
           wireMismatch++;
-          if (samples.length < 5) samples.push({ wire: true, rate, postPriceShown: pp, unit, post: p });
+          if (samples.length < 5) samples.push({ wire: true, rate, cur, postPriceShown: pp, unit, post: p });
         }
         /* Евро при курсе 1 не изменилось против HEAD-пути: postPrice от postCost по ЭФФЕКТИВНЫМ
            механизмам (замена цельных изделий), округлённого до цента. Цену в евро берём ядром по

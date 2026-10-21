@@ -239,7 +239,7 @@ for (const [currency, rate] of [["EUR", 1], ["RUB", 95.37 * 1.03]]) {
   test(`Б: панель, КП и Excel дают ОДНИ И ТЕ ЖЕ числа (${currency}, surcharge 20%)`, () => {
     /* Оборудование с долями копейки, проценты ненулевые (В26: строки — процент от «Оборудования»). */
     const est = estOf({ equipment: 1264.285, discountPercent: 10, materialsPercent: 20, workPercent: 7, vatMode: "surcharge", vatPercent: 20 });
-    const t = EPEstimate.totalsShown(est, rate);
+    const t = EPEstimate.totalsShown(est, rate, currency);
 
     const kp = kpTotals(est, rate, currency);
     assert.equal(kp.equipment, f2(t.equipment), "КП: оборудование = totalsShown");
@@ -248,7 +248,7 @@ for (const [currency, rate] of [["EUR", 1], ["RUB", 95.37 * 1.03]]) {
     assert.equal(kp.subtotal, f2(t.subtotal), "КП: «Итого без НДС» = totalsShown");
     assert.equal(kp.grand, f2(t.total), "КП: итог = totalsShown");
 
-    const panel = panelTotals(est, rate);
+    const panel = panelTotals(est, rate, currency);
     assert.equal(panel.equipment, f2(t.equipment), "панель: оборудование = КП");
     assert.equal(panel.materials, f2(t.materials), "панель: материалы = КП");
     assert.equal(panel.work, f2(t.work), "панель: работы = КП");
@@ -280,12 +280,11 @@ function appMoney(rate, currency) {
 }
 
 /* Проект из ОДНОЙ позиции: equipment = сумма этой строки, поэтому «Сумма» и «Оборудование» обязаны
-   совпасть до копейки. 79,21 € × 92,5 = 7 326,9249… — форматтер без round2 напечатал бы 7 326,92,
-   round2 даёт 7 326,93 (ловит M13); 6,01 € × 92,5 = 555,925 → 555,93 (двоичного дребезга тут нет —
-   проверяем саму сходимость строки и итога). */
+   совпасть. В рублях (К7) — ЦЕЛЫЙ рубль ВВЕРХ: 6,01 € × 92,5 = 555,925 → 556; 79,21 € × 92,5 =
+   7 326,9249… → 7 327. Проверяем саму сходимость строки спецификации и итога на НАСТОЯЩЕМ пути app.js. */
 const digitsOf = s => String(s).replace(/[^\d,]/g, "");
-for (const [price, exp] of [[6.01, "555,93"], [79.21, "7326,93"]]) {
-  test(`Строка «Сумма» = «Оборудование» на настоящем пути app.js (${price} € × 92,5 → ${exp})`, () => {
+for (const [price, exp] of [[6.01, "556"], [79.21, "7327"]]) {
+  test(`Строка «Сумма» = «Оборудование» на настоящем пути app.js (${price} € × 92,5 → ${exp} ₽)`, () => {
     const { money, moneyShown } = appMoney(92.5, "RUB");
     const est = EPEstimate.build({
       devices: [{ productId: 1 }], posts: [],
@@ -306,12 +305,13 @@ for (const [price, exp] of [[6.01, "555,93"], [79.21, "7326,93"]]) {
 }
 
 /* Контракт app.js moneyShown (app.js:85): форматирует УЖЕ-показанное число, СНЯВ двоичный дребезг
-   через EPEstimate.round2. После В26 строки спецификации приходят уже округлёнными (specShown), и дребезг
-   им снимать нечего, но moneyShown обязан округлять ЛЮБОЙ вход — им форматируются и цены через money()
-   (сырое евро × курс, см. окно поста/подсказку). Проверяем на дробном произведении напрямую: ловит
-   мутацию M13 (moneyShown печатает сырой double мимо round2). */
+   через EPEstimate.roundShown. В ЕВРО (путь копеек не менялся в К7) это round2: moneyShown обязан
+   округлять ЛЮБОЙ вход — им форматируются и цены через money() (сырое евро × курс, см. окно поста/
+   подсказку). Проверяем на дробном произведении напрямую: ловит мутацию M13 (moneyShown печатает
+   сырой double мимо округления). Валюта — EUR: именно евро-копейка держит этот дребезг (в рублях
+   число целое, и дребезг незаметен — отдельная граница ceilRub проверена в estimate.test.js). */
 test("app.js moneyShown: округляет вход до копейки перед показом (ловит M13)", () => {
-  const { moneyShown } = appMoney(1, "RUB");
+  const { moneyShown } = appMoney(1, "EUR");
   /* 79,21 € × 92,5 = 7 326,9249… в double: round2 → 7 326,93; Intl без round2 напечатал бы 7 326,92. */
   assert.equal(digitsOf(moneyShown(79.21 * 92.5)), "7326,93", "moneyShown снимает двоичный дребезг (round2)");
 });
@@ -321,9 +321,9 @@ test("app.js moneyShown: округляет вход до копейки пер�
    «по изделиям», что «Оборудование» и «Сумма» строк КП/Excel. Прежний путь money(g.sum) брал СЫРОЕ евро
    строки build и умножал на курс ещё раз — на дробном курсе это расходилось со «Σ по изделиям» на пол-
    копейки. Прогоняем НАСТОЯЩИЙ renderSummary из app.js (стенд appStand) с НАСТОЯЩИМИ money/moneyShown,
-   вырезанными из app.js, на входе с половинкой копейки: 15 × 68,07 € при курсе 95,5. Σ по изделиям —
-   97 510,35 ₽ (round2(68,07×95,5)=6 500,69 × 15), старый money(g.sum) дал бы round2(1021,05×95,5)=97 510,28.
-   Ловит мутацию M26 (money(g.sum)). */
+   вырезанными из app.js, на входе с половинкой копейки: 15 × 68,07 € при курсе 95,5. В рублях (К7)
+   цена изделия ВВЕРХ до рубля: ceil(68,07×95,5)=6 501, сумма = ceil(6 501×15)=97 515 ₽. Старый
+   money(g.sum) дал бы ceil(1021,05×95,5)=97 511 — на 4 рубля меньше. Ловит мутацию M26 (money(g.sum)). */
 test("В26 A14: панель — сумма строки спецификации и «Оборудование» = Σ по изделиям (ловит M26)", () => {
   const rate = 95.5;
   const { money, moneyShown } = appMoney(rate, "RUB");
@@ -335,14 +335,14 @@ test("В26 A14: панель — сумма строки спецификаци�
   const dom = stand.makeDom();
   const run = stand.run("renderSummary", {
     state: { rooms: [], devices: [], posts: [] },
-    EPEstimate, $: dom.$, money, moneyShown, displayRate: () => rate,
+    EPEstimate, $: dom.$, money, moneyShown, displayRate: () => rate, displayCurrency: () => "RUB",
     esc: String, projectLighting: () => ({}), buildEstimate: () => est,
     lightingHtml: () => "[L]", updateStatus: () => {}, orphanObjectsWarningText: () => ""
   });
   run();
   const rowSum = (dom.els.specList.innerHTML.match(/<b>([^<]*)<\/b>/) || [])[1];
-  assert.equal(rowSum, moneyShown(97510.35), "строка спецификации = Σ по изделиям (97 510,35 ₽)");
-  assert.equal(dom.els.equipmentTotal.textContent, moneyShown(97510.35), "«Оборудование» = та же сумма");
-  /* Старый путь money(g.sum) напечатал бы round2(сырое евро строки × курс) — на пол-копейки меньше. */
-  assert.notEqual(rowSum, money(est.groups[0].sum), "НЕ money(g.sum) (97 510,27/,28)");
+  assert.equal(rowSum, moneyShown(97515), "строка спецификации = Σ по изделиям (97 515 ₽)");
+  assert.equal(dom.els.equipmentTotal.textContent, moneyShown(97515), "«Оборудование» = та же сумма");
+  /* Старый путь money(g.sum) напечатал бы ceilRub(сырое евро строки × курс) — на 4 рубля меньше. */
+  assert.notEqual(rowSum, money(est.groups[0].sum), "НЕ money(g.sum) (97 511 ₽)");
 });

@@ -11,32 +11,32 @@
     "from": "  const equipment = spec.equipment;",
     "to": "  const equipment = round2((Number(e.equipment) || 0) * r);" },
 
-  { "name": "В26 M4: цена изделия без round2 (округление уходит с уровня изделия — ядро pricedUnit)", "file": "js/estimate.js",
-    "from": "    const unit = round2((Number(it && it.price) || 0) * r);",
+  { "name": "В26 M4: цена изделия без округления (округление уходит с уровня изделия — ядро pricedUnit)", "file": "js/estimate.js",
+    "from": "    const unit = roundShown((Number(it && it.price) || 0) * r, currency, \"up\");",
     "to": "    const unit = (Number(it && it.price) || 0) * r;" },
 
   { "name": "В26 M5: цена единицы округляется ЦЕЛИКОМ (сырое евро × курс), а не по изделиям — ядро pricedUnit", "file": "js/estimate.js",
-    "from": "  const price = round2(priced.reduce((acc, it) => acc + it.price * (Number(it.count) || 0), 0));",
-    "to": "  const price = round2((Array.isArray(items) ? items : []).reduce((acc, it) => acc + (Number(it.price) || 0) * (Number(it.count) || 0), 0) * r);" },
+    "from": "  const price = roundShown(priced.reduce((acc, it) => acc + it.price * (Number(it.count) || 0), 0), currency, \"up\");",
+    "to": "  const price = roundShown((Array.isArray(items) ? items : []).reduce((acc, it) => acc + (Number(it.price) || 0) * (Number(it.count) || 0), 0) * r, currency, \"up\");" },
 
   { "name": "В26 M6: курс применён дважды — КП печатает суммы строк через money() (ещё раз ×курс)", "file": "js/offerPdf.js",
     "from": "    ? `<td class=\"right\">${moneyShown(r[key])}</td>`",
     "to": "    ? `<td class=\"right\">${money(r[key])}</td>`" },
 
   { "name": "В26 M7: «Скидка» снова от сырого est.discount × курс (не процент от напечатанного)", "file": "js/estimate.js",
-    "from": "  const discount = round2(generalDiscount + personalDiscount);",
-    "to": "  const discount = round2((Number(e.discount) || 0) * r);" },
+    "from": "  const discount = roundShown(generalDiscount + personalDiscount, currency, \"down\");",
+    "to": "  const discount = roundShown((Number(e.discount) || 0) * r, currency, \"down\");" },
 
   { "name": "В26 M8: «Материалы» снова от сырого est.materials × курс", "file": "js/estimate.js",
-    "from": "  const materials = round2(net * (Number(e.materialsPercent) || 0) / 100);",
-    "to": "  const materials = round2((Number(e.materials) || 0) * r);" },
+    "from": "  const materials = roundShown(net * (Number(e.materialsPercent) || 0) / 100, currency, \"up\");",
+    "to": "  const materials = roundShown((Number(e.materials) || 0) * r, currency, \"up\");" },
 
   { "name": "В26 M9: «Работы» снова от сырого est.work × курс", "file": "js/estimate.js",
-    "from": "  const work      = round2(net * (Number(e.workPercent)      || 0) / 100);",
-    "to": "  const work      = round2((Number(e.work) || 0) * r);" },
+    "from": "  const work      = roundShown(net * (Number(e.workPercent)      || 0) / 100, currency, \"up\");",
+    "to": "  const work      = roundShown((Number(e.work) || 0) * r, currency, \"up\");" },
 
   { "name": "В26 M10: личная скидка округляется ОДИН раз суммой, а не построчно", "file": "js/estimate.js",
-    "from": "    personalDiscount += round2(sum * clampPercent(g.discountPercent) / 100);",
+    "from": "    personalDiscount += roundShown(sum * clampPercent(g.discountPercent) / 100, currency, \"down\");",
     "to": "    personalDiscount += sum * clampPercent(g.discountPercent) / 100;" },
 
   { "name": "В26 M11: общая скидка берётся от ВСЕГО «Оборудования» (строки с личной не исключены)", "file": "js/estimate.js",
@@ -68,15 +68,15 @@
     "to": "<label>Суммарная стоимость<input value=\"${esc(money(total))}\" disabled>" },
 
   { "name": "В26 M18 (правило 3б): shownSum округляет ОДИН раз суммой, а не по изделиям", "file": "js/estimate.js",
-    "from": "function shownSum(items, rate) { return pricedUnit(items, rate).price; }",
-    "to": "function shownSum(items, rate) { const r = Number(rate) > 0 ? Number(rate) : 1; return round2((Array.isArray(items) ? items : []).reduce((a, it) => a + (Number(it && it.price) || 0) * (Number(it.count) || 0), 0) * r); }" },
+    "from": "function shownSum(items, rate, currency) { return pricedUnit(items, rate, currency).price; }",
+    "to": "function shownSum(items, rate, currency) { const r = Number(rate) > 0 ? Number(rate) : 1; return roundShown((Array.isArray(items) ? items : []).reduce((a, it) => a + (Number(it && it.price) || 0) * (Number(it.count) || 0), 0) * r, currency, \"up\"); }" },
 
   { "name": "В26 M19 (суммы света): строка поста снова money(c.sum) — округление суммы сырых евро", "file": "js/app.js",
-    "from": "    text:c.gaps\n      ? `${c.found} из ${c.need} · ${moneyShown(EPEstimate.lightingSumShown(rows,displayRate()))} · без механизма: ${c.gaps}`\n      : `${c.found} шт. · ${moneyShown(EPEstimate.lightingSumShown(rows,displayRate()))}`});",
+    "from": "    text:c.gaps\n      ? `${c.found} из ${c.need} · ${moneyShown(EPEstimate.lightingSumShown(rows,displayRate(),displayCurrency()))} · без механизма: ${c.gaps}`\n      : `${c.found} шт. · ${moneyShown(EPEstimate.lightingSumShown(rows,displayRate(),displayCurrency()))}`});",
     "to": "    text:c.gaps\n      ? `${c.found} из ${c.need} · ${money(c.sum)} · без механизма: ${c.gaps}`\n      : `${c.found} шт. · ${money(c.sum)}`});" },
 
   { "name": "В26 M20 (блок «Группы света»): total снова от сырого lightingSum", "file": "js/app.js",
-    "from": "total:options?.prices===false?0:EPEstimate.lightingPlanSumShown(light&&light.plan,displayRate())",
+    "from": "total:options?.prices===false?0:EPEstimate.lightingPlanSumShown(light&&light.plan,displayRate(),displayCurrency())",
     "to": "total:options?.prices===false?0:lightingSum(light)" },
 
   { "name": "В26 M21 (блок «Группы света»): сумма снова money(sum) — ×курс поверх уже-показанной", "file": "js/lightingPlan.js",
@@ -84,16 +84,16 @@
     "to": "${sum ? ` · ${money(sum)}` : \"\"}" },
 
   { "name": "В26 M22 (Excel «По артикулам»): «Сумма» снова сырое unit×count×курс", "file": "js/specExcel.js",
-    "from": "if (key === \"sum\") return hasPrice ? num(estimate.shownSum([{ price: unitPrice, count: Number(r.count) || 0 }], rate), S_MONEY) : txt(\"\");",
+    "from": "if (key === \"sum\") return hasPrice ? num(estimate.shownSum([{ price: unitPrice, count: Number(r.count) || 0 }], rate, currency), S_MONEY) : txt(\"\");",
     "to": "if (key === \"sum\") return hasPrice ? num(unitPrice * (Number(r.count) || 0) * rate, S_MONEY) : txt(\"\");" },
 
   { "name": "В26 M23 (правило 3б): lightingPlanSumShown округляет сумму сырых евро один раз (мимо изделий)", "file": "js/estimate.js",
-    "from": "  return shownSum(((plan && plan.places) || []).map(p => ({ price: (p && p.product) ? (Number(p.product.price) || 0) : 0, count: 1 })), rate);",
+    "from": "  return shownSum(((plan && plan.places) || []).map(p => ({ price: (p && p.product) ? (Number(p.product.price) || 0) : 0, count: 1 })), rate, currency);",
     "to": "  const r = Number(rate) > 0 ? Number(rate) : 1; return round2(((plan && plan.places) || []).reduce((a, p) => a + ((p && p.product) ? (Number(p.product.price) || 0) : 0), 0) * r);" },
 
   { "name": "В26 M24 (A2, ядро pricedUnit): узел count 0 считается как 1 — цена недособранного поста включает отсутствующую коробку", "file": "js/estimate.js",
-    "from": "acc + it.price * (Number(it.count) || 0), 0));",
-    "to": "acc + it.price * (Number(it.count) || 1), 0));" },
+    "from": "acc + it.price * (Number(it.count) || 0), 0), currency, \"up\");",
+    "to": "acc + it.price * (Number(it.count) || 1), 0), currency, \"up\");" },
 
   { "name": "В26 M25 (A5, totalsShown): строка с личной скидкой 0 % уходит в базу общей скидки", "file": "js/estimate.js",
     "from": "    if (!(g && g.discountPersonal)) return;",

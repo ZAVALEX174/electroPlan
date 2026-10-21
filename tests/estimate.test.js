@@ -4,7 +4,7 @@
    поэтому браузер поднимать не нужно. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { build, postPrice, billableLighting, lightingCounts, pricelessNote, round2, totalsShown, vatBreakdown, vatShown, vatModeOf } = require("../js/estimate.js");
+const { build, postPrice, billableLighting, lightingCounts, pricelessNote, round2, roundShown, totalsShown, specShown, vatBreakdown, vatShown, vatModeOf } = require("../js/estimate.js");
 const PF = require("../js/postfit.js");
 const POSTS = require("../js/posts.js");
 
@@ -82,6 +82,69 @@ test("totalsShown: округление строк и итога совпада�
   const t3 = totalsShown({ groups: oneLine(79.21), equipment: 79.21, discount: 0, materials: 0, work: 0, vatMode: "none" }, 92.5);
   assert.equal(t3.equipment, 7326.93, "оборудование 79.21×92.5 = 7326.93");
   assert.equal(t3.total, 7326.93, "итог без НДС = 7326.93");
+});
+
+/* ⚠️ К7 — РУБЛИ ЦЕЛЫЕ (решение владельца 20.10). Признак — валюта ПОКАЗА "RUB" (не курс): цены/суммы/
+   материалы/работы/НДС — ВВЕРХ до рубля, скидка — ВНИЗ. Евро (нет "RUB") — ровно round2, НИ ОДНА
+   евро-цифра не меняется. Зелёный ≠ проверено (§7.1): мутации kp.json/v26.json на этих же строках. */
+test("roundShown: евро — round2 (копейка), рубли — целый рубль по направлению; дребезг снят", () => {
+  /* Евро-ветка идентична round2 на тех же числах из round2-теста выше. */
+  assert.equal(roundShown(6.01 * 92.5, "EUR", "up"), 555.93, "EUR = round2 (вверх не трогает копейку)");
+  assert.equal(roundShown(6.01 * 92.5, "EUR", "down"), 555.93, "EUR = round2 (вниз не трогает копейку)");
+  assert.equal(roundShown(6.01 * 92.5, undefined, "up"), 555.93, "валюта не задана → евро-поведение");
+  /* Рубли: вверх/вниз до целого. 6,01×92,5 = 555,925 → вверх 556, вниз 555. */
+  assert.equal(roundShown(555.925, "RUB", "up"), 556, "рубль вверх");
+  assert.equal(roundShown(555.925, "RUB", "down"), 555, "рубль вниз");
+  /* Дребезг double: цена, кратная центу, на ЦЕЛОМ курсе не должна прыгать на рубль (toPrecision(15)
+     до Math.ceil). 65,00 € × 100 = 6500 ровно — ceil обязан дать 6500, а не 6501. */
+  assert.equal(roundShown(65.00 * 100, "RUB", "up"), 6500, "ceilRub(6500.000000001-дребезг) = 6500, не 6501");
+  assert.equal(roundShown(4875.75, "RUB", "down"), 4875, "floorRub(4875,75) = 4875 (скидка вниз)");
+  /* Знак: скидка печатается с минусом, округляется её рубль. */
+  assert.equal(roundShown(-1234.2, "RUB", "up"), -1235, "−1234,2 вверх по модулю = −1235");
+});
+
+test("specShown (RUB): 68,07 € × 15 при курсе 95,5 — цена 6 501 ₽, сумма 97 515 ₽, оборудование 97 515 ₽", () => {
+  /* Руками: ceil(68,07×95,5)=ceil(6500,685)=6501; сумма=ceil(6501×15)=97 515; оборудование=Σ=97 515. */
+  const s = specShown({ groups: [{ count: 15, items: [{ code: "x", count: 1, price: 68.07 }] }] }, 95.5, "RUB");
+  assert.equal(s.rows[0].price, 6501, "цена изделия в рублях — вверх до рубля");
+  assert.equal(s.rows[0].sum, 97515, "сумма строки = цена × количество (целая)");
+  assert.equal(s.equipment, 97515, "«Оборудование» = Σ целых сумм строк");
+});
+
+test("totalsShown (RUB): скидка ВНИЗ, материалы/работы/НДС ВВЕРХ, сумма напечатанных строк = итог", () => {
+  /* Проект: 68,07 € × 15 @95,5 → оборудование 97 515 ₽; общая скидка 5 %, материалы 10 %, работы 20 %. */
+  const base = { groups: [{ count: 15, items: [{ code: "x", count: 1, price: 68.07 }] }],
+    discountPercent: 5, materialsPercent: 10, workPercent: 20 };
+  /* Руками: скидка = floor(97 515 × 5%) = floor(4875,75) = 4875 (ВНИЗ). net = 92 640.
+     материалы = ceil(9264) = 9264; работы = ceil(18 528) = 18 528 (ВВЕРХ, тут уже целые). */
+  const surcharge = totalsShown(Object.assign({}, base, { vatMode: "surcharge", vatPercent: 20 }), 95.5, "RUB");
+  assert.equal(surcharge.equipment, 97515);
+  assert.equal(surcharge.discount, 4875, "скидка 5% ВНИЗ до рубля (4875, не 4876)");
+  assert.equal(surcharge.materials, 9264);
+  assert.equal(surcharge.work, 18528);
+  assert.equal(surcharge.subtotal, 120432, "без НДС = 97515−4875+9264+18528");
+  assert.equal(surcharge.amount, 24087, "НДС 20% ВВЕРХ = ceil(120432×0.2)=24086,4→24087");
+  assert.equal(surcharge.total, 144519, "итог = 120432 + 24087");
+  /* Инвариант: сумма напечатанных строк выше НДС = «без НДС»; «без НДС» + «НДС» = «Итого». */
+  assert.equal(surcharge.equipment - surcharge.discount + surcharge.materials + surcharge.work, surcharge.subtotal);
+  assert.equal(surcharge.subtotal + surcharge.amount, surcharge.total);
+  /* «В том числе»: итог НЕ меняется (= база), НДС выделяется обратно ВВЕРХ, «без НДС» = итог − НДС. */
+  const included = totalsShown(Object.assign({}, base, { vatMode: "included", vatPercent: 20 }), 95.5, "RUB");
+  assert.equal(included.total, 120432, "«в т.ч.» итог = база (не меняется)");
+  assert.equal(included.amount, 20072, "в т.ч. НДС = ceil(120432×20/120)=20072");
+  assert.equal(included.subtotal, 100360, "без НДС = итог − НДС (сохраняет равенство)");
+  assert.equal(included.subtotal + included.amount, included.total, "без НДС + НДС = итог");
+  /* Все напечатанные рублёвые числа — целые (ни одной копейки). */
+  [surcharge, included].forEach(t => [t.equipment, t.discount, t.materials, t.work, t.subtotal, t.amount, t.total]
+    .forEach(v => assert.ok(Number.isInteger(v), `${v} — целый рубль`)));
+});
+
+test("totalsShown: евро (нет валюты) НЕ округляет до рубля — К7 рубли не задевают евро", () => {
+  /* Тот же проект при курсе 1 без "RUB": копейки сохраняются (скидка 5% от 1021,05 = 51,0525 → 51,05). */
+  const eur = totalsShown({ groups: [{ count: 15, items: [{ code: "x", count: 1, price: 68.07 }] }],
+    discountPercent: 5, materialsPercent: 0, workPercent: 0, vatMode: "none" }, 1);
+  assert.equal(eur.equipment, 1021.05, "евро: оборудование с копейками");
+  assert.equal(eur.discount, 51.05, "евро: скидка round2, не вниз до рубля");
 });
 
 /* Каталог-заглушка: розетка 10 € за штуку и кабель-канал 5 € за метр. */

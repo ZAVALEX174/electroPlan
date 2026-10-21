@@ -1,10 +1,10 @@
 [
   { "name": "В7 M1: итог surcharge не прибавляет НДС к напечатанной базе", "file": "js/estimate.js",
-    "from": "total: round2(shownBase + amount), included: false, label: info.label };",
+    "from": "total: roundShown(shownBase + amount, currency, \"up\"), included: false, label: info.label };",
     "to": "total: shownBase, included: false, label: info.label };" },
 
   { "name": "В7 M2: НДС surcharge считается от СЫРОЙ суммы, не от округлённой", "file": "js/estimate.js",
-    "from": "const amount = round2(shownBase * p / 100);",
+    "from": "const amount = roundShown(shownBase * p / 100, currency, \"up\");",
     "to": "const amount = shownBase * p / 100;" },
 
   { "name": "В7 M3: режим «выделить» меняет итог (должен оставаться прежним)", "file": "js/estimate.js",
@@ -55,7 +55,7 @@
     "from": "  return sign * Math.round(Number((Math.abs(x) * 100).toPrecision(15))) / 100;",
     "to": "  return sign * Math.round(Math.abs(x) * 100) / 100;" },
 
-  { "name": "Б M13: app.js moneyShown печатает СЫРОЕ число мимо round2 (строка «Сумма» 7326,92 вместо 7326,93)", "file": "js/app.js",
-    "from": "}).format(EPEstimate.round2(n));",
-    "to": "}).format(Number(n)||0);" }
+  { "name": "Б M13: app.js moneyShown печатает СЫРОЕ число мимо округления (строка «Сумма» 7326,92 вместо 7326,93)", "file": "js/app.js",
+    "from": "  }).format(EPEstimate.roundShown(n,cur,\"up\"));",
+    "to": "  }).format(Number(n)||0);" }
 ]
