@@ -115,7 +115,7 @@ function makeCtx(state, dom) {
     renderBuilderSlots: () => {}, lightingRowsFor: () => [], retargetBuilderSlot: () => {},
     builderErrorHtml: () => "",
     renderBuilderCatalog: () => {}, renderBuilderComposition: () => {},
-    renderBuilder: () => {}, builderCtx: {}, EPBuilderSlots, EPPosts
+    renderBuilder: () => {}, builderCtx: {}, EPBuilderSlots, EPPosts, EPThermoSensor: require("../js/thermoSensor.js")
   };
 }
 

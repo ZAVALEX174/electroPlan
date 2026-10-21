@@ -84,6 +84,13 @@ function buildPostLayout(options,light){
     const back=comp.backlight;
     if(back&&back.items&&back.items.length)fill.push({word:"Подсветка клавиш",count:back.items.length});
     if(back&&back.gaps&&back.gaps.length)fill.push({word:back.gaps.length>1?`${back.gaps.length} × подсветка не подобрана`:"подсветка не подобрана",noCount:true});
+    /* Термодатчик терморегулятора (К5а) — строкой наполнения, как подсветка: все подобранные датчики
+       поста сводим в одну позицию «Термодатчик — N», пробел называем словами и в заказ не выводим
+       (noCount). Числа из того же comp.sensors (postComposition), что цена и смета. Нет датчиков / нет
+       поля sensors → строк нет, раскладка как раньше. */
+    const sens=comp.sensors;
+    if(sens&&sens.items&&sens.items.length)fill.push({word:"Термодатчик",count:sens.items.length});
+    if(sens&&sens.gaps&&sens.gaps.length)fill.push({word:sens.gaps.length>1?`${sens.gaps.length} × термодатчик не подобран`:"термодатчик не подобран",noCount:true});
     return {
       number:p.number,
       modules:comp.modulesTotal,
@@ -239,8 +246,16 @@ function supplierSpecData(light){
         .map(r=>r.missing
           ?{code:"",name:`Механизм группы «${r.groupLabel||"—"}» не подобран`,kind:"mechanism"}
           :{code:r.code,name:r.name,unit:r.product&&r.product.unit,kind:"mechanism"});
+      /* Термодатчики терморегуляторов (К5а, решение владельца 21.10 — раздел «Механизмы и клавиши»):
+         по объекту на подобранный датчик (kind mechanism → группа свода «Механизмы и клавиши»), плюс
+         пробел подбора строкой БЕЗ артикула — как «суппорт не подобран». Числа из того же
+         postComposition.sensors, что цена и смета; второй копии подбора нет. Нет датчиков / нет поля
+         sensors (старый рукотворный состав) → ни одной строки, свод как раньше. */
+      const sensorItems=(comp.sensors?comp.sensors.items:[])
+        .map(u=>({code:u.sensor.code,name:u.sensor.name,unit:u.sensor.unit,kind:"mechanism"}))
+        .concat((comp.sensors?comp.sensors.gaps:[]).map(()=>({code:"",name:"Термодатчик не подобран",kind:"mechanism"})));
       return {
-        mechanisms:effIds.map(id=>item(product(id))||{code:"",name:`Механизм не найден (арт. ${id})`}).concat(lightItems),
+        mechanisms:effIds.map(id=>item(product(id))||{code:"",name:`Механизм не найден (арт. ${id})`}).concat(lightItems).concat(sensorItems),
         frame:frameInfo.unset?null:(frameInfo.frame
           ?Object.assign(item(frameInfo.frame),{name:frameInfo.displayName})
           :{code:"",name:frameInfo.displayName,kind:"frame"}),

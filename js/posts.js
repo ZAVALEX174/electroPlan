@@ -395,7 +395,14 @@ function postComposition(post, deps) {
        не меняется. Цену считает postCost по backlight.items (см. ниже).
        Действующая настройка — СВОЯ у поста, если задана, иначе проектная (postBacklight):
        один шов, как у типа стены (postWallType выше). backlightPlan уже разрешённую и получает. */
-    backlight: backlightPlan(mechIds, postBacklight(post, deps.backlight), deps)
+    backlight: backlightPlan(mechIds, postBacklight(post, deps.backlight), deps),
+    /* Термодатчики терморегуляторов (К5а): по одному датчику на терморегулятор поста «с возможностью
+       подключения термодатчика» (EPThermoSensor.plan через deps.sensorPlan) плюс честные пробелы
+       (датчик нужен, а артикула в каталоге нет). Датчик НЕ входит в mechanismIds (не занимает модуля,
+       не влияет на коробку/суппорт/раскладку), но входит в цену поста (postCost по sensors.items ниже).
+       Необязательная зависимость: без deps.sensorPlan (старые вызовы/тесты, подающие deps сами) состав
+       и цена прежние — датчиков нет, как было до К5а. */
+    sensors: deps.sensorPlan ? deps.sensorPlan(mechIds) : { items: [], gaps: [], count: 0, hasGap: false }
   };
 }
 
@@ -417,7 +424,11 @@ function postCost(post, deps) {
   /* Подсветки — по одному подобранному аксессуару на принимающий механизм (пробелы в цену
      не входят). Выключена → items пуст → слагаемое 0, цена байт в байт как раньше. */
   const backSum = comp.backlight.items.reduce((s, u) => s + price(u.accessory), 0);
-  return mechSum + price(comp.frame) + price(comp.support) * comp.supportCount + price(boxUnit) * comp.boxCount + backSum;
+  /* Термодатчики (К5а) — по одному подобранному датчику на терморегулятор «с датчиком» (пробелы в цену
+     не входят, как у подсветки). Нет терморегуляторов с датчиком / нет deps.sensorPlan → items пуст →
+     слагаемое 0, цена прежняя. */
+  const sensorSum = (comp.sensors ? comp.sensors.items : []).reduce((s, u) => s + price(u.sensor), 0);
+  return mechSum + price(comp.frame) + price(comp.support) * comp.supportCount + price(boxUnit) * comp.boxCount + backSum + sensorSum;
 }
 
 /* Раскладка механизмов по модулям поста: слева направо, каждый механизм занимает

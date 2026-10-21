@@ -130,7 +130,7 @@ function makeCtx(state, dom) {
     renderBuilder: () => {},
     builderCtx: {},
     collectionFramePool: frames => frames, frameFacingHintText: () => "", EPCatalog, builderInnardsFilter: () => ({}), builderFilterRoom: () => null, frameFacingList: () => [], EPRoom: { roomFrameFacing: () => null },
-    EPBuilderSlots, EPPosts
+    EPBuilderSlots, EPPosts, EPThermoSensor: require("../js/thermoSensor.js")
   };
   /* Контекст создаёт стенд при stand.run(...); свойства, дописанные в ctx до вызова
      (builderCtx и т.п.), песочница видит. */

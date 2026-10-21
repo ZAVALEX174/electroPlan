@@ -714,7 +714,12 @@ function renderBuilder(){
      catalogMechs — то же, но ДОПОЛНИТЕЛЬНО суженное под цвет комнаты (ОТДЕЛКА-ПОРЯДОК, п.4) через
      ТОТ ЖЕ productsForRoom, что сужает накладки: сужаем только то, что ПРЕДЛАГАЕМ карточками. */
   const mechs=compatibleMechanisms(selectedFrame,allMechanisms);
-  const catalogMechs=EPCatalog.productsForRoom(mechs,builderInnardsFilter());
+  /* ⚠️ ВЫНОСНОЙ ТЕРМОДАТЧИК (02965.1) НЕ ПРЕДЛАГАЕМ КАРТОЧКОЙ (К5а, решение владельца 21.10): его
+     добавляет расчёт по одному на терморегулятор, а в слот рамки он не ставится (это провод с датчиком,
+     а не механизм на суппорте). Признак — EPThermoSensor.isSensorMechanism (группа «Термодатчик» из
+     данных). Убираем ТОЛЬКО из каталога карточек; mechs/keepMechs (fit/упаковка) не трогаем — если
+     датчик уже стоит в слоте старого поста руками, он остаётся и считается как есть (реальных таких нет). */
+  const catalogMechs=EPCatalog.productsForRoom(mechs,builderInnardsFilter()).filter(m=>!EPThermoSensor.isSensorMechanism(m));
   const innardsColor=state.builder.restrictInnardsColor?EPRoom.roomFrameFacing(builderFilterRoom(),"frameColor",frameFacingList("frameColor")):null;
   /* ⚠️ МЕХАНИЗМ, УЖЕ СТОЯЩИЙ В ПОСТЕ И СНЯТЫЙ С ПРОИЗВОДСТВА (active:false), УДЕРЖИВАЕМ — то же
      правило владельца, что для накладки (4456bd0): изделие могло быть заложено в проект до снятия
@@ -1234,12 +1239,22 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
   const backRow=backSummary
     ? `<div class="composition-row${backSummary.gaps?" is-missing":""}"><span>Подсветка клавиш</span><b>${esc(backSummary.text)}</b></div>`
     : "";
+  /* Термодатчик терморегулятора (К5а) — ОТДЕЛЬНАЯ строка состава рядом с подсветкой: датчик входит в
+     «Стоимость поста» ниже и обязан быть назван, иначе цена «за датчик» без строки — тот же дефект
+     «денег больше, чем позиций». Формулировку (счёт, цена, слова пробела) даёт та же
+     EPThermoSensor.rowSummary, что подсказка и карточка (§7.1). Пробел («датчик нужен, а в каталоге
+     нет») помечаем is-missing, как суппорт/коробку/подсветку. Гейт по comp.sensors — старый рукотворный
+     состав без плана датчиков не падает. */
+  const sensorSummary=comp.sensors&&(comp.sensors.items.length||comp.sensors.gaps.length)?EPThermoSensor.rowSummary(comp.sensors,{money}):null;
+  const sensorRow=sensorSummary
+    ? `<div class="composition-row${sensorSummary.gaps?" is-missing":""}"><span>Термодатчик</span><b>${esc(sensorSummary.text)}</b></div>`
+    : "";
   /* Тот же блок «Группы света», что печатается в КП и листе монтажника: подставленные
      механизмы, реле и пробелы с причинами. Один источник — расхождению между конструктором
      и документами взяться неоткуда. */
   const lightBlock=light?lightingHtml(light,"Группы света в проекте"):"";
   host.innerHTML=`${errorHtml||""}<div class="composition-head"><strong>Состав поста</strong><span>Стандарт: ${esc(STANDARD_LABEL[comp.standard]||comp.standard)}</span></div>
-    ${supportRow}${boxRow}${lightRow}${backRow}
+    ${supportRow}${boxRow}${lightRow}${backRow}${sensorRow}
     <div class="composition-row total"><span>Стоимость поста</span><b>${moneyShown(postTotalCost(post,light))}</b></div>${note}${lightBlock}`;
 }
 function changePostSlotCount(){

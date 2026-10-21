@@ -120,6 +120,14 @@ function renderItem(it) {
     if (it.gap) return it.count > 1 ? `${it.count} × подсветка не подобрана` : "подсветка не подобрана";
     return it.count > 1 ? `${it.count} × ${it.name}` : it.name;
   }
+  /* Термодатчик терморегулятора (К5а): выносной датчик 02965.1, по одному на терморегулятор «с
+     датчиком». В mechanismIds не входит (модуля не занимает), но в состав и цену — да. Пробел
+     («датчик нужен, а в каталоге нет») печатаем словами, как у подсветки/коробки; в цену он не идёт
+     (postCost его не считает). Одинаковые датчики схлопнуты в count — «N × …». */
+  if (it.kind === "sensor") {
+    if (it.gap) return it.count > 1 ? `${it.count} × термодатчик не подобран` : "термодатчик не подобран";
+    return it.count > 1 ? `${it.count} × ${it.name}` : it.name;
+  }
   return it.name;
 }
 
@@ -701,9 +709,28 @@ function build(input) {
     const backItems = [...backAgg.values()];
     const gapCount = (back && back.gaps) ? back.gaps.length : 0;
     const backGap = gapCount ? { kind: "backlight", code: null, name: "подсветка не подобрана", count: gapCount, gap: true, price: 0 } : null;
-    /* Порядок состава — как при сборке и как у заказчика: механизмы → подсветка → суппорт →
-       коробка → накладка (раньше был обратный). */
-    const items = [...mechItems, ...lightItems, ...backItems, backGap, supportItem, boxItem, frameItem].filter(Boolean);
+    /* Термодатчики терморегуляторов (К5а): выносные датчики 02965.1, по одному на терморегулятор «с
+       датчиком» (EPPosts.postComposition.sensors), плюс честный пробел (нужен, а в каталоге нет).
+       Одинаковые артикулы схлопываем в count — как подсветку/суппорт. Пробел — одной позицией со
+       счётчиком; в ЦЕНУ он не идёт (её считает postCost по items, gaps там нет). Нет поля sensors
+       (старый рукотворный comp вне приложения) — как отсутствие датчиков, тот же защитный приём, что
+       у подсветки: смета не падает и считается как раньше. */
+    const sens = comp && comp.sensors ? comp.sensors : null;
+    const sensAgg = new Map();
+    ((sens && sens.items) || []).forEach((u) => {
+      const s = u && u.sensor; if (!s) return;
+      const code = s.code || null, k = String(code);
+      const cur = sensAgg.get(k);
+      if (cur) cur.count += 1;
+      else sensAgg.set(k, { kind: "sensor", code, name: s.name, count: 1, price: Number(s.price) || 0 });
+    });
+    const sensItems = [...sensAgg.values()];
+    const sensGapCount = (sens && sens.gaps) ? sens.gaps.length : 0;
+    const sensGap = sensGapCount ? { kind: "sensor", code: null, name: "термодатчик не подобран", count: sensGapCount, gap: true, price: 0 } : null;
+    /* Порядок состава — как при сборке и как у заказчика: механизмы → термодатчик (выносной элемент
+       терморегулятора, читается сразу за ним) → подсветка → группы света → суппорт → коробка →
+       накладка. Датчик стоит ПЕРЕД подсветкой: он относится к механизму-терморегулятору. */
+    const items = [...mechItems, ...sensItems, sensGap, ...lightItems, ...backItems, backGap, supportItem, boxItem, frameItem].filter(Boolean);
     /* Группируем посты ПО СОСТАВУ (накладка + набор механизмов), а не по имени/номеру.
        Раньше ключом было имя поста; теперь у каждого размещённого поста свой сквозной
        номер, и по номеру одинаковые посты перестали бы сходиться — смета раздулась бы
@@ -755,6 +782,18 @@ function build(input) {
     const backCodes = backItems.map((it) => [String(it.code), it.count])
       .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
     if (backCodes.length || gapCount) key += "|b:" + JSON.stringify([backCodes, gapCount]);
+    /* ⚠️ ТЕРМОДАТЧИК ВХОДИТ В КЛЮЧ ГРУППИРОВКИ (К5а, суффикс «|s:» — по образцу подсветки «|b:»).
+       Сегодня датчик — детерминированная производная механизмов поста (терморегулятор «с датчиком» →
+       датчик), а они уже в ключе, так что на СЕГОДНЯШНЮЮ группировку суффикс не влияет. Он нужен, чтобы
+       строка сметы ключевалась на ФАКТИЧЕСКИЙ состав датчиков (comp.sensors), а не на вывод из
+       mechanismIds: когда у поста появится своё «без датчика» (К5б), два физически одинаковых поста с
+       разным решением по датчику обязаны стать разными строками — ровно как подсветка с переопределением
+       поста. Кодируем мультимножество артикулов датчиков (с количеством, отсортировано — строка не
+       зависит от порядка клавиш) плюс число пробелов. Пост без датчика (ни items, ни gaps) суффикса НЕ
+       даёт — ключ остаётся байт в байт прежним, старые сметы не перегруппируются. */
+    const sensCodes = sensItems.map((it) => [String(it.code), it.count])
+      .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    if (sensCodes.length || sensGapCount) key += "|s:" + JSON.stringify([sensCodes, sensGapCount]);
     /* ⚠️ ЛИЧНАЯ СКИДКА ПОСТА ВХОДИТ В КЛЮЧ ПОСЛЕДНИМ суффиксом «|d:N». Два физически одинаковых
        поста с РАЗНОЙ своей скидкой — разные строки КП (владельцу так и сказано): у строки одна
        скидка на все её посты, а поле панели правит их вместе. Нет своей скидки → суффикса нет →

@@ -242,6 +242,11 @@ const resolveSupport=({frame,standard,modules,box}={})=>EPCatalogPool.pick(suppo
    (EPBacklightPick.pick, ОЗ-1): класс клавиши + напряжение + цвет → артикул светодиода.
    Активные аксессуары главнее, снятые — запас (Д2). */
 const findBacklight=(opts)=>EPCatalogPool.pick(accessories=>EPBacklightPick.pick(Object.assign({accessories},opts||{})),byKind("accessory"),byKindOff("accessory"),a=>!!a);
+/* Подбор выносного термодатчика терморегулятора по артикулу (К5а): датчик — обычный механизм каталога,
+   поэтому пул тот же, что у механизмов (byKind("mechanism")), активные главнее снятых (Д2), как
+   findBacklight/findSupport. План датчиков поста считает EPThermoSensor.plan — ему отдаём и каталог, и
+   этот подбор. */
+const findSensor=code=>EPCatalogPool.pick(pool=>pool.find(p=>p&&String(p.code)===String(code))||null,byKind("mechanism"),byKindOff("mechanism"),s=>!!s);
 /* Единый набор зависимостей для чистой логики поста (EPPosts): каталог, подбор
    суппорта/коробки (точный findBox + стандартно-совместимый фолбэк fallbackBox), признак
    «суппорт вообще не нужен» (крышки IP55 по номенклатуре монтируются без планки), дефолт
@@ -253,7 +258,11 @@ const postDeps=()=>({product,frameProduct,socketBox,mechanismSpan,findBox,fallba
   supportRequired:EPPostFit.supportRequired,wallType:"solid",
   /* acceptsBacklight — тот же EPBacklightPick, что и подбор: признак «клавиша принимает подсветку»
      даёт класс клавиши, а не поле askBacklight каталога (у новых клавиш оно неверное — см. модуль). */
-  findBacklight,acceptsBacklight:EPBacklightPick.accepts,backlight:EP_DATA.settings.backlight||{enabled:false}});
+  findBacklight,acceptsBacklight:EPBacklightPick.accepts,backlight:EP_DATA.settings.backlight||{enabled:false},
+  /* Термодатчики терморегуляторов (К5а): план датчиков поста — EPThermoSensor.plan по механизмам
+     поста, с подбором товара-датчика через findSensor. Чистое правило живёт в модуле, здесь только
+     подстановка зависимостей приложения — как findBacklight у подсветки. */
+  sensorPlan:mechIds=>EPThermoSensor.plan(mechIds,{product,findSensor})});
 const postCost=p=>EPPosts.postCost(p,postDeps());
 const postComposition=p=>EPPosts.postComposition(p,postDeps());
 /* Единое изображение собранного поста (EPPostImage): собираем spec из каталога — накладка,
@@ -1099,10 +1108,16 @@ function showHover(kind,obj,e){
        строки нет, подсказка байт в байт как раньше. */
     const backSummary=backlightRowSummary(comp.backlight);
     const backRow=backSummary?`<dt>Подсветка</dt><dd>${esc(backSummary.text)}</dd>`:"";
+    /* Термодатчик терморегулятора (К5а) в подсказке — та же EPThermoSensor.rowSummary, что состав и
+       карточка (одна формулировка, §7.1): датчик входит в «Стоимость поста» ниже, значит подсказка
+       обязана его назвать. Гейт по comp.sensors: нет плана датчиков (старый рукотворный состав) →
+       строки нет, подсказка как раньше. */
+    const sensorSummary=comp.sensors&&(comp.sensors.items.length||comp.sensors.gaps.length)?EPThermoSensor.rowSummary(comp.sensors,{money}):null;
+    const sensorRow=sensorSummary?`<dt>Термодатчик</dt><dd>${esc(sensorSummary.text)}</dd>`:"";
     /* Миниатюра собранного поста (та же EPPostImage, что в конструкторе) вместо простыни
        названий — сразу видно рамку, посты и импосты. */
     hover.innerHTML=`<h4>${esc(postNumberLabel(obj))}</h4><div class="hover-thumb">${assembledPostHtml(obj,{size:"sm"})}</div>
-    <dl><dt>Накладка</dt><dd>${esc(frameInfo.displayName)}</dd><dt>Коробки</dt><dd>${boxCell}</dd>${backRow}<dt>Стоимость поста</dt><dd>${moneyShown(postTotalCost(obj))}</dd></dl>`;
+    <dl><dt>Накладка</dt><dd>${esc(frameInfo.displayName)}</dd><dt>Коробки</dt><dd>${boxCell}</dd>${backRow}${sensorRow}<dt>Стоимость поста</dt><dd>${moneyShown(postTotalCost(obj))}</dd></dl>`;
   }
   hover.classList.add("show");positionHover(e);
 }
@@ -1383,6 +1398,10 @@ function renderProperties(){
     /* Подсветка клавиш — тем же backlightRowSummary, что панель «Состав поста» и подсказка: LED в
        цене поста, значит карточка, показывающая эту цену, обязана его назвать (или пробел). */
     const backSummary=backlightRowSummary(comp.backlight);
+    /* Термодатчик терморегулятора (К5а) — тем же EPThermoSensor.rowSummary, что подсказка и состав
+       поста (одна формулировка, §7.1): датчик в цене поста, значит карточка, показывающая эту цену,
+       обязана его назвать. Гейт по comp.sensors — старый рукотворный состав без плана датчиков не падает. */
+    const sensorSummary=comp.sensors&&(comp.sensors.items.length||comp.sensors.gaps.length)?EPThermoSensor.rowSummary(comp.sensors,{money}):null;
     /* Тип стены поста прямо в панели свойств. Настройки стены проекта больше нет (К4б) — у поста
        всегда свой тип стены либо общий дефолт «бетон». ownWall различает, задан ли тип стены
        пользователем (для подписи «свой»); curWall — фактически действующий (свой либо solid). */
@@ -1398,6 +1417,7 @@ function renderProperties(){
     <small class="prop-hint prop-wall-source${ownWall?" own":""}">${ownWall?"Свой тип стены поста":"По умолчанию: бетон"}</small>
     ${lightSummary?`<label>Механизмы групп света<input value="${esc(lightSummary.text)}" disabled></label>`:""}
     ${backSummary?`<label>Подсветка клавиш<input value="${esc(backSummary.text)}" disabled></label>`:""}
+    ${sensorSummary?`<label>Термодатчик<input value="${esc(sensorSummary.text)}" disabled></label>`:""}
     ${postGroupsPropHtml(p)}
     <label>Стоимость<input value="${moneyShown(postTotalCost(p,light))}" disabled></label>
     <div class="property-actions"><button class="btn primary" id="editSelected">Редактировать</button><button class="btn ghost" id="removeSelected">Удалить</button></div>`;

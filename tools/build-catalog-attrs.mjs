@@ -53,7 +53,7 @@ async function main() {
   let overridesDoc = { overrides: {} };
   try { overridesDoc = JSON.parse((await fs.readFile(OVERRIDES, "utf8")).replace(/^﻿/, "")); } catch { /* нет файла — ноль правок */ }
   applyKindOverrides(records, overridesDoc.overrides || {});
-  const { standards, supports, boxes, wallTypes, mounting, roles, groups, colors } = buildAttrs(records);
+  const { standards, supports, boxes, wallTypes, mounting, roles, groups, colors, sensors } = buildAttrs(records);
 
   const tally = (obj, pick) => {
     const t = {};
@@ -82,6 +82,7 @@ async function main() {
       roles: path.basename(NOM),
       groups: path.basename(NOM),
       colors: path.basename(NOM),
+      sensors: path.basename(NOM),
     },
     standards,
     supports,
@@ -91,6 +92,7 @@ async function main() {
     roles,
     groups,
     colors,
+    sensors,
   };
   await fs.writeFile(OUT, banner + `window.EP_VIMAR_ATTRS = ${JSON.stringify(body, null, 2)};\n`, "utf8");
 
@@ -127,6 +129,12 @@ async function main() {
   const colorTally = {};
   for (const c in colors) colorTally[colors[c]] = (colorTally[colors[c]] || 0) + 1;
   console.log(`  цвет элемента начинки:  ${Object.keys(colors).length} позиций (${Object.keys(colorTally).length} цветов) — ${JSON.stringify(colorTally)}`);
+  // Термодатчики терморегуляторов (К5а): сколько терморегуляторов «с возможностью подключения
+  // термодатчика» нашлось и на какие артикулы датчиков они ссылаются (ожидается 9 → 02965.1). Регресс
+  // в примечаниях номенклатуры обязан быть виден при пересборке, а не всплыть в рантайме пустым составом.
+  const sensorTally = {};
+  for (const c in sensors) sensorTally[sensors[c]] = (sensorTally[sensors[c]] || 0) + 1;
+  console.log(`  терморегуляторов с датчиком: ${Object.keys(sensors).length} — ${JSON.stringify(sensorTally)}`);
   // Отделка накладки (E14): материал/форма/цвет каноническим написанием. Печатаем охват и число
   // РАЗЛИЧНЫХ значений — по ним сверяется полнота проброса при пересборке (склейка написаний
   // должна давать ожидаемое число цветов, а не разъехавшиеся дубли).

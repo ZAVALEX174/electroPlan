@@ -88,7 +88,7 @@ function makeCtx(state, dom) {
     builderErrorHtml: () => "",
     renderBuilderCatalog: () => {},
     renderBuilderComposition: () => {},
-    renderBuilder: () => {}, builderCtx: {}, EPBuilderSlots, EPPosts
+    renderBuilder: () => {}, builderCtx: {}, EPBuilderSlots, EPPosts, EPThermoSensor: require("../js/thermoSensor.js")
   };
 }
 const CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "builderInnardsFilter", "collectionFramePool", "frameFacingLabels", "frameFacingHintText", "frameOptions", "builderCapacity", "renderBuilder"];

@@ -62,7 +62,7 @@ window.EP_DATA = {
      (стандарт → unknown, тип стены → не подтверждён), приложение это переживает. */
   products: (function enrichCatalog(){
     const list = window.EP_VIMAR_CATALOG?.products || [];
-    const attrs = window.EP_VIMAR_ATTRS || {standards:{},supports:{},wallTypes:{},boxes:{},mounting:{},roles:{},groups:{},colors:{}};
+    const attrs = window.EP_VIMAR_ATTRS || {standards:{},supports:{},wallTypes:{},boxes:{},mounting:{},roles:{},groups:{},colors:{},sensors:{}};
     const supports = attrs.supports || {};
     const boxes = attrs.boxes || {};
     /* Роль детали в посте и роль управления — из колонок номенклатуры «Функциональная группа»
@@ -84,6 +84,12 @@ window.EP_DATA = {
     // под цвет комнаты (ОТДЕЛКА-ПОРЯДОК, п.4). Ключ — полный артикул; поле появляется, только
     // если номенклатура столбец заполнила (у накладок он пуст), — как frameColor у рамок.
     const colors = attrs.colors || {};
+    // Термодатчик терморегулятора (К5а): артикул датчика, который требует терморегулятор «с
+    // возможностью подключения термодатчика» (раздел sensors, ключ — артикул терморегулятора). По нему
+    // автосостав поста добавляет по одному датчику на каждый такой механизм (EPThermoSensor). Поля нет
+    // у терморегуляторов без датчика и у всех прочих механизмов — «датчик не нужен» отличается от
+    // «нужен» по отсутствию ключа, как functionalGroup/principle.
+    const sensors = attrs.sensors || {};
     // Монтажное правило видов, у которых своего раздела признаков нет (механизмы, аксессуары):
     // «Принцип обработки» номенклатуры заполнен и им (BUTTON/SCHUP/Bluetooth). У накладок,
     // суппортов и коробок правило приезжает вместе с их атрибутами — см. ветки ниже.
@@ -216,6 +222,14 @@ window.EP_DATA = {
       if (col) {
         out = out === p ? {...p} : out;
         out.elementColor = col;
+      }
+      /* Термодатчик терморегулятора (К5а): артикул датчика на механизм-терморегулятор. По нему
+         EPThermoSensor добавляет датчик в состав поста. Поля нет, если механизм датчика не требует, —
+         «датчик не нужен» отличается от «нужен» по отсутствию ключа, как elementColor/partRole. */
+      const sensorCode = sensors[p.code];
+      if (sensorCode) {
+        out = out === p ? {...p} : out;
+        out.thermoSensorCode = sensorCode;
       }
       return out;
     });

@@ -49,9 +49,13 @@ function costWith(backlight) {
     /* Д2: двухпроходный пул (активные + снятые). Снятых в этом тесте нет → запас пуст, подбор
        идёт по активным, как раньше; поведение M1/M2/M3 не меняется. */
     byKindOff: () => [],
-    EPCatalogPool: require("../js/catalogPool.js")
+    EPCatalogPool: require("../js/catalogPool.js"),
+    /* К5а: postDeps теперь вяжет и план термодатчиков (EPThermoSensor + findSensor). POST здесь —
+       клавиша подсветки, не терморегулятор, поэтому датчиков нет и цена не меняется; нужен лишь
+       доступ к модулю, чтобы исполнить настоящий postDeps. */
+    EPThermoSensor: require("../js/thermoSensor.js")
   };
-  const code = stand.constSource("findBacklight") + "\n" + stand.constBlock("postDeps") + "\n;postDeps;";
+  const code = stand.constSource("findBacklight") + "\n" + stand.constSource("findSensor") + "\n" + stand.constBlock("postDeps") + "\n;postDeps;";
   vm.createContext(ctx);
   const postDeps = vm.runInContext(code, ctx);
   return { cost: EPPosts.postCost(POST, postDeps()), poolCalls };
