@@ -22,11 +22,14 @@ const EPOfferPdf = require("../js/offerPdf.js");
 
 const RATE = 92.5;
 const round2 = EPEstimate.round2;
+/* К7 (решение владельца 20.10): показ в рублях — ЦЕЛЫЙ рубль вверх (цена изделия вверх, сумма =
+   Σ целых). Ожидание считаем тем же правилом ядра, но НЕЗАВИСИМО от проверяемых функций. */
+const ceilRub = n => EPEstimate.roundShown(n, "RUB", "up");
 /* Только цифры и десятичная запятая — убирает узкие/неразрывные пробелы Intl и символ валюты, чтобы
-   сравнивать смысл числа, а не форматирование. */
+   сравнивать смысл числа, а не форматирование. В рублях копеек нет — moneyShown печатает целое. */
 const digitsOf = s => String(s).replace(/[^\d,]/g, "");
-/* Ожидаемая цифровая строка числа валюты показа: X.XX → "X,XX". */
-const expectDigits = n => round2(n).toFixed(2).replace(".", ",");
+/* Ожидаемая цифровая строка рублёвого числа: целый рубль без копеек ("6501"). */
+const expectDigits = n => String(ceilRub(n));
 
 /* Настоящий каталог VIMAR (как грузит браузер). */
 const realProducts = stand.loadVimarCatalog().products || [];
@@ -46,19 +49,19 @@ const postCost = p => EPPosts.postCost(p, realDeps);
 const postComposition = p => EPPosts.postComposition(p, realDeps);
 
 /* Пост примера: накладка + два механизма. Цена в валюте показа — ПО ИЗДЕЛИЯМ, как считает приложение:
-   каждое изделие round2(цена евро × курс), затем сумма (коробка/суппорт отсутствуют → 0). Считаем
-   НЕЗАВИСИМО прямым чтением прайса — это ожидание для всех пяти потребителей. */
+   каждое изделие ceilRub(цена евро × курс) — целый рубль вверх (К7), затем сумма (коробка/суппорт
+   отсутствуют → 0). Считаем НЕЗАВИСИМО прямым чтением прайса — это ожидание для пяти потребителей. */
 const POST = { id: "x", number: 7, name: "Пост примера", frameId: idByCode("14931"),
   mechanismIds: [idByCode("19021"), idByCode("19101")] };
 const priceEuros = [realById.get(POST.frameId), ...POST.mechanismIds.map(id => realById.get(id))]
   .map(p => Number(p && p.price) || 0);
-const EXPECT_ONE = round2(priceEuros.reduce((s, e) => s + round2(e * RATE), 0));   // цена ОДНОГО поста, ₽
+const EXPECT_ONE = ceilRub(priceEuros.reduce((s, e) => s + ceilRub(e * RATE), 0));   // цена ОДНОГО поста, ₽
 const EXPECT_ONE_D = expectDigits(EXPECT_ONE);
-const EXPECT_TWO_D = expectDigits(round2(EXPECT_ONE * 2));                         // сумма ДВУХ постов
+const EXPECT_TWO_D = expectDigits(EXPECT_ONE * 2);                                   // сумма ДВУХ постов
 
 /* Санити: пример осмысленный (ненулевая цена) и курс различает money/moneyShown (×92,5 ≠ ×1). */
 assert.ok(EXPECT_ONE > 0, "цена примера ненулевая (реальный каталог)");
-assert.notEqual(EXPECT_ONE_D, expectDigits(round2(EXPECT_ONE * RATE)), "курс 92,5 различает money и moneyShown");
+assert.notEqual(EXPECT_ONE_D, expectDigits(EXPECT_ONE * RATE), "курс 92,5 различает money и moneyShown");
 
 /* НАСТОЯЩИЕ money/moneyShown из app.js + НАСТОЯЩИЙ postTotalCost + функция-потребитель — в одном
    vm-контексте (общая лексика). money/moneyShown берём ИСХОДНЫМ текстом (constBlock), не копией:

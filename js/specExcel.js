@@ -108,10 +108,13 @@ function sheetXml(rows, widths) {
 /* styles.xml: один пользовательский денежный формат (id 164) с символом валюты, два шрифта
    (обычный/жирный) и заливка шапки. Порядок элементов в styleSheet строгий — Excel придирчив. */
 function stylesXml(currency) {
-  const sym = currency === "RUB" ? "₽" : "€";
-  /* Формат: разделитель тысяч, 2 знака, пробел и символ валюты. В атрибуте кавычки — &quot;,
-     обратный слэш перед пробелом делает пробел литеральным. */
-  const fmt = `#,##0.00\\ &quot;${sym}&quot;`;
+  const rub = currency === "RUB";
+  const sym = rub ? "₽" : "€";
+  /* Формат: разделитель тысяч, пробел и символ валюты. В атрибуте кавычки — &quot;, обратный слэш
+     перед пробелом делает пробел литеральным. Рубли — БЕЗ дробной части (К7, решение владельца 20.10
+     п.5: «копеек в рублях не печатать нигде, в т.ч. формат рублёвых ячеек Excel без „,00“»); евро —
+     2 знака, как было. Числа в ячейках уже округлены ядром (целый рубль / копейка). */
+  const fmt = rub ? `#,##0\\ &quot;${sym}&quot;` : `#,##0.00\\ &quot;${sym}&quot;`;
   return `${XMLHEAD}<styleSheet xmlns="${NS}">`
     + `<numFmts count="1"><numFmt numFmtId="164" formatCode="${fmt}"/></numFmts>`
     + `<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font>`
@@ -133,7 +136,7 @@ function stylesXml(currency) {
 }
 
 /* --- Лист «Спецификация»: строим ровно те столбцы и те числа, что КП (offerPdf). --- */
-function buildSpecSheet(est, options, config, estimate, rate) {
+function buildSpecSheet(est, options, config, estimate, rate, currency) {
   const itemText = (value, code) => config.itemText(value, options.articles, code);
   const pctStr = n => String(n).replace(".", ",");
   /* Пометка личной скидки — та же формулировка и то же условие, что в КП (offerPdf.discMark):
@@ -145,7 +148,7 @@ function buildSpecSheet(est, options, config, estimate, rate) {
      по изделиям, сумма = цена × количество, уже в валюте показа (учтён rate) и округлены. Кладём их КАК
      ЕСТЬ (ниже — num без повторного ×rate), чтобы Σ столбца «Сумма» сошлась с «Оборудованием». rows[i] ↔
      est.groups[i]. */
-  const spec = estimate.specShown(est, rate);
+  const spec = estimate.specShown(est, rate, currency);
   const rows = (est.groups || []).map((g, i) => ({
     name: itemText(g.name, g.items && g.items.length === 1 ? g.items[0].code : null),
     composition: options.articles ? g.composition : (Array.isArray(g.items)
@@ -198,7 +201,7 @@ function buildSpecSheet(est, options, config, estimate, rate) {
        скидка, материалы, работы, «без НДС», НДС и итог приходят уже в валюте показа (учтён rate) и
        округлёнными так, что сумма напечатанных строк выше НДС сходится с «Итого без НДС». Кладём ИХ как
        есть (не est.X×rate): они уже с точностью до копейки, денежный формат ячейки их только отобразит. */
-    const totals = estimate.totalsShown(est, rate);
+    const totals = estimate.totalsShown(est, rate, currency);
     /* «Оборудование» = Σ столбца «Сумма». Когда столбец «Сумма» показан — делаем это настоящей
        формулой SUM по уже-округлённым ячейкам сумм; её кэш = totals.equipment, и это ровно Σ этих ячеек
        (В26: totals.equipment = Σ напечатанных сумм строк). Значения ячеек и кэш оба округлены до копейки,
@@ -233,7 +236,7 @@ const codeKey = c => String(c == null ? "" : c).replace(/\s+/g, "").toUpperCase(
 
 /* --- Лист «По артикулам»: плоский свод (как КП, но без подзаголовков-групп — в таблице Excel они
    ломали бы сортировку/фильтр/СУММ). При включённых ценах добавляем цену и сумму. --- */
-function buildSupplierSheet(est, supplier, options, config, estimate, rate) {
+function buildSupplierSheet(est, supplier, options, config, estimate, rate, currency) {
   const rows = (supplier && supplier.rows) || [];
   const showArticles = options.articles !== false;
   const showPrices = !!options.prices;
@@ -276,10 +279,11 @@ function buildSupplierSheet(est, supplier, options, config, estimate, rate) {
       if (key === "count") return num(Number(r.count) || 0);
       if (key === "unit") return txt(r.unit || "шт.");
       /* Цена/сумма — ПО ИЗДЕЛИЯМ (В26, то же правило, что КП и лист «Спецификация»): «Цена» =
-         напечатанная цена единицы round2(евро × курс), «Сумма» = количество × эта НАПЕЧАТАННАЯ цена
-         (estimate.shownSum, без повторного ×курс). Иначе «Кол-во × Цена ≠ Сумма» на копейку. */
-      if (key === "price") return hasPrice ? num(estimate.round2(unitPrice * rate), S_MONEY) : txt("");
-      if (key === "sum") return hasPrice ? num(estimate.shownSum([{ price: unitPrice, count: Number(r.count) || 0 }], rate), S_MONEY) : txt("");
+         напечатанная цена единицы roundShown(евро × курс) — в рублях целый рубль вверх, в евро копейка,
+         «Сумма» = количество × эта НАПЕЧАТАННАЯ цена (estimate.shownSum, без повторного ×курс). Иначе
+         «Кол-во × Цена ≠ Сумма». */
+      if (key === "price") return hasPrice ? num(estimate.roundShown(unitPrice * rate, currency, "up"), S_MONEY) : txt("");
+      if (key === "sum") return hasPrice ? num(estimate.shownSum([{ price: unitPrice, count: Number(r.count) || 0 }], rate, currency), S_MONEY) : txt("");
       return txt("");
     }));
   });
@@ -378,8 +382,8 @@ function build(est, supplier, deps) {
   const e = est || { groups: [] };
   const sup = supplier || { rows: [] };
 
-  const sheet1 = buildSpecSheet(e, options, config, estimate, rate);
-  const sheet2 = buildSupplierSheet(e, sup, options, config, estimate, rate);
+  const sheet1 = buildSpecSheet(e, options, config, estimate, rate, currency);
+  const sheet2 = buildSupplierSheet(e, sup, options, config, estimate, rate, currency);
 
   const contentTypes = `${XMLHEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">`
     + `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`

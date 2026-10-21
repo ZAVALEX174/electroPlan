@@ -34,7 +34,7 @@ function render(mode) {
     money: v => "€" + Number(v).toFixed(2),
     /* displayRate=1 (евро) и moneyShown форматирует УЖЕ-показанное число — панель берёт три числа НДС
        из EPEstimate.vatShown, умноженные на курс, и форматирует их без повторного умножения (В7). */
-    displayRate: () => 1,
+    displayRate: () => 1, displayCurrency: () => "EUR",
     moneyShown: v => "€" + Number(v).toFixed(2),
     esc: String,
     projectLighting: () => ({}),
@@ -77,7 +77,7 @@ test("панель МУТАЦИЯ-ловушка: итог из vatShown по к
   const run = stand.run("renderSummary", {
     state: { rooms: [], devices: [{ id: "d1", roomId: null }], posts: [] },
     EPEstimate, $: dom.$,
-    money: v => (Number(v) * 92.5).toFixed(2), displayRate: () => 92.5, moneyShown: v => Number(v).toFixed(2),
+    money: v => (Number(v) * 92.5).toFixed(2), displayRate: () => 92.5, displayCurrency: () => "EUR", moneyShown: v => Number(v).toFixed(2),
     esc: String, projectLighting: () => ({}), buildEstimate: () => est,
     lightingHtml: () => "[L]", updateStatus: () => {}, orphanObjectsWarningText: () => ""
   });

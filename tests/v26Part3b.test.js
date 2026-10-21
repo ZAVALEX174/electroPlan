@@ -20,12 +20,17 @@ const EPOfferPdf = require("../js/offerPdf.js");
 
 const RATE = 92.5;
 const round2 = EPEstimate.round2;
-/* ru-RU «валютное» число, как форматирует app.moneyShown (для сверки точных текстов «16 699,06 ₽»). */
-const fmt = n => new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(round2(n));
+const ceilRub = n => EPEstimate.roundShown(n, "RUB", "up");
+/* ru-RU рублёвое число, как форматирует app.moneyShown в рублях (К7): ЦЕЛЫЙ рубль, без копеек —
+   «16 702 ₽». Для сверки точных текстов строки/блока на показе в рублях. */
+const fmtRub = n => new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(ceilRub(n));
 
-/* Санити: курс 92,5 действительно различает «по изделиям» и «одно округление суммой». */
-assert.equal(round2(round2(25.79 * RATE) * 7), 16699.06, "7 × round2(25,79×92,5) = 16 699,06 (по изделиям)");
-assert.equal(round2(25.79 * 7 * RATE), 16699.03, "round2(7×25,79×92,5) = 16 699,03 (одно округление суммой)");
+/* Санити (евро-математика ядра, курс 1 vs 92,5): правило «по изделиям» ≠ «одно округление суммой».
+   В рублях (К7) та же развилка: по изделиям ceil(Σ ceil(25,79×92,5))=16 702; сырой суммой
+   ceil(25,79×7×92,5)=ceil(16 699,025)=16 700 — мутация M20 дала бы 16 700. */
+assert.equal(round2(round2(25.79 * RATE) * 7), 16699.06, "7 × round2(25,79×92,5) = 16 699,06 (по изделиям, евро)");
+assert.equal(ceilRub(ceilRub(25.79 * RATE) * 7), 16702, "7 × ceil(25,79×92,5) = 16 702 ₽ (по изделиям)");
+assert.equal(ceilRub(25.79 * 7 * RATE), 16700, "ceil(7×25,79×92,5) = 16 700 ₽ (одно округление суммой)");
 
 /* ─────────── 1. Ядро правила ─────────── */
 
@@ -74,8 +79,8 @@ test("В26 ч.3б: строка света поста печатает Σ нап
   const lightingRowSummary = runApp("lightingRowSummary");
   const rows = Array.from({ length: 7 }, (_, i) => ({ code: "c" + i, price: 25.79 }));
   const out = lightingRowSummary(rows);
-  assert.ok(out && out.text.includes(fmt(16699.06)), `строка печатает ${fmt(16699.06)}, получено: ${out && out.text}`);
-  assert.ok(!out.text.includes(fmt(16699.03)), "НЕ округление суммы сырых евро (16 699,03)");
+  assert.ok(out && out.text.includes(fmtRub(16702)), `строка печатает ${fmtRub(16702)}, получено: ${out && out.text}`);
+  assert.ok(!out.text.includes(fmtRub(16700)), "НЕ округление суммы сырых рублей (16 700)");
 });
 
 /* ─────────── 3. Блок «Группы света» ─────────── */
@@ -86,8 +91,8 @@ test("В26 ч.3б: блок «Группы света» печатает Σ по
     gaps: [], relays: [], totals: { switch: 7 }, places: Array.from({ length: 7 }, () => ({ product: { price: 25.79 } })) },
     ambiguous: [] };
   const html = lightingHtml(light, "Группы света");
-  assert.ok(html.includes(fmt(16699.06)), `блок печатает ${fmt(16699.06)}`);
-  assert.ok(!html.includes(fmt(16699.03)), "НЕ округление суммы сырых евро");
+  assert.ok(html.includes(fmtRub(16702)), `блок печатает ${fmtRub(16702)}`);
+  assert.ok(!html.includes(fmtRub(16700)), "НЕ округление суммы сырых рублей");
 });
 
 /* ─────────── 4. КП: столбец «Стоимость артикулов» = «Стоимость блока» ─────────── */
@@ -98,7 +103,9 @@ test("В26 ч.3б: Σ столбца «Стоимость артикулов» =
   const moneyShown = n => "R" + round2(n).toFixed(2);
   const money = n => "R" + round2(Number(n) * RATE).toFixed(2);
   const items = [{ code: "A", name: "Коробка", count: 2, price: 0.85 }, { code: "B", name: "Выключатель", count: 7, price: 25.79 }];
-  const blockPrice = round2(items.reduce((s, it) => s + round2(it.price * RATE) * it.count, 0));   // 16 856,32
+  /* Рубли (К7): цена изделия вверх до рубля (0,85×92,5=78,625→79; 25,79×92,5=2385,575→2386), сумма
+     строки = цена×кол (целая): 79×2=158, 2386×7=16 702; «Стоимость блока» = Σ = 16 860. */
+  const blockPrice = ceilRub(items.reduce((s, it) => s + ceilRub(it.price * RATE) * it.count, 0));   // 16 860
   const html = EPOfferPdf.buildHtml(
     { groups: [], equipment: 0, missing: [], discount: 0, materials: 0, work: 0, vat: 0 },
     { esc: String, money, moneyShown, EPEstimate, displayRate: () => RATE, displayCurrency: () => "RUB",
@@ -111,7 +118,7 @@ test("В26 ч.3б: Σ столбца «Стоимость артикулов» =
       planBlockHtml: "", lightingHtml: "", supplierSpecHtml: "" });
   /* Суммы строк разбивки — правые части «= R…». */
   const sums = [...html.matchAll(/= R([\d.]+)/g)].map(m => Number(m[1]));
-  assert.deepEqual(sums, [157.26, 16699.06], `строки разбивки: ${JSON.stringify(sums)}`);
+  assert.deepEqual(sums, [158, 16702], `строки разбивки: ${JSON.stringify(sums)}`);
   assert.equal(round2(sums.reduce((a, b) => a + b, 0)), blockPrice, "Σ строк = «Стоимость блока»");
   /* «Стоимость блока» печатается moneyShown (одно применение курса) той же цифрой. */
   assert.ok(html.includes("R" + blockPrice.toFixed(2)), `«Стоимость блока» = R${blockPrice.toFixed(2)}`);

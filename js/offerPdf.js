@@ -152,13 +152,17 @@ function compose(est, deps) {
      форматирует число без повторного умножения на курс (money() умножил бы второй раз). Без зависимостей
      (старый вызов на rate=1) moneyShown == money, числа те же. */
   const rate = deps.displayRate ? deps.displayRate() : 1;
+  /* Валюта показа (К7): в рублях ядро округляет суммы до целого рубля (скидка вниз, прочее вверх),
+     в евро — до копейки. moneyShown форматирует эти уже-целые числа; старый вызов без displayCurrency
+     даёт "EUR" — поведение евро, числа прежние. */
+  const currency = deps.displayCurrency ? deps.displayCurrency() : "EUR";
   const moneyShown = deps.moneyShown || money;
-  const totals = estimate.totalsShown(est, rate);
+  const totals = estimate.totalsShown(est, rate, currency);
   /* Печатные «Цена» и «Сумма» КАЖДОЙ строки спецификации — из ОДНОЙ EPEstimate.specShown (В26):
      цена строки собрана по изделиям состава, сумма = цена × количество, и Σ сумм = «Оборудование»
      (totals.equipment тоже отсюда). Числа приходят УЖЕ в валюте показа и округлёнными — печатаем их
      moneyShown (без повторного ×курс), второй копии арифметики у КП нет (§7.1). rows[i] ↔ est.groups[i]. */
-  const spec = estimate.specShown(est, rate);
+  const spec = estimate.specShown(est, rate, currency);
 
   /* Проценты в КП — с ДЕСЯТИЧНОЙ ЗАПЯТОЙ (русский документ), как курс в rateFooter: «12,5%», а не
      «12.5%». Целое остаётся целым. */
@@ -308,7 +312,7 @@ function compose(est, deps) {
         const name = esc(itemText(it.name, it.code));
         if (!it.code) return `${name} — цена не определена`;
         const unit = Number(it.price) || 0, count = Number(it.count) || 0;
-        return count > 1 ? `${name} — ${count} × ${money(unit)} = ${moneyShown(estimate.shownSum([{ price: unit, count }], rate))}` : `${name} — ${money(unit)}`;
+        return count > 1 ? `${name} — ${count} × ${money(unit)} = ${moneyShown(estimate.shownSum([{ price: unit, count }], rate, currency))}` : `${name} — ${money(unit)}`;
       }).join("<br>");
     },
     illustration: p => layoutIllustration(p)

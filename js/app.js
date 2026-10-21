@@ -80,11 +80,20 @@ function displayRate(){
 }
 /* moneyShown форматирует число, УЖЕ переведённое в валюту показа (курс не применяет повторно).
    money() переводит базовую цену в валюту показа и форматирует. Нужны оба: суммы каталога хранятся
-   в евро и идут через money(), а три числа НДС (EPEstimate.vatShown) приходят уже в валюте показа и
-   округлёнными до копейки — их форматирует moneyShown, иначе курс умножился бы дважды. */
-const moneyShown=(n)=>new Intl.NumberFormat("ru-RU",{
-  style:"currency",currency:displayCurrency(),minimumFractionDigits:2,maximumFractionDigits:2
-}).format(EPEstimate.round2(n));
+   в евро и идут через money(), а числа итогов/НДС (EPEstimate.totalsShown/vatShown) приходят уже в
+   валюте показа и округлёнными — их форматирует moneyShown, иначе курс умножился бы дважды.
+   ⚠️ РУБЛИ — ЦЕЛЫЕ, БЕЗ КОПЕЕК ВЕЗДЕ (К7, решение владельца 20.10 п.5): в рублях формат без «,00»,
+   а само число округляем ВВЕРХ до рубля той же точкой EPEstimate.roundShown, что и ядро сметы.
+   Числа итогов приходят уже целыми (скидка — вниз, остальное — вверх), и ceil их не меняет; а
+   «сырая» цена каталога через money() ceil'ится вверх — одно правило с «Ценой» строки КП (п.6).
+   Евро не трогаем: round2 до копейки, формат с двумя знаками — как было. */
+const moneyShown=(n)=>{
+  const cur=displayCurrency(),rub=cur==="RUB";
+  return new Intl.NumberFormat("ru-RU",{
+    style:"currency",currency:cur,
+    minimumFractionDigits:rub?0:2,maximumFractionDigits:rub?0:2
+  }).format(EPEstimate.roundShown(n,cur,"up"));
+};
 const money=(n)=>moneyShown((Number(n)||0)*displayRate());
 /* Курс печатаем с 4 знаками, но дробную часть — через ЗАПЯТУЮ: в русском документе
    «92,5000 ₽», а не «92.5000 ₽» (интерфейс и КП идут заказчику). */
@@ -1744,8 +1753,8 @@ function lightingRowSummary(rows){
   if(!c.need)return null;
   return Object.assign({},c,{
     text:c.gaps
-      ? `${c.found} из ${c.need} · ${moneyShown(EPEstimate.lightingSumShown(rows,displayRate()))} · без механизма: ${c.gaps}`
-      : `${c.found} шт. · ${moneyShown(EPEstimate.lightingSumShown(rows,displayRate()))}`});
+      ? `${c.found} из ${c.need} · ${moneyShown(EPEstimate.lightingSumShown(rows,displayRate(),displayCurrency()))} · без механизма: ${c.gaps}`
+      : `${c.found} шт. · ${moneyShown(EPEstimate.lightingSumShown(rows,displayRate(),displayCurrency()))}`});
 }
 /* СТРОКА «ПОДСВЕТКА КЛАВИШ» — ОДНА ФОРМУЛИРОВКА НА ВСЕ ЭКРАНЫ (панель «Состав поста»
    конструктора, карточка размещённого поста и подсказка на плане).
@@ -1814,7 +1823,7 @@ function projectLighting(){
 function postTotalCost(post,light){
   const l=light===undefined?projectLighting():light;
   /* Цена поста = «Цена» строки спецификации этого поста: тот же build на одном посте и то же ядро pricedUnit (EPEstimate.postPriceShown, §7.1), в валюте показа (displayRate). Здесь — только подстановка зависимостей приложения. */
-  return EPEstimate.postPriceShown(post,{product,frameProduct,postCost,postComposition,lightingOf:po=>lightingRowsFor(po,l),settings:EP_DATA.settings},displayRate());
+  return EPEstimate.postPriceShown(post,{product,frameProduct,postCost,postComposition,lightingOf:po=>lightingRowsFor(po,l),settings:EP_DATA.settings},displayRate(),displayCurrency());
 }
 /* Неоднозначный подбор: в серии клавиши на нужную роль нашлось НЕСКОЛЬКО голых механизмов, и
    разобрать их данными нечем. Молча выбрать один нельзя — это деньги и монтаж, поэтому
@@ -1833,7 +1842,7 @@ function ambiguityHtml(light,options){
    формулировки причин — из EPLightingGroups.GAP_TEXTS; своего словаря здесь нет намеренно. */
 function lightingHtml(light,title,options){
   if(!light)return"";
-  return EPLightingPlan.buildHtml(light.plan,{esc,money,moneyShown,title:title||"Группы света",total:options?.prices===false?0:EPEstimate.lightingPlanSumShown(light&&light.plan,displayRate())})
+  return EPLightingPlan.buildHtml(light.plan,{esc,money,moneyShown,title:title||"Группы света",total:options?.prices===false?0:EPEstimate.lightingPlanSumShown(light&&light.plan,displayRate(),displayCurrency())})
     +ambiguityHtml(light,options);
 }
 
@@ -1894,7 +1903,7 @@ function renderSummary(){
      материалы, работы, НДС и итог приходят уже в валюте показа и округлёнными до копейки так, что
      столбец слагаемых сходится в «Итого». Форматируем moneyShown — курс учтён внутри totalsShown
      (displayRate), повторно умножать нельзя. */
-  const rate=displayRate(),totals=EPEstimate.totalsShown(est,rate),spec=EPEstimate.specShown(est,rate);
+  const rate=displayRate(),cur=displayCurrency(),totals=EPEstimate.totalsShown(est,rate,cur),spec=EPEstimate.specShown(est,rate,cur);
   $("equipmentTotal").textContent=moneyShown(totals.equipment);$("materialsTotal").textContent=moneyShown(totals.materials);
   $("workTotal").textContent=moneyShown(totals.work);$("grandTotal").textContent=moneyShown(totals.total);
   /* скидка и НДС показываются, только когда заданы — чтобы не мозолить нулями */
@@ -3450,7 +3459,7 @@ const renumberSubject=(numbers,before,after)=>JSON.stringify([[...numbers].map((
 function renumberNews(before,after){
   const sumBefore=lightingSum(before),sumAfter=lightingSum(after);
   return Math.abs(sumBefore-sumAfter)>=0.005
-    ? `Перенумерация пересоберёт механизмы групп света: ${moneyShown(EPEstimate.lightingPlanSumShown(before&&before.plan,displayRate()))} → ${moneyShown(EPEstimate.lightingPlanSumShown(after&&after.plan,displayRate()))}`
+    ? `Перенумерация пересоберёт механизмы групп света: ${moneyShown(EPEstimate.lightingPlanSumShown(before&&before.plan,displayRate(),displayCurrency()))} → ${moneyShown(EPEstimate.lightingPlanSumShown(after&&after.plan,displayRate(),displayCurrency()))}`
     : lightingKitSignature(before)!==lightingKitSignature(after)
       ? "Перенумерация переставит механизмы групп света между постами (сумма прежняя)"
       : "Перенумерация изменит адреса мест управления в группах («место N из M») — механизмы и сумма прежние, документы изменятся";

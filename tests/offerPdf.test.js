@@ -131,19 +131,21 @@ test("КП «выделить в стоимости»: итог прежний, 
   assert.ok(posGrand > -1 && posIncl > posGrand, "«в т.ч. НДС» стоит ПОД итогом");
 });
 
-test("КП МУТАЦИЯ-ловушка: итог берётся из vatShown по курсу, не money(est.total) (копеечная граница)", () => {
-  /* subtotal 0,01 × курс 92,5, НДС 5% сверху: vatShown даёт без НДС 0,93, НДС 0,05, итог 0,98. А
-     money(est.total)=est.total×курс = 0,0105×92,5 = 0,97125 (0,97). Мутация «КП считает мимо общего
-     правила» напечатала бы 0,97 — здесь видно. moneyShown форматирует УЖЕ-показанное число. */
+test("КП МУТАЦИЯ-ловушка (рубли): итог берётся из totalsShown (целый рубль), не money(est.total)", () => {
+  /* К7 (решение владельца 20.10): в рублях каждое число — ЦЕЛЫЙ рубль (цены/суммы/НДС вверх). Вход
+     subtotal 0,01 € при курсе 92,5: оборудование = ceil(0,01×92,5)=ceil(0,925)=1 ₽; НДС 5% сверху =
+     ceil(1×5/100)=ceil(0,05)=1 ₽; итог = 1+1 = 2 ₽. А money(est.total)=est.total×курс = 0,0105×92,5 =
+     0,97 — мутация «КП считает мимо totalsShown» напечатала бы 0,97, здесь видно. moneyShown (стаб
+     toFixed(2)) только отображает уже-округлённые ядром числа. */
   const est2 = { groups: [{ name: "X", composition: "X", count: 1, unit: "шт", sum: 0.01,
       items: [{ kind: "mechanism", code: "X", name: "X", count: 1, price: 0.01 }] }],
     equipment: 0.01, discount: 0, materials: 0, work: 0, subtotal: 0.01, missing: [],
     vatMode: "surcharge", vat: 0.0005, vatLabel: "НДС", vatPercent: 5, vatIncluded: false, total: 0.0105 };
   const html = buildHtml(est2, Object.assign({}, deps, { displayCurrency: () => "RUB",
     displayRate: () => 92.5, money: n => (Number(n) * 92.5).toFixed(2), moneyShown: n => Number(n).toFixed(2) }));
-  assert.match(html, /<span>Итого без НДС<\/span><b>0\.93<\/b>/, "без НДС = округлённая база");
-  assert.match(html, /<span>НДС 5%<\/span><b>0\.05<\/b>/, "НДС от округлённой базы");
-  assert.match(html, /<span>Итого с НДС<\/span><b>0\.98<\/b>/, "итог = 0,93+0,05 = 0,98, не 0,97");
+  assert.match(html, /<span>Итого без НДС<\/span><b>1\.00<\/b>/, "без НДС = целый рубль вверх (1)");
+  assert.match(html, /<span>НДС 5%<\/span><b>1\.00<\/b>/, "НДС вверх до рубля (1)");
+  assert.match(html, /<span>Итого с НДС<\/span><b>2\.00<\/b>/, "итог = 1+1 = 2, не 0,97");
   assert.ok(!/<b>0\.97<\/b>/.test(html), "итог НЕ money(est.total)=0,97 — КП не считает мимо правила");
 });
 

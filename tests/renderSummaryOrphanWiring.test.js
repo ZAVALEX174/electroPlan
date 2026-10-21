@@ -57,7 +57,7 @@ function buildRenderSummary(dom, state) {
        курс через displayRate). В песочнице обе — голые лексические имена из app.js, значит обязаны
        быть в контексте, иначе ReferenceError; здесь это заглушки — числа НДС стережёт estimate.test.js. */
     moneyShown: v => "moneyShown(" + v + ")",
-    displayRate: () => 1,
+    displayRate: () => 1, displayCurrency: () => "EUR",
     esc: s => String(s),
     projectLighting: () => ({}),
     buildEstimate: () => ({

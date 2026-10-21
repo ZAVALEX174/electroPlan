@@ -191,12 +191,13 @@ function kpTotals(est, rate, currency) {
 }
 
 /* Панель: прогнать настоящий renderSummary из app.js и прочитать узлы. */
-function panelTotals(est, rate) {
+function panelTotals(est, rate, currency) {
   const dom = stand.makeDom();
   const run = stand.run("renderSummary", {
     state: { rooms: [], devices: [{ id: "d1", roomId: null }], posts: [] },
     EPEstimate, $: dom.$,
-    money: v => showMoney(Number(v) * rate), moneyShown: v => showMoney(v), displayRate: () => rate,
+    money: v => showMoney(Number(v) * rate), moneyShown: v => showMoney(v),
+    displayRate: () => rate, displayCurrency: () => currency,
     esc: String, projectLighting: () => ({}), buildEstimate: () => est,
     lightingHtml: () => "[L]", updateStatus: () => {}, orphanObjectsWarningText: () => ""
   });

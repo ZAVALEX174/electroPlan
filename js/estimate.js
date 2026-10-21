@@ -162,6 +162,38 @@ function round2(n) {
   return sign * Math.round(Number((Math.abs(x) * 100).toPrecision(15))) / 100;
 }
 
+/* ⚠️ ЦЕЛЫЙ РУБЛЬ — ОДНО правило округления рублёвого показа (К7, решение владельца 20.10).
+   Фраза владельца: «обычно всегда округляют в большую… до рубля в большую». В рублях копеек не
+   печатаем НИГДЕ; направление зависит от роли числа:
+     ceilRub — ВВЕРХ (цены, суммы, оборудование, материалы, работы, НДС): «1 234,20 ₽ → 1 235 ₽»;
+     floorRub — ВНИЗ (скидка — общая и личные построчные).
+   Тот же приём против двоичного дребезга, что в round2: toPrecision(15) снимает «хвост» двоичного
+   double ДО Math.ceil/floor, иначе цена, кратная центу, на целом курсе прыгнула бы на рубль
+   (Math.ceil(6500.000000001) дал бы 6501). Знак берём отдельно и округляем модуль — чтобы у
+   отрицательной величины (скидка печатается с минусом) округлялся её рубль, а не уводило к ±∞. */
+function ceilRub(n) {
+  const x = Number(n) || 0;
+  const sign = x < 0 ? -1 : 1;
+  return sign * Math.ceil(Number(Math.abs(x).toPrecision(15)));
+}
+function floorRub(n) {
+  const x = Number(n) || 0;
+  const sign = x < 0 ? -1 : 1;
+  return sign * Math.floor(Number(Math.abs(x).toPrecision(15)));
+}
+
+/* ⚠️ ДЕНЕЖНОЕ ОКРУГЛЕНИЕ ПОД ВАЛЮТУ ПОКАЗА — ОДНА точка на всю программу (§7.1, решение владельца
+   20.10 п.1). Евро: до копейки (round2, как считает Excel — НИ ОДНА евро-цифра не меняется). Рубли
+   (currency === "RUB"): до целого рубля по dir ("up" — вверх, "down" — вниз). Признак — валюта
+   ПОКАЗА, а не курс: рубли по курсу 1 (гипотетически) округлялись бы так же, евро по курсу не
+   округляется. Производные итоговые числа (суммы/разности уже-целых рублей) под любым dir остаются
+   целыми — поэтому «итог = сумме напечатанных строк» сохраняется. Все «shown»-функции и форматтер
+   money()/moneyShown приложения зовут ЭТУ точку — второй копии правила «как округлить рубль» нет. */
+function roundShown(n, currency, dir) {
+  if (currency !== "RUB") return round2(n);
+  return dir === "down" ? floorRub(n) : ceilRub(n);
+}
+
 /* ⚠️ ТРИ ЧИСЛА НДС, КОТОРЫЕ СХОДЯТСЯ ДО КОПЕЙКИ — ОДНО правило в ОДНОМ месте (В7, решение владельца
    11.10). vatBreakdown выше считает НДС и итог в БАЗОВОЙ валюте и БЕЗ округления; но «Итого без НДС»,
    «НДС» и «Итого с НДС» человек видит уже в валюте показа и округлёнными до копейки — и там, где
@@ -180,20 +212,23 @@ function round2(n) {
      «не учитывать»       — НДС 0, итог = «без НДС» = округлённая база.
    Все потребители (панель «Стоимость проекта», КП, Excel) берут числа ОТСЮДА и форматируют их как
    УЖЕ-показанные (без повторного умножения на курс) — второй копии этой арифметики быть не должно. */
-function vatShown(base, mode, percent, rate) {
+function vatShown(base, mode, percent, rate, currency) {
   const r = Number(rate) > 0 ? Number(rate) : 1;
   const info = vatBreakdown(base, mode, percent);   // режим/ставка/подпись — ОДНО правило, не копируем
   const p = info.percent;
-  const shownBase = round2((Number(base) || 0) * r);
+  /* НДС округляем ВВЕРХ (решение владельца 20.10 п.4): рубли — до целого, евро — до копейки.
+     База (без НДС) — тоже вверх; «в т.ч. НДС» даёт «без НДС» = итог − НДС, «сверху» — итог = база +
+     НДС, поэтому «без НДС + НДС = итог» сохраняется на уже-целых числах. */
+  const shownBase = roundShown((Number(base) || 0) * r, currency, "up");
   if (info.mode === "none") {
     return { mode: info.mode, percent: 0, subtotal: shownBase, amount: 0, total: shownBase, included: false, label: info.label };
   }
   if (info.mode === "included") {
-    const amount = round2(shownBase * p / (100 + p));
-    return { mode: info.mode, percent: p, subtotal: round2(shownBase - amount), amount, total: shownBase, included: true, label: info.label };
+    const amount = roundShown(shownBase * p / (100 + p), currency, "up");
+    return { mode: info.mode, percent: p, subtotal: roundShown(shownBase - amount, currency, "up"), amount, total: shownBase, included: true, label: info.label };
   }
-  const amount = round2(shownBase * p / 100);
-  return { mode: info.mode, percent: p, subtotal: shownBase, amount, total: round2(shownBase + amount), included: false, label: info.label };
+  const amount = roundShown(shownBase * p / 100, currency, "up");
+  return { mode: info.mode, percent: p, subtotal: shownBase, amount, total: roundShown(shownBase + amount, currency, "up"), included: false, label: info.label };
 }
 
 /* ⚠️ ПЕЧАТНЫЕ ЧИСЛА СПЕЦИФИКАЦИИ — ОДНО правило «как в обычном счёте» (В26, решение владельца 13.10).
@@ -224,14 +259,16 @@ function vatShown(base, mode, percent, rate) {
    rate — множитель в валюту показа (1 для евро). Возвращает { price, items }, где price —
    цена единицы в валюте показа (округлена), а items — те же узлы с ценой УЖЕ в валюте показа
    (нужны разбивке «Стоимость артикулов», часть 3). Защита: нет цены/пустой состав → 0, не NaN. */
-function pricedUnit(items, rate) {
+function pricedUnit(items, rate, currency) {
   const r = Number(rate) > 0 ? Number(rate) : 1;
   const priced = (Array.isArray(items) ? items : []).map((it) => {
-    /* Цену изделия переводим в валюту показа и округляем ЗДЕСЬ — до умножения на количество. */
-    const unit = round2((Number(it && it.price) || 0) * r);
+    /* Цену изделия переводим в валюту показа и округляем ЗДЕСЬ — до умножения на количество.
+       В рублях — ВВЕРХ до целого (решение владельца 20.10 п.3/6: «цена изделия/за шт. в рублях —
+       вверх до рубля»); в евро — до копейки. */
+    const unit = roundShown((Number(it && it.price) || 0) * r, currency, "up");
     return Object.assign({}, it, { price: unit });
   });
-  const price = round2(priced.reduce((acc, it) => acc + it.price * (Number(it.count) || 0), 0));
+  const price = roundShown(priced.reduce((acc, it) => acc + it.price * (Number(it.count) || 0), 0), currency, "up");
   return { price, items: priced };
 }
 
@@ -245,15 +282,15 @@ function pricedUnit(items, rate) {
    прежней сумме сырых евро. Второй копии этой арифметики быть не должно (§7.1): столбец «Стоимость
    артикулов» КП, суммы механизмов групп света, перенумерация и лист Excel «По артикулам» зовут ЕЁ.
    Возвращает число в валюте показа, уже округлённое до копейки. */
-function shownSum(items, rate) { return pricedUnit(items, rate).price; }
+function shownSum(items, rate, currency) { return pricedUnit(items, rate, currency).price; }
 
 /* Напечатанная сумма механизмов групп света ОДНОГО поста (строка «N шт. · X ₽» в окне поста и в панели
    свойств). billableLighting(separateLighting(rows)) — ТОТ ЖЕ фильтр, что кладёт механизмы в состав и в
    цену поста (пробел и цельное изделие в сумму не идут, ровно как в деньгах, см. lightingCounts); сумму
    печатаем ядром shownSum — чтобы «X ₽» равнялось сложению напечатанных цен механизмов, а не округлению
    суммы сырых евро. rows — строки мест ЭТОГО поста (EPLightingPlan.rowsByPost). */
-function lightingSumShown(rows, rate) {
-  return shownSum(billableLighting(separateLighting(rows)).map(r => ({ price: Number(r && r.price) || 0, count: 1 })), rate);
+function lightingSumShown(rows, rate, currency) {
+  return shownSum(billableLighting(separateLighting(rows)).map(r => ({ price: Number(r && r.price) || 0, count: 1 })), rate, currency);
 }
 
 /* Напечатанная сумма механизмов групп света ПО ВСЕМУ ПРОЕКТУ — подпись блока «Группы света» и
@@ -264,23 +301,25 @@ function lightingSumShown(rows, rate) {
    (с полем places); место без товара и пустой/несуществующий план дают 0, а не NaN. Правило —
    ТОЛЬКО здесь, чтобы у блока и у перенумерации не было трёх копий «какие места и по какой цене
    идут в сумму» (§7.1). */
-function lightingPlanSumShown(plan, rate) {
-  return shownSum(((plan && plan.places) || []).map(p => ({ price: (p && p.product) ? (Number(p.product.price) || 0) : 0, count: 1 })), rate);
+function lightingPlanSumShown(plan, rate, currency) {
+  return shownSum(((plan && plan.places) || []).map(p => ({ price: (p && p.product) ? (Number(p.product.price) || 0) : 0, count: 1 })), rate, currency);
 }
 
-function specShown(est, rate) {
+function specShown(est, rate, currency) {
   const r = Number(rate) > 0 ? Number(rate) : 1;
   const groups = (est && est.groups) || [];
   let equipment = 0;
   const rows = groups.map((g) => {
     const count = Number(g && g.count) || 0;
     /* Цена и переведённый состав строки — тем же ядром, что цена поста (§7.1). */
-    const { price, items } = pricedUnit(g && g.items, r);
-    const sum = round2(price * count);
+    const { price, items } = pricedUnit(g && g.items, r, currency);
+    /* Сумма строки = цена × количество (решение владельца 20.10 п.3: «Кол × Цена = Сумма»).
+       В рублях цена уже целая, произведение целое — roundShown("up") его не меняет; евро — до копейки. */
+    const sum = roundShown(price * count, currency, "up");
     equipment += sum;
     return { price, sum, items };
   });
-  return { rows, equipment: round2(equipment) };
+  return { rows, equipment: roundShown(equipment, currency, "up") };
 }
 
 /* Напечатанная цена ОДНОГО поста — ОДНА точка на окно поста, подсказку на плане, свойства поста,
@@ -294,13 +333,13 @@ function specShown(est, rate) {
    settings); lightingOf обязан брать расчёт групп света ПРОЕКТА (роли зависят от числа мест по всему
    проекту), поэтому его передаёт вызывающий. rate — множитель в валюту показа (1 для евро). Пустой или
    несобранный пост даёт 0 (build вернёт группу с нулевой ценой либо без неё), а не NaN. */
-function postPriceShown(post, deps, rate) {
+function postPriceShown(post, deps, rate, currency) {
   const d = deps || {};
   const est = build({ devices: [], posts: [post],
     product: d.product, frameProduct: d.frameProduct, postCost: d.postCost,
     postComposition: d.postComposition, lightingOf: d.lightingOf, settings: d.settings });
   const g = est.groups[0];
-  return g ? pricedUnit(g.items, rate).price : 0;
+  return g ? pricedUnit(g.items, rate, currency).price : 0;
 }
 
 /* ⚠️ ВЕСЬ БЛОК ИТОГОВ В ВАЛЮТЕ ПОКАЗА — ОДНО правило в ОДНОМ месте (Б, решение владельца 12.10;
@@ -339,12 +378,12 @@ function postPriceShown(post, deps, rate) {
    показа (сумма округлённых строк), и правило «режим → три числа» живёт в ОДНОМ месте, не дублируется.
    Итог не зависит от того, какие строки документ ПОКАЗЫВАЕТ (часть можно скрыть в «Настройке состава
    КП»): числа производны от est, а не от набора видимых столбцов. */
-function totalsShown(est, rate) {
+function totalsShown(est, rate, currency) {
   const r = Number(rate) > 0 ? Number(rate) : 1;
   const e = est || {};
   /* «Оборудование» и суммы строк — ПО ИЗДЕЛИЯМ (specShown, В26): ровно то, что складывает человек по
      столбцу «Сумма». Второй копии этой арифметики здесь нет (§7.1). */
-  const spec = specShown(e, r);
+  const spec = specShown(e, r, currency);
   const equipment = spec.equipment;
   /* Скидка — ОТ НАПЕЧАТАННЫХ сумм. Личные скидываются построчно (round2 каждой) и из базы общей
      исключаются; остальное идёт под общий процент одним умножением — та же логика, что в сыром
@@ -357,28 +396,34 @@ function totalsShown(est, rate) {
     if (!(g && g.discountPersonal)) return;                 // строка под общей скидкой — в общую базу
     const sum = (spec.rows[i] && spec.rows[i].sum) || 0;    // напечатанная сумма именно этой строки
     personalBase += sum;                                    // исключаем из базы общей (0 % — тоже)
-    personalDiscount += round2(sum * clampPercent(g.discountPercent) / 100);
+    /* Скидка — ВНИЗ до рубля (решение владельца 20.10 п.4); евро — до копейки. Построчно, чтобы
+       человек сверил каждую личную строку калькулятором. */
+    personalDiscount += roundShown(sum * clampPercent(g.discountPercent) / 100, currency, "down");
   });
   /* База общей скидки — «Оборудование» МИНУС напечатанные суммы строк с личной скидкой. Оба числа уже
      округлены до копейки, но при вычитании близких крупных сумм двоичная арифметика теряет младшие
      разряды (29 329,91 − 28 079,31 даёт 1 250,5999999985, и общая скидка 7,5 % округлилась бы ВНИЗ до
      93,79 вместо 93,80). round2 снимает этот дребезг до умножения на процент — тогда строка «Скидка»
      ровно сходится у человека на калькуляторе (В26, решение владельца 13.10). */
+  /* generalBase — разность уже-округлённых (дребезг двоичной арифметики снимаем round2, не рублём:
+     направление тут неважно, оба числа целые в рублях). Общая скидка — ВНИЗ до рубля (п.4),
+     как и личные; «Скидка» = сумма этих целых. */
   const generalBase = round2(equipment - personalBase);
-  const generalDiscount = round2(generalBase * general / 100);
-  const discount = round2(generalDiscount + personalDiscount);
-  /* Материалы и работы — процент от «Оборудование − Скидка» (напечатанных чисел). Тот же дребезг
-     вычитания round2 снимает здесь. Проценты приходят полями сметы (build), не из settings. */
+  const generalDiscount = roundShown(generalBase * general / 100, currency, "down");
+  const discount = roundShown(generalDiscount + personalDiscount, currency, "down");
+  /* Материалы и работы — ВВЕРХ до рубля (п.4) от «Оборудование − Скидка» (напечатанных чисел).
+     round2 снимает дребезг разности уже-целых. Проценты приходят полями сметы (build), не из settings. */
   const net = round2(equipment - discount);
-  const materials = round2(net * (Number(e.materialsPercent) || 0) / 100);
-  const work      = round2(net * (Number(e.workPercent)      || 0) / 100);
+  const materials = roundShown(net * (Number(e.materialsPercent) || 0) / 100, currency, "up");
+  const work      = roundShown(net * (Number(e.workPercent)      || 0) / 100, currency, "up");
   /* База НДС — сумма УЖЕ ОКРУГЛЁННЫХ строк (оборудование − скидка + материалы + работы), а не
      round2(subtotal × курс): человек видит именно эти четыре числа, и их сумма обязана дать итог.
-     round2 снимает только дребезг двоичной арифметики — слагаемые уже с точностью до копейки. */
+     round2 снимает дребезг двоичной арифметики — слагаемые уже с точностью до копейки/рубля. */
   const shownBase = round2(equipment - discount + materials + work);
-  /* НДС и итог — ТОЙ ЖЕ vatShown: база уже в валюте показа, поэтому rate=1 (внутренний round2 от уже
-     округлённой базы её не меняет). Второй копии арифметики НДС нет (§7.1). */
-  const vat = vatShown(shownBase, e.vatMode, Number(e.vatPercent) || 0, 1);
+  /* НДС и итог — ТОЙ ЖЕ vatShown: база уже в валюте показа, поэтому rate=1, но валюту передаём —
+     чтобы НДС тоже округлялся до целого рубля (внутренний roundShown от уже-целой базы её не меняет).
+     Второй копии арифметики НДС нет (§7.1). */
+  const vat = vatShown(shownBase, e.vatMode, Number(e.vatPercent) || 0, 1, currency);
   return { equipment, discount, materials, work,
     subtotal: vat.subtotal, amount: vat.amount, total: vat.total,
     mode: vat.mode, percent: vat.percent, included: vat.included, label: vat.label };
@@ -830,7 +875,7 @@ function isEmptyProject(est, supplier) {
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, vatBreakdown, vatShown, pricedUnit, shownSum, lightingSumShown, lightingPlanSumShown, specShown, postPriceShown, totalsShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
+const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, roundShown, vatBreakdown, vatShown, pricedUnit, shownSum, lightingSumShown, lightingPlanSumShown, specShown, postPriceShown, totalsShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

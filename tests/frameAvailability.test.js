@@ -141,7 +141,7 @@ function postLayoutFor(info) {
     state: { posts: [post] },
     postComposition: () => compOf(info),
     product: () => null, frameProduct: () => null, EP_DATA: { settings: {} },
-    EPPosts, EPEstimate, postCost: () => 0, displayRate: () => 1,
+    EPPosts, EPEstimate, postCost: () => 0, displayRate: () => 1, displayCurrency: () => "EUR",
     /* Предмет теста — статус накладки под картинкой, не подмена цельного изделия: механизмов у
        поста нет, effectiveMechanismIds на пустом наборе ничего не меняет. */
     lightingRowsFor: () => [], projectLighting: () => null,

@@ -191,7 +191,7 @@ function renderSpecDom(over) {
     EPEstimate, $: dom.$, money: v => "€" + Number(v).toFixed(2), esc: String,
     /* итог с НДС renderSummary берёт из EPEstimate.vatShown и форматирует moneyShown (число уже в
        валюте показа, курс — displayRate). Обе — голые имена из app.js, без них песочница падает. */
-    moneyShown: v => "€" + Number(v).toFixed(2), displayRate: () => 1,
+    moneyShown: v => "€" + Number(v).toFixed(2), displayRate: () => 1, displayCurrency: () => "EUR",
     projectLighting: () => ({}), buildEstimate: () => est,
     lightingHtml: () => "", updateStatus: () => {}, orphanObjectsWarningText: () => "", _specGroups: []
   })();
