@@ -116,3 +116,42 @@ test("черновик несёт wallType из КОНСТРУКТОРА, а н�
   const draft = builderPostDraft(undefined);
   assert.equal(draft.wallType, "hollow", "wallType черновика подменился настройкой проекта вместо выбора конструктора");
 });
+
+/* К5б, M3 — РЕШЕНИЕ ПО ТЕРМОДАТЧИКУ из ЧЕРНОВИКА обязано доехать до черновика поста, иначе «Стоимость
+   поста» в окне ДО сохранения не учитывает «без датчика» (цена показана с датчиком, человек видит
+   неверное число). Мутация builderPostDraft → всегда thermoSensor:undefined оставляет "off" незамеченным.
+   Держим поведенчески (НАСТОЯЩИЙ builderPostDraft) И деньгами: тот же терморегулятор дешевле ровно на
+   цену датчика, когда черновик «без датчика». Каталог и правило датчика — чистые (EPThermoSensor.plan),
+   как appDeps в thermoSensorK5b. */
+const EPPosts = require("../js/posts.js");
+const EPThermoSensor = require("../js/thermoSensor.js");
+const SENSOR_PRICE = 97.02;
+const DRAFT_CAT = {
+  1: { id: 1, code: "02974", name: "Термостат IoT", thermoSensorCode: "02965.1", price: 374.38 },
+  9: { id: 9, code: "02965.1", name: "Термодатчик", price: SENSOR_PRICE, functionalGroup: "Термодатчик" }
+};
+const DRAFT_FRAME = { id: 20, code: "F1", name: "Накладка", price: 3.0, standard: "IT", slotCount: 3 };
+const draftProd = id => (Number(id) === 20 ? DRAFT_FRAME : DRAFT_CAT[id] || null);
+const draftFindSensor = code => Object.values(DRAFT_CAT).find(p => p.code === code) || null;
+const draftDeps = {
+  product: draftProd, frameProduct: draftProd, socketBox: () => null,
+  mechanismSpan: () => 1, findBox: () => null, fallbackBox: () => null,
+  resolveSupport: () => ({ support: null, assumed: false }), backlight: { enabled: false }, wallType: "solid",
+  sensorPlan: (mechIds, post) => EPThermoSensor.plan(mechIds, { product: draftProd, findSensor: draftFindSensor, enabled: EPThermoSensor.sensorsEnabled(post) })
+};
+
+test("M3: черновик несёт решение «без датчика» из окна — иначе цена в окне не учитывает его", () => {
+  const mk = thermoSensor => {
+    const state = { posts: [], builder: { editingPlacedId: null, wallType: "solid", thermoSensor, slots: [{ id: 1, group: "" }] } };
+    const { builderPostDraft } = boot(state);
+    return builderPostDraft(DRAFT_FRAME);
+  };
+  const off = mk("off");
+  const on = mk("on");
+  assert.equal(off.thermoSensor, "off", "черновик «без датчика» обязан нести thermoSensor='off' — иначе теряется до сохранения");
+  assert.equal(on.thermoSensor, undefined, "черновик «с датчиком» (режим по умолчанию) поля не несёт — нет поля = считать сам");
+  /* Деньги: та же сборка, но «без датчика» дешевле ровно на цену датчика — ведь черновик донёс решение. */
+  const diff = EPPosts.postCost(on, draftDeps) - EPPosts.postCost(off, draftDeps);
+  assert.ok(Math.abs(diff - SENSOR_PRICE) < 0.005,
+    `«Стоимость поста» в окне обязана быть ниже на ${SENSOR_PRICE} € при «без датчика»: разница ${diff}`);
+});

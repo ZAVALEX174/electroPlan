@@ -512,3 +512,20 @@ test("E13-open-19: снимок builderSignature берётся ПОСЛЕ rende
   assert.match(state.builder.snapshot, new RegExp(String(MARK)),
     "снимок обязан быть снят ПОСЛЕ renderBuilder — его дорисованный механизм (999777) входит в подпись; снятый раньше объявил бы нетронутый пост изменённым и спрашивал бы подтверждение на пустом месте");
 });
+
+test("К5б-open-20: решение «без датчика» ОТКРЫВАЕМОГО поста доезжает до черновика окна (M13)", () => {
+  /* Пост на плане, сохранённый «без датчика» (thermoSensor:"off"), при повторном открытии обязан
+     показать окно в состоянии «без датчика» — иначе окно открывается «с датчиком», и первое же
+     «Сохранить» сотрёт решение (поле удалится как «режим по умолчанию»). Правило — ЕДИНОЕ: гасит только
+     строка "off" (EPThermoSensor.sensorsEnabled). Мутация M13 (openPostBuilder всегда ставит "on")
+     красит первый assert; поведение по умолчанию (нет поля → "on") держит второй. */
+  const off = openPost({
+    collection: "Eikon Tactil", frameId: ET_FRAME_2.id,
+    postExtra: { thermoSensor: "off" }
+  });
+  assert.equal(off.state.builder.thermoSensor, "off",
+    "окно обязано открыться «без датчика» — иначе сохранение сотрёт решение поста");
+  const on = openPost({ collection: "Eikon Tactil", frameId: ET_FRAME_2.id });
+  assert.equal(on.state.builder.thermoSensor, "on",
+    "пост без поля открывается «с датчиком» (режим по умолчанию): нет поля = считать сам");
+});

@@ -275,3 +275,126 @@ test("savePostBuilder (К5б): «с датчиком» (режим по умол
   const saved = await runSaveThermo({ thermoSensor: "on", post: { id: "p1", roomId: "r1", frameId: THERM_FRAME.id, thermoSensor: "off" } });
   assert.equal("thermoSensor" in saved, false, "режим «с датчиком» удаляет поле — отсутствие = датчик по расчёту");
 });
+
+/* ---- 7. M8: НАСТОЯЩИЙ postDeps app.js разрешает enabled по sensorsEnabled -------------------- */
+/* Тесты раздела 3 держат ПРАВИЛО (appDeps воспроизводит проводку руками) — но НЕ ловят разрыв в самом
+   приложении: postDeps мог бы подставить enabled:true вместо EPThermoSensor.sensorsEnabled(post), и
+   раздел 3 остался бы зелёным (у него своя копия sensorPlan). Здесь исполняем НАСТОЯЩИЙ текст
+   findBacklight/findSensor/postDeps из app.js (стенд constSource/constBlock), как backlightMoney, и
+   доказываем ровно связку: пост «без датчика» через настоящий postDeps дешевле на цену датчика.
+   Мутация M8 (enabled:EPThermoSensor.sensorsEnabled(post) → true) делает разницу нулём — красит. */
+const vm = require("node:vm");
+const EPPostFit = require("../js/postfit.js");
+const EPBacklightPick = require("../js/backlightPick.js");
+const EPCatalogPool = require("../js/catalogPool.js");
+
+const M8_TERM = { id: 1, code: "02974", name: "Термостат IoT", kind: "mechanism", active: true, thermoSensorCode: SENSOR_CODE, price: 374.38 };
+const M8_SENSOR = { id: 9, code: SENSOR_CODE, name: "Термодатчик", kind: "mechanism", active: true, functionalGroup: "Термодатчик", price: SENSOR_PRICE };
+const M8_BY_ID = { 1: M8_TERM, 9: M8_SENSOR };
+
+/* Цена поста через НАСТОЯЩИЙ postDeps app.js (findBacklight/findSensor ему нужны по имени — режем вместе).
+   Коробка/суппорт/подсветка заглушены null/выключены: изолируем слагаемое датчика в цене. */
+function realPostDepsCost(post) {
+  const ctx = {
+    product: id => M8_BY_ID[id] || null,
+    frameProduct: () => null,
+    socketBox: () => null,
+    mechanismSpan: () => 1,
+    findBox: () => null,
+    fallbackBox: () => null,
+    findSupport: () => null,
+    resolveSupport: () => ({ support: null, assumed: false }),
+    EPPostFit, EPBacklightPick,
+    EP_DATA: { settings: { backlight: { enabled: false } } },
+    // findSensor тянет датчик из пула механизмов (как в проде) — отдаём туда терморегулятор и датчик.
+    byKind: kind => (kind === "mechanism" ? [M8_TERM, M8_SENSOR] : []),
+    byKindOff: () => [],
+    EPCatalogPool, EPThermoSensor
+  };
+  const code = stand.constSource("findBacklight") + "\n" + stand.constSource("findSensor") + "\n" + stand.constBlock("postDeps") + "\n;postDeps;";
+  vm.createContext(ctx);
+  const postDeps = vm.runInContext(code, ctx);
+  return EPPosts.postCost(post, postDeps());
+}
+
+test("M8: настоящий postDeps разрешает enabled по sensorsEnabled — «без датчика» дешевле на 97,02 €", () => {
+  const on = realPostDepsCost({ id: "p1", frameId: null, mechanismIds: [1] });          // нет поля → датчик есть
+  const off = realPostDepsCost({ id: "p2", frameId: null, mechanismIds: [1], thermoSensor: "off" });
+  near(on - off, SENSOR_PRICE, "настоящий postDeps: «без датчика» дешевле ровно на цену датчика");
+  near(off, 374.38, "у поста «без датчика» датчик в цену не вошёл (только механизм)");
+});
+
+/* ---- 8. ДЕФЕКТ 1: шаблон «без датчика» → placementFields → размещённый пост без датчика ------- */
+/* placementFields переносит из шаблона в размещённый пост ПОИМЁННО; забытое поле теряется молча. До
+   правки thermoSensor не переносился — пост из «без датчика»-шаблона получал датчик (+97,02 €). Держим
+   на НАСТОЯЩЕМ каталоге, обогащённом ровно как в браузере (catalog → attrs → data.js): признак
+   thermoSensorCode приезжает тем же путём, что в проде, иначе датчик вообще не считается. */
+const fs = require("node:fs");
+const path = require("node:path");
+async function enrichedProducts() {
+  const win = {};
+  const ctx = vm.createContext({ window: win, structuredClone });
+  for (const f of ["catalog-vimar.js", "catalog-vimar-attrs.js", "data.js"])
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", f), "utf8"), ctx, { filename: f });
+  return win.DataService.getProducts();
+}
+
+test("дефект 1: шаблон «без датчика» → placementFields переносит 'off' в пост; цена на 97,02 € ниже (наст. каталог)", async () => {
+  const prod = await enrichedProducts();
+  const byId = id => prod.find(p => Number(p.id) === Number(id)) || null;
+  const findSensor = code => prod.find(p => String(p.code) === String(code) && p.active !== false) || null;
+  const therm = prod.find(p => p.code === "02974");
+  const sensor = prod.find(p => p.code === SENSOR_CODE);
+  const allMech = prod.filter(p => p.kind === "mechanism" && p.active);
+  const span = EPCatalog.mechanismSpan(therm);
+  const frame = prod.find(p => p.kind === "frame" && p.active &&
+    EPCatalog.frameSlotCount(p) === span && EPCatalog.compatibleMechanisms(p, allMech).includes(therm));
+  assert.ok(therm && sensor && frame, "разведка: в обогащённом каталоге есть 02974, 02965.1 и накладка под него");
+  near(Number(sensor.price), SENSOR_PRICE, "цена датчика в настоящем каталоге — 97,02 €");
+
+  const realDeps = {
+    product: byId, frameProduct: byId, socketBox: () => null,
+    mechanismSpan: EPCatalog.mechanismSpan, findBox: () => null, fallbackBox: () => null,
+    resolveSupport: () => ({ support: null, assumed: false }), backlight: { enabled: false }, wallType: "solid",
+    sensorPlan: (mechIds, post) => EPThermoSensor.plan(mechIds, { product: byId, findSensor, enabled: EPThermoSensor.sensorsEnabled(post) })
+  };
+  const realCost = p => EPPosts.postCost(p, realDeps);
+
+  const base = { id: "t1", name: "Термопост", frameId: frame.id, mechanismIds: [therm.id] };
+  const placedOff = EPPosts.placementFields(Object.assign({}, base, { thermoSensor: "off" }));
+  const placedOn = EPPosts.placementFields(base);
+  assert.equal(placedOff.thermoSensor, "off", "решение «без датчика» шаблона обязано переехать в размещённый пост");
+  assert.equal("thermoSensor" in placedOn, false, "шаблон «с датчиком» поля не несёт → пост следует расчёту (датчик есть)");
+  near(realCost(placedOn) - realCost(placedOff), SENSOR_PRICE,
+    "пост из «без датчика»-шаблона на настоящем каталоге дешевле ровно на 97,02 € (датчик не добавлен)");
+});
+
+/* ---- 9. ДЕФЕКТ 2: «Лист монтажника» из окна поста при «без датчика» — без строки «Термодатчик» --- */
+/* installSheetForBuilder собирал пост БЕЛЫМ списком полей без thermoSensor, поэтому лист из окна печатал
+   «Термодатчик × 1» и у поста «без датчика». Исполняем НАСТОЯЩУЮ installSheetForBuilder (последняя функция
+   postBuilder.js — режется фолбэком functionBodyEnd) и ловим пост, который она отдаёт в buildPostSheet:
+   он обязан нести решение из ЧЕРНОВИКА. Так состав листа гаснет через ту же sensorsEnabled, что везде. */
+function captureSheetPost(thermoSensor) {
+  const dom = stand.makeDom();                         // generic-узлы: value у postFrameSelect «прилипает»
+  dom.$("postFrameSelect").value = String(THERM_FRAME.id);
+  let captured = null;
+  const state = { posts: [], builder: { editingPlacedId: null, slots: [EPBuilderSlots.slot(THERM.id, "")], wallType: null, thermoSensor } };
+  const ctx = {
+    state, $: dom.$, EPPosts, EPBuilderSlots,
+    frameProduct: prodById, builderWallType: () => "solid",
+    lightingFor: () => ({}), projectPostsWithBuilder: () => [],
+    buildPostSheet: post => { captured = post; return {}; },
+    openInstallSheet: () => {}, lightingHtml: () => "", toast: () => {}
+  };
+  stand.run("installSheetForBuilder", ctx)();
+  return captured;
+}
+
+test("дефект 2: лист из окна при «без датчика» несёт thermoSensor='off' в buildPostSheet", () => {
+  const off = captureSheetPost("off");
+  assert.ok(off, "лист монтажника собрался (buildPostSheet вызван) — накладка валидна, ранний возврат не сработал");
+  assert.equal(off.thermoSensor, "off",
+    "пост листа из окна обязан нести решение «без датчика» из черновика — иначе печатается лишняя строка «Термодатчик»");
+  const on = captureSheetPost("on");
+  assert.equal(on.thermoSensor, undefined, "режим «с датчиком» — поля нет (датчик по расчёту, строка «Термодатчик» печатается)");
+});

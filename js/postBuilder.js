@@ -1378,10 +1378,11 @@ async function savePostBuilder(){
     const bl=state.builder.backlight;
     if(bl&&typeof bl==="object")post.backlight={enabled:!!bl.enabled,color:bl.color||null,voltage:bl.voltage||null};
     else delete post.backlight;
-    /* ⚠️ РЕШЕНИЕ ПО ТЕРМОДАТЧИКУ (К5б) — из ЧЕРНОВИКА окна, ПОИМЁННО, как подсветка: base его не несёт
-       (в шаблон не пишем — решение свойство поста, не заготовки). «без датчика» → пишем "off"; «с
-       датчиком» (режим по умолчанию) → поле УДАЛЯЕМ: отсутствие поля = «считать сам» (sensorsEnabled),
-       а не застрявшее старое "off". Falsy как «без» не используем — пишем/читаем ровно строку "off". */
+    /* ⚠️ РЕШЕНИЕ ПО ТЕРМОДАТЧИКУ (К5б) — из ЧЕРНОВИКА окна, ПОИМЁННО, как подсветка: base его не несёт,
+       пишем отдельно и у поста на плане (здесь), и у шаблона (ветка else — владелец 22.10 велел шаблону
+       ЗАПОМИНАТЬ «без датчика»). «без датчика» → пишем "off"; «с датчиком» (режим по умолчанию) → поле
+       УДАЛЯЕМ: отсутствие поля = «считать сам» (sensorsEnabled), а не застрявшее старое "off". Falsy как
+       «без» не используем — пишем/читаем ровно строку "off". */
     if(state.builder.thermoSensor==="off")post.thermoSensor="off";
     else delete post.thermoSensor;
     renderAll();renderProperties();renderSummary();
@@ -1412,6 +1413,15 @@ async function savePostBuilder(){
       ? wall
       : (prev&&(prev.wallType==="solid"||prev.wallType==="hollow")&&prev.wallType===wall?prev.wallType:null);
     if(ownWall)template.wallType=ownWall;
+    /* ⚠️ РЕШЕНИЕ «без датчика» ЗАПОМИНАЕТ ШАБЛОН (владелец 22.10, вариант Б): каждый пост, поставленный
+       из него на план, приходит «без датчика» (EPPosts.placementFields переносит thermoSensor, как
+       wallType), а на плане его можно переключить у каждого поста отдельно. Правка шаблона уже
+       размещённые посты не трогает — ровно как с типом стены (размещение одноразово копирует поле).
+       Пишем ТОЛЬКО явное "off"; «с датчиком» (режим по умолчанию) — поля нет: отсутствие = «считать сам»
+       (sensorsEnabled), то же правило «нет поля = дефолт», что у типа стены. Черновик при редактировании
+       существующего шаблона уже несёт его thermoSensor (openPostBuilder читает src.thermoSensor), поэтому
+       отдельной ветки prev, как у wallType, не нужно. */
+    if(state.builder.thermoSensor==="off")template.thermoSensor="off";
     await DataService.savePost(template);state.templates=await DataService.getSavedPosts();renderTemplates();toast(existing?"Шаблон обновлён":"Пост сохранён в библиотеку");
   }
   closePostBuilder();
@@ -1464,7 +1474,13 @@ function installSheetForBuilder(){
     roomId:placed?placed.roomId:null,height:placed?.height,purpose:placed?.purpose,
     /* Тип стены — из черновика окна: лист монтажника обязан назвать ту коробку, что видна
        в составе поста рядом, а не ту, что записана в проекте (правка ещё не сохранена). */
-    wallType:builderWallType()};
+    wallType:builderWallType(),
+    /* Решение по термодатчику — из ЧЕРНОВИКА окна (К5б/К5в), ровно как тип стены: лист из окна обязан
+       показать обвязку ВЫБРАННОГО состояния. Без этого поля sensorsEnabled считает пост «с датчиком» и
+       у поста «без датчика» (и сохранённого, и выбранного прямо сейчас в черновике) печаталась бы лишняя
+       строка «Термодатчик × N». Несём ТОЛЬКО явное "off" (как у поста); "on" → поля нет → датчик по
+       расчёту. */
+    thermoSensor:state.builder.thermoSensor==="off"?"off":undefined};
   if(!post.mechanismIds.length){toast("Добавьте механизмы в пост");return}
   /* Группы света считаем по ПРОЕКТУ вместе с этим постом: роль механизма зависит от числа
      мест группы во всём проекте, и лист монтажника обязан показать ту же роль, что видно в
