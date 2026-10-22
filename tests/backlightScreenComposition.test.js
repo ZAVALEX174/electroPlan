@@ -83,6 +83,9 @@ function compositionCtx(dom, comp) {
     // Орган подсветки поста синхронизирует отдельная функция (её держит backlightPostBuilderUi.test.js);
     // здесь проверяется СТРОКА состава, орган посторонний — стабим no-op.
     renderPostBacklight: () => {},
+    // Орган термодатчика поста (К5б) синхронит renderPostThermoSensor — её держит thermoSensorPostBuilderUi.test.js;
+    // здесь проверяется строка состава, орган посторонний — тот же no-op, что у подсветки.
+    renderPostThermoSensor: () => {},
     WALL_STEP_LABEL: { solid: "Бетон", hollow: "ГКЛ" },
     STANDARD_LABEL: { IT: "Итальянский" }, STANDARD_GENITIVE: { IT: "итальянского" },
     postComposition: () => comp,

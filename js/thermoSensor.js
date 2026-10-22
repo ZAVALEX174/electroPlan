@@ -56,6 +56,17 @@
     return (typeof code === "string" && code) ? code : null;
   }
 
+  /* ДЕЙСТВУЕТ ЛИ ДАТЧИК У ПОСТА (К5б, вариант C — владелец 21.10: «по умолчанию добавляется сам, у
+     поста можно „без датчика“, выбранное руками главнее»). ОДНА точка правила (§7.1): и план датчиков,
+     и все экраны/документы спрашивают ЕЁ, а не трактуют поле каждый по-своему.
+     ⚠️ ТОЛЬКО строка "off" гасит датчик. Отсутствие поля (undefined/null) — это «НЕ ЗАДАНО» = считать
+     сам (датчик добавляется автоматически, если в посту есть терморегулятор с датчиком). Falsy как
+     «без» НЕ используем: иначе старые посты (поля нет) и копии молча остались бы без датчика. Это тот
+     же приём «нет поля = поведение по умолчанию», что у postWallType/postBacklight. */
+  function sensorsEnabled(post) {
+    return !(post && post.thermoSensor === "off");
+  }
+
   /* План термодатчиков поста: по одному датчику на КАЖДЫЙ терморегулятор поста, которому он нужен
      (два одинаковых 02974 = два датчика — поэтому идём по mechIds, а не по множеству).
        deps.product(id)     — товар каталога по id механизма поста;
@@ -67,6 +78,12 @@
      count — сколько датчиков реально идёт в состав и в цену. */
   function plan(mechIds, deps) {
     var d = deps || {};
+    /* Пост явно «без датчика» (К5б, резолвер sensorsEnabled отдал false → d.enabled===false): датчиков
+       нет вовсе — ни в составе, ни в цене, ни в документах. Пустой план = тот же результат, что у поста
+       без терморегулятора, поэтому ВСЕ потребители (postCost/estimate/docs/installSheet/экраны) гасят
+       датчик автоматически, читая comp.sensors. enabled не передан (старые вызовы/тесты) → считаем как
+       прежде (датчик по расчёту). */
+    if (d.enabled === false) return { items: [], gaps: [], count: 0, hasGap: false };
     var product = d.product || function () { return null; };
     var find = d.findSensor || function () { return null; };
     var items = [], gaps = [];
@@ -108,7 +125,7 @@
 
   /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports
      для автотестов (PLAN 7.1). */
-  var api = { plan: plan, rowSummary: rowSummary, isSensorMechanism: isSensorMechanism, sensorCodeFor: sensorCodeFor, SENSOR_GROUP: SENSOR_GROUP };
+  var api = { plan: plan, rowSummary: rowSummary, isSensorMechanism: isSensorMechanism, sensorCodeFor: sensorCodeFor, sensorsEnabled: sensorsEnabled, SENSOR_GROUP: SENSOR_GROUP };
   if (typeof window !== "undefined") window.EPThermoSensor = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -101,6 +101,29 @@ function buildFittings(comp, box, lighting) {
       name: gapCount > 1 ? `${gapCount} × подсветка не подобрана` : "подсветка не подобрана",
       code: null, count: 0 });
   }
+  /* Термодатчик терморегулятора (К5в, владелец 21.10 «да, добавь в лист монтажника»): выносной
+     датчик 02965.1, по одному на терморегулятор «с датчиком» (comp.sensors — уже с учётом решения
+     поста «без датчика», тогда items пуст и строки нет). Одинаковые артикулы сводим в count, пробел —
+     словами с нулём, как подсветка. Порядок — сразу за подсветкой (датчик относится к механизму-
+     терморегулятору), до суппорта. Во взрыв-схему датчик НЕ идёт: он не механизм рамки (её строит
+     отдельная buildExplodedSpec по mechanismIds, а датчик туда не входит). */
+  const sens = comp.sensors;
+  if (sens) {
+    const agg = new Map();
+    (Array.isArray(sens.items) ? sens.items : []).forEach(u => {
+      const s = u && u.sensor;
+      if (!s) return;
+      const k = String(s.code || s.name);
+      const cur = agg.get(k);
+      if (cur) cur.count += 1;
+      else agg.set(k, { role: "Термодатчик", name: s.name, code: s.code || null, count: 1 });
+    });
+    agg.forEach(row => fittings.push(row));
+    const gapCount = Array.isArray(sens.gaps) ? sens.gaps.length : 0;
+    if (gapCount) fittings.push({ role: "Термодатчик",
+      name: gapCount > 1 ? `${gapCount} × термодатчик не подобран` : "термодатчик не подобран",
+      code: null, count: 0 });
+  }
   /* Суппорт: сколько насчитал состав (столько же, сколько коробок), а не «одна планка».
      Изделие, которое по номенклатуре монтируется В КОРОБКУ БЕЗ ПЛАНКИ (крышки IP55,
      принцип NO_SUPPORT), даёт строку «не требуется» с нулём — buildHtml напечатает в

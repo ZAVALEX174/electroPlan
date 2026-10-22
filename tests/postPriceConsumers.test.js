@@ -149,7 +149,7 @@ test("окно поста: «Стоимость поста» напечатан�
   const ctx = {
     state: { builder: { editingPlacedId: null } },
     document: { querySelectorAll: () => [] }, $: dom.$,
-    builderWallType: () => "solid", renderPostBacklight: () => {},
+    builderWallType: () => "solid", renderPostBacklight: () => {}, renderPostThermoSensor: () => {},
     productSeries: () => [], frameSlotCount: () => 2,
     lightingRowSummary: () => null, backlightRowSummary: () => null,
     lightingHtml: () => "",

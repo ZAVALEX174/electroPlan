@@ -259,10 +259,12 @@ const postDeps=()=>({product,frameProduct,socketBox,mechanismSpan,findBox,fallba
   /* acceptsBacklight — тот же EPBacklightPick, что и подбор: признак «клавиша принимает подсветку»
      даёт класс клавиши, а не поле askBacklight каталога (у новых клавиш оно неверное — см. модуль). */
   findBacklight,acceptsBacklight:EPBacklightPick.accepts,backlight:EP_DATA.settings.backlight||{enabled:false},
-  /* Термодатчики терморегуляторов (К5а): план датчиков поста — EPThermoSensor.plan по механизмам
-     поста, с подбором товара-датчика через findSensor. Чистое правило живёт в модуле, здесь только
-     подстановка зависимостей приложения — как findBacklight у подсветки. */
-  sensorPlan:mechIds=>EPThermoSensor.plan(mechIds,{product,findSensor})});
+  /* Термодатчики терморегуляторов (К5а/К5б): план датчиков поста — EPThermoSensor.plan по механизмам
+     поста, с подбором товара-датчика через findSensor. Решение поста «с датчиком / без датчика»
+     (К5б) разрешает EPThermoSensor.sensorsEnabled по переданному посту — своё у поста главнее расчёта;
+     при «без датчика» plan отдаёт пустой набор, и датчик гаснет во всех потребителях через comp.sensors.
+     Чистые правила живут в модуле, здесь только подстановка зависимостей — как findBacklight у подсветки. */
+  sensorPlan:(mechIds,post)=>EPThermoSensor.plan(mechIds,{product,findSensor,enabled:EPThermoSensor.sensorsEnabled(post)})});
 const postCost=p=>EPPosts.postCost(p,postDeps());
 const postComposition=p=>EPPosts.postComposition(p,postDeps());
 /* Единое изображение собранного поста (EPPostImage): собираем spec из каталога — накладка,

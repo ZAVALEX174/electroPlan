@@ -404,6 +404,19 @@
             </div>
             <small class="wall-type-hint" id="postBacklightTemplateNote" hidden>Подсветка задаётся у поста на плане: разместите пост и настройте её там. У шаблона своей подсветки нет намеренно — один шаблон в трёх комнатах это три разные подсветки. Пост следует настройке подсветки всего проекта (панель «Спецификация»).</small>
           </fieldset>
+          <!-- Термодатчик поста (К5б, вариант C). Виден ТОЛЬКО когда в посту есть терморегулятор
+               «с возможностью подключения термодатчика» — renderPostThermoSensor прячет fieldset
+               целиком иначе. По умолчанию «с датчиком» (датчик добавлен сам); «без датчика» убирает
+               его из состава, цены и всех документов. Кнопки правят черновик окна, применяет
+               сохранение (как подсветка/тип стены). -->
+          <fieldset class="wall-type-step" id="postThermoStep" hidden>
+            <legend>Термодатчик поста</legend>
+            <div class="wall-type-options" id="postThermoMode" role="radiogroup" aria-label="Термодатчик поста">
+              <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-thermo="on">С датчиком</button>
+              <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-thermo="off">Без датчика</button>
+            </div>
+            <small class="wall-type-hint" id="postThermoHint"></small>
+          </fieldset>
           <!-- Схема электрики — свойство ПРОЕКТА (EP_DATA.settings, едет в terms), поэтому
                здесь она ТОЛЬКО ПОКАЗАНА: группы клавишам назначают в этом окне, и схема нужна
                под рукой, но менять настройку всего проекта из окна отдельного поста нельзя —

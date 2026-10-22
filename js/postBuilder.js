@@ -154,6 +154,31 @@ function renderPostBacklight(){
       ?"У этого поста подсветка выключена — даже если в проекте она включена."
       :"У этого поста своя подсветка: цвет и напряжение из каталога, независимо от проекта.";
 }
+/* Решение «термодатчик: с датчиком / без датчика» ПОСТА в конструкторе (К5б, вариант C). Орган виден
+   ТОЛЬКО когда в посту есть терморегулятор «с датчиком» (есть что включать/выключать) — иначе кнопки
+   бессмысленны. Показываем и у нового поста, и у размещённого (в отличие от подсветки: датчик — не
+   переопределение проектной настройки, а свойство конкретного поста, и решать его можно сразу).
+   Признак «терморегулятор с датчиком» — EPThermoSensor.sensorCodeFor по механизмам поста; синхрон
+   кнопок — тем же видом (wall-type-option), что тип стены и подсветка. Правит ТОЛЬКО черновик окна
+   (state.builder.thermoSensor), применяет сохранение. */
+function renderPostThermoSensor(){
+  const step=$("postThermoStep");
+  if(!step)return;
+  const ids=EPBuilderSlots.toPost(state.builder.slots).mechanismIds;
+  const hasSensor=ids.some(id=>EPThermoSensor.sensorCodeFor(product(id)));
+  step.hidden=!hasSensor;
+  if(!hasSensor)return;
+  const mode=state.builder.thermoSensor==="off"?"off":"on";
+  document.querySelectorAll("#postThermoMode .wall-type-option").forEach(b=>{
+    const on=b.dataset.thermo===mode;
+    b.classList.toggle("active",on);
+    b.setAttribute("aria-checked",on?"true":"false");
+  });
+  const hint=$("postThermoHint");
+  if(hint)hint.textContent=mode==="off"
+    ?"У этого поста термодатчик отключён — в состав и цену не входит."
+    :"Терморегулятор требует выносной термодатчик 02965.1 — он добавлен в состав и цену. Можно отключить.";
+}
 /* Селектор «Количество модулей рамки» — НЕ константа в разметке, а производная модульностей
    накладок (EPCatalog.frameSlotOptions). ⚠️ СЧИТАЕМ ОТ ТОГО ЖЕ ПУЛА, ЧТО renderBuilder ФИЛЬТРУЕТ
    (collectionFramePool), а не от всего каталога: коллекция комнаты (E13) сужает список накладок
@@ -324,6 +349,11 @@ function openPostBuilder({templateId=null,placedId=null}={}){
      ВЫКЛЮЧЕНА (начинка любого цвета). Старый пост без поля читается как «ограничение выключено»
      (!!undefined === false) — новый дефолт, не включённое ограничение. */
   state.builder.restrictInnardsColor=!!src.restrictInnardsColor;
+  /* Решение «термодатчик: с датчиком / без датчика» (К5б) — ЧЕРНОВИК окна. У поста хранится ТОЛЬКО
+     явное «off» (src.thermoSensor==="off"); отсутствие поля = «с датчиком» (расчёт добавляет сам,
+     EPThermoSensor.sensorsEnabled). Шаблон/новый пост поля не несут → "on". Второй трактовки
+     «валидности» нет: ровно как sensorsEnabled, гасит только строка "off". */
+  state.builder.thermoSensor=src.thermoSensor==="off"?"off":"on";
   renderBuilderRoomSelect();
   $("builderRestrictColor").checked=state.builder.restrictInnardsColor;
   $("postFrameSelect").dataset.preferredFrameId=String(src.frameId??"");
@@ -355,13 +385,13 @@ const builderWallType=()=>state.builder.wallType||"solid";
    Нужна ровно для одного вопроса — «есть ли что терять при закрытии» (см. builderDirty). Слоты
    кодирует чистая EPBuilderSlots.signature (JSON, а не склейка через разделитель: имя группы
    вводит человек, и запятая в нём законна).
-   ТИП СТЕНЫ, ПОДСВЕТКА И ГАЛОЧКА «ограничить цветом накладки» В ПОДПИСИ ОБЯЗАТЕЛЬНЫ: все они —
-   черновик окна и свойство поста, и без них закрытие по Esc считало бы пост нетронутым и молча
-   выбрасывало бы правку, о которой человек не предупреждён. Подсветка — объект/null, кодируем JSON
-   (как слоты), а не склейкой; галочка — булев флаг. */
+   ТИП СТЕНЫ, ПОДСВЕТКА, РЕШЕНИЕ ПО ТЕРМОДАТЧИКУ И ГАЛОЧКА «ограничить цветом накладки» В ПОДПИСИ
+   ОБЯЗАТЕЛЬНЫ: все они — черновик окна и свойство поста, и без них закрытие по Esc считало бы пост
+   нетронутым и молча выбрасывало бы правку, о которой человек не предупреждён. Подсветка — объект/null,
+   кодируем JSON (как слоты), а не склейкой; термодатчик — строка "on"/"off"; галочка — булев флаг. */
 function builderSignature(){
   return JSON.stringify([$("postName").value,String($("postFrameSelect").value||""),
-    builderWallType(),state.builder.backlight,!!state.builder.restrictInnardsColor,EPBuilderSlots.signature(state.builder.slots)]);
+    builderWallType(),state.builder.backlight,state.builder.thermoSensor,!!state.builder.restrictInnardsColor,EPBuilderSlots.signature(state.builder.slots)]);
 }
 const builderDirty=()=>state.builder.snapshot!=null&&builderSignature()!==state.builder.snapshot;
 
@@ -397,7 +427,11 @@ function builderPostDraft(frame){
        показывать LED, который человек выбрал прямо сейчас. null → поля нет → postComposition
        (через EPPosts.postBacklight) читает проектную настройку, ровно как у сохранённого поста
        без переопределения. */
-    backlight:state.builder.backlight};
+    backlight:state.builder.backlight,
+    /* Решение по термодатчику — из ЧЕРНОВИКА окна (К5б): «Стоимость поста» и состав обязаны показать
+       выбор «без датчика» сразу, а не после сохранения. Поле несёт ТОЛЬКО явное "off" (как у поста);
+       "on" → поля нет → sensorsEnabled по умолчанию добавляет датчик. */
+    thermoSensor:state.builder.thermoSensor==="off"?"off":undefined};
 }
 /* Проект глазами расчёта: посты плана + черновик — но черновик участвует ТОЛЬКО тогда, когда
    в конструкторе открыт пост, СТОЯЩИЙ НА ПЛАНЕ. Тогда он ПОДМЕНЯЕТ свой пост (фильтр по id), а
@@ -1167,6 +1201,9 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
   /* Подсветка поста синхронизируется рядом с типом стены (тот же класс «настройка поста»):
      draft.backlight уже участвует в comp/цене через builderPostDraft, здесь — только UI органа. */
   renderPostBacklight();
+  /* Орган «термодатчик с датчиком / без» синхронизируется рядом с подсветкой (К5б): решение уже
+     участвует в comp/цене через builderPostDraft, здесь — только UI. */
+  renderPostThermoSensor();
   const host=$("builderComposition");if(!host)return;
   if(!selectedFrame){host.innerHTML=errorHtml||"";return;}
   const post=draft||{frameId:Number($("postFrameSelect").value),
@@ -1341,6 +1378,12 @@ async function savePostBuilder(){
     const bl=state.builder.backlight;
     if(bl&&typeof bl==="object")post.backlight={enabled:!!bl.enabled,color:bl.color||null,voltage:bl.voltage||null};
     else delete post.backlight;
+    /* ⚠️ РЕШЕНИЕ ПО ТЕРМОДАТЧИКУ (К5б) — из ЧЕРНОВИКА окна, ПОИМЁННО, как подсветка: base его не несёт
+       (в шаблон не пишем — решение свойство поста, не заготовки). «без датчика» → пишем "off"; «с
+       датчиком» (режим по умолчанию) → поле УДАЛЯЕМ: отсутствие поля = «считать сам» (sensorsEnabled),
+       а не застрявшее старое "off". Falsy как «без» не используем — пишем/читаем ровно строку "off". */
+    if(state.builder.thermoSensor==="off")post.thermoSensor="off";
+    else delete post.thermoSensor;
     renderAll();renderProperties();renderSummary();
     toast(wallChanged&&scope==="sameType"?"Обновлён пост и все однотипные посты":"Пост на плане обновлён");
   }else{
@@ -1376,7 +1419,7 @@ async function savePostBuilder(){
 function closePostBuilder(){
   $("postModal").classList.remove("open");
   state.builder={editingTemplateId:null,editingPlacedId:null,slots:[],target:{mode:"add"},query:"",openSections:new Set(),
-    snapshot:null,escArmed:null,wallType:null,backlight:null,roomId:null,restrictInnardsColor:false};
+    snapshot:null,escArmed:null,wallType:null,backlight:null,thermoSensor:"on",roomId:null,restrictInnardsColor:false};
 }
 /* СЛУЧАЙНОЕ закрытие (Esc, клик мимо окна) с потерей несохранённой работы просит подтверждения
    — повтором того же действия, а не системным confirm(): своих модальных диалогов в приложении
@@ -1486,6 +1529,13 @@ $("postBacklightVoltage").onchange=e=>{
   if(state.builder.backlight&&state.builder.backlight.enabled)state.builder.backlight.voltage=e.target.value||null;
   renderBuilder();
 };
+/* Термодатчик ПОСТА (К5б) — ЧЕРНОВИК окна, как подсветка: кнопки правят только
+   state.builder.thermoSensor ("on"/"off"), применяет сохранение (savePostBuilder). renderBuilder
+   пересчитывает состав и «Стоимость поста» с учётом решения (через builderPostDraft → comp.sensors). */
+document.querySelectorAll("#postThermoMode .wall-type-option").forEach(b=>b.onclick=()=>{
+  state.builder.thermoSensor=b.dataset.thermo==="off"?"off":"on";
+  renderBuilder();
+});
 /* Клик мимо окна — такое же СЛУЧАЙНОЕ закрытие, как Esc: с несохранёнными правками просит
    повтора (см. requestClosePostBuilder), а не выбрасывает собранный пост молча. */
 $("postModal").onclick=e=>{if(e.target===$("postModal"))requestClosePostBuilder()};

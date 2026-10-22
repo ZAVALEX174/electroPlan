@@ -401,8 +401,11 @@ function postComposition(post, deps) {
        (датчик нужен, а артикула в каталоге нет). Датчик НЕ входит в mechanismIds (не занимает модуля,
        не влияет на коробку/суппорт/раскладку), но входит в цену поста (postCost по sensors.items ниже).
        Необязательная зависимость: без deps.sensorPlan (старые вызовы/тесты, подающие deps сами) состав
-       и цена прежние — датчиков нет, как было до К5а. */
-    sensors: deps.sensorPlan ? deps.sensorPlan(mechIds) : { items: [], gaps: [], count: 0, hasGap: false }
+       и цена прежние — датчиков нет, как было до К5а.
+       Пост передаём в sensorPlan ЦЕЛИКОМ (К5б): по его решению «с датчиком / без датчика»
+       (EPThermoSensor.sensorsEnabled — своё у поста главнее расчёта) план либо считает датчики, либо
+       пуст. Так «без датчика» гасит датчик во ВСЕХ потребителях через одно comp.sensors. */
+    sensors: deps.sensorPlan ? deps.sensorPlan(mechIds, post) : { items: [], gaps: [], count: 0, hasGap: false }
   };
 }
 
