@@ -1,0 +1,214 @@
+  // ================= К5б/К5в: ТЕРМОДАТЧИК ПОСТА =================
+  // Проверка «глазами»: у поста с терморегулятором 02974 работает переключатель «С датчиком /
+  // Без датчика» (К5б, вариант C), решение переживает перезагрузку, а в листе монтажника датчик
+  // 02965.1 стоит в обвязке и НЕ попадает во взрыв-схему (К5в). Контроль — терморегулятор «по
+  // воздуху» 02970: у него блока «Термодатчик поста» нет. Код приложения не трогаем — только этот хвост.
+  //
+  // Почему СВОЯ комната и явная накладка: 02974/02970 совместимы по серии только с Plana/Arke/Eikon,
+  // а гостиная сцены — Neve Up (чужая серия, в её пуле терморегулятора нет). Комната без коллекции
+  // даёт пул из всего каталога; накладку берём ЯВНО — 14642.01 (Plana, 2 модуля, id 200386), ровно
+  // под 2-модульный терморегулятор. Решение «без датчика» хранится ТОЛЬКО у РАЗМЕЩЁННОГО поста
+  // (в шаблон оно не пишется, js/postBuilder.js savePostBuilder) — поэтому сперва ставим пост на план,
+  // и все переключения делаем у поста на плане.
+  n = 300;
+  const THERMO_FRAME = "200386";               // 14642.01 — накладка Plana на 2 модуля
+  const SENSOR_EUR = 97.02;                    // цена 02965.1 в евро прайса (ожидаемая разница X − X2)
+
+  const results = [];
+  const check = (cond, msg) => { log.push((cond ? "ОК" : "FAIL") + ": " + msg); results.push(!!cond); return !!cond; };
+  // Разбор денег показа: «374,38 €» / «1 234,56 €» / «12 345 ₽». Точка-разделитель тысяч убирается,
+  // запятая — десятичная. Значения поста малы (< 1000), но держим и тысячи на случай рублёвого режима.
+  const num = s => Number(String(s || "").replace(/[^\d.,]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", "."));
+
+  // Ошибки консоли страницы — собираем начиная отсюда и приводим в конце (задача требует).
+  const pageErrors = [];
+  c.on(m => {
+    if (m.method === "Runtime.exceptionThrown") {
+      const e = m.params.exceptionDetails;
+      pageErrors.push("exception: " + String((e.exception && (e.exception.description || e.exception.value)) || e.text).slice(0, 200));
+    }
+    if (m.method === "Runtime.consoleAPICalled" && m.params.type === "error") {
+      pageErrors.push("console.error: " + m.params.args.map(a => a.value || a.description || "").join(" ").slice(0, 200));
+    }
+  });
+
+  // --- Комната В: отдельная, под терморегулятор (без коллекции → весь каталог, стандарт IT) ---
+  await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(200);
+  await makeRoom(0.16, 0.30);
+  await nameRoom("Терморег (К5)");
+  await setVal($("roomStandardSelect"), "IT");   // Plana — итальянский стандарт; пул сузится до IT/универсальных
+
+  // Снимок новой комнаты (куда ставим пост)
+  await shot("thermo-room", [`Array.from(document.querySelectorAll(".room-label")).find(e=>e.textContent.includes("Терморег"))`]);
+
+  // Сбор ЧТЕНИЕ состава окна поста: «Стоимость поста», строка «Термодатчик», видимость блока и активная кнопка.
+  const compInfo = () => ev(`
+    const host=document.getElementById("builderComposition");
+    const total=host?host.querySelector(".composition-row.total b"):null;
+    const rows=host?Array.from(host.querySelectorAll(".composition-row")):[];
+    const sensor=rows.find(r=>r.querySelector("span")&&/Термодатчик/.test(r.querySelector("span").textContent));
+    const step=document.getElementById("postThermoStep");
+    const act=Array.from(document.querySelectorAll("#postThermoMode .wall-type-option")).find(b=>b.classList.contains("active"));
+    return {total: total?total.textContent.trim():null,
+            sensor: sensor?sensor.querySelector("b").textContent.trim():null,
+            blockHidden: step?step.hidden:null,
+            activeMode: act?act.dataset.thermo:null};`);
+
+  // Сбор build шаблона с заданным механизмом в своей комнате: накладка — ЯВНО THERMO_FRAME, 2 модуля.
+  const buildTemplate = async (mechCode) => {
+    await click($("newPostBtn")); await sleep(800);
+    const rid = await ev(`return Array.from(document.getElementById("builderRoomSelect").options).find(o=>o.textContent.includes("Терморег")).value`);
+    await setVal($("builderRoomSelect"), rid);
+    await setVal($("postSlotCount"), "2");
+    await setVal($("postFrameSelect"), THERMO_FRAME);
+    await setVal($("builderSearch"), mechCode); await sleep(500);
+    const found = await ev(`return !!Array.from(document.querySelectorAll("#builderCatalog .product-card")).find(x=>x.querySelector(".product-card-code")&&x.querySelector(".product-card-code").textContent.trim()===${JSON.stringify(mechCode)})`);
+    log.push("каталог содержит карточку " + mechCode + ": " + found);
+    if (found) await click(`Array.from(document.querySelectorAll("#builderCatalog .product-card")).find(x=>x.querySelector(".product-card-code")&&x.querySelector(".product-card-code").textContent.trim()===${JSON.stringify(mechCode)})`);
+    await sleep(500);
+    return found;
+  };
+
+  // id размещённого поста в комнате «Терморег (К5)» (из localStorage — он уже сохранён при размещении).
+  const placedThermoId = () => ev(`
+    const j=JSON.parse(localStorage.getItem(ProjectStore.key)||"{}");
+    const r=(j.rooms||[]).find(x=>x.name==="Терморег (К5)");
+    const ps=(j.posts||[]).filter(p=>r&&p.roomId===r.id);
+    const p=ps[ps.length-1];
+    return p?{id:String(p.id),number:p.number,thermo:(p.thermoSensor||null)}:null;`);
+
+  const openPlaced = async (id) => {
+    await click(`document.querySelector('.plan-icon.post[data-id=${JSON.stringify(String(id))}]')`); await sleep(400);
+    await click(btnText("Редактировать")); await sleep(900);
+  };
+
+  // ---------- Шаг 1: собрать пост 02974, поставить на план, открыть — «С датчиком» по умолчанию ----------
+  const okBuild = await buildTemplate("02974");
+  check(okBuild, "терморегулятор 02974 доступен в каталоге окна поста (накладка Plana 2М)");
+  await click($("savePost")); await sleep(700);                         // шаблон в библиотеку
+  // Разместить шаблон в комнату «Терморег (К5)»
+  await click(`Array.from(document.querySelectorAll("[data-place-template]")).at(-1)`); await sleep(300);
+  const tr = await rect(`Array.from(document.querySelectorAll(".room-label")).find(e=>e.textContent.includes("Терморег"))`);
+  await clickAt(tr.x + tr.w / 2, tr.y + tr.h + 45); await sleep(600);
+  const placed1 = await placedThermoId();
+  check(!!placed1, "пост 02974 размещён в комнате «Терморег (К5)»");
+  log.push("размещён пост: " + JSON.stringify(placed1));
+
+  const grand0 = await ev(`return document.getElementById("grandTotal").textContent.trim()`);
+
+  await openPlaced(placed1.id);
+  const i1 = await compInfo();
+  log.push("ШАГ1 окно (С датчиком): " + JSON.stringify(i1));
+  check(i1.blockHidden === false, "блок «Термодатчик поста» виден");
+  check(i1.activeMode === "on", "по умолчанию активна «С датчиком»");
+  check(!!i1.sensor && /02965\.1|Термодатчик/.test(i1.sensor || "") || /3м|провод/i.test(i1.sensor || ""), "в составе строка датчика 02965.1");
+  const X = num(i1.total);
+  await shot("thermo-win-with", [`document.getElementById("postThermoStep")`,
+    `document.querySelector('#postThermoMode [data-thermo="off"]')`,
+    `document.querySelector("#builderComposition .composition-row.total")`]);
+
+  // ---------- Шаг 2: «Без датчика» → строки датчика нет, стоимость = X − 97,02 €; сохранить ----------
+  await click(`document.querySelector('#postThermoMode [data-thermo="off"]')`); await sleep(500);
+  const i2 = await compInfo();
+  log.push("ШАГ2 окно (Без датчика): " + JSON.stringify(i2));
+  const X2 = num(i2.total);
+  check(i2.sensor === null, "строки «Термодатчик» в составе нет");
+  check(Math.abs((X - X2) - SENSOR_EUR) < 0.011, `стоимость упала ровно на ${SENSOR_EUR} €: X=${i1.total} → X2=${i2.total} (разница ${(X - X2).toFixed(2)})`);
+  await shot("thermo-win-off", [`document.querySelector('#postThermoMode [data-thermo="off"]')`,
+    `document.querySelector("#builderComposition .composition-row.total")`]);
+  await click($("savePost")); await sleep(700);                         // сохранить пост на план
+
+  const grandOff = await ev(`return document.getElementById("grandTotal").textContent.trim()`);
+  log.push("Итого панели (Спецификация): с датчиком(старт)=" + grand0 + " · без датчика=" + grandOff);
+  const savedOff = await placedThermoId();
+  check(savedOff && savedOff.thermo === "off", "в сохранённом проекте у поста thermoSensor=\"off\"");
+  log.push("сохранено в проект: " + JSON.stringify(savedOff));
+
+  // ---------- Шаг 3: перезагрузка — решение «Без датчика» сохранилось ----------
+  await c.send("Page.reload"); await sleep(5000);
+  await ev('const m=document.getElementById("kpSetupModal");if(m)m.classList.remove("open");return 1;'); // если авто-открылось
+  const afterReload = await placedThermoId();
+  check(afterReload && afterReload.thermo === "off", "после перезагрузки у поста по-прежнему thermoSensor=\"off\"");
+  await openPlaced(afterReload.id);
+  const i3 = await compInfo();
+  log.push("ШАГ3 окно после перезагрузки: " + JSON.stringify(i3));
+  check(i3.activeMode === "off", "после перезагрузки активна «Без датчика»");
+  check(i3.sensor === null, "после перезагрузки строки датчика нет");
+  await shot("thermo-reload-off", [`document.getElementById("postThermoStep")`]);
+  // окно открыто — закроем «Отмена», чтобы не мешало листу монтажника
+  await click($("cancelPost")); await sleep(400);
+
+  // Снятие листа монтажника: подменяем window.open (копим document.write в window.__kp) и
+  // рендерим пойманный HTML в отдельной вкладке (как в tails/inst.txt). Режим — «Взрыв-схема»,
+  // чтобы показать, что датчик в неё НЕ попадает.
+  const openInstall = async () => {
+    await ev(`window.__kp="";window.open=()=>({closed:false,document:{open(){},write(h){window.__kp+=h},close(){},title:""},focus(){},print(){},close(){},addEventListener(){},location:{}});return 1;`);
+    await setVal($("offer-assemblyView"), "exploded"); await sleep(300);
+    await ev(`window.__kp="";return 1;`);
+    await click($("installSheetBtn")); await sleep(1200);
+    return ev("return window.__kp");
+  };
+  const renderInstall = async (html, name) => {
+    const nt = await json("/json/new?about:blank", "PUT");
+    const k = connect(nt.webSocketDebuggerUrl); await k.ready; await k.send("Page.enable");
+    await k.send("Emulation.setDeviceMetricsOverride", { width: 1100, height: 1500, deviceScaleFactor: 1, mobile: false });
+    const ft = await k.send("Page.getFrameTree");
+    await k.send("Page.setDocumentContent", { frameId: ft.frameTree.frame.id, html }); await sleep(1200);
+    const r = await k.send("Page.captureScreenshot", { format: "png" });
+    fs.writeFileSync(path.join(SHOTS, `${String(++n).padStart(2, "0")}-${name}.png`), Buffer.from(r.data, "base64"));
+    log.push(path.basename(path.join(SHOTS, `${String(n).padStart(2, "0")}-${name}.png`)));
+    k.close();
+  };
+  // Секция карточки поста с 02974 (у post4 его нет — секция уникальна). Разрез по «Обвязка поста»:
+  // выше — таблица модулей и взрыв-схема, ниже — обвязка. Датчик обязан быть ТОЛЬКО ниже.
+  const thermoSection = html => (html.split('<section class="post-card">').find(s => /02974/.test(s)) || "");
+
+  // ---------- Шаг 4а: лист монтажника при «Без датчика» — строки «Термодатчик» нет ----------
+  const htmlOff = await openInstall();
+  fs.writeFileSync(path.join(DIR, "install-thermo-off.html"), htmlOff);
+  const secOff = thermoSection(htmlOff);
+  check(secOff !== "", "в листе монтажника есть карточка поста с 02974 (режим «без датчика»)");
+  check(!/02965\.1/.test(secOff), "при «без датчика» артикул 02965.1 в карточке поста отсутствует");
+  check(!/Термодатчик/.test(secOff), "при «без датчика» строки «Термодатчик» в обвязке нет");
+  await renderInstall(htmlOff, "thermo-install-off");
+
+  // ---------- Шаг 4б: вернуть «С датчиком», сохранить — строка в обвязке есть, во взрыв-схеме датчика нет ----------
+  const id4 = (await placedThermoId()).id;
+  await openPlaced(id4);
+  await click(`document.querySelector('#postThermoMode [data-thermo="on"]')`); await sleep(500);
+  const i4 = await compInfo();
+  log.push("ШАГ4 окно (вернули С датчиком): " + JSON.stringify(i4));
+  check(i4.activeMode === "on" && i4.sensor !== null, "в окне снова «С датчиком», строка датчика вернулась");
+  await shot("thermo-win-on-again", [`document.querySelector('#postThermoMode [data-thermo="on"]')`,
+    `document.querySelector("#builderComposition .composition-row.total")`]);
+  await click($("savePost")); await sleep(700);
+  const savedOn = await placedThermoId();
+  check(savedOn && savedOn.thermo === null, "после «С датчиком» у поста поля thermoSensor нет (режим по умолчанию)");
+
+  const htmlOn = await openInstall();
+  fs.writeFileSync(path.join(DIR, "install-thermo-on.html"), htmlOn);
+  const secOn = thermoSection(htmlOn);
+  const beforeFit = secOn.split("fittings-title")[0];        // модули + взрыв-схема
+  const afterFit = secOn.split("fittings-title")[1] || "";   // обвязка поста
+  check(/Взрыв-схема поста/.test(beforeFit), "режим листа — взрыв-схема (блок присутствует)");
+  check(/02965\.1/.test(afterFit) && /Термодатчик/.test(afterFit), "строка «Термодатчик 02965.1» есть в обвязке поста");
+  check(!/02965\.1/.test(beforeFit), "во взрыв-схеме/таблице модулей датчика 02965.1 НЕТ");
+  log.push("листа монтажника (с датчиком): всего вхождений 02965.1 = " + ((htmlOn.match(/02965\.1/g) || []).length));
+  await renderInstall(htmlOn, "thermo-install-on");
+
+  // ---------- Шаг 5: контроль — 02970 «по воздуху», блока «Термодатчик поста» нет ----------
+  const okCtrl = await buildTemplate("02970");
+  check(okCtrl, "терморегулятор 02970 доступен в каталоге окна поста");
+  const ctrl = await compInfo();
+  log.push("ШАГ5 контроль 02970: " + JSON.stringify(ctrl));
+  check(ctrl.blockHidden === true, "у 02970 блок «Термодатчик поста» скрыт");
+  check(ctrl.sensor === null, "у 02970 строки «Термодатчик» в составе нет");
+  await shot("thermo-control-02970", [`document.getElementById("postThermoStep")`,
+    `document.querySelector("#builderComposition")`]);
+  await click($("cancelPost")); await sleep(400);
+
+  // ---------- Итог ----------
+  log.push("ЧИСЛА: X (с датчиком) = " + i1.total + " · X2 (без датчика) = " + i2.total + " · разница = " + (X - X2).toFixed(2) + " € (ожидание " + SENSOR_EUR + ")");
+  log.push("ИТОГО ПАНЕЛИ: с датчиком(старт) = " + grand0 + " · без датчика = " + grandOff);
+  log.push("ОШИБКИ КОНСОЛИ СТРАНИЦЫ: " + (pageErrors.length ? pageErrors.join(" | ") : "нет"));
+  log.push("ПРОВЕРКИ: " + results.filter(Boolean).length + "/" + results.length + " ОК");
