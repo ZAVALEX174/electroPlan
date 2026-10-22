@@ -181,7 +181,7 @@
   check(i4.activeMode === "on" && i4.sensor !== null, "в окне снова «С датчиком», строка датчика вернулась");
   await shot("thermo-win-on-again", [`document.querySelector('#postThermoMode [data-thermo="on"]')`,
     `document.querySelector("#builderComposition .composition-row.total")`]);
-  await click($("savePost")); await sleep(700);
+  await click($("savePost")); await sleep(1500); // автосохранение проекта — через EPConfig.autosaveDelay=700 мс; 700 давало гонку
   const savedOn = await placedThermoId();
   check(savedOn && savedOn.thermo === null, "после «С датчиком» у поста поля thermoSensor нет (режим по умолчанию)");
 
