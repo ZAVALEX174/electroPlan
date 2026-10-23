@@ -471,12 +471,16 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
 
     const priceCell = at(row, COL.price);
     const nomPrice = typeof priceCell === "number" && Number.isFinite(priceCell) ? priceCell : null;
-    // Кол-во в упаковке (К6): целое число штук в коробке поставщика. Берём только положительное
-    // число (в файле заполнено у большинства, но не у всех — пустую клетку оставляем null, тогда
-    // округления кратно упаковке для артикула не будет). Прежнего файла бэкфиллом не трогаем:
-    // упаковка — свойство текущей поставки, устаревшее значение хуже отсутствующего.
+    // Кол-во в упаковке (К6): целое число штук в коробке поставщика. В файле клетка бывает и ЧИСЛОМ,
+    // и ТЕКСТОМ («50») — 135 позиций (Plana, Arke, Eikon, Linea, Neve Up) заданы строкой, и разбор
+    // только по typeof number терял их упаковку. Принимаем оба вида: строку берём, только если после
+    // trim это целое > 0 (образец — tools/analyze-price.mjs); пусто/мусор → null, тогда округления
+    // кратно упаковке для артикула не будет. Прежнего файла бэкфиллом не трогаем: упаковка — свойство
+    // текущей поставки, устаревшее значение хуже отсутствующего.
     const packCell = at(row, COL.pack);
-    const packQty = typeof packCell === "number" && Number.isFinite(packCell) && packCell > 0 ? packCell : null;
+    let packQty = null;
+    if (typeof packCell === "number" && Number.isFinite(packCell) && packCell > 0) packQty = packCell;
+    else if (typeof packCell === "string" && /^\d+$/.test(packCell.trim()) && Number(packCell.trim()) > 0) packQty = Number(packCell.trim());
 
     const { categoryId, icon } = categoryAndIcon(kind, name);
     // Роль детали: «голый механизм» требует группы «Механизмы»; в новом файле она зовётся

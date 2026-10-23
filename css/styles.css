@@ -19,7 +19,9 @@ button{cursor:pointer}
    полосе, как у .topbar .btn.ghost; выравниваем по центру с кнопками, флажок не сжимаем (flex-shrink:0).
    Раскладку шапки не трогаем — это обычный flex-элемент того же ряда, что и кнопки. */
 .pack-multiple{display:inline-flex;align-items:center;gap:6px;color:#e9f0f5;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
-.pack-multiple input{flex:0 0 auto;margin:0;cursor:pointer}
+/* Чекбокс натурального размера: общее правило `label input{width:100%;padding:9px 10px}` (строка выше)
+   иначе растягивает флажок на всю ширину и выталкивает подпись за край шапки. Гасим width/padding/border. */
+.pack-multiple input{flex:0 0 auto;width:auto;margin:0;padding:0;border:0;cursor:pointer}
 .btn{border:1px solid var(--line);border-radius:11px;padding:9px 13px;background:#fff;color:var(--text);font-weight:750;transition:.18s}
 .btn:hover{transform:translateY(-1px);border-color:#9ac7ef}.btn.primary{border-color:transparent;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue-dark));box-shadow:0 8px 20px rgba(37,136,237,.24)}
 .btn.ghost{background:var(--panel-soft)}.btn.small{padding:7px 10px;font-size:12px}
