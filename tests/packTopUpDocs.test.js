@@ -179,6 +179,32 @@ const hasText = (cells, t) => Object.values(cells).some(c => c.type === "s" && c
 const hasNum = (cells, v) => Object.values(cells).some(c => c.type !== "s" && c.num != null && Math.abs(c.num - v) < 0.005);
 const equipFormula = cells => Object.values(cells).find(c => c.type === "f");
 
+/* Значение «Оборудование», какое Excel покажет ПОСЛЕ ПЕРЕСЧЁТА (а не кэш <v>): если ячейка —
+   формула SUM, складываем РЕАЛЬНЫЕ числа ячеек из перечисленных диапазонов (по одному столбцу
+   каждый); если ячейка статическая — берём её число. Так тест ловит «формула не покрывает все суммы». */
+const parseRef = r => { const m = /^([A-Z]+)(\d+)$/.exec(r); return { col: m[1], row: Number(m[2]) }; };
+function sumColRange(cells, a, b) {
+  const pa = parseRef(a), pb = parseRef(b);
+  let s = 0;
+  for (let row = pa.row; row <= pb.row; row++) {
+    const c = cells[pa.col + row];
+    if (c && c.type !== "s" && c.num != null) s += c.num;
+  }
+  return s;
+}
+function equipDisplayed(cells) {
+  const ref = Object.entries(cells).find(([, c]) => c.type === "s" && c.text === "Оборудование");
+  if (!ref) return null;
+  const rowNo = Number(ref[0].match(/\d+$/)[0]);
+  const cell = cells["B" + rowNo];   // значение итога — в столбце B той же строки (подпись в A)
+  if (!cell) return null;
+  if (cell.type === "f") {
+    const inner = /^SUM\((.*)\)$/.exec(cell.formula)[1];
+    return inner.split(",").reduce((s, rng) => { const [a, b] = rng.split(":"); return s + sumColRange(cells, a, b); }, 0);
+  }
+  return cell.num;
+}
+
 for (const [label, currency, rate] of [["евро", "EUR", 1], ["рубли 92,5", "RUB", 92.5]]) {
   test(`Excel (${label}): блок «Добор» есть, ячейка «Оборудование» = totals.equipment (включая добор)`, () => {
     const est = buildEst(true);
@@ -204,13 +230,110 @@ for (const [label, currency, rate] of [["евро", "EUR", 1], ["рубли 92,5
     /* ⚠️ Мутация «SUM только по обычным строкам»: формула обязана складывать ДВА диапазона (обычные +
        добор), иначе при пересчёте книги «Оборудование» не включит добор. */
     assert.match(eq.formula, /SUM\([^,]+,[^,]+\)/, "SUM двух диапазонов (обычные строки + добор)");
-    /* Проверяем, что сумма ячеек двух диапазонов реально равна totals.equipment (а не только кэш). */
-    const sumCells = Object.values(cells).filter(c => c.type === "n" && c.num != null);
-    const total = spec.rows.reduce((s, r) => s + r.sum, 0);
-    assert.ok(Math.abs(total - totals.equipment) < 0.005, "Σ всех печатных сумм = totals.equipment (инвариант)");
-    assert.ok(sumCells.length > 0);
+    /* НЕ тавтология: вычисляем формулу по РЕАЛЬНЫМ числам ячеек диапазонов (эмуляция пересчёта книги)
+       и сверяем с totals.equipment. Старый тест складывал spec.rows — то же число, что писал код, —
+       и дефект «добор вместо обычных строк» не ловил. */
+    const recalculated = equipDisplayed(cells);
+    assert.ok(Math.abs(recalculated - totals.equipment) < 0.005,
+      `пересчёт формулы по ячейкам (${recalculated}) = totals.equipment (${totals.equipment})`);
   });
 }
+
+/* ---- Деньги: «Оборудование» после пересчёта = totals.equipment при ЛЮБОМ наборе скрытых столбцов
+   (решение владельца 23.10 + денежный дефект sum:false). equipDisplayed читает РЕАЛЬНЫЕ ячейки:
+   для формулы складывает значения её диапазонов, для статического числа берёт его. ---- */
+for (const [label, optsSpec] of [
+  ["Цена+Сумма показаны", {}],
+  ["Сумма скрыта", { specification: { sum: false } }],
+  ["Цена скрыта", { specification: { price: false } }],
+  ["Цена и Сумма скрыты", { specification: { price: false, sum: false } }]
+]) {
+  for (const [curLabel, currency, rate] of [["€", "EUR", 1], ["₽", "RUB", 92.5]]) {
+    test(`Excel ${curLabel} (${label}): «Оборудование» после пересчёта = totals.equipment`, () => {
+      const est = buildEst(true);
+      const cells = specSheet(est, { options: optsSpec, currency, rate });
+      const totals = EPEstimate.totalsShown(est, rate, currency);
+      const shown = equipDisplayed(cells);
+      assert.ok(shown != null, "строка «Оборудование» на листе есть");
+      assert.ok(Math.abs(shown - totals.equipment) < 0.005,
+        `«Оборудование» ${shown} = totals.equipment ${totals.equipment}`);
+    });
+  }
+}
+
+/* ---- Скрытие «Цена»/«Сумма» в доборе по настройке спецификации (решение владельца 23.10) ---- */
+test("КП: снята «Сумма» в спецификации — в доборе тоже нет «Сумма», «Цена» осталась", () => {
+  const html = EPOfferPdf.buildHtml(buildEst(true), depsEUR({ specification: { sum: false } }));
+  const topUpPart = html.slice(html.indexOf("Добор до целых упаковок"));
+  assert.ok(!/<th[^>]*>Сумма<\/th>/.test(topUpPart), "столбца «Сумма» в доборе нет");
+  assert.ok(/<th[^>]*>Цена<\/th>/.test(topUpPart), "столбец «Цена» в доборе остался");
+});
+
+test("КП: снята «Цена» в спецификации — в доборе нет «Цена», «Сумма» осталась", () => {
+  const html = EPOfferPdf.buildHtml(buildEst(true), depsEUR({ specification: { price: false } }));
+  const topUpPart = html.slice(html.indexOf("Добор до целых упаковок"));
+  assert.ok(!/<th[^>]*>Цена<\/th>/.test(topUpPart), "столбца «Цена» в доборе нет");
+  assert.ok(/<th[^>]*>Сумма<\/th>/.test(topUpPart), "столбец «Сумма» в доборе остался");
+});
+
+test("Excel: снята «Сумма» — добор без «Сумма», «Цена» есть, «Оборудование» готовым числом (не формула)", () => {
+  const cells = specSheet(buildEst(true), { options: { specification: { sum: false } }, currency: "EUR", rate: 1 });
+  assert.ok(hasText(cells, "Добор до целых упаковок"), "блок добора есть");
+  assert.ok(hasText(cells, "Цена"), "столбец «Цена» есть");
+  assert.ok(!hasText(cells, "Сумма"), "столбца «Сумма» нет");
+  assert.ok(!equipFormula(cells), "нет SUM-формулы: «Оборудование» готовым числом (иначе SUM одного добора)");
+});
+
+test("Excel: снята «Цена» — добор без «Цена», «Сумма» есть, «Оборудование» — SUM двух диапазонов", () => {
+  const cells = specSheet(buildEst(true), { options: { specification: { price: false } }, currency: "EUR", rate: 1 });
+  assert.ok(!hasText(cells, "Цена"), "столбца «Цена» нет");
+  assert.ok(hasText(cells, "Сумма"), "столбец «Сумма» есть");
+  const eq = equipFormula(cells);
+  assert.ok(eq && /SUM\([^,]+,[^,]+\)/.test(eq.formula), "SUM двух диапазонов (обычные + добор)");
+});
+
+/* ---- Нумерация добора — СВОЯ, с 1 (а не продолжение спецификации) ---- */
+test("КП: нумерация добора начинается с 1", () => {
+  const html = EPOfferPdf.buildHtml(buildEst(true), depsEUR());
+  const i = html.indexOf("Добор до целых упаковок");
+  const t = html.indexOf('<table class="specification">', i);
+  const tbl = html.slice(t, html.indexOf("</table>", t));
+  const body = tbl.slice(tbl.indexOf("<tbody>"));
+  const firstTr = /<tr>([\s\S]*?)<\/tr>/.exec(body)[1];
+  const firstTd = /<td[^>]*>([\s\S]*?)<\/td>/.exec(firstTr)[1];
+  assert.equal(firstTd, "1", "первая строка добора — № 1 (не глобальный индекс группы)");
+});
+
+test("Excel: нумерация добора начинается с 1", () => {
+  const cells = specSheet(buildEst(true), { options: {}, currency: "EUR", rate: 1 });
+  const titleRef = Object.entries(cells).find(([, c]) => c.type === "s" && c.text === "Добор до целых упаковок")[0];
+  const titleRow = Number(titleRef.match(/\d+$/)[0]);
+  /* title → строка заголовков (titleRow+1) → первая строка данных (titleRow+2); № — столбец A. */
+  assert.equal(cells["A" + (titleRow + 2)].num, 1, "первая строка блока добора — № 1");
+});
+
+/* ---- Имя добора в Excel чистится через itemText при скрытых артикулах (код из имени убран) ---- */
+test("Excel articles:false: имя добора очищено itemText — код из имени убран", () => {
+  const est = buildEst(true);
+  const gi = est.groups.findIndex(g => g.topUp && g.items[0].code === "20001.0");
+  /* Вшиваем код в имя: без itemText он остался бы в ячейке при скрытых артикулах (мутация «raw g.name»). */
+  const nameWithCode = "Выключатель 20001.0 одноклавишный";
+  est.groups[gi] = { ...est.groups[gi], name: nameWithCode,
+    items: est.groups[gi].items.map(it => ({ ...it, name: nameWithCode })) };
+  const cells = specSheet(est, { options: { articles: false }, currency: "EUR", rate: 1 });
+  assert.ok(!hasText(cells, "Артикул"), "столбца «Артикул» нет");
+  const nameCells = Object.values(cells).filter(c => c.type === "s" && /Выключатель/.test(c.text) && /одноклавишный/.test(c.text));
+  assert.ok(nameCells.length > 0, "имя добора на листе есть");
+  assert.ok(nameCells.every(c => !c.text.includes("20001.0")), "код из имени добора убран (itemText)");
+});
+
+/* ---- Раздел добора делает КП непустым (topUpSection в contentFragments страж пустого КП) ---- */
+test("КП: раздел добора один делает документ непустым (hasContent)", () => {
+  const deps = depsEUR({ prices: false,
+    sections: { plan: false, layout: false, specification: false, lighting: false, supplier: false } });
+  assert.ok(EPOfferPdf.hasContent(buildEst(true), deps),
+    "КП из одного раздела добора считается содержательным (иначе topUpSection выпал из contentFragments)");
+});
 
 test("Excel галка СНЯТА: блока добора нет, «Оборудование» — одиночный SUM (как до К6б)", () => {
   const cells = specSheet(buildEst(false), { options: {}, currency: "EUR", rate: 1 });

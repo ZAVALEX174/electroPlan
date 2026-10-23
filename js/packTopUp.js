@@ -113,6 +113,29 @@ function splitRows(est, spec) {
   return { normal, topUp };
 }
 
+/* Колонки раздела «Добор до целых упаковок» — ЕДИНОЕ правило для КП (offerPdf) и Excel (specExcel):
+   раньше каждый документ перечислял их у себя, и правка гейта имела бы два края (§7.1). Гейты те же,
+   что у обычной спецификации, чтобы при скрытии столбцов добор и спецификация вели себя одинаково
+   (решение владельца 23.10: «скрывать Цена/Сумма в доборе, если сняты в спецификации»):
+     № — options.specification.number (нумерация у добора СВОЯ, с 1 — её делает потребитель);
+     «Артикул» — options.articles;
+     «Наименование», «Добавлено» — всегда;
+     «Цена»/«Сумма» — общий гейт цен options.prices И индивидуальный столбец options.specification.price
+       /.sum (как в основной таблице: снял «Сумму» в настройке состава КП — её нет и в доборе).
+   На вход — УЖЕ нормализованные options (EPOfferOptions.normalize), поэтому поля гарантированы.
+   Потребители строят ячейки сами, отсюда берут порядок, ключи и подписи (у КП и Excel они одни). */
+function topUpColumns(options) {
+  const o = options || {};
+  const spec = o.specification || {};
+  const cols = [];
+  if (spec.number) cols.push(["number", "№"]);
+  if (o.articles) cols.push(["article", "Артикул"]);
+  cols.push(["name", "Наименование"], ["added", "Добавлено"]);
+  if (o.prices && spec.price) cols.push(["price", "Цена"]);
+  if (o.prices && spec.sum) cols.push(["sum", "Сумма"]);
+  return cols;
+}
+
 /* HTML раздела «Добор до целых упаковок» для панели итогов на экране (#specList). Вынесен из
    renderSummary, чтобы в app.js осталась только проводка (правило владельца: новый UI — в свой модуль).
    Чистая функция: DOM не трогает, экранирование и форматирование денег приходят зависимостями
@@ -132,7 +155,7 @@ function panelHtml(est, spec, deps) {
   return parts.length ? `<div class="spec-topup-head">Добор до целых упаковок</div>` + parts.join("") : "";
 }
 
-const api = { codeKey, buildPackMap, topUpGroups, splitRows, panelHtml };
+const api = { codeKey, buildPackMap, topUpGroups, splitRows, topUpColumns, panelHtml };
 if (typeof window !== "undefined") window.EPPackTopUp = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
