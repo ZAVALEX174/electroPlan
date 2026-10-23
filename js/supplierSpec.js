@@ -57,12 +57,19 @@
    его ответственность, и оно проверяется тестом. Механизмы и накладку оркестратор передаёт
    готовыми объектами: имя ненайденного товара он формирует так же, как для других документов.
 
-   deps = { esc(s), showArticles=true, itemText(name, code)=name }.
+   deps = { esc(s), showArticles=true, itemText(name, code)=name, packs=null, packMultiple=false }.
      showArticles — печатать ли колонку «Артикул» и говорить в заголовке/примечании про артикулы;
        false убирает и колонку, и слово «по артикулам» из шапки (но НЕ строки: состав и
        количества свода от флага не зависят — меняется только показанное).
      itemText — как оркестратор чистит подпись товара без артикулов (тот же EPOfferOptions.itemText,
        что в КП): по умолчанию имя отдаётся как есть.
+     packs, packMultiple — ОКРУГЛЕНИЕ свода вверх до целых упаковок (К6б ч.3, решения владельца
+       23–24.10). packs — карта «нормализованный артикул → размер упаковки» (EPPackTopUp.buildPackMap),
+       packMultiple — галка проекта. При обоих заданных КОЛИЧЕСТВО каждого артикула округляется тем же
+       правилом EPPackRound.packRound, что и лист Excel «По артикулам», и появляется столбец «В упаковке»
+       (последним, как колонка H в Excel); «Общее количество» считается по округлённым числам. Нет
+       упаковки у артикула → количество без округления, ячейка пустая (то же, что в Excel). Лист
+       монтажника зовёт buildHtml БЕЗ этих полей и остаётся «по факту» при любой галке.
    collect(spec) → {rows, totalNames, totalUnits, missing}; buildHtml(spec, deps) → строка
    секции либо "" (в проекте нечего заказывать — секции в документе не будет);
    kindFromCatalog(kind товара) → kind свода (перевод вокабуляра прайса — им пользуется
@@ -123,6 +130,18 @@ const codeKey = c => text(c).replace(/\s+/g, "").toUpperCase();
 /* Ключ строки БЕЗ артикула — по имени: две одинаковые дыры подбора («Суппорт не подобран»)
    складываются в одну строку с количеством, а разные остаются разными. */
 const nameKey = n => text(n).trim().replace(/\s+/g, " ").toLowerCase();
+
+/* Правило округления «кратно упаковке» (К6) — ОДНА копия на все документы (js/packRound.js): лист
+   Excel «По артикулам» и свод по артикулам в КП зовут одну и ту же функцию, иначе округление
+   разошлось бы между документами (§7.1). Доступ ленивый: packRound.js грузится отдельным тегом ПОСЛЕ
+   supplierSpec.js, поэтому ссылаться на него на этапе загрузки нельзя — только в момент вызова
+   buildHtml (тот же приём, что в specExcel.js/packTopUp.js/estimate.js). Нет модуля → округления нет,
+   свод печатается по факту. */
+function packRoundApi() {
+  if (typeof window !== "undefined" && window.EPPackRound) return window.EPPackRound;
+  if (typeof require !== "undefined") return require("./packRound.js");
+  return null;
+}
 
 /* Свод проекта по артикулам. Возвращает уже отсортированные строки и итоги — вёрстка
    (buildHtml) числа не считает, поэтому правила количеств проверяются тестом напрямую. */
@@ -251,6 +270,25 @@ function buildHtml(spec, deps) {
   const showArticles = deps?.showArticles !== false;
   const itemText = deps?.itemText || text;
   const data = collect(spec);
+  /* Округление свода вверх до целых упаковок: включается ТОЛЬКО по галке проекта (packMultiple) и
+     ТОЛЬКО когда оркестратор передал карту упаковок packs и доступно само правило (EPPackRound).
+     Лист монтажника зовёт buildHtml без них и остаётся «по факту» при любой галке. */
+  const packs = deps?.packs || null;
+  const packRound = (packs && deps?.packMultiple) ? packRoundApi() : null;
+  const roundOn = !!(packRound && packRound.packRound);
+  /* Размер упаковки артикула: код нормализуем тем же codeKey, что склеивает строки свода. Берём ТОЛЬКО
+     конечное положительное число (как карта упаковок в Excel) — нет кода, нет данных или мусор из
+     прототипа объекта packs → undefined, и packRound вернёт количество как есть, а ячейка «В упаковке»
+     останется пустой (то же правило, что в листе Excel «По артикулам», К6а). */
+  const packOf = r => {
+    if (!roundOn || !r.code) return undefined;
+    const p = packs[codeKey(r.code)];
+    return (typeof p === "number" && isFinite(p) && p > 0) ? p : undefined;
+  };
+  /* Показанное количество строки: по галке — вверх до целой упаковки тем же packRound, что Excel,
+     иначе фактическое из collect. «Общее количество» в подвале считается по ЭТИМ же числам (ниже),
+     чтобы итог не расходился с видимой колонкой — как в листе Excel. */
+  const shownCount = r => roundOn ? packRound.packRound(r.count, packOf(r)) : r.count;
   /* Пустой проект — секции в документе нет вовсе (а не пустая таблица с «Всего 0»). */
   if (!data.rows.length) return "";
   const s = spec || {};
@@ -272,6 +310,10 @@ function buildHtml(spec, deps) {
      остаются ровно как в накладной заказчика: № / Товар / Артикул / Кол-во / Ед. */
   const kinds = [...new Set(data.rows.map(r => r.kind))];
   const showGroups = kinds.length > 1;
+  /* Сколько столбцов перекрывает подзаголовок группы: № + Товар + (Артикул) + Кол-во + Ед. плюс,
+     при округлении, столбец «В упаковке». Разойдись это число со списком колонок — подзаголовок
+     съехал бы или оставил пустую клетку. */
+  const bodyCols = (showArticles ? 5 : 4) + (roundOn ? 1 : 0);
 
   let n = 0, prevKind = null;
   const body = data.rows.map(r => {
@@ -281,7 +323,7 @@ function buildHtml(spec, deps) {
        правило на <td>: Chrome применяет разрывы к ячейке надёжнее, чем к <tr>. */
     const avoid = "break-after:avoid;page-break-after:avoid";
     const head = (showGroups && r.kind !== prevKind)
-      ? `<tr style="${avoid}"><td colspan="${showArticles ? 5 : 4}" style="${cell};text-align:left;background:#f0f7ff;color:#185d96;font-weight:bold;font-size:11px;`
+      ? `<tr style="${avoid}"><td colspan="${bodyCols}" style="${cell};text-align:left;background:#f0f7ff;color:#185d96;font-weight:bold;font-size:11px;`
         + `${avoid};-webkit-print-color-adjust:exact;print-color-adjust:exact">${esc(KIND_LABEL[r.kind] || KIND_LABEL.other)}</td></tr>`
       : "";
     prevKind = r.kind;
@@ -295,14 +337,22 @@ function buildHtml(spec, deps) {
       + `<tr><td style="${cell};text-align:left;width:34px;color:#687f94">${n}</td>`
       + `<td style="${cell};text-align:left">${esc(itemText(r.name, r.code))}${!showArticles ? (r.assumed ? esc(ASSUMED_MARK) : !r.code ? ` · ${esc(NO_CODE_TEXT)}` : "") : ""}</td>`
       + (showArticles ? `<td style="${cell};text-align:left">${code}</td>` : "")
-      + `<td style="${cell};text-align:right;font-weight:bold;width:64px">${r.count}</td>`
-      + `<td style="${cell};text-align:left;width:52px">${esc(r.unit)}</td></tr>`;
+      + `<td style="${cell};text-align:right;font-weight:bold;width:64px">${shownCount(r)}</td>`
+      + `<td style="${cell};text-align:left;width:52px">${esc(r.unit)}</td>`
+      /* «В упаковке» — размер упаковки числом либо пустая клетка (упаковка неизвестна), как колонка H
+         в Excel. Числа каталожные, экранировать нечего — в ячейку идёт только число или "". */
+      + (roundOn ? `<td style="${cell};text-align:right;width:72px">${packOf(r) != null ? packOf(r) : ""}</td>` : "")
+      + `</tr>`;
   }).join("");
 
   /* Итог как в накладной заказчика («Всего наименований N»), плюс общее количество штук:
      по нему на складе сверяют объём набора. */
+  /* «Общее количество» — по ПОКАЗАННЫМ количествам (с учётом округления по галке), чтобы подвал не
+     расходился с видимой колонкой; без галки shownCount возвращает факт, и итог равен data.totalUnits —
+     поведение свода без округления байт в байт прежнее. */
+  const totalUnits = roundOn ? data.rows.reduce((s, r) => s + shownCount(r), 0) : data.totalUnits;
   const totals = `<div style="margin:10px 0 0;font-size:12px;color:#172b3f">`
-    + `<b>Всего наименований:</b> ${data.totalNames} &nbsp;·&nbsp; <b>Общее количество:</b> ${data.totalUnits} шт.</div>`;
+    + `<b>Всего наименований:</b> ${data.totalNames} &nbsp;·&nbsp; <b>Общее количество:</b> ${totalUnits} шт.</div>`;
   /* Пробелы подбора выносим в подвал цифрой: строку в таблице легко пролистать, а
      недокомплект на объекте обнаруживается уже при монтаже. */
   const gap = data.missing
@@ -320,7 +370,8 @@ function buildHtml(spec, deps) {
        инлайн-стиле не оказалось двух конкурирующих text-align. */
     + `<thead><tr><th style="${th}left;width:34px">№</th><th style="${th}left">Товар</th>`
     + (showArticles ? `<th style="${th}left">Артикул</th>` : "") + `<th style="${th}right;width:64px">Кол-во</th>`
-    + `<th style="${th}left;width:52px">Ед.</th></tr></thead>`
+    + `<th style="${th}left;width:52px">Ед.</th>`
+    + (roundOn ? `<th style="${th}right;width:72px">В упаковке</th>` : "") + `</tr></thead>`
     + `<tbody>${body}</tbody></table>`
     + totals + gap
     + `</section>`;

@@ -293,10 +293,17 @@ function supplierSpecData(light){
 }
 /* Готовая секция свода для документа — пустая строка, когда заказывать нечего (пустой
    проект). Документы получают строку, а не данные, ровно как planBlockHtml. */
-function supplierSpecHtml(opts,light,options){
+/* packMultiple — галка проекта «рассчитать кратно упаковке» (К6б ч.3). Передают её ТОЛЬКО для КП:
+   при включённой галке свод КП округляет количества вверх до целых упаковок и показывает столбец
+   «В упаковке» (как лист Excel «По артикулам»). Карту упаковок строим ЕДИНЫМ правилом
+   EPPackTopUp.buildPackMap (ту же, что в Excel, §7.1), и только когда она нужна — иначе EPPackTopUp
+   не трогаем. Лист монтажника зовёт без packMultiple → свод «по факту» при любой галке. */
+function supplierSpecHtml(opts,light,options,packMultiple){
   return EPSupplierSpec.buildHtml(Object.assign(supplierSpecData(light),opts||{}),{esc,
     showArticles:options?.articles!==false,
-    itemText:(name,code)=>options?.articles===false?EPOfferOptions.itemText(name,false,code):name});
+    itemText:(name,code)=>options?.articles===false?EPOfferOptions.itemText(name,false,code):name,
+    packMultiple:!!packMultiple,
+    packs:packMultiple?EPPackTopUp.buildPackMap(EP_DATA.products):null});
 }
 
 /* Детали поста для взрыв-схемы листа монтажника (EPExplodedView). Собираем ИЗ УЖЕ ПОСЧИТАННОГО:
@@ -626,7 +633,7 @@ function generateCommercialOffer(){
     lightingHtml:options.sections.lighting?lightingHtml(light,"Группы света",options):"",
     /* Свод по артикулам — приложением В КОНЦЕ КП, после денежных итогов: клиент читает КП
        ради цены, а этот лист отрывается и уходит поставщику (в нём цен нет). */
-    supplierSpecHtml:options.sections.supplier?supplierSpecHtml({},light,options):""};
+    supplierSpecHtml:options.sections.supplier?supplierSpecHtml({},light,options,!!EP_DATA.settings.packMultiple):""};
   /* Страж пустого КП спрашивает у сборщика «будет ли что напечатать» (EPOfferPdf.hasContent),
      а НЕ «включён ли раздел»: включённая раскладка без столбцов или план без чертежа раньше
      открывали окно печати с одним титулом и без единой таблицы. */
