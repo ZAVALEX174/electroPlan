@@ -181,7 +181,7 @@ test("D10: UI → снимок проекта → восстановление �
   ctx.EP_DATA.settings.offerOptions.layout.illustration = false;
   assert.equal(snap.offerOptions.layout.illustration, true);
   Object.assign(ctx, { ProjectStore: { load: () => snap }, dropOrphanKeyGroups: () => {}, fillDocHeaderInputs: () => {},
-    EPPlanRotate: require("../js/planRotate.js"),
+    EPPlanRotate: require("../js/planRotate.js"), syncPackMultiple: () => {},
     EPConfig: { gridSteps: [10], gridDefault: 10 }, markCanvasUsed: () => {},
     renderLightingSchemeSelect: () => {}, renderProjectWallTypeSelect: () => {}, renderProjectBacklight: () => {} });
   // Восстановление настоящей async-функции тем же общим стендом.

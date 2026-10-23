@@ -4278,5 +4278,11 @@ const {setCleanBaseline}=EPProjectFile.attach({
    app.js по id — тут только показ/скрытие окна. */
 const {close:closeKpSetup,maybeOpenOnLoad:maybeOpenKpSetup}=EPProjectSetup.attach({$});
 
+/* Галка «рассчитать кратно упаковке» (К6, EPPackMultiple.attach). Поднимаем здесь, внизу: к этому
+   моменту определены EP_DATA и scheduleSave (нет TDZ), а restoreProject (выше) зовёт возвращённую
+   syncPackMultiple при загрузке проекта — к моменту вызова const уже инициализирован (init ниже).
+   Логики округления тут нет — она в EPPackRound/specExcel; attach лишь связывает галку с настройкой. */
+const {syncPackMultiple}=EPPackMultiple.attach({$,EP_DATA,scheduleSave});
+
 init().catch(e=>reportFailure("Инициализация не завершилась:",e));
 })();

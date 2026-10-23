@@ -15,6 +15,11 @@ button{cursor:pointer}
 .brand-mark{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;color:#fff;font-weight:900;background:#fff;color:var(--navy);border:1px solid rgba(255,255,255,.35);box-shadow:none}
 .brand strong,.brand span{display:block}.brand strong{font-size:17px;letter-spacing:.01em}.brand span{font-size:10px;color:#aebfcd;margin-top:2px}.brand-mark span{font-size:13px}
 .top-actions{display:flex;gap:8px}.topbar .btn.ghost{background:#183b56;border-color:#31546f;color:#e9f0f5}.topbar .btn.primary{background:#fff;color:var(--navy);box-shadow:none}
+/* Галка «рассчитать кратно упаковке» (К6) в шапке рядом с выгрузкой Excel: светлый текст на тёмной
+   полосе, как у .topbar .btn.ghost; выравниваем по центру с кнопками, флажок не сжимаем (flex-shrink:0).
+   Раскладку шапки не трогаем — это обычный flex-элемент того же ряда, что и кнопки. */
+.pack-multiple{display:inline-flex;align-items:center;gap:6px;color:#e9f0f5;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
+.pack-multiple input{flex:0 0 auto;margin:0;cursor:pointer}
 .btn{border:1px solid var(--line);border-radius:11px;padding:9px 13px;background:#fff;color:var(--text);font-weight:750;transition:.18s}
 .btn:hover{transform:translateY(-1px);border-color:#9ac7ef}.btn.primary{border-color:transparent;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue-dark));box-shadow:0 8px 20px rgba(37,136,237,.24)}
 .btn.ghost{background:var(--panel-soft)}.btn.small{padding:7px 10px;font-size:12px}

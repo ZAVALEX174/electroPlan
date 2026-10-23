@@ -115,7 +115,7 @@ function makeSession() {
     ProjectStore: { load: () => store.value },
     relabelContourRooms: () => {}, dropOrphanKeyGroups: () => {},
     renderLightingSchemeSelect: () => {}, renderProjectWallTypeSelect: () => {}, renderProjectBacklight: () => {},
-    fillDocHeaderInputs: () => {}, syncOfferOptions: () => {}, markCanvasUsed: () => {}
+    fillDocHeaderInputs: () => {}, syncOfferOptions: () => {}, syncPackMultiple: () => {}, markCanvasUsed: () => {}
   };
   const src = stand.functionSource("restoreProject") + "\n" + stand.functionSource("projectSnapshot")
     + "\n;({ restore: restoreProject, snapshot: projectSnapshot });";

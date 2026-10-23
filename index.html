@@ -660,7 +660,7 @@
 <!-- Сообщения с крестиком, не гаснущие сами (Б9/2б): стоят над toast, одно над другим. Наполняет EPNotices. -->
 <div class="notices" id="notices"></div>
   <script src="js/catalog-vimar.js?v=20261019.2"></script>
-  <script src="js/catalog-vimar-attrs.js?v=20261022.2"></script>
+  <script src="js/catalog-vimar-attrs.js?v=20261023.1"></script>
   <script src="js/catalog-vimar-openings.js?v=20260920.1"></script>
   <script src="js/catalog-vimar-faces.js?v=20260801.2"></script>
   <script src="js/catalog-vimar-discontinued.js?v=20261019.1"></script>
@@ -770,6 +770,10 @@
 <!-- Окно «Данные проекта и КП» (#kpSetupModal): открыть/закрыть, авто-открытие на чистом старте
      (решение владельца 20.10). Чистая функция shouldOpenOnLoad + тонкий attach. До app.js. -->
 <script src="js/projectSetup.js?v=20261020.1"></script>
-<script src="js/app.js?v=20261022.1"></script>
+<!-- Галка «рассчитать кратно упаковке» (К6): связка галки шапки с настройкой проекта
+     (EP_DATA.settings.packMultiple) и сохранением. До app.js, который зовёт EPPackMultiple.attach(ctx)
+     и передаёт возвращённую syncPackMultiple в restoreProject. -->
+<script src="js/packMultipleUi.js?v=20261023.1"></script>
+<script src="js/app.js?v=20261023.1"></script>
 </body>
 </html>

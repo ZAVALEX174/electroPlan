@@ -192,7 +192,7 @@ async function realRestore(project, opts) {
     EPOfferOptions,
     EP_DATA: { settings: {} },
     $: dom.$,
-    fillDocHeaderInputs() {}, markCanvasUsed() {}, highlightActiveOfferPreset() {},
+    fillDocHeaderInputs() {}, markCanvasUsed() {}, highlightActiveOfferPreset() {}, syncPackMultiple() {},
     console: { info() {} },
     Object, Number, Array, Date, Promise, String
   };

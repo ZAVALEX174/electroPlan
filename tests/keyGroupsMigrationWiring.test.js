@@ -102,7 +102,7 @@ test("E13-mig-2: restoreProject чистит осиротевшие группы
       EPOfferOptions: { normalize: () => ({}), assemblyView: () => "exploded" },
       EP_DATA: { settings: {} },
       $: stand.makeDom().$,
-      fillDocHeaderInputs() {}, syncOfferOptions() {}, markCanvasUsed() {},
+      fillDocHeaderInputs() {}, syncOfferOptions() {}, syncPackMultiple() {}, markCanvasUsed() {},
       console: { info() {} }
     });
   const restored = await restoreProject();

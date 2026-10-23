@@ -51,7 +51,7 @@ function makeSession() {
     ProjectStore: { load: () => store.value },
     dropOrphanKeyGroups: () => {}, renderLightingSchemeSelect: () => {},
     renderProjectBacklight: () => {}, fillDocHeaderInputs: () => {},
-    syncOfferOptions: () => {}, markCanvasUsed: () => {}
+    syncOfferOptions: () => {}, syncPackMultiple: () => {}, markCanvasUsed: () => {}
   };
   const src = stand.functionSource("relabelContourRooms") + "\n" + stand.functionSource("restoreProject")
     + "\n;({ restore: restoreProject });";

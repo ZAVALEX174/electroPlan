@@ -83,7 +83,7 @@ function restoreStand(snapshot, startBacklight) {
     EPConfig: { gridSteps: [10], gridDefault: 10, viewMinScale: 0.1, viewMaxScale: 10 },
     EPViewport: { clampScale: s => s }, EPPlanRotate: require("../js/planRotate.js"),
     dropOrphanKeyGroups: noop, renderLightingSchemeSelect: noop, renderProjectWallTypeSelect: noop,
-    fillDocHeaderInputs: noop, syncOfferOptions: noop, markCanvasUsed: noop };
+    fillDocHeaderInputs: noop, syncOfferOptions: noop, syncPackMultiple: noop, markCanvasUsed: noop };
   const restore = stand.run(["backlightCatalogOptions", "renderProjectBacklight", "relabelContourRooms", "restoreProject"], ctx);
   return { dom, ctx, restore };
 }
