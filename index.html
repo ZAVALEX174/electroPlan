@@ -28,6 +28,12 @@
       <button class="btn ghost" id="installSheetBtn">Лист монтажника</button>
       <button class="btn primary" id="pdfBtn">Коммерческое предложение PDF</button>
       <button class="btn ghost" id="xlsxBtn">Спецификация Excel</button>
+      <!-- Кол-во в упаковке (К6): галка рядом с выгрузкой Excel. По умолчанию снята; хранится в
+           проекте (переживает перезагрузку и файл проекта). Включённая считает лист «По артикулам»
+           кратно упаковке — округляет количество каждого артикула вверх до целых упаковок. -->
+      <label class="pack-multiple" id="packMultipleLabel" title="Количество каждого артикула в листе «По артикулам» округляется вверх до целых упаковок">
+        <input type="checkbox" id="packMultipleCheck"> рассчитать кратно упаковке
+      </label>
     </div>
   </header>
 
@@ -654,11 +660,11 @@
 <!-- Сообщения с крестиком, не гаснущие сами (Б9/2б): стоят над toast, одно над другим. Наполняет EPNotices. -->
 <div class="notices" id="notices"></div>
   <script src="js/catalog-vimar.js?v=20261019.2"></script>
-  <script src="js/catalog-vimar-attrs.js?v=20261022.1"></script>
+  <script src="js/catalog-vimar-attrs.js?v=20261022.2"></script>
   <script src="js/catalog-vimar-openings.js?v=20260920.1"></script>
   <script src="js/catalog-vimar-faces.js?v=20260801.2"></script>
   <script src="js/catalog-vimar-discontinued.js?v=20261019.1"></script>
-  <script src="js/data.js?v=20261022.1"></script>
+  <script src="js/data.js?v=20261022.2"></script>
 <script src="js/store.js?v=20260723"></script>
 <script src="js/config.js?v=20261005.1"></script>
 <!-- Подтверждение необратимой команды повтором того же действия (у окна есть и нижняя, и
@@ -700,7 +706,8 @@
 <script src="js/offerPdf.js?v=20261020.4"></script>
 <script src="js/installSheet.js?v=20261022.1"></script>
 <script src="js/supplierSpec.js?v=20260911.1"></script>
-<script src="js/specExcel.js?v=20261020.4"></script>
+<script src="js/packRound.js?v=20261022.1"></script>
+<script src="js/specExcel.js?v=20261022.1"></script>
 <script src="js/postImage.js?v=20260920.1"></script>
 <script src="js/explodedView.js?v=20260805.5"></script>
 <script src="js/planRotate.js?v=20261004.2"></script>
@@ -738,7 +745,7 @@
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
-<script src="js/docs.js?v=20261022.1"></script>
+<script src="js/docs.js?v=20261022.2"></script>
 <!-- Ввод на холсте (клики, перенос объектов, панорама, зум колесом): trackDrag, makeDraggable,
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него

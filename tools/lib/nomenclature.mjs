@@ -551,7 +551,7 @@ export function canonicalFacingMap(records, pick) {
    добавлял по одному датчику на каждый такой терморегулятор. */
 const SENSOR_NOTE_RE = /термодатчика\s+"([^"]+)"/i;
 export function buildAttrs(records) {
-  const standards = {}, supports = {}, boxes = {}, wallTypes = {}, mounting = {}, roles = {}, groups = {}, colors = {}, sensors = {};
+  const standards = {}, supports = {}, boxes = {}, wallTypes = {}, mounting = {}, roles = {}, groups = {}, colors = {}, sensors = {}, packs = {};
   /* Канонические написания отделки — по всем НАКЛАДКАМ сразу, до основного цикла: одно написание
      на признак должно быть одинаковым у всех накладок этого цвета/материала/формы, иначе список
      комнаты раздвоился бы на «Слоновая Кость» и «Слоновая кость». Строим три карты один раз. */
@@ -630,6 +630,16 @@ export function buildAttrs(records) {
        отсутствию, как principle/partRole. */
     if (rec.color) colors[rec.code] = canonElementColor.get(facingKey(rec.color)) || norm(rec.color);
 
+    /* Кол-во в упаковке (К6): сквозной раздел packs, ключ на артикул → число штук в упаковке
+       поставщика. Нужен выгрузке «По артикулам» (кратно упаковке) и далее КП/панели итогов.
+       Кладём только положительное целое: у позиций без данных об упаковке ключа нет — рантайм
+       отличает «упаковка неизвестна» (не округляем) от «упаковка = 1» по отсутствию ключа, как у
+       principle/sensors. Живёт в attrs, а не в горячем js/catalog-vimar.js, по тому же правилу —
+       это редкое рантайм-поле, а не поле каждой из 2146 строк каталога. */
+    if (typeof rec.packQty === "number" && Number.isFinite(rec.packQty) && rec.packQty > 0) {
+      packs[rec.code] = rec.packQty;
+    }
+
     if (rec.kind === "frame") {
       // Раскладку на посты считаем здесь, на сборке (задача: признак ставится как остальные
       // атрибуты, не разбором названия в рантайме). Немецкая «(2+2)» → [[2,2]], двухрядная
@@ -670,5 +680,5 @@ export function buildAttrs(records) {
       if (Object.keys(entry).length) mounting[rec.code] = entry;
     }
   }
-  return { standards, supports, boxes, wallTypes, mounting, roles, groups, colors, sensors };
+  return { standards, supports, boxes, wallTypes, mounting, roles, groups, colors, sensors, packs };
 }

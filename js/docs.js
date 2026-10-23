@@ -676,8 +676,15 @@ function exportSpecExcel(){
     toast("В проекте нечего выгружать в Excel");return;
   }
   const options=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
+  /* Кол-во в упаковке (К6): карту артикул→упаковка собираем из каталога (packQty подмешан в
+     js/data.js из признаков автосостава). Галка «кратно упаковке» — свойство проекта
+     (EP_DATA.settings.packMultiple, по умолчанию снята). И то и другое влияет ТОЛЬКО на лист «По
+     артикулам»; КП и панель итогов эта часть (К6а) не трогает. */
+  const packByCode={};
+  (EP_DATA.products||[]).forEach(p=>{if(p&&p.code&&p.packQty!=null)packByCode[p.code]=p.packQty;});
   const bytes=EPSpecExcel.build(est,supplier,
-    {options,currency:displayCurrency(),rate:displayRate()});
+    {options,currency:displayCurrency(),rate:displayRate(),
+     packByCode,packMultiple:!!EP_DATA.settings.packMultiple});
   const dh=docHeader();
   const name=EPSpecExcel.fileName(dh.number,dh.project);
   /* Скачивание — единственная «грязная» часть: Blob из байтов книги и временная ссылка a[download].

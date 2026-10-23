@@ -62,7 +62,7 @@ window.EP_DATA = {
      (стандарт → unknown, тип стены → не подтверждён), приложение это переживает. */
   products: (function enrichCatalog(){
     const list = window.EP_VIMAR_CATALOG?.products || [];
-    const attrs = window.EP_VIMAR_ATTRS || {standards:{},supports:{},wallTypes:{},boxes:{},mounting:{},roles:{},groups:{},colors:{},sensors:{}};
+    const attrs = window.EP_VIMAR_ATTRS || {standards:{},supports:{},wallTypes:{},boxes:{},mounting:{},roles:{},groups:{},colors:{},sensors:{},packs:{}};
     const supports = attrs.supports || {};
     const boxes = attrs.boxes || {};
     /* Роль детали в посте и роль управления — из колонок номенклатуры «Функциональная группа»
@@ -90,6 +90,11 @@ window.EP_DATA = {
     // у терморегуляторов без датчика и у всех прочих механизмов — «датчик не нужен» отличается от
     // «нужен» по отсутствию ключа, как functionalGroup/principle.
     const sensors = attrs.sensors || {};
+    // Кол-во в упаковке (К6): число штук в упаковке поставщика, ключ — артикул (раздел packs).
+    // По нему выгрузка «По артикулам» считает заказ кратно упаковке (округление вверх до целых
+    // упаковок). Поля нет у позиций, где номенклатура упаковку не указала, — «упаковка неизвестна»
+    // отличается от «упаковка = 1» по отсутствию ключа, как у sensors/elementColor.
+    const packs = attrs.packs || {};
     // Монтажное правило видов, у которых своего раздела признаков нет (механизмы, аксессуары):
     // «Принцип обработки» номенклатуры заполнен и им (BUTTON/SCHUP/Bluetooth). У накладок,
     // суппортов и коробок правило приезжает вместе с их атрибутами — см. ветки ниже.
@@ -232,6 +237,15 @@ window.EP_DATA = {
         out.thermoSensorCode = sensorCode;
       }
       return out;
+    })
+    /* Кол-во в упаковке — ОТДЕЛЬНЫМ сквозным проходом поверх всех видов, а не внутри веток
+       frame/support/box/mechanism выше: те возвращаются РАНО (return в своей ветке), и признак,
+       вписанный в конец цикла, не достался бы ни накладкам, ни суппортам, ни большинству коробок
+       (§7.1: правило по потребителям обрастает краями). Упаковка есть у позиций ЛЮБОГО вида,
+       поэтому садится здесь одним местом. Нет ключа в packs → поле не появляется. */
+    .map(p => {
+      const pack = packs[p.code];
+      return pack != null ? {...p, packQty: pack} : p;
     });
     /* Снятые с производства (В23 / решение владельца К2): артикулы прежнего каталога, убранные
        номенклатурой К2, лежат ОТДЕЛЬНЫМ глобалом EP_VIMAR_DISCONTINUED (js/catalog-vimar-discontinued.js)

@@ -471,6 +471,12 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
 
     const priceCell = at(row, COL.price);
     const nomPrice = typeof priceCell === "number" && Number.isFinite(priceCell) ? priceCell : null;
+    // Кол-во в упаковке (К6): целое число штук в коробке поставщика. Берём только положительное
+    // число (в файле заполнено у большинства, но не у всех — пустую клетку оставляем null, тогда
+    // округления кратно упаковке для артикула не будет). Прежнего файла бэкфиллом не трогаем:
+    // упаковка — свойство текущей поставки, устаревшее значение хуже отсутствующего.
+    const packCell = at(row, COL.pack);
+    const packQty = typeof packCell === "number" && Number.isFinite(packCell) && packCell > 0 ? packCell : null;
 
     const { categoryId, icon } = categoryAndIcon(kind, name);
     // Роль детали: «голый механизм» требует группы «Механизмы»; в новом файле она зовётся
@@ -511,6 +517,7 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
       backlightColor,
       backlightPosition,
       nomPrice,
+      packQty,
     };
     if (moduleSize == null && kind === "frame") stats.missingModule++;
 

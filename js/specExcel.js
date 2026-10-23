@@ -27,7 +27,10 @@
                  vat, vatLabel, vatPercent, vatIncluded, total, discountMixed, discountPercent);
      supplier  — результат EPSupplierSpec.collect: { rows[], totalNames, totalUnits, missing };
      deps      — { options (схема EPOfferOptions: какие разделы/столбцы и «показывать цены»),
-                   currency ("RUB"|"EUR"), rate (base × rate = показанное число) }.
+                   currency ("RUB"|"EUR"), rate (base × rate = показанное число),
+                   packByCode? (артикул → размер упаковки — колонка «В упаковке» листа «По артикулам»),
+                   packMultiple? (галка «кратно упаковке»: округлять ли количество этого листа вверх
+                   до целых упаковок — К6) }.
    fileName(number, project) -> безопасное имя файла с расширением .xlsx. */
 (() => {
 "use strict";
@@ -44,6 +47,13 @@ function offerOptionsApi() {
 function estimateApi() {
   if (typeof window !== "undefined" && window.EPEstimate) return window.EPEstimate;
   if (typeof require !== "undefined") return require("./estimate.js");
+  return null;
+}
+/* Правило округления «кратно упаковке» (К6) — ЕДИНСТВЕННАЯ его копия (js/packRound.js): лист «По
+   артикулам» и далее КП зовут одну функцию, иначе округление разошлось бы между документами (§7.1). */
+function packRoundApi() {
+  if (typeof window !== "undefined" && window.EPPackRound) return window.EPPackRound;
+  if (typeof require !== "undefined") return require("./packRound.js");
   return null;
 }
 
@@ -236,10 +246,25 @@ const codeKey = c => String(c == null ? "" : c).replace(/\s+/g, "").toUpperCase(
 
 /* --- Лист «По артикулам»: плоский свод (как КП, но без подзаголовков-групп — в таблице Excel они
    ломали бы сортировку/фильтр/СУММ). При включённых ценах добавляем цену и сумму. --- */
-function buildSupplierSheet(est, supplier, options, config, estimate, rate, currency) {
+function buildSupplierSheet(est, supplier, options, config, estimate, rate, currency, packByCode, packMultiple) {
   const rows = (supplier && supplier.rows) || [];
   const showArticles = options.articles !== false;
   const showPrices = !!options.prices;
+  /* Кол-во в упаковке (К6): карта артикул → размер упаковки, ключи нормализуем тем же codeKey,
+     что и цены (регистр/пробелы — оформление, а не разные товары). Приходит из оркестратора
+     (docs.js строит её из каталога). Нет карты — колонка «В упаковке» просто пустая, округления
+     нет: признак отсутствует ровно как цена у строки не из сметы. */
+  const packMap = new Map();
+  if (packByCode) for (const k in packByCode) {
+    const v = Number(packByCode[k]);
+    if (Number.isFinite(v) && v > 0) packMap.set(codeKey(k), v);
+  }
+  const packRound = packRoundApi();
+  /* Округляем кратно упаковке ТОЛЬКО по галочке и ТОЛЬКО когда упаковка известна (packRound без
+     неё и так вернёт число как есть, но явный гейт держит правило читаемым). Функция одна на все
+     документы — К6б позовёт её же для КП. */
+  const effCount = (rawCount, pack) =>
+    (packMultiple && pack != null && packRound) ? packRound.packRound(rawCount, pack) : rawCount;
 
   /* Цена артикула — та же каталожная цена за штуку, что взяла смета (est.groups[].items[].price):
      берём из est, чтобы цена в Excel не разошлась с деньгами КП (§7.1). Свод и смета строятся
@@ -259,6 +284,11 @@ function buildSupplierSheet(est, supplier, options, config, estimate, rate, curr
   if (showArticles) columns.push(["code", "Артикул"]);
   columns.push(["count", "Кол-во"], ["unit", "Ед."]);
   if (showPrices) columns.push(["price", "Цена"], ["sum", "Сумма"]);
+  /* «В упаковке» — ПОСЛЕДНИМ столбцом, после цены/суммы: так буквенные адреса уже существующих
+     столбцов (Артикул C, Кол-во D, Цена F, Сумма G) не сдвигаются, и прежние проверки чисел К7
+     остаются валидными (граница К6а: «не сломать текущие колонки листа»). Столбец показывает размер
+     упаковки всегда; на округление «Кол-во»/«Сумма» влияет только галочка packMultiple. */
+  columns.push(["pack", "В упаковке"]);
 
   const NO_CODE = "артикул не определён";
   const ASSUMED = " (предположительно)";
@@ -268,6 +298,11 @@ function buildSupplierSheet(est, supplier, options, config, estimate, rate, curr
   rows.forEach((r, i) => {
     const unitPrice = r.code ? priceByCode.get(codeKey(r.code)) : undefined;
     const hasPrice = unitPrice != null;
+    /* Упаковка артикула (если известна) и итоговое количество строки: по галочке — вверх до целых
+       упаковок (К6), иначе фактическое. «Сумма» считается от ЭТОГО же количества, чтобы «Кол-во ×
+       Цена = Сумма» держалось и после округления. */
+    const pack = r.code ? packMap.get(codeKey(r.code)) : undefined;
+    const count = effCount(Number(r.count) || 0, pack);
     /* Имя: при скрытых артикулах чистим его через itemText (как КП) и дописываем пометку
        «предположительно» либо «· артикул не определён» — чтобы пробел и догадка не терялись. */
     const name = showArticles ? r.name : config.itemText(r.name, false, r.code)
@@ -276,29 +311,38 @@ function buildSupplierSheet(est, supplier, options, config, estimate, rate, curr
       if (key === "n") return num(i + 1);
       if (key === "name") return txt(name);
       if (key === "code") return txt(r.code ? r.code + (r.assumed ? ASSUMED : "") : NO_CODE);
-      if (key === "count") return num(Number(r.count) || 0);
+      if (key === "count") return num(count);
       if (key === "unit") return txt(r.unit || "шт.");
       /* Цена/сумма — ПО ИЗДЕЛИЯМ (В26, то же правило, что КП и лист «Спецификация»): «Цена» =
          напечатанная цена единицы roundShown(евро × курс) — в рублях целый рубль вверх, в евро копейка,
          «Сумма» = количество × эта НАПЕЧАТАННАЯ цена (estimate.shownSum, без повторного ×курс). Иначе
          «Кол-во × Цена ≠ Сумма». */
       if (key === "price") return hasPrice ? num(estimate.roundShown(unitPrice * rate, currency, "up"), S_MONEY) : txt("");
-      if (key === "sum") return hasPrice ? num(estimate.shownSum([{ price: unitPrice, count: Number(r.count) || 0 }], rate, currency), S_MONEY) : txt("");
+      if (key === "sum") return hasPrice ? num(estimate.shownSum([{ price: unitPrice, count }], rate, currency), S_MONEY) : txt("");
+      /* «В упаковке»: размер упаковки числом либо пустая клетка, если упаковка у артикула неизвестна
+         (граница К6а: «нет данных об упаковке → ячейка пустая»). */
+      if (key === "pack") return pack != null ? num(pack) : txt("");
       return txt("");
     }));
   });
 
-  /* Итоги как в КП-своде: «Всего наименований» и «Общее количество». */
+  /* Итоги как в КП-своде: «Всего наименований» и «Общее количество». Общее количество считаем по
+     ТЕМ ЖЕ числам, что печатаются в столбце «Кол-во» (с учётом округления по галочке), чтобы подвал
+     не расходился с видимой колонкой. При снятой галочке effCount возвращает фактическое количество,
+     и сумма совпадает с supplier.totalUnits — поведение без галочки не меняется. */
   if (rows.length) {
+    const totalUnitsShown = rows.reduce((a, r) => {
+      const pack = r.code ? packMap.get(codeKey(r.code)) : undefined;
+      return a + effCount(Number(r.count) || 0, pack);
+    }, 0);
     sheet.push([]);
     sheet.push([txt("Всего наименований:", S_BOLD), num(supplier.totalNames != null ? supplier.totalNames : rows.length, S_BOLD)]);
-    sheet.push([txt("Общее количество, шт.:", S_BOLD), num(supplier.totalUnits != null ? supplier.totalUnits
-      : rows.reduce((a, r) => a + (Number(r.count) || 0), 0), S_BOLD)]);
+    sheet.push([txt("Общее количество, шт.:", S_BOLD), num(totalUnitsShown, S_BOLD)]);
     if (supplier.missing) sheet.push([txt("Позиций без артикула:", S_BOLD), num(supplier.missing, S_BOLD)]);
   }
 
   const widthOf = key => key === "name" ? 44 : key === "code" ? 20
-    : key === "price" || key === "sum" ? 16 : key === "n" ? 6 : 10;
+    : key === "price" || key === "sum" ? 16 : key === "pack" ? 12 : key === "n" ? 6 : 10;
   return sheetXml(sheet, columns.map(([key]) => widthOf(key)));
 }
 
@@ -383,7 +427,9 @@ function build(est, supplier, deps) {
   const sup = supplier || { rows: [] };
 
   const sheet1 = buildSpecSheet(e, options, config, estimate, rate, currency);
-  const sheet2 = buildSupplierSheet(e, sup, options, config, estimate, rate, currency);
+  /* packByCode/packMultiple (К6) — свойства выгрузки, не сметы: карту упаковок и состояние галки
+     собирает оркестратор (docs.js) из каталога и проекта. Влияют ТОЛЬКО на лист «По артикулам». */
+  const sheet2 = buildSupplierSheet(e, sup, options, config, estimate, rate, currency, d.packByCode, !!d.packMultiple);
 
   const contentTypes = `${XMLHEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">`
     + `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`

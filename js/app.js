@@ -2736,6 +2736,10 @@ function projectSnapshot(){
     offerOptions:EPOfferOptions.normalize(EP_DATA.settings.offerOptions),
     /* вид поста в листе монтажника — отдельное поле проекта (не внутри offerOptions, см. Б2) */
     assemblyView:EPOfferOptions.assemblyView(EP_DATA.settings.assemblyView),
+    /* галка «рассчитать кратно упаковке» (К6) — свойство проекта, как assemblyView: отдельное
+       поле снимка, переживает перезагрузку и файл проекта. По умолчанию снята (старый проект поля
+       не несёт → восстановится в false). */
+    packMultiple:!!EP_DATA.settings.packMultiple,
     /* условия сделки и валюта — часть проекта, а не глобальная настройка приложения */
     /* vatMode пишем ЧЕРЕЗ vatModeOf, а не сырым полем: у старого проекта (или свежего дефолта
        data.js) поля vatMode ещё нет, сырой пик дал бы undefined, JSON бы его выбросил — и в
@@ -3044,6 +3048,10 @@ async function restoreProject(){
      Старый проект без обоих полей открывается со взрыв-схемой (assemblyView сведёт undefined к ней). */
   EP_DATA.settings.assemblyView=EPOfferOptions.assemblyView(
     p.assemblyView!==undefined?p.assemblyView:(p.offerOptions&&p.offerOptions.assemblyView));
+  /* Галка «кратно упаковке» (К6): старый проект поля не несёт → false (не округляем задним числом).
+     Отражаем в самой галке, чтобы экран не разошёлся с проектом. */
+  EP_DATA.settings.packMultiple=!!p.packMultiple;
+  syncPackMultiple();
   syncOfferOptions();
   if(p.plan){
     await new Promise(done=>{

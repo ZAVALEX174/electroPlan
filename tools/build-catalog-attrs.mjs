@@ -53,7 +53,7 @@ async function main() {
   let overridesDoc = { overrides: {} };
   try { overridesDoc = JSON.parse((await fs.readFile(OVERRIDES, "utf8")).replace(/^﻿/, "")); } catch { /* нет файла — ноль правок */ }
   applyKindOverrides(records, overridesDoc.overrides || {});
-  const { standards, supports, boxes, wallTypes, mounting, roles, groups, colors, sensors } = buildAttrs(records);
+  const { standards, supports, boxes, wallTypes, mounting, roles, groups, colors, sensors, packs } = buildAttrs(records);
 
   const tally = (obj, pick) => {
     const t = {};
@@ -70,7 +70,8 @@ async function main() {
     `   button|inverter|sensor|bluetooth), функциональная группа и подгруппа механизма\n` +
     `   (раздел groups — разделы выбора товара в конструкторе поста), цвет элемента\n` +
     `   начинки (раздел colors — «Цвет элемента», по нему конструктор сужает начинку\n` +
-    `   под цвет комнаты). Подмешиваются к товарам в js/data.js. */\n`;
+    `   под цвет комнаты), кол-во в упаковке (раздел packs — «Кол-во в упаковке», по нему\n` +
+    `   выгрузка считает заказ кратно упаковке). Подмешиваются к товарам в js/data.js. */\n`;
   const body = {
     generatedAt: new Date().toISOString().slice(0, 10),
     source: {
@@ -83,6 +84,7 @@ async function main() {
       groups: path.basename(NOM),
       colors: path.basename(NOM),
       sensors: path.basename(NOM),
+      packs: path.basename(NOM),
     },
     standards,
     supports,
@@ -93,6 +95,7 @@ async function main() {
     groups,
     colors,
     sensors,
+    packs,
   };
   await fs.writeFile(OUT, banner + `window.EP_VIMAR_ATTRS = ${JSON.stringify(body, null, 2)};\n`, "utf8");
 
@@ -135,6 +138,10 @@ async function main() {
   const sensorTally = {};
   for (const c in sensors) sensorTally[sensors[c]] = (sensorTally[sensors[c]] || 0) + 1;
   console.log(`  терморегуляторов с датчиком: ${Object.keys(sensors).length} — ${JSON.stringify(sensorTally)}`);
+  // Кол-во в упаковке (К6): охват и число РАЗЛИЧНЫХ размеров упаковки — по ним при пересборке
+  // видно, что столбец «Кол-во в упаковке» доехал и значения осмысленны (а не все 1 / все пусто).
+  const packSizes = new Set(Object.values(packs));
+  console.log(`  кол-во в упаковке:      ${Object.keys(packs).length} позиций (${packSizes.size} размеров упаковки)`);
   // Отделка накладки (E14): материал/форма/цвет каноническим написанием. Печатаем охват и число
   // РАЗЛИЧНЫХ значений — по ним сверяется полнота проброса при пересборке (склейка написаний
   // должна давать ожидаемое число цветов, а не разъехавшиеся дубли).
