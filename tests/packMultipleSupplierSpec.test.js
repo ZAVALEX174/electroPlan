@@ -149,7 +149,76 @@ test("К6б ч.3: без галки свод КП не изменился (по�
   assert.equal(noFlag, legacy, "галка снята → свод точно как без pack-полей (до ч.3)");
 });
 
+test("К6б ч.3: потребность больше одной упаковки округляется ВВЕРХ (73 при упаковке 50 → 100), свод КП = Excel", () => {
+  /* Дыра обеих проверок: прежний сценарий весь в пределах одной упаковки (qty 1–2 при pack ≥5),
+     поэтому мутация «не меньше одной упаковки, дальше вниз» (max(pack, floor(q/p)*p)) на нём не
+     краснела — и correct, и mutant давали одну упаковку. Здесь потребность 73 при упаковке 50:
+     верное округление ВВЕРХ = 100 (две упаковки), мутация-вниз дала бы 50. */
+  const spec = { posts: [], extras: [{ code: "73PACK", name: "Механизм", kind: "mechanism", count: 73 }] };
+  const packs = { "73PACK": 50 };
+  const kp = kpCounts(EPSupplierSpec.buildHtml(spec, { esc, packs, packMultiple: true }));
+  assert.equal(kp["73PACK"], 100, "73 → две упаковки по 50 = 100 (мутация «вниз после первой упаковки» дала бы 50)");
+  const xl = excelCounts(EPSpecExcel.build({ groups: [] }, EPSupplierSpec.collect(spec),
+    { options: {}, currency: "EUR", rate: 1, packByCode: packs, packMultiple: true }), true);
+  assert.equal(xl["73PACK"], 100, "лист Excel «По артикулам» тоже 100");
+  assert.deepEqual(kp, xl, "свод КП и Excel совпадают на многопачечной потребности");
+});
+
+test("К6б ч.3: пометка об округлении в своде КП — есть с галкой, нет без неё, нет в листе монтажника", () => {
+  const MARK = "Количества — до целых упаковок (см. столбец «В упаковке»).";
+  const BASE = "Все одинаковые позиции проекта сведены по артикулам. Документ для поставщика — без цен.";
+  /* КП с галкой: примечание по умолчанию + пометка после него (решение владельца 24.10). */
+  const on = buildKp(true);
+  assert.ok(on.includes(MARK), "с галкой пометка есть (мутация «удалить пометку» краснит здесь)");
+  assert.ok(on.includes(BASE + " " + MARK), "пометка дописана ПОСЛЕ прежнего текста примечания одним пробелом");
+  /* КП без галки: примечание байт в байт прежнее, без пометки. */
+  const off = buildKp(false);
+  assert.ok(!off.includes(MARK), "без галки пометки нет (поведение примечания прежнее)");
+  assert.ok(off.includes(BASE), "без галки примечание прежнее");
+  /* Лист монтажника: своё примечание, packMultiple не передаётся → roundOn ложь → пометки нет
+     даже при наличии карты упаковок (пометка привязана к тому же признаку, что столбец). */
+  const install = EPSupplierSpec.buildHtml(
+    Object.assign(specOf(), { note: "Все одинаковые позиции проекта сведены по артикулам — этот лист отправляется поставщику." }),
+    { esc, packs: packsOf() });   /* packMultiple не передан — как в docs.js installSheetForProject */
+  assert.ok(!install.includes(MARK), "в листе монтажника пометки нет (packMultiple не передан)");
+  assert.ok(install.includes("этот лист отправляется поставщику"), "подпись листа монтажника на месте");
+});
+
 /* ---- Проводка docs.js (К6б ч.3): КП передаёт галку проекта, лист монтажника — нет ---- */
+test("docs.js: supplierSpecHtml проводит карту упаковок и галку в EPSupplierSpec.buildHtml (поведенчески)", () => {
+  /* Исполняем НАСТОЯЩИЙ текст supplierSpecHtml/supplierSpecData из docs.js в vm (stand.run), подменив
+     EPSupplierSpec.buildHtml шпионом: так мутации `packs:…buildPackMap(...)`→`null`/`{}` и
+     `packMultiple:!!packMultiple`→`false` ловятся ПОВЕДЕНЧЕСКИ, а не сверкой текста. state пустой —
+     supplierSpecData не ходит в каталог (posts/devices пусты), нам важны только проброшенные deps. */
+  const seenDeps = [];
+  const products = { P1: { packQty: 7 } };   /* маркерный объект — EP_DATA.products */
+  const ctx = {
+    state: { posts: [], devices: [] },
+    esc: String,
+    EP_DATA: { products },
+    EPSupplierSpec: {
+      buildHtml: (spec, deps) => { seenDeps.push(deps); return "<section></section>"; },
+      kindFromCatalog: () => "other"
+    },
+    EPOfferOptions: { itemText: name => name },
+    EPPackTopUp: { buildPackMap: p => ({ _fromProducts: p }) }   /* карта, узнаваемая по входу */
+  };
+  const supplierSpecHtml = stand.run(["supplierSpecData", "supplierSpecHtml"], ctx);
+  const light = { plan: { relayTotal: 0 } };
+
+  /* Галка включена: packMultiple=true уходит в deps, packs — ровно карта buildPackMap(EP_DATA.products). */
+  supplierSpecHtml({}, light, { articles: true }, true);
+  assert.equal(seenDeps[0].packMultiple, true, "packMultiple проводится как есть (мутация →false краснит)");
+  assert.deepEqual(seenDeps[0].packs, { _fromProducts: products },
+    "packs = buildPackMap(EP_DATA.products) (мутации packs:null и packs:{} краснят здесь)");
+
+  /* Галка снята: packMultiple=false, карту упаковок не строим (packs=null) — EPPackTopUp не трогаем. */
+  supplierSpecHtml({}, light, { articles: true }, false);
+  assert.equal(seenDeps[1].packMultiple, false, "без галки packMultiple=false");
+  assert.equal(seenDeps[1].packs, null, "без галки карту упаковок не строим (packs=null)");
+});
+
+/* Структурная проверка проводки (оставлена из ч.3): КП передаёт галку проекта, лист монтажника — нет. */
 test("docs.js: КП передаёт packMultiple проекта в свод, лист монтажника — нет", () => {
   const offer = stand.functionSource("generateCommercialOffer");
   const install = stand.functionSource("installSheetForProject");
