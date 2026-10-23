@@ -25,6 +25,9 @@ function runExport(packMultiple) {
     supplierSpecData: () => ({}),
     EPSupplierSpec: { collect: () => ({ rows: [{ code: "A1", name: "A", count: 1 }] }) },
     EPEstimate: { isEmptyProject: () => false },
+    /* Карту упаковок docs.js строит ЕДИНЫМ правилом EPPackTopUp.buildPackMap (К6б) — даём настоящий
+       модуль, чтобы проверять реальный сбор карты, а не заглушку. */
+    EPPackTopUp: require("../js/packTopUp.js"),
     EPOfferOptions: { normalize: o => o || {} },
     EP_DATA: {
       settings: { offerOptions: {}, packMultiple },

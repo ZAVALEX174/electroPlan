@@ -1880,7 +1880,11 @@ function buildEstimate(light){
     /* Механизмы групп света — ОТДЕЛЬНЫЕ позиции состава, а не элементы поста: в
        post.mechanismIds они удвоили бы modulesTotal и сменили бы коробку с суппортом. */
     lightingOf:po=>lightingRowsFor(po,l),
-    settings:EP_DATA.settings
+    settings:EP_DATA.settings,
+    /* Добор упаковок (К6б) включаем ТОЛЬКО здесь — явным входом; build на ОДНОМ посте
+       (postPriceShown) его не получает, поэтому цена поста добора не содержит (риск 1 разведки). */
+    packMultiple:!!EP_DATA.settings.packMultiple,
+    packs:EPPackTopUp.buildPackMap(EP_DATA.products)
   });
 }
 /* Явное предупреждение «часть объектов вне помещений» в строке статуса ПОД ПЛАНОМ.
@@ -1955,13 +1959,16 @@ function renderSummary(){
      сами объекты строки, поле правит их ЦЕЛИКОМ (см. onSpecDiscountChange). _specGroups держит
      строки текущей отрисовки, чтобы обработчик по индексу поля нашёл нужные members. */
   _specGroups=est.groups;
+  /* Строки добора (g.topUp) рисует своим разделом EPPackTopUp.panelHtml; пропуск добора в основном
+     map сохраняет индексы i обычных строк (data-disc-row/spec.rows). */
   $("specList").innerHTML=est.groups.length
     ?est.groups.map((g,i)=>{
+      if(g.topUp)return"";
       const val=(g.discount!=null&&g.discount!=="")?esc(g.discount):"";
       return `<div class="spec-item"><div><strong>${esc(g.name)}</strong><span>${g.count} ${esc(g.unit)}</span></div><b>${moneyShown(spec.rows[i].sum)}</b>`
         +`<label class="spec-disc" title="Своя скидка на позицию. Пусто — действует общая скидка ${est.discountPercent}%">`
         +`<input type="number" min="0" max="100" step="1" inputmode="numeric" data-disc-row="${i}" value="${val}" placeholder="${est.discountPercent}"><span>%</span></label></div>`;
-    }).join("")
+    }).join("")+EPPackTopUp.panelHtml(est,spec,{esc,moneyShown})
     :'<div class="library-empty">Проект пока пуст</div>';
   /* Тот же блок, что печатается в КП и листе монтажника: подставленные механизмы, потребность
      в импульсных реле и пробелы с их причинами. */
@@ -4282,7 +4289,7 @@ const {close:closeKpSetup,maybeOpenOnLoad:maybeOpenKpSetup}=EPProjectSetup.attac
    моменту определены EP_DATA и scheduleSave (нет TDZ), а restoreProject (выше) зовёт возвращённую
    syncPackMultiple при загрузке проекта — к моменту вызова const уже инициализирован (init ниже).
    Логики округления тут нет — она в EPPackRound/specExcel; attach лишь связывает галку с настройкой. */
-const {syncPackMultiple}=EPPackMultiple.attach({$,EP_DATA,scheduleSave});
+const {syncPackMultiple}=EPPackMultiple.attach({$,EP_DATA,scheduleSave,renderSummary});
 
 init().catch(e=>reportFailure("Инициализация не завершилась:",e));
 })();

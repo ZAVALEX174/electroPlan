@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261023.1">
+  <link rel="stylesheet" href="css/styles.css?v=20261023.2">
 </head>
 <body>
 <div class="app">
@@ -699,7 +699,7 @@
 <script src="js/builderSlots.js?v=20260914.2"></script>
 <script src="js/offerOptions.js?v=20260926.1"></script>
 <script src="js/docRequisites.js?v=20261003.1"></script>
-<script src="js/estimate.js?v=20261022.1"></script>
+<script src="js/estimate.js?v=20261023.2"></script>
 <!-- Картинки бланка компании (логотип, подпись, печать) — одно правило «годен ли файл» и разметка
      <img> на все документы (§7.1). Грузится до offerPdf/installSheet, которые через него рисуют. -->
 <script src="js/docImages.js?v=20260922.1"></script>
@@ -707,6 +707,10 @@
 <script src="js/installSheet.js?v=20261022.1"></script>
 <script src="js/supplierSpec.js?v=20260911.1"></script>
 <script src="js/packRound.js?v=20261022.1"></script>
+<!-- Добор до целых упаковок (К6б): чистый модуль (ни DOM, ни state) — единая карта «артикул → упаковка»
+     (buildPackMap), экспортируемый codeKey и сборка строк добора как групп сметы (topUpGroups). Грузится
+     ПОСЛЕ packRound.js (зовёт его лениво) и используется estimate.js (тоже лениво) и docs.js. -->
+<script src="js/packTopUp.js?v=20261023.3"></script>
 <script src="js/specExcel.js?v=20261022.1"></script>
 <script src="js/postImage.js?v=20260920.1"></script>
 <script src="js/explodedView.js?v=20260805.5"></script>
@@ -745,7 +749,7 @@
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
-<script src="js/docs.js?v=20261022.2"></script>
+<script src="js/docs.js?v=20261023.1"></script>
 <!-- Ввод на холсте (клики, перенос объектов, панорама, зум колесом): trackDrag, makeDraggable,
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него
@@ -773,7 +777,7 @@
 <!-- Галка «рассчитать кратно упаковке» (К6): связка галки шапки с настройкой проекта
      (EP_DATA.settings.packMultiple) и сохранением. До app.js, который зовёт EPPackMultiple.attach(ctx)
      и передаёт возвращённую syncPackMultiple в restoreProject. -->
-<script src="js/packMultipleUi.js?v=20261023.1"></script>
-<script src="js/app.js?v=20261023.1"></script>
+<script src="js/packMultipleUi.js?v=20261023.2"></script>
+<script src="js/app.js?v=20261023.3"></script>
 </body>
 </html>

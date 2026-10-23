@@ -676,12 +676,11 @@ function exportSpecExcel(){
     toast("В проекте нечего выгружать в Excel");return;
   }
   const options=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
-  /* Кол-во в упаковке (К6): карту артикул→упаковка собираем из каталога (packQty подмешан в
-     js/data.js из признаков автосостава). Галка «кратно упаковке» — свойство проекта
-     (EP_DATA.settings.packMultiple, по умолчанию снята). И то и другое влияет ТОЛЬКО на лист «По
-     артикулам»; КП и панель итогов эта часть (К6а) не трогает. */
-  const packByCode={};
-  (EP_DATA.products||[]).forEach(p=>{if(p&&p.code&&p.packQty!=null)packByCode[p.code]=p.packQty;});
+  /* Кол-во в упаковке (К6): карту артикул→упаковка собираем ОДНИМ правилом EPPackTopUp.buildPackMap
+     (packQty подмешан в js/data.js из признаков автосостава) — ту же карту берёт смета в buildEstimate,
+     второй копии построения быть не должно (§7.1, К6б). Галка «кратно упаковке» — свойство проекта
+     (EP_DATA.settings.packMultiple). Лист «По артикулам» округляет по этой карте сам (specExcel). */
+  const packByCode=EPPackTopUp.buildPackMap(EP_DATA.products);
   const bytes=EPSpecExcel.build(est,supplier,
     {options,currency:displayCurrency(),rate:displayRate(),
      packByCode,packMultiple:!!EP_DATA.settings.packMultiple});

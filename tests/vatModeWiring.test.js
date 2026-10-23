@@ -14,6 +14,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const stand = require("./helpers/appStand.js");
 const EPEstimate = require("../js/estimate.js");
+/* buildEstimate/renderSummary (app.js) ссылаются на EPPackTopUp (добор упаковок, К6б) — настоящий модуль. */
+const EPPackTopUp = require("../js/packTopUp.js");
 
 const INDEX = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 
@@ -29,7 +31,7 @@ function render(mode) {
   const state = { rooms: [], devices: [{ id: "d1", roomId: null }], posts: [] };
   const run = stand.run("renderSummary", {
     state,
-    EPEstimate,
+    EPEstimate, EPPackTopUp,
     $: dom.$,
     money: v => "€" + Number(v).toFixed(2),
     /* displayRate=1 (евро) и moneyShown форматирует УЖЕ-показанное число — панель берёт три числа НДС
@@ -76,7 +78,7 @@ test("панель МУТАЦИЯ-ловушка: итог из vatShown по к
     settings: { workPercent: 0, materialsPercent: 0, discountPercent: 0, vatPercent: 5, vatMode: "surcharge" } });
   const run = stand.run("renderSummary", {
     state: { rooms: [], devices: [{ id: "d1", roomId: null }], posts: [] },
-    EPEstimate, $: dom.$,
+    EPEstimate, EPPackTopUp, $: dom.$,
     money: v => (Number(v) * 92.5).toFixed(2), displayRate: () => 92.5, displayCurrency: () => "EUR", moneyShown: v => Number(v).toFixed(2),
     esc: String, projectLighting: () => ({}), buildEstimate: () => est,
     lightingHtml: () => "[L]", updateStatus: () => {}, orphanObjectsWarningText: () => ""

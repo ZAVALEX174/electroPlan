@@ -11,6 +11,15 @@
 (() => {
 "use strict";
 
+/* Строки «Добор до целых упаковок» (К6б) собирает чистый EPPackTopUp — одна копия правила на все
+   документы (§7.1). Доступ ленивый: packTopUp.js грузится отдельным тегом ПОСЛЕ estimate.js, а в Node
+   подключается require. Нет модуля → добор просто не считаем (вернём пусто), смета не падает. */
+function packTopUpApi() {
+  if (typeof window !== "undefined" && window.EPPackTopUp) return window.EPPackTopUp;
+  if (typeof require !== "undefined") return require("./packTopUp.js");
+  return null;
+}
+
 /* ⚠️ ЦЕНА ОДНОГО ПОСТА — ОДНА ФУНКЦИЯ НА ВСЕ ЭКРАНЫ И ДОКУМЕНТЫ, И ЖИВЁТ ОНА ЗДЕСЬ.
    Пост стоит из ДВУХ слагаемых: собственный состав (EPPosts.postCost — механизмы, накладка,
    суппорты, коробки) и механизмы его групп света (EPLightingPlan.rowsByPost). Второе слагаемое
@@ -399,8 +408,12 @@ function totalsShown(est, rate, currency) {
      (g.discountPersonal), только в валюте показа. */
   const general = clampPercent(e.discountPercent);
   const groups = Array.isArray(e.groups) ? e.groups : [];
-  let personalDiscount = 0, personalBase = 0;
+  let personalDiscount = 0, personalBase = 0, topUpSum = 0;
   groups.forEach((g, i) => {
+    /* Добор (К6б) — обычная строка под ОБЩЕЙ скидкой (в общую базу, как и строки без личной скидки),
+       но его напечатанную сумму копим отдельно: материалы и работы считаются от базы БЕЗ добора
+       (решение владельца 23.10 п.1). */
+    if (g && g.topUp) topUpSum += (spec.rows[i] && spec.rows[i].sum) || 0;
     if (!(g && g.discountPersonal)) return;                 // строка под общей скидкой — в общую базу
     const sum = (spec.rows[i] && spec.rows[i].sum) || 0;    // напечатанная сумма именно этой строки
     personalBase += sum;                                    // исключаем из базы общей (0 % — тоже)
@@ -413,17 +426,27 @@ function totalsShown(est, rate, currency) {
      разряды (29 329,91 − 28 079,31 даёт 1 250,5999999985, и общая скидка 7,5 % округлилась бы ВНИЗ до
      93,79 вместо 93,80). round2 снимает этот дребезг до умножения на процент — тогда строка «Скидка»
      ровно сходится у человека на калькуляторе (В26, решение владельца 13.10). */
-  /* generalBase — разность уже-округлённых (дребезг двоичной арифметики снимаем round2, не рублём:
-     направление тут неважно, оба числа целые в рублях). Общая скидка — ВНИЗ до рубля (п.4),
-     как и личные; «Скидка» = сумма этих целых. */
-  const generalBase = round2(equipment - personalBase);
-  const generalDiscount = roundShown(generalBase * general / 100, currency, "down");
-  const discount = roundShown(generalDiscount + personalDiscount, currency, "down");
-  /* Материалы и работы — ВВЕРХ до рубля (п.4) от «Оборудование − Скидка» (напечатанных чисел).
-     round2 снимает дребезг разности уже-целых. Проценты приходят полями сметы (build), не из settings. */
-  const net = round2(equipment - discount);
-  const materials = roundShown(net * (Number(e.materialsPercent) || 0) / 100, currency, "up");
-  const work      = roundShown(net * (Number(e.workPercent)      || 0) / 100, currency, "up");
+  /* «Скидка от заданного оборудования» — ОДНА формула (В26, решение владельца 13.10, §7.1), зовём её
+     ДВАЖДЫ (не копия): для показанной строки «Скидка» (от всего Оборудования, С добором) и для базы
+     материалов/работ (от Оборудования БЕЗ добора). Личная часть (personalDiscount/personalBase) от
+     величины оборудования не зависит — она построчная; меняется только общая. generalBase — разность
+     уже-округлённых (round2 снимает дребезг двоичной арифметики), общая скидка ВНИЗ до рубля (п.4),
+     «Скидка» = сумма этих целых. */
+  const discountForEquipment = equip => {
+    const generalBase = round2(equip - personalBase);
+    const generalDiscount = roundShown(generalBase * general / 100, currency, "down");
+    return roundShown(generalDiscount + personalDiscount, currency, "down");
+  };
+  const discount = discountForEquipment(equipment);
+  /* Материалы и работы — ВВЕРХ до рубля (п.4) от «Оборудование − Скидка», ПОСЧИТАННОГО без строк добора
+     (решение владельца 23.10 п.1: % с добора не берутся — значит числа обязаны СОВПАСТЬ со снятой галкой
+     до рубля/копейки). equipmentNoTopUp — оборудование минус напечатанные суммы добора; скидку на нём
+     считаем ТОЙ ЖЕ функцией, а не вычитаем уже-округлённую долю добора (раздельное округление вниз дало
+     бы расхождение в рубль). Добора нет → topUpSum=0 → база = «Оборудование − Скидка», числа прежние. */
+  const equipmentNoTopUp = round2(equipment - topUpSum);
+  const baseForPercents = round2(equipmentNoTopUp - discountForEquipment(equipmentNoTopUp));
+  const materials = roundShown(baseForPercents * (Number(e.materialsPercent) || 0) / 100, currency, "up");
+  const work      = roundShown(baseForPercents * (Number(e.workPercent)      || 0) / 100, currency, "up");
   /* База НДС — сумма УЖЕ ОКРУГЛЁННЫХ строк (оборудование − скидка + материалы + работы), а не
      round2(subtotal × курс): человек видит именно эти четыре числа, и их сумма обязана дать итог.
      round2 снимает дребезг двоичной арифметики — слагаемые уже с точностью до копейки/рубля. */
@@ -835,12 +858,28 @@ function build(input) {
   });
   const groupList = [...groups.values()];
 
-  const equipment = lines.reduce((acc, l) => acc + l.price, 0);
-  /* Скидка бьётся по оборудованию, а работы и материалы считаются уже от него — иначе процент
-     «отыгрывался» бы обратно через надбавки. Скидка позиционная: у строки свой процент (общий либо
-     личный, discount на объекте). Итог и построчные признаки — ОДНО правило discountBreakdown (§7.1);
-     оно же гарантирует совпадение с прежней формулой до копейки, когда личных скидок нет. */
-  const db = discountBreakdown(groupList, s.discountPercent);
+  /* ⚠️ ДОБОР ДО ЦЕЛЫХ УПАКОВОК (К6б) собираем ДО скидки и флагов показа: он считается по Σ КАЖДОГО
+     артикула по ВСЕМУ проекту (посты + одиночные изделия уже в groupList) и становится обычными
+     строками сметы в КОНЦЕ списка (индексация обычных строк groups[i] ↔ spec.rows[i] ↔ поле скидки не
+     сдвигается). Включается ТОЛЬКО явным входом input.packMultiple + input.packs — build на ОДНОМ посте
+     (postPriceShown/postPricedItems) добор НЕ получает, поэтому цена поста и раскладка КП его не содержат
+     (риск 1 разведки). Правило округления — EPPackRound, сбор строк — EPPackTopUp (одна копия, §7.1). */
+  const topUp = packTopUpApi();
+  const topUpList = (input.packMultiple && input.packs && topUp)
+    ? topUp.topUpGroups(groupList, input.packs, true) : [];
+
+  const equipment = lines.reduce((acc, l) => acc + l.price, 0);   // сырое «Оборудование» — БЕЗ добора (legacy, наружу не читается)
+  /* Скидка и флаги показа — ОДНО правило discountBreakdown (§7.1), вызванное ДВАЖДЫ на одной функции
+     (не копия формулы):
+     ⚠️ ФЛАГИ ПОКАЗА (est.discount/discountMixed/discountPercent и НДС ниже) — по ПОЛНОМУ списку С добором.
+     Добор под общей скидкой увеличивает итоговую скидку и НДС (totalsShown их показывает), поэтому строки
+     «Скидка»/«НДС» в панели, КП и Excel обязаны появиться, даже когда у всех постов личная скидка 0 %/
+     100 % и без добора общей скидки нет. Это «починка в одном месте»: потребители по-прежнему гейтят по
+     est.discount/est.vat, но теперь флаги знают про добор.
+     ⚠️ СЫРЫЕ materials/work — по базе БЕЗ добора (решение владельца 23.10 п.1): % с добора не берутся. */
+  const dbBase = discountBreakdown(groupList, s.discountPercent);   // БЕЗ добора — база сырых materials/work
+  topUpList.forEach((g) => groupList.push(g));                      // добор в список → дальше всё С добором
+  const db = discountBreakdown(groupList, s.discountPercent);       // С добором — флаги показа и построчные скидки
   const discountPercent = db.general;
   const discount = db.total;
   const discountMixed = db.mixed;
@@ -849,10 +888,15 @@ function build(input) {
     g.discountPersonal = db.rows[i].personal;
     g.discountAmount = db.rows[i].amount;
   });
-  const equipmentNet = equipment - discount;
+  const equipmentNet = equipment - dbBase.total;
   const materials = equipmentNet * (Number(s.materialsPercent) || 0) / 100;
   const work = equipmentNet * (Number(s.workPercent) || 0) / 100;
-  const subtotal = equipmentNet + materials + work;
+  /* База НДС-ФЛАГА — С добором: «Оборудование (с добором) − Скидка (с добором)» + материалы + работы.
+     Так est.vat истинен ровно тогда, когда НДС есть в totalsShown — в том числе если база постов
+     обнулена личной скидкой, а ненулевым остаётся только добор. Сырое subtotal наружу не читается, это
+     вход vatBreakdown для флагов (est.vat/vatIncluded/vatLabel). Добора нет → равно прежнему subtotal. */
+  const equipmentWithTopUp = groupList.reduce((acc, g) => acc + (Number(g.sum) || 0), 0);
+  const subtotal = (equipmentWithTopUp - discount) + materials + work;
   /* НДС: режим проекта решает, как база (subtotal) превращается в итог. Всю арифметику и подпись
      держит vatBreakdown (§7.1) — и панель, и КП берут из est готовые числа, второй копии формулы
      «итог × p/(100+p)» нигде нет. Режим читаем через vatModeOf: там же миграция старой галочки. */

@@ -9,6 +9,9 @@ const EPLightingPlan = require("../js/lightingPlan.js");
 const EPPosts = require("../js/posts.js");
 const EPPostImage = require("../js/postImage.js");
 const EPOfferNumber = require("../js/offerNumber.js");
+/* buildEstimate (app.js) зовёт EPPackTopUp.buildPackMap для добора упаковок (К6б) — настоящий модуль
+   (галка снята/нет products → добор пуст, экспорт прежний). */
+const EPPackTopUp = require("../js/packTopUp.js");
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 /* moneyShown/displayRate нужны generateCommercialOffer (docs.js) как голые имена: итог с НДС он
    считает через EPEstimate.vatShown и форматирует moneyShown (число уже в валюте показа). При rate=1
@@ -120,7 +123,7 @@ function exportStand(options) {
   let html = "", saved = null;
   const dom = stand.makeDom();
   const ctx = { ...deps, $: dom.$, state, EP_DATA: { settings: { offerOptions: options } },
-    EPOfferOptions, EPOfferPdf, EPEstimate, EPSupplierSpec, EPLightingPlan, EPPosts, EPPostImage,
+    EPOfferOptions, EPOfferPdf, EPEstimate, EPSupplierSpec, EPLightingPlan, EPPosts, EPPostImage, EPPackTopUp,
     product: id => Number(id) === 20 ? mech : null, frameProduct: () => frame,
     postComposition: () => comp, postCost: () => 10, lightingRowsFor: () => [],
     projectLighting: () => light, lightingSum: () => 12345,

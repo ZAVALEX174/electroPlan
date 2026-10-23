@@ -23,6 +23,8 @@ const path = require("node:path");
 const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
 const EPEstimate = require("../js/estimate.js");
+/* buildEstimate/renderSummary (app.js) ссылаются на EPPackTopUp (добор упаковок, К6б) — настоящий модуль. */
+const EPPackTopUp = require("../js/packTopUp.js");
 const EPPosts = require("../js/posts.js");
 const EPOfferOptions = require("../js/offerOptions.js");
 const { buildHtml } = require("../js/offerPdf.js");
@@ -188,7 +190,7 @@ function renderSpecDom(over) {
   const est = build(over);
   stand.run("renderSummary", {
     state: { rooms: [], devices: [], posts: [] },
-    EPEstimate, $: dom.$, money: v => "€" + Number(v).toFixed(2), esc: String,
+    EPEstimate, EPPackTopUp, $: dom.$, money: v => "€" + Number(v).toFixed(2), esc: String,
     /* итог с НДС renderSummary берёт из EPEstimate.vatShown и форматирует moneyShown (число уже в
        валюте показа, курс — displayRate). Обе — голые имена из app.js, без них песочница падает. */
     moneyShown: v => "€" + Number(v).toFixed(2), displayRate: () => 1, displayCurrency: () => "EUR",
@@ -369,7 +371,7 @@ function makeSession() {
   const ctx = {
     $: dom.$, esc: String, state,
     EP_DATA: { settings: JSON.parse(JSON.stringify(freshDefaults())) },
-    EPEstimate, EPPosts, EPOfferOptions,
+    EPEstimate, EPPackTopUp, EPPosts, EPOfferOptions,
     EPConfig: { gridSteps: [10], gridDefault: 10, viewMinScale: 0.1, viewMaxScale: 10 },
     EPViewport: { clampScale: s => s }, EPPlanRotate: require("../js/planRotate.js"),
     ProjectStore: { load: () => store.value },

@@ -313,6 +313,10 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 /* Своё поле «скидка, %» позиции (А2): узкий инпут справа от суммы. Пусто — действует общая скидка.
    Колонки суммы и поля — auto (по содержимому) и ужиматься не должны, иначе «%» снова срежется. */
 .spec-disc{display:flex;align-items:center;gap:2px;color:var(--muted);font-size:10px}.spec-disc input{width:38px;flex:none;font-size:10px;padding:2px 3px;text-align:right}
+/* Раздел «Добор до целых упаковок» (К6б): заголовок и строки под обычной спецификацией. У строк
+   добора поля «скидка, %» нет (личной скидки у добора нет) — вторая колонка auto пустует, сумма
+   остаётся у правого края как у обычных строк. */
+.spec-topup-head{margin:10px 0 2px;font-size:11px;font-weight:600;color:#8a5a2f}
 .modal-backdrop{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(11,40,68,.58);backdrop-filter:blur(5px)}.modal-backdrop.open{display:flex}
 .modal{width:min(880px,100%);max-height:92vh;overflow-y:auto;overflow-x:hidden;padding:21px;border:1px solid #acd0ef;border-radius:21px;background:#fff;box-shadow:0 30px 100px rgba(0,45,86,.3)}
 /* Конструктор поста — ПОЛНОЭКРАННОЕ окно (E17). Подложке снимаем отступы (модификатор

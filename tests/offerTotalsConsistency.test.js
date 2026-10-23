@@ -19,6 +19,8 @@ const assert = require("node:assert/strict");
 const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
 const EPEstimate = require("../js/estimate.js");
+/* buildEstimate/renderSummary (app.js) ссылаются на EPPackTopUp (добор упаковок, К6б) — настоящий модуль. */
+const EPPackTopUp = require("../js/packTopUp.js");
 const EPOfferPdf = require("../js/offerPdf.js");
 const EPSpecExcel = require("../js/specExcel.js");
 const EPSupplierSpec = require("../js/supplierSpec.js");
@@ -195,7 +197,7 @@ function panelTotals(est, rate, currency) {
   const dom = stand.makeDom();
   const run = stand.run("renderSummary", {
     state: { rooms: [], devices: [{ id: "d1", roomId: null }], posts: [] },
-    EPEstimate, $: dom.$,
+    EPEstimate, EPPackTopUp, $: dom.$,
     money: v => showMoney(Number(v) * rate), moneyShown: v => showMoney(v),
     displayRate: () => rate, displayCurrency: () => currency,
     esc: String, projectLighting: () => ({}), buildEstimate: () => est,
@@ -273,7 +275,7 @@ for (const [currency, rate] of [["EUR", 1], ["RUB", 95.37 * 1.03]]) {
    применить round2 ровно так, как в приложении. Мутация round2 в app.js:85 (kp.json M13) краснит
    ИМЕННО здесь — на копии стенда она бы не отразилась (§7.1). */
 function appMoney(rate, currency) {
-  const ctx = { EPEstimate, displayCurrency: () => currency, displayRate: () => rate };
+  const ctx = { EPEstimate, EPPackTopUp, displayCurrency: () => currency, displayRate: () => rate };
   vm.createContext(ctx);
   return vm.runInContext(
     stand.constBlock("moneyShown") + "\n" + stand.constBlock("money") + "\n;({ money, moneyShown });", ctx);
@@ -335,7 +337,7 @@ test("В26 A14: панель — сумма строки спецификаци�
   const dom = stand.makeDom();
   const run = stand.run("renderSummary", {
     state: { rooms: [], devices: [], posts: [] },
-    EPEstimate, $: dom.$, money, moneyShown, displayRate: () => rate, displayCurrency: () => "RUB",
+    EPEstimate, EPPackTopUp, $: dom.$, money, moneyShown, displayRate: () => rate, displayCurrency: () => "RUB",
     esc: String, projectLighting: () => ({}), buildEstimate: () => est,
     lightingHtml: () => "[L]", updateStatus: () => {}, orphanObjectsWarningText: () => ""
   });
