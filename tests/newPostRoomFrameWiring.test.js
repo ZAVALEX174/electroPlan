@@ -89,16 +89,16 @@ assert.ok(EPCatalog.productFacingValues(activeFrames, "frameColor").includes("А
 /* ── Стенд openPostBuilder (renderBuilder заглушён — предмет здесь ВЫБОР накладки по умолчанию, не отрисовка) ── */
 const CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter",
   "builderRoomFilter", "collectionFramePool", "ordinaryFrame", "nearestToThreeFrame", "pickDefaultFrame",
-  "preferOwnFrame", "ownFrameCriteria", "defaultFrameForRoom", "applyAutoDefaultFrame",
+  "preferOwnFrame", "ownFrameCriteria", "defaultFrameForRoom", "applyAutoDefaultFrame", "newPostRoom",
   "renderPostSlotCountSelect", "renderBuilderRoomSelect", "openPostBuilder"];
 const NAMED_CUT = ["builderSignature", ...CUT];
 
-function openPost({ rooms = [], open = {}, placedFrameId, templates = [] }) {
+function openPost({ rooms = [], open = {}, placedFrameId, templates = [], selected = null }) {
   const posts = [];
   if (open.placedId) posts.push({ id: open.placedId, roomId: rooms[0] ? rooms[0].id : null, frameId: placedFrameId, mechanismIds: [] });
   const state = {
     products: PRODUCTS, posts, templates,
-    rooms, builder: {}, pending: null
+    rooms, builder: {}, pending: null, selected
   };
   const dom = stand.makeDom({ selects: ["postSlotCount", "postFrameSelect", "builderRoomSelect"] });
   const ctx = {
@@ -161,6 +161,76 @@ test("frameAuto: у НОВОГО поста накладка помечена а
   assert.equal(fresh.state.builder.frameAuto, true, "новый пост: накладка автоматическая — смена комнаты/модулей вправе её пере-подобрать");
   const placed = openPost({ rooms: [room], open: { placedId: "p1" }, placedFrameId: WHOLE_DEFAULT.id });
   assert.equal(placed.state.builder.frameAuto, false, "пост на плане: накладка своя (frameAuto=false) — applyAutoDefaultFrame её не тронет");
+});
+
+/* ── 1b. К8(в): комната нового поста — ВЫДЕЛЕННАЯ на плане, иначе первая (владелец 24.10, вариант 1) ──
+   Две комнаты с РАЗНЫМ дефолтом накладки: r1 немецкая (DE_DEFAULT), r2 вне стандарта (WHOLE_DEFAULT),
+   DE_DEFAULT ≠ WHOLE_DEFAULT (предпосылка выше). Правило «какая комната у нового поста» — ОДНА функция
+   newPostRoom; её берут ОБА места openPostBuilder (накладка по умолчанию и state.builder.roomId). Поэтому
+   каждый тест проверяет СРАЗУ ОБА следствия — накладку (место 1) и roomId/селектор (место 2); таблица
+   мутаций: вернуть rooms[0] в любом из мест → соответствующий assert краснеет. */
+const TWO_ROOMS = () => [{ id: "r1", name: "Первая", standard: "DE" }, { id: "r2", name: "Вторая" }];
+
+test("★ К8в: выделена ВТОРАЯ комната → новый пост собирается для НЕЁ (накладка её пула + roomId=r2)", () => {
+  const { state, dom } = openPost({ rooms: TWO_ROOMS(), selected: { kind: "room", id: "r2" }, open: {} });
+  assert.equal(chosenFrame(dom), String(WHOLE_DEFAULT.id),
+    "накладка по умолчанию — из пула ВЫДЕЛЕННОЙ r2 (вне стандарта → WHOLE_DEFAULT); мутация «defaultFrameForRoom(rooms[0])» дала бы DE_DEFAULT — краснеет");
+  assert.notEqual(chosenFrame(dom), String(DE_DEFAULT.id), "это НЕ дефолт первой (немецкой) комнаты");
+  assert.equal(state.builder.roomId, "r2",
+    "селектор «Комната поста» стоит на r2; мутация «roomId=rooms[0]» дала бы r1 — краснеет (от roomId зависят модульности и фильтр механизмов)");
+});
+
+test("★ К8в: выделена ПЕРВАЯ комната → её дефолт и roomId=r1 (не зависит от того, что она первая)", () => {
+  const { state, dom } = openPost({ rooms: TWO_ROOMS(), selected: { kind: "room", id: "r1" }, open: {} });
+  assert.equal(chosenFrame(dom), String(DE_DEFAULT.id), "накладка — из пула выделенной r1 (немецкой)");
+  assert.equal(state.builder.roomId, "r1", "roomId=r1");
+});
+
+test("★ К8в: выделена СТЕНА (не комната) → как было, первая комната проекта", () => {
+  const { state, dom } = openPost({ rooms: TWO_ROOMS(), selected: { kind: "wall", id: "w1" }, open: {} });
+  assert.equal(chosenFrame(dom), String(DE_DEFAULT.id), "накладка первой комнаты (r1), а не r2");
+  assert.equal(state.builder.roomId, "r1", "roomId=первая комната: не-комнатное выделение отбор не задаёт");
+});
+
+test("★ К8в: выделен ПОСТ (не комната) → первая комната проекта", () => {
+  const { state } = openPost({ rooms: TWO_ROOMS(), selected: { kind: "post", id: "p9" }, open: {} });
+  assert.equal(state.builder.roomId, "r1", "выделение поста не делает его комнатой нового поста — первая комната");
+});
+
+test("★ К8в: выделен ПОСТ с id, совпавшим с id комнаты → всё равно первая комната (guard по kind)", () => {
+  /* id у разных сущностей теоретически могут совпасть. Выделение — ПОСТ с id «r2», а не комната r2:
+     проверяем kind, а не только id, иначе чужое выделение подменило бы комнату (мутация «if(sel)» без
+     sel.kind==="room" краснеет здесь). */
+  const { state } = openPost({ rooms: TWO_ROOMS(), selected: { kind: "post", id: "r2" }, open: {} });
+  assert.equal(state.builder.roomId, "r1", "выделен ПОСТ (не комната) с id r2 — комнатой нового поста он не становится");
+});
+
+test("★ К8в: ничего не выделено → первая комната проекта (прежнее поведение)", () => {
+  const { state } = openPost({ rooms: TWO_ROOMS(), selected: null, open: {} });
+  assert.equal(state.builder.roomId, "r1", "без выделения — первая комната, как раньше");
+});
+
+test("★ К8в: устаревшее выделение комнаты (id нет в rooms) → первая комната, без падения", () => {
+  const { state, dom } = openPost({ rooms: TWO_ROOMS(), selected: { kind: "room", id: "r-удалённая" }, open: {} });
+  assert.equal(state.builder.roomId, "r1", "комнаты с таким id нет → фолбэк на первую (guard `if(r)return r`)");
+  assert.equal(chosenFrame(dom), String(DE_DEFAULT.id), "и накладка — первой комнаты");
+});
+
+test("★ К8в: пост НА ПЛАНЕ не трогается выделением — его комната своя, не выделенная", () => {
+  /* openPost кладёт размещённому посту roomId=rooms[0].id ("r1"). Выделена r2 — но пост на плане
+     обязан открыться в СВОЕЙ комнате (placedId-ветка), а не в выделенной. */
+  const { state } = openPost({ rooms: TWO_ROOMS(), selected: { kind: "room", id: "r2" }, open: { placedId: "p1" }, placedFrameId: WHOLE_DEFAULT.id });
+  assert.equal(state.builder.roomId, "r1",
+    "пост на плане открыт в своей комнате (r1), выделенная r2 не подменяет её (мутация «placedId-ветка через newPostRoom» дала бы r2)");
+});
+
+test("★ К8в: ШАБЛОН не трогается выделением — roomId первая комната, как было (владелец 24.10)", () => {
+  const tplFrame = byCode("09673.01");
+  const { state, dom } = openPost({ rooms: TWO_ROOMS(), selected: { kind: "room", id: "r2" }, templates: [{ id: "t1", frameId: tplFrame.id, mechanismIds: [] }], open: { templateId: "t1" } });
+  assert.equal(state.builder.roomId, "r1",
+    "редактирование шаблона не меняется: roomId=первая комната, выделенная r2 его не задаёт (мутация «templateId-ветка через newPostRoom» дала бы r2)");
+  assert.equal(state.builder.frameAuto, false, "у шаблона накладка своя");
+  assert.equal(chosenFrame(dom), String(tplFrame.id), "в поле — накладка шаблона, не дефолт комнаты");
 });
 
 /* ── 2. Интеграция: пустой пул комнаты → renderBuilder блокирует «Сохранить» и объясняет причину ──────
