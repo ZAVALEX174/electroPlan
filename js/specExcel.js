@@ -56,6 +56,14 @@ function packRoundApi() {
   if (typeof require !== "undefined") return require("./packRound.js");
   return null;
 }
+/* Деление строк сметы на обычные и добор (К6б) — ЕДИНОЕ правило EPPackTopUp.splitRows (§7.1), то же,
+   что зовут панель и КП: лист «Спецификация» печатает обычные строки без добора, а добор — отдельным
+   блоком. Нет модуля / нет добора → split вернёт все строки обычными, и лист как до К6б (байт-в-байт). */
+function packTopUpApi() {
+  if (typeof window !== "undefined" && window.EPPackTopUp) return window.EPPackTopUp;
+  if (typeof require !== "undefined") return require("./packTopUp.js");
+  return null;
+}
 
 const enc = typeof TextEncoder !== "undefined" ? new TextEncoder() : null;
 const utf8 = s => enc ? enc.encode(String(s)) : Buffer.from(String(s), "utf8");
@@ -159,7 +167,13 @@ function buildSpecSheet(est, options, config, estimate, rate, currency) {
      ЕСТЬ (ниже — num без повторного ×rate), чтобы Σ столбца «Сумма» сошлась с «Оборудованием». rows[i] ↔
      est.groups[i]. */
   const spec = estimate.specShown(est, rate, currency);
-  const rows = (est.groups || []).map((g, i) => ({
+  /* Строки добора (g.topUp) в обычную таблицу НЕ идут — у них свой блок ниже. splitRows — единое
+     правило на панель/КП/Excel (§7.1); i внутри элемента — исходный индекс в est.groups (он же в
+     spec.rows), поэтому печатные цена/сумма берутся по тому же i и после фильтра. */
+  const packTopUp = packTopUpApi();
+  const split = packTopUp ? packTopUp.splitRows(est, spec)
+    : { normal: (est.groups || []).map((g, i) => ({ g, i, row: spec.rows[i] || {} })), topUp: [] };
+  const rows = split.normal.map(({ g, i }) => ({
     name: itemText(g.name, g.items && g.items.length === 1 ? g.items[0].code : null),
     composition: options.articles ? g.composition : (Array.isArray(g.items)
       ? g.items.map(it => estimate.renderItem({ ...it, name: itemText(it.name, it.code) })).filter(Boolean).join(", ")
@@ -196,6 +210,43 @@ function buildSpecSheet(est, options, config, estimate, rate, currency) {
     }));
   });
 
+  /* Блок «Добор до целых упаковок» (К6б) — НИЖЕ обычных строк, как раздел в КП. Печатается, когда
+     строки добора есть, НЕЗАВИСИМО от options.sections (лист «Спецификация» разделы и так не гейтит).
+     Колонки и гейты — как у КП-раздела: № (нумерация СВОЯ, с 1), «Артикул» только при options.articles,
+     «Цена»/«Сумма» только при options.prices; «Добавлено» (сколько доложено до упаковки) — всегда.
+     Цена/сумма — печатные числа spec.rows[i] (валюта показа, К7), своего счёта денег нет (§7.1).
+     topUpSumRange запоминает адрес столбца «Сумма» блока, чтобы «Оборудование» ниже сложило и обычные
+     суммы, и добор: после выноса добора из основной таблицы значение ячейки обязано = totals.equipment. */
+  let topUpSumRange = null;
+  if (split.topUp.length) {
+    const topUpColumns = [
+      ...(options.specification.number ? [["number", "№"]] : []),
+      ...(options.articles ? [["article", "Артикул"]] : []),
+      ["name", "Наименование"], ["added", "Добавлено"],
+      ...(options.prices ? [["price", "Цена"], ["sum", "Сумма"]] : [])
+    ];
+    sheet.push([]);   // пустая строка-разделитель перед блоком
+    sheet.push([txt("Добор до целых упаковок", S_BOLD)]);
+    sheet.push(topUpColumns.map(([, label]) => txt(label, S_HEADER)));
+    const firstTopUp = sheet.length + 1;
+    split.topUp.forEach(({ g, i }, n) => {
+      const code = (g.items && g.items[0] && g.items[0].code) || "";
+      const r = spec.rows[i] || {};
+      sheet.push(topUpColumns.map(([key]) => {
+        if (key === "number") return num(n + 1);
+        if (key === "article") return txt(code);
+        if (key === "name") return txt(itemText(g.name, code || null));
+        if (key === "added") return txt(`${Number(g.count) || 0} ${g.unit || "шт."}`);
+        if (key === "price") return num(Number(r.price) || 0, S_MONEY);
+        if (key === "sum") return num(Number(r.sum) || 0, S_MONEY);
+        return txt("");
+      }));
+    });
+    const lastTopUp = sheet.length;
+    const topUpSumIdx = topUpColumns.findIndex(c => c[0] === "sum");
+    if (topUpSumIdx >= 0) topUpSumRange = `${colLetter(topUpSumIdx + 1)}${firstTopUp}:${colLetter(topUpSumIdx + 1)}${lastTopUp}`;
+  }
+
   /* Итоги — только при включённых ценах (как и в КП). Печатаем те же строки и в том же порядке,
      что блок totals в offerPdf; значения — из est, со знаком минуса у скидки. */
   if (options.prices) {
@@ -217,9 +268,16 @@ function buildSpecSheet(est, options, config, estimate, rate, currency) {
        (В26: totals.equipment = Σ напечатанных сумм строк). Значения ячеек и кэш оба округлены до копейки,
        поэтому пересчёт книги в Excel даёт то же число. Нет столбца «Сумма» (его скрыли) — печатаем
        готовое totals.equipment. */
+    const sumRanges = [];
     if (sumIdx >= 0 && rows.length) {
       const col = colLetter(sumIdx + 1);
-      totalRow("Оборудование", 0, true, formula(`SUM(${col}${firstData}:${col}${lastData})`, totals.equipment, S_BOLDMONEY));
+      sumRanges.push(`${col}${firstData}:${col}${lastData}`);
+    }
+    /* Добор вынесен в блок ниже — его столбец «Сумма» отдельным диапазоном (другие буквы/строки),
+       поэтому SUM двух диапазонов, а не один непрерывный: кэш и пересчёт оба дают totals.equipment. */
+    if (topUpSumRange) sumRanges.push(topUpSumRange);
+    if (sumRanges.length) {
+      totalRow("Оборудование", 0, true, formula(`SUM(${sumRanges.join(",")})`, totals.equipment, S_BOLDMONEY));
     } else {
       totalRow("Оборудование", totals.equipment, true);
     }

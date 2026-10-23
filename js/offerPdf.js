@@ -30,6 +30,16 @@ function docImagesApi() {
   return { imgHtml: () => "" };
 }
 
+/* Деление строк сметы на обычные и добор — ЕДИНОЕ правило EPPackTopUp.splitRows (§7.1): КП печатает
+   обычную спецификацию без добора, а добор — отдельным разделом. Резолвим как EPEstimate. Без модуля
+   добора в смете всё равно нет (его строит build через тот же EPPackTopUp) — тогда split вернёт все
+   строки обычными, и КП выглядит как до К6б. */
+function packTopUpApi() {
+  if (typeof window !== "undefined" && window.EPPackTopUp) return window.EPPackTopUp;
+  if (typeof require !== "undefined") return require("./packTopUp.js");
+  return null;
+}
+
 /* Предел длины редактируемых условий сделки. «Соглашение сторон» — это несколько абзацев (условия
    оплаты, поставка до 180 дней, претензии, срок действия цен), а не документ: 2000 символов — это
    ~30–40 строк, с большим запасом на любые разумные условия. Больше почти наверняка не условия КП,
@@ -199,8 +209,15 @@ function compose(est, deps) {
     return `<div class="footer">Пересчёт из евро ${body}. Курс на дату выставления предложения.</div>`;
   };
 
+  /* Строки добора (g.topUp) в обычную спецификацию НЕ идут — у них свой раздел ниже. splitRows —
+     единое правило на панель/КП/Excel (§7.1); i внутри каждого элемента — исходный индекс в est.groups
+     (он же индекс в spec.rows), поэтому печатные цена/сумма берутся по тому же i и после фильтра. */
+  const topUp = packTopUpApi();
+  const split = topUp ? topUp.splitRows(est, spec)
+    : { normal: est.groups.map((g, i) => ({ g, i, row: spec.rows[i] || {} })), topUp: [] };
+
   /* позиции группируются, поэтому в КП честное «Кол.» вместо жёсткой единицы */
-  const rows = est.groups.map((g, i) => ({
+  const rows = split.normal.map(({ g, i }) => ({
     name: itemText(g.name, g.items?.length === 1 ? g.items[0].code : null),
     /* Не вырезаем коды из склеенной строки: состав строится тем же renderItem,
        что и смета, но над копиями подписей без артикулов. Старый внешний вызов
@@ -344,6 +361,34 @@ function compose(est, deps) {
     : `<td>${key === "name" ? `<b>${esc(r.name)}</b>${r.discountMark ? ` <span class="disc-mark">${esc(r.discountMark)}</span>` : ""}` : esc(key === "number" ? i + 1 : r[key])}</td>`).join("")}</tr>`).join("")}
   </tbody></table>` : "";
 
+  /* Раздел «Добор до целых упаковок» (К6б, решение владельца 22–23.10): поставщик отгружает целыми
+     упаковками, и разницу «упаковка − потребность» заказчик хочет видеть ОТДЕЛЬНО. Печатается, КОГДА
+     строки добора есть, НЕЗАВИСИМО от options.sections.specification (в т.ч. набор «Для клиента» —
+     решение владельца 23.10 п.2): это не часть спецификации, а приложение к ней. Колонки и их гейты —
+     как у спецификации: № (options.specification.number, но нумерация СВОЯ, с 1), «Артикул» только при
+     options.articles, «Цена»/«Сумма» только при options.prices; «Добавлено» (сколько доложено до
+     упаковки) — всегда. Цена/сумма — ПЕЧАТНЫЕ числа spec.rows[i] (валюта показа, К7), своего счёта денег
+     у раздела нет (§7.1). Имя — через itemText (при скрытых артикулах код из имени вычищается). */
+  const topUpColumns = [
+    ...(options.specification.number ? [["number", "№"]] : []),
+    ...(options.articles ? [["article", "Артикул"]] : []),
+    ["name", "Наименование"], ["added", "Добавлено"],
+    ...(options.prices ? [["price", "Цена"], ["sum", "Сумма"]] : [])
+  ];
+  const topUpRow = ({ g, i }, n) => {
+    const code = (g.items && g.items[0] && g.items[0].code) || "";
+    const r = spec.rows[i] || {};
+    const cell = {
+      number: n + 1, article: esc(code), name: `<b>${esc(itemText(g.name, code || null))}</b>`,
+      added: `${Number(g.count) || 0} ${esc(g.unit)}`, price: moneyShown(r.price), sum: moneyShown(r.sum)
+    };
+    return `<tr>${topUpColumns.map(([key]) => `<td class="${["price", "sum"].includes(key) ? "right" : ""}">${cell[key]}</td>`).join("")}</tr>`;
+  };
+  const topUpSection = split.topUp.length ? `<h2 class="section-title">Добор до целых упаковок</h2>
+  <table class="specification"><thead><tr>${topUpColumns.map(([key, label]) => `<th${["price", "sum"].includes(key) ? ' class="right"' : ""}>${esc(label)}</th>`).join("")}</tr></thead><tbody>
+  ${split.topUp.map((e, n) => topUpRow(e, n)).join("")}
+  </tbody></table>` : "";
+
   /* Секции-строки, приходящие оркестратором готовыми, — ОТДЕЛЬНЫМИ const: их же читает страж
      пустого КП (hasContent), поэтому «раздел включён, но печатать нечего» не размазано по шаблону. */
   const planSection = options.sections.plan ? deps.planBlockHtml || "" : "";
@@ -353,7 +398,7 @@ function compose(est, deps) {
      содержательный блок непуст. Проверяем НЕ «раздел включён», а «раздел что-то напечатает»:
      раскладка без столбцов/без постов и план без чертежа дают "" и документ не открывают.
      Оговорки, курс и подвал — производные от цен, отдельного содержимого не несут. */
-  const contentFragments = [planSection, layoutSection, frameWarnings, specSection, lightingSection, supplierSection];
+  const contentFragments = [planSection, layoutSection, frameWarnings, specSection, lightingSection, topUpSection, supplierSection];
   const hasContent = options.prices || contentFragments.some(f => f && String(f).trim() !== "");
 
   /* Подвал редактируемых условий сделки — из бланка компании (deps.terms, EPPrefs). НЕ зависит от
@@ -380,6 +425,7 @@ function compose(est, deps) {
   ${frameWarnings}
   ${specSection}
   ${lightingSection}
+  ${topUpSection}
   ${options.prices ? `<div class="totals"><div><span>Оборудование</span><b>${moneyShown(totals.equipment)}</b></div>
   ${est.discount ? `<div><span>${estimate.discountLabel(est.discountMixed, est.discountPercent)}</span><b>−${moneyShown(totals.discount)}</b></div>` : ""}
   <div><span>Монтажные материалы</span><b>${moneyShown(totals.materials)}</b></div><div><span>Работы</span><b>${moneyShown(totals.work)}</b></div>

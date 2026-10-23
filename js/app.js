@@ -1959,11 +1959,11 @@ function renderSummary(){
      сами объекты строки, поле правит их ЦЕЛИКОМ (см. onSpecDiscountChange). _specGroups держит
      строки текущей отрисовки, чтобы обработчик по индексу поля нашёл нужные members. */
   _specGroups=est.groups;
-  /* Строки добора (g.topUp) рисует своим разделом EPPackTopUp.panelHtml; пропуск добора в основном
-     map сохраняет индексы i обычных строк (data-disc-row/spec.rows). */
+  /* Строки добора (g.topUp) рисует своим разделом EPPackTopUp.panelHtml; обычные строки отбирает
+     EPPackTopUp.splitRows (одно правило «добор/не добор» на панель/КП/Excel, §7.1). i — исходный
+     индекс в est.groups, он же индекс spec.rows и data-disc-row. */
   $("specList").innerHTML=est.groups.length
-    ?est.groups.map((g,i)=>{
-      if(g.topUp)return"";
+    ?EPPackTopUp.splitRows(est,spec).normal.map(({g,i})=>{
       const val=(g.discount!=null&&g.discount!=="")?esc(g.discount):"";
       return `<div class="spec-item"><div><strong>${esc(g.name)}</strong><span>${g.count} ${esc(g.unit)}</span></div><b>${moneyShown(spec.rows[i].sum)}</b>`
         +`<label class="spec-disc" title="Своя скидка на позицию. Пусто — действует общая скидка ${est.discountPercent}%">`

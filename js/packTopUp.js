@@ -96,31 +96,43 @@ function topUpGroups(groups, packs, packMultiple) {
   return out;
 }
 
+/* Деление строк сметы на ОБЫЧНЫЕ и ДОБОР — ЕДИНОЕ правило «какая строка чем является» (§7.1). Его
+   зовут панель, КП (offerPdf) и Excel (specExcel): раньше каждый потребитель фильтровал g.topUp сам,
+   и правка добора имела бы три края. На вход — результат build (est.groups) и specShown (печатные
+   числа); на выход — { normal, topUp }, где каждый элемент = { g, i, row }: g — группа, i — её ИСХОДНЫЙ
+   индекс в est.groups (он же индекс в spec.rows — добор в конце не ломает синхронность), row — печатные
+   price/sum этой строки из spec.rows[i] (валюта показа, К7). Порядок внутри обеих частей — как в
+   est.groups (добор уже отсортирован по артикулу в topUpGroups). */
+function splitRows(est, spec) {
+  const groups = (est && est.groups) || [];
+  const rows = (spec && spec.rows) || [];
+  const normal = [], topUp = [];
+  groups.forEach((g, i) => {
+    (g && g.topUp ? topUp : normal).push({ g, i, row: rows[i] || {} });
+  });
+  return { normal, topUp };
+}
+
 /* HTML раздела «Добор до целых упаковок» для панели итогов на экране (#specList). Вынесен из
    renderSummary, чтобы в app.js осталась только проводка (правило владельца: новый UI — в свой модуль).
    Чистая функция: DOM не трогает, экранирование и форматирование денег приходят зависимостями
    (esc/moneyShown — те же, что у соседних строк панели). Строки добора идут БЕЗ поля «скидка, %»
    (у добора members пуст, личной скидки нет). В строке — артикул и имя, «сколько добавлено» (count ед.),
-   цена за штуку и сумма (печатные числа spec.rows[i] — те же, что уйдут в КП и итог). est.groups и
-   spec.rows индексируются синхронно (добор — в конце), поэтому берём sum/price по тому же i. Нет строк
-   добора → пустая строка: потребитель просто ничего не допишет. */
+   цена за штуку и сумма (печатные числа spec.rows[i] — те же, что уйдут в КП и итог). Какие строки —
+   добор, решает splitRows (одно правило на панель/КП/Excel). Нет строк добора → пустая строка:
+   потребитель просто ничего не допишет. */
 function panelHtml(est, spec, deps) {
   const esc = (deps && deps.esc) || String;
   const moneyShown = (deps && deps.moneyShown) || String;
-  const groups = (est && est.groups) || [];
-  const rows = (spec && spec.rows) || [];
-  const parts = [];
-  groups.forEach((g, i) => {
-    if (!g || !g.topUp) return;
-    const r = rows[i] || {};
+  const parts = splitRows(est, spec).topUp.map(({ g, row }) => {
     const code = (g.items && g.items[0] && g.items[0].code) || "";
-    parts.push(`<div class="spec-item spec-topup-item"><div><strong>${esc(code)} · ${esc(g.name)}</strong>`
-      + `<span>${g.count} ${esc(g.unit)} · ${moneyShown(r.price)}/шт.</span></div><b>${moneyShown(r.sum)}</b></div>`);
+    return `<div class="spec-item spec-topup-item"><div><strong>${esc(code)} · ${esc(g.name)}</strong>`
+      + `<span>${g.count} ${esc(g.unit)} · ${moneyShown(row.price)}/шт.</span></div><b>${moneyShown(row.sum)}</b></div>`;
   });
   return parts.length ? `<div class="spec-topup-head">Добор до целых упаковок</div>` + parts.join("") : "";
 }
 
-const api = { codeKey, buildPackMap, topUpGroups, panelHtml };
+const api = { codeKey, buildPackMap, topUpGroups, splitRows, panelHtml };
 if (typeof window !== "undefined") window.EPPackTopUp = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
