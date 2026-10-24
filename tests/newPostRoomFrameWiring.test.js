@@ -25,6 +25,7 @@ const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
 const EPRoomVariants = require("../js/roomVariants.js");
 const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
+const EPPostVariant = require("../js/postVariant.js");
 const EPPosts = require("../js/posts.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
 
@@ -108,7 +109,7 @@ function openPost({ rooms = [], open = {}, placedFrameId, templates = [], select
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
     frameSlotCount: EPCatalog.frameSlotCount, frameProduct: product,
     frameSlotOptions: EPCatalog.frameSlotOptions,
-    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPosts, EPBuilderSlots,
+    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, EPPosts, EPBuilderSlots,
     esc: s => String(s == null ? "" : s),
     canvas: stand.makeElement({ classes: ["placing"] }), updateStatus: () => {},
     mechanismModulesTotal: () => 0, keySlotKind: () => false,
@@ -254,7 +255,7 @@ test("★ ИНТЕГРАЦИЯ: пустой пул комнаты — «Сох�
   const ctx = {
     state, $: dom.$, esc: s => String(s == null ? "" : s),
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
-    frameProduct: product, product, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPosts, EPBuilderSlots,
+    frameProduct: product, product, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, EPPosts, EPBuilderSlots,
     frameSlotCount: EPCatalog.frameSlotCount, frameSlotOptions: EPCatalog.frameSlotOptions,
     compatibleMechanisms: EPCatalog.compatibleMechanisms, mechanismSpan: EPCatalog.mechanismSpan,
     productSeries: EPCatalog.productSeries, moduleWord: EPCatalog.moduleWord,
@@ -298,7 +299,7 @@ function runApply(builderover) {
   const ctx = {
     state, $: dom.$,
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
-    frameSlotCount: EPCatalog.frameSlotCount, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, esc: s => String(s == null ? "" : s)
+    frameSlotCount: EPCatalog.frameSlotCount, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, esc: s => String(s == null ? "" : s)
   };
   const apply = stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom",
     "roomCatalogFilter", "ordinaryFrame", "nearestToThreeFrame", "pickDefaultFrame", "preferOwnFrame",
@@ -338,7 +339,7 @@ function runChangeSlot({ frameAuto, count, name = "Пост на 1 модуль"
     state, $: dom.$,
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
     frameSlotCount: EPCatalog.frameSlotCount, frameProduct: product, productSeries: p => (p && p.series) || [],
-    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, esc: s => String(s == null ? "" : s),
+    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, esc: s => String(s == null ? "" : s),
     defaultPostName: EPCatalog.defaultPostName, renderBuilder: () => {}
   };
   stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter",
@@ -375,7 +376,7 @@ test("★ смена числа модулей сохраняет серию/ц�
   const ctx = {
     state, $: dom.$, byKind: kind => state.products.filter(x => x.kind === kind && x.active),
     frameSlotCount: EPCatalog.frameSlotCount, frameProduct: product, productSeries: p => (p && p.series) || [],
-    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, esc: s => String(s == null ? "" : s), defaultPostName: EPCatalog.defaultPostName, renderBuilder: () => {}
+    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, esc: s => String(s == null ? "" : s), defaultPostName: EPCatalog.defaultPostName, renderBuilder: () => {}
   };
   stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter",
     "ordinaryFrame", "nearestToThreeFrame", "pickDefaultFrame", "preferOwnFrame", "ownFrameCriteria",
@@ -431,7 +432,7 @@ test("★ п.2: смена комнаты у нетронутого поста �
   const ctx = {
     state, $: dom.$, byKind: kind => state.products.filter(x => x.kind === kind && x.active),
     frameSlotCount: EPCatalog.frameSlotCount, frameProduct: product, productSeries: p => (p && p.series) || [],
-    frameSlotOptions: EPCatalog.frameSlotOptions, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, esc: s => String(s == null ? "" : s),
+    frameSlotOptions: EPCatalog.frameSlotOptions, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, esc: s => String(s == null ? "" : s),
     defaultPostName: EPCatalog.defaultPostName, renderBuilder: () => {}, builderCapacity: () => 1
   };
   stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter",
@@ -513,7 +514,7 @@ function runChangeRoom(state, dom, roomId) {
   const ctx = {
     state, $: dom.$, byKind: kind => state.products.filter(x => x.kind === kind && x.active),
     frameSlotCount: EPCatalog.frameSlotCount, frameProduct: product, productSeries: p => (p && p.series) || [],
-    frameSlotOptions: EPCatalog.frameSlotOptions, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, esc: s => String(s == null ? "" : s),
+    frameSlotOptions: EPCatalog.frameSlotOptions, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, esc: s => String(s == null ? "" : s),
     defaultPostName: EPCatalog.defaultPostName, renderBuilder: () => {}, builderCapacity: () => Number(dom.$("postSlotCount").value) || 1
   };
   stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter",
@@ -584,7 +585,7 @@ function emptyRoomComposition(slots) {
   const ctx = {
     state, $: dom.$, esc: s => String(s == null ? "" : s),
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
-    frameProduct: product, product, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPosts, EPBuilderSlots,
+    frameProduct: product, product, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, EPPosts, EPBuilderSlots,
     frameSlotCount: EPCatalog.frameSlotCount, frameSlotOptions: EPCatalog.frameSlotOptions,
     compatibleMechanisms: EPCatalog.compatibleMechanisms, mechanismSpan: EPCatalog.mechanismSpan,
     productSeries: EPCatalog.productSeries, moduleWord: EPCatalog.moduleWord,

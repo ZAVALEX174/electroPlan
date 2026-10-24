@@ -36,6 +36,12 @@ function Catalog() {
   if (typeof require !== "undefined") return require("./catalog.js");
   return null;
 }
+/* Экранирование для вставки в innerHTML. Поля вариантов (серия/материал/форма/цвет) приходят из
+   ОТКРЫТОГО ФАЙЛА ПРОЕКТА (room.moreVariants) — это пользовательские данные, в разметку только через esc
+   (как селектор «Комната» в postBuilder). Модуль-локальный, чтобы не тянуть esc из app.js через аргументы. */
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
 
 /* Активная вкладка: к какой комнате относится и её индекс. Не проект — живёт только в сеансе. */
 let activeSel = { roomId: null, index: 0 };
@@ -175,9 +181,9 @@ function builderVariantLabel(variant, i, standardLabel){
 /* Отрисовать и привязать селектор «Вариант» в окне поста. Поле ПОЯВЛЯЕТСЯ ТОЛЬКО при >1 варианте
    (решение: при одном варианте селектора нет, выбирать не из чего) — иначе скрыто и пусто. deps:
    { $, room, index, onChange }. onChange(i) — реакция окна на выбор: ровно смена комнаты (postBuilder
-   зовёт applyAutoDefaultFrame + renderBuilder), второй трактовки нет (§7.1). Подпись — из каноничных
-   полей каталога (серия/цвет/стандарт словом через Catalog().standardLabel), пользовательского ввода
-   нет — не экранируем, как в tabsHtml выше. */
+   зовёт applyAutoDefaultFrame + renderBuilder), второй трактовки нет (§7.1). Подпись содержит ПОЛЯ
+   ВАРИАНТА из файла проекта (серия/цвет) — пользовательский ввод, поэтому в HTML кладём через esc
+   (value — индекс-число, экранировать нечего). */
 function renderBuilderVariantSelect(deps){
   const $ = deps.$, wrap = $("builderVariantField"), sel = $("builderVariantSelect");
   if (!wrap || !sel) return;
@@ -187,7 +193,7 @@ function renderBuilderVariantSelect(deps){
   const idx = builderIndex(deps.room, deps.index);
   const standardLabel = Catalog().standardLabel;
   sel.innerHTML = variants.map((v, i) =>
-    '<option value="' + i + '"' + (i === idx ? ' selected' : '') + '>' + builderVariantLabel(v, i, standardLabel) + '</option>'
+    '<option value="' + i + '"' + (i === idx ? ' selected' : '') + '>' + esc(builderVariantLabel(v, i, standardLabel)) + '</option>'
   ).join("");
   sel.value = String(idx);
   sel.onchange = e => deps.onChange(Number(e.target.value) || 0);

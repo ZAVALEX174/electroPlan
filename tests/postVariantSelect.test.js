@@ -23,6 +23,7 @@ const stand = require("./helpers/appStand.js");
 
 const EPRoomVariants = require("../js/roomVariants.js");
 const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
+const EPPostVariant = require("../js/postVariant.js");
 
 /* Комната двух вариантов: немецкий Plana белый (плоские поля) + итальянский Neve Up слоновая кость. */
 const ROOM2 = { id: "r2", name: "Гостиная", standard: "DE", collection: "Plana", frameColor: "Белая",
@@ -94,6 +95,41 @@ test("★ В2: ОДИН вариант → селектора НЕТ (поле �
 test("В2: комнаты нет → селектор скрыт", () => {
   const { dom } = renderSel(null, 0);
   assert.equal(dom.$("builderVariantField").hidden, true);
+});
+
+test("★ В2-БЕЗОПАСНОСТЬ: поля варианта из файла проекта экранируются (XSS не исполняется)", () => {
+  /* collection варианта приходит из открытого проекта — злонамеренная строка не должна попасть сырым
+     тегом в innerHTML. moreVariants даёт второй вариант → селектор показан. */
+  const evil = { id: "rx", name: "X", collection: "Plana", frameColor: "Белая",
+    moreVariants: [{ collection: '<img src=x onerror="alert(1)">' }] };
+  const { dom } = renderSel(evil, 0);
+  const html = dom.$("builderVariantSelect").innerHTML;
+  assert.doesNotMatch(html, /<img src=x onerror/, "сырой тег в разметку НЕ попал; мутация «убрать esc» краснит здесь");
+  assert.match(html, /&lt;img/, "подпись экранирована (&lt;img …)");
+});
+
+/* ============================ В6. §7.1: окно и размещение — ОДИН предикат placementFits ============================
+   Дефект разведки: окно считало «накладка пропала (frame=null) → ни один вариант не подходит → вариант 1»,
+   а размещение по placementFits считает пустой вариант подходящим. Теперь оба зовут EPPostVariant.placementFits. */
+
+/* Критерий варианта как roomCatalogFilter (здесь без валидации по каталогу — для кейса Plana/{} не нужна). */
+const critOf = v => ({ standard: v.standard, collection: v.collection, frameMaterial: v.frameMaterial, frameShape: v.frameShape, frameColor: v.frameColor });
+
+test("★ В6: накладка пропала (frame=null), комната [Plana, пустой вариант] — окно и размещение дают ОДИН индекс", () => {
+  const room = { id: "rnp", name: "Гостиная", collection: "Plana", frameColor: "Белая", moreVariants: [{}] };
+  const fits = (v, f) => EPPostVariant.placementFits(f, critOf(v));
+  const placementIdx = EPRoomVariants.fitIndex(EPRoomVariants.list(room), null, fits);
+  const windowIdx = EPRoomVariantsUi.builderInitialIndex(room, null, true, fits);
+  assert.equal(placementIdx, 1, "размещение: пропавшая накладка подходит пустому варианту (№2)");
+  assert.equal(windowIdx, 1, "окно открывается на ТОМ ЖЕ варианте — старый предикат «!!f && …» дал бы 0 (расхождение)");
+  assert.equal(windowIdx, placementIdx, "окно и размещение сходятся — один предикат placementFits");
+});
+
+test("★ В6: openPostBuilder зовёт ОБЩИЙ EPPostVariant.placementFits, без второй трактовки", () => {
+  const src = stand.sourceOf("postBuilder.js");
+  assert.match(src, /EPPostVariant\.placementFits\(f,roomCatalogFilter\(v\)\)/,
+    "предикат варианта в openPostBuilder — общий placementFits; мутация «вернуть inline !!f && productsForRoom» краснит здесь");
+  assert.doesNotMatch(src, /\(v,f\)=>!!f&&EPCatalog\.productsForRoom\(\[f\]/, "старой inline-трактовки предиката в postBuilder нет");
 });
 
 /* ============================ В3. СВЯЗКА: builderFilterRoom → ВЫБРАННЫЙ вариант ============================ */

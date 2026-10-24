@@ -340,7 +340,7 @@ function openPostBuilder({templateId=null,placedId=null}={}){
     :(newPostRoom()?.id??null);
   /* Вариант отделки окна (К8а): новый пост → 0; существующий/шаблон → первый вариант, которому годится
      накладка (EPRoomVariantsUi.builderInitialIndex), иначе 0; в проект НЕ пишется. ДО модульностей. */
-  state.builder.variantIndex=EPRoomVariantsUi.builderInitialIndex(state.rooms.find(r=>r.id===state.builder.roomId),frameProduct(src.frameId),!!(placedId||templateId),(v,f)=>!!f&&EPCatalog.productsForRoom([f],roomCatalogFilter(v)).length>0);
+  state.builder.variantIndex=EPRoomVariantsUi.builderInitialIndex(state.rooms.find(r=>r.id===state.builder.roomId),frameProduct(src.frameId),!!(placedId||templateId),(v,f)=>EPPostVariant.placementFits(f,roomCatalogFilter(v)));
   /* Наполняем селектор ДО присвоения value: варианты — модульности каталога плюс фактическая
      ёмкость этого поста. Иначе пост с исчезнувшей модульностью не нашёл бы своей опции и
      показал бы чужое значение (см. frameSlotOptions). Многорядные 14/21 теперь входят в

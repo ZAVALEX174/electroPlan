@@ -27,6 +27,7 @@ const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
 const EPRoomVariants = require("../js/roomVariants.js");
 const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
+const EPPostVariant = require("../js/postVariant.js");
 const EPPosts = require("../js/posts.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
 
@@ -75,7 +76,7 @@ function openPost({ builderPre, searchFieldPre } = {}) {
     frameSlotCount: EPCatalog.frameSlotCount,
     frameProduct: product,
     frameSlotOptions: EPCatalog.frameSlotOptions,
-    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPosts, EPBuilderSlots,
+    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, EPPosts, EPBuilderSlots,
     esc: s => String(s == null ? "" : s),
     canvas,
     updateStatus: () => {},

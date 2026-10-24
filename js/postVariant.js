@@ -18,9 +18,27 @@
    объявлены `function имя(` С НАЧАЛА СТРОКИ намеренно — по ним поведенческий стенд (tests/helpers/
    appStand.js) находит и вырезает тело (SOURCE_FILES включает этот файл).
 
-   Интерфейс приложению — window.EPPostVariant.attach(ctx) → { frameForRoomPlacement }. */
+   Интерфейс приложению — window.EPPostVariant.attach(ctx) → { frameForRoomPlacement }; плюс чистый
+   window.EPPostVariant.placementFits(frame,criteria) — ОДИН предикат «подходит варианту» на размещение
+   И на окно поста (openPostBuilder зовёт его же, §7.1: второй трактовки нет). */
 (() => {
 "use strict";
+
+/* ЕДИНЫЙ предикат «подходит ли накладка поста варианту отделки» (criteria — roomCatalogFilter варианта).
+   Это ровно те случаи, когда подмена возвращает {frameId:null} «менять нечего». Два случая: (1) вариант
+   ничем не сужает каталог (нет серии/отделки, стандарт не задан либо накладка ему уже годится) → подходит
+   любой накладке, в т.ч. КОГДА НАКЛАДКИ НЕТ (frame=null, пустой вариант = весь каталог); (2) накладка
+   проходит фильтр productsForRoom варианта. Стандарт судим ТЕМ ЖЕ productsForRoom (§7.1).
+   Зовут ДВА потребителя: размещение (frameForRoomPlacement — вырезается стендом, EPCatalog из контекста) и
+   окно поста (openPostBuilder через EPPostVariant.placementFits — настоящий модуль, EPCatalog из window/
+   require). Поэтому каталог резолвим трёхходовкой: контекст-глобал → window → require. */
+function placementFits(frame,criteria){
+  const Cat=(typeof EPCatalog!=="undefined"&&EPCatalog)||(typeof window!=="undefined"&&window.EPCatalog)||(typeof require!=="undefined"&&require("./catalog.js"));
+  const standardMismatch=!!(criteria.standard&&frame&&!Cat.productsForRoom([frame],{standard:criteria.standard}).length);
+  const constrained=criteria.collection||criteria.frameMaterial||criteria.frameShape||criteria.frameColor||standardMismatch;
+  if(!constrained)return true;
+  return !!(frame&&Cat.productsForRoom([frame],criteria).length);
+}
 
 /* Фабрика: раскладывает зависимости из ctx, поднимает функции размещения и возвращает
    frameForRoomPlacement. Вызывается один раз из app.js. */
@@ -30,19 +48,6 @@ const {
   mechanismSpan,moduleWord,preferOwnFrame,product,productSeries,roomCatalogFilter
 }=ctx;
 
-/* «Подходит ли накладка поста ОДНОМУ варианту отделки» (criteria — roomCatalogFilter этого варианта):
-   это ровно те случаи, когда прежняя одновариантная frameForRoomPlacement возвращала {frameId:null}
-   «менять нечего». Два случая: (1) вариант ничем не сужает каталог (нет серии/отделки, а стандарт —
-   либо не задан, либо накладка ему уже годится) → подходит любой накладке; (2) накладка проходит
-   фильтр productsForRoom этого варианта. Монтажный стандарт судим ТЕМ ЖЕ productsForRoom (§7.1):
-   накладка проходит фильтр по стандарту ⇒ годится, второго сравнения стандартов нет. frame не
-   резолвится (пропал из прайса) — на одном стандарте не сужаем (судить нечем). */
-function placementFits(frame,criteria){
-  const standardMismatch=!!(criteria.standard&&frame&&!EPCatalog.productsForRoom([frame],{standard:criteria.standard}).length);
-  const constrained=criteria.collection||criteria.frameMaterial||criteria.frameShape||criteria.frameColor||standardMismatch;
-  if(!constrained)return true;
-  return !!(frame&&EPCatalog.productsForRoom([frame],criteria).length);
-}
 /* Предикат «в накладку-кандидата встают ВСЕ клавиши шаблона» — ПРАВИЛОМ КОНСТРУКТОРА
    (EPCatalog.compatibleMechanisms, совместимость по серии), а НЕ своим сравнением серий (§7.1): именно
    этот набор конструктор строит в renderBuilder (mechs=compatibleMechanisms(selectedFrame,allMechanisms))
@@ -97,11 +102,10 @@ function frameSwapEmptyText(template,room,criteria){
      {blocked:true,message}  — первый вариант сузил отбор, но накладки нужной серии/цвета/стандарта той
                                же модульности (в которую встают клавиши поста) нет — пост НЕ ставим.
 
-   Решение 2 словами: «подходит ЛЮБОМУ варианту → не трогаем; ни одному → подмена под ПЕРВЫЙ». Поэтому
-   сначала EPRoomVariants.fitIndex по placementFits — если найден хоть один подходящий вариант, накладку
-   оставляем как есть. Не найден → подмена идёт под критерий variants[0] (placementIndex для «ни одному»
-   даёт 0). Одновариантная комната (EPRoomVariants.list=[плоские поля]) проходит ровно прежней веткой:
-   подходит/не подходит одному-единственному варианту — поведение блока «ОТДЕЛКА-ПОРЯДОК» сохранено.
+   Правило (решение владельца 24.10, после двух проверок): подходит ЛЮБОМУ варианту → не трогаем. Ни
+   одному → пробуем варианты ПО ПОРЯДКУ (1, 2, …) и берём ПЕРВЫЙ, под который подмена СОБИРАЕТСЯ (накладка
+   нужной модульности есть и состав в неё встаёт); блокируем, только если не встаёт ни в один. Одновариантная
+   комната (EPRoomVariants.list=[плоские поля]) проходит ровно прежней веткой — один вариант, одна попытка.
 
    ⚠️ ПОДМЕНА МЕНЯЕТ ТОЛЬКО ТО, ЧЕГО ТРЕБУЕТ ВАРИАНТ. Сначала ищем накладку ТОЙ ЖЕ серии и цвета, что у
    поста (preferOwnFrame — приём «своё → пул», общий с defaultFrameForRoom), и лишь если такой нет — любую
@@ -112,28 +116,30 @@ function frameForRoomPlacement(template,room){
   if(!room)return {frameId:null};
   const frame=frameProduct(template.frameId);
   const variants=EPRoomVariants.list(room);
-  /* подходит ХОТЯ БЫ одному варианту отделки → накладку не трогаем (решение 2). Критерий варианта —
+  /* подходит ХОТЯ БЫ одному варианту отделки → накладку не трогаем. Критерий варианта —
      roomCatalogFilter(вариант): вариант несёт те же 5 полей отделки, что читает roomCatalogFilter. */
   const fits=(variant,f)=>placementFits(f,roomCatalogFilter(variant));
   if(EPRoomVariants.fitIndex(variants,frame,fits)!==-1)return {frameId:null};
-  /* ни одному не подошла → подмена под ПЕРВЫЙ вариант (placementIndex→0). variants[0] гарантированно
-     constrained и накладка ему не годится (иначе fitIndex нашёл бы его), поэтому идём в подбор. */
-  const criteria=roomCatalogFilter(variants[0]);
-  const pool=EPCatalog.productsForRoom(byKind("frame"),criteria);
+  /* ни одному не подошла → перебор вариантов ПО ПОРЯДКУ, первый, под который подмена собирается. */
   const fitsSeries=frameFitsTemplateMechs(template);
   const mechIds=Array.isArray(template.mechanismIds)?template.mechanismIds:[];
   const assembles=f=>{const d=EPPosts.distributePosts(mechIds,f,{product,mechanismSpan});return d.valid&&d.full;};
   const deps={frameProduct,frameSlotCount,frameFitsMechs:f=>fitsSeries(f)&&assembles(f)};
   const ownCriteria={collection:productSeries(frame)[0],frameColor:EPPosts.templateFrameColor(template,{frameProduct})};
-  const swap=preferOwnFrame(pool,ownCriteria,p=>EPPosts.pickRoomFrame(template.frameId,p,deps));
-  return swap?{frameId:swap.id}:{blocked:true,message:frameSwapEmptyText(template,room,criteria)};
+  for(let i=0;i<variants.length;i++){
+    const pool=EPCatalog.productsForRoom(byKind("frame"),roomCatalogFilter(variants[i]));
+    const swap=preferOwnFrame(pool,ownCriteria,p=>EPPosts.pickRoomFrame(template.frameId,p,deps));
+    if(swap)return {frameId:swap.id};
+  }
+  /* не встаёт ни в один вариант → блок. Текст — от ПЕРВОГО варианта (как и раньше), не меняем. */
+  return {blocked:true,message:frameSwapEmptyText(template,room,roomCatalogFilter(variants[0]))};
 }
 
 return {frameForRoomPlacement};
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
-const api = { attach };
+const api = { attach, placementFits };
 if (typeof window !== "undefined") window.EPPostVariant = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -37,7 +37,9 @@ const FK2 = { id: 210, kind: "frame", active: true, series: ["B"], frameColor: "
 const FG2 = { id: 310, kind: "frame", active: true, series: ["C"], frameColor: "Зелёная", slotCount: 2, price: 35, code: "C2G", name: "C рамка зелёная 2М" };
 /* Механизм совместим со всеми тремя сериями — чтобы подбор упирался в СЕРИЮ НАКЛАДКИ, а не клавиш. */
 const MU = { id: 900, kind: "mechanism", active: true, series: ["A", "B", "C"], moduleSpan: 1, price: 5, code: "MU", name: "клавиша универсал 1М" };
-const PRODUCTS = [FA2, FB2, FC2, FK2, FG2, MU];
+/* Клавиша ТОЛЬКО серии B — встаёт лишь в накладку B (для проверки перебора вариантов по порядку). */
+const MB = { id: 901, kind: "mechanism", active: true, series: ["B"], moduleSpan: 1, price: 5, code: "MB", name: "клавиша B 1М" };
+const PRODUCTS = [FA2, FB2, FC2, FK2, FG2, MU, MB];
 const product = id => PRODUCTS.find(p => Number(p.id) === Number(id));
 const byKind = kind => PRODUCTS.filter(p => p.kind === kind && p.active);
 
@@ -113,6 +115,27 @@ test("★ А2 одновариантная комната — БАЙТ-В-БАЙ
   const resA = placeFrame(tplA, flat);
   assert.equal(resA.frameId, null, "накладка своей серии в одновариантной комнате — не трогаем");
   assert.ok(!resA.blocked, "не блокировка");
+});
+
+test("★ А2(4): накладка не подошла ни одному → перебор вариантов ПО ПОРЯДКУ, первый СОБИРАЕМЫЙ (решение 24.10)", () => {
+  /* Комната: В1 {серия A}, В2 {серия B}. Пост — накладка C (не подходит ни одному) с клавишами серии B.
+     Под В1 (A) подмены нет (клавиши B в накладку A не встают); под В2 (B) собирается → берём FB2. */
+  const room = { id: "rord", name: "Гостиная", collection: "A", frameColor: "Белая", moreVariants: [{ collection: "B", frameColor: "Белая" }] };
+  const template = { id: "t", name: "Пост B-клавиши", frameId: FC2.id, frameColor: "Белая", mechanismIds: [MB.id, MB.id] };
+  const res = placeFrame(template, room);
+  assert.equal(res.frameId, FB2.id,
+    "взята накладка ВТОРОГО варианта (B), под который состав собирается; мутация «только variants[0]» дала бы blocked и краснит здесь");
+  assert.ok(!res.blocked, "пост не заблокирован — есть собираемый вариант");
+});
+
+test("★ А2(5): не встаёт НИ В ОДИН вариант → blocked (текст от первого варианта)", () => {
+  /* Клавиши серии B, но оба варианта — серии A (в накладку A клавиши B не встают нигде). */
+  const room = { id: "rblk", name: "Кладовка", collection: "A", frameColor: "Белая", moreVariants: [{ collection: "A", frameColor: "Чёрная" }] };
+  const template = { id: "t", name: "Пост B", frameId: FC2.id, frameColor: "Белая", mechanismIds: [MB.id, MB.id] };
+  const res = placeFrame(template, room);
+  assert.equal(res.frameId, undefined, "не подменён");
+  assert.equal(res.blocked, true, "заблокирован — ни в один вариант не встаёт");
+  assert.match(res.message, /Кладовка/, "текст называет комнату (от первого варианта)");
 });
 
 /* ============================ Б1. ЧИСТЫЙ: templateFitsRoomColors ============================ */
