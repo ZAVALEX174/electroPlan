@@ -595,6 +595,22 @@ function templateFitsRoomColor(template, roomColor, deps) {
   return !!tc && key(tc) === key(roomColor);
 }
 
+/* Годится ли шаблон комнате с НЕСКОЛЬКИМИ вариантами отделки (К8а, решение владельца 24.10, п.3):
+   «в „Готовых постах" видны посты, подходящие цвету ХОТЯ БЫ ОДНОГО варианта; вариант без цвета → всё».
+   roomColors — цвета вариантов комнаты, которые вызывающий уже разрешил через EPRoom.roomFrameFacing:
+     • null                — показываем ВСЁ (комната не выбрана / хотя бы один вариант без цвета — такой
+                             вариант принимает пост любого цвета, значит сужать нечем). Байт-в-байт как
+                             templateFitsRoomColor(…, null): одновариантная комната без цвета → всё;
+     • массив цветов       — шаблон годится, если подходит цвету ЛЮБОГО варианта. Сравнение цвета —
+                             ТЕМ ЖЕ templateFitsRoomColor на каждый цвет (§7.1: одно правило складки
+                             «Белая»↔«Белый» через deps.facingColorKey, второй копии не заводим).
+   Для одного варианта с заданным цветом массив = [цвет], и .some сводится к одному templateFitsRoomColor —
+   прежнее поведение одноцветной комнаты сохранено. */
+function templateFitsRoomColors(template, roomColors, deps) {
+  if (!roomColors) return true;
+  return roomColors.some(color => templateFitsRoomColor(template, color, deps));
+}
+
 /* Подбор накладки СЕРИИ КОМНАТЫ той же модульности, что у шаблона (замена при размещении, п.5). pool —
    УЖЕ суженный под комнату список накладок (EPCatalog.productsForRoom по серии+отделке комнаты, тот же
    collectionFramePool): цвет и серию задаёт он, здесь остаётся выбрать РАЗМЕР и проверить, что в накладку
@@ -804,7 +820,7 @@ function postModuleGroups(mechanismIds, frame, deps) {
    Node — module.exports для автотестов (PLAN 7.1). */
 const api = { frameAvailability, mechanismAvailability, postCost, postComposition, boxCount, fitMechanismIds, fitMechanismIdsPreserving,
   moduleLayout, fillWord, fillSummary, nextPostNumber, ensurePostNumbers, placementFields,
-  templateFrameColor, templateFitsRoomColor, pickRoomFrame,
+  templateFrameColor, templateFitsRoomColor, templateFitsRoomColors, pickRoomFrame,
   frameLayout, distributePosts, maxFreeSpan, postModuleGroups,
   postWallType, applyProjectWallToPosts, postTypeKey, wallTypeTargets, postBacklight };
 if (typeof window !== "undefined") window.EPPosts = api;

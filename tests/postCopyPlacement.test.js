@@ -26,6 +26,7 @@ const EPLightingGroups = require("../js/lightingGroups.js");
 const EPSelection = require("../js/selection.js");
 const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
+const EPRoomVariants = require("../js/roomVariants.js");
 const EPNotices = require("../js/notices.js");
 
 /* Реальный каталог VIMAR — те же файлы и порядок, что в index.html (catalog-vimar → attrs → data). */
@@ -58,7 +59,7 @@ function key1(frame) {
 
 const CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "frameFacingLabels",
   "frameFacingSelectionLabels", "templateMechSeries", "frameSwapEmptyText", "roomCatalogFilter",
-  "frameFitsTemplateMechs", "preferOwnFrame", "frameForRoomPlacement", "copyPosts", "pastePosts"];
+  "frameFitsTemplateMechs", "placementFits", "preferOwnFrame", "frameForRoomPlacement", "copyPosts", "pastePosts"];
 
 /* Стенд: НАСТОЯЩИЕ copyPosts/pastePosts/frameForRoomPlacement в vm на реальном каталоге. Комнаты —
    вертикальные полосы по x центра значка (как «номера отеля» рядом). clientToWorld по умолчанию
@@ -74,7 +75,7 @@ function makeStand({ posts, rooms, pointer, clientDX = 0 }) {
   let ptr = pointer || { overCanvas: false, clientX: 0, clientY: 0 };
   const ctx = {
     _copyBuffer: null, state, EPNotices, notices,
-    EPPostCopy, EPPosts, EPLightingGroups, EPSelection, EPCatalog, EPRoom,
+    EPPostCopy, EPPosts, EPLightingGroups, EPSelection, EPCatalog, EPRoom, EPRoomVariants,
     byKind, frameProduct: product, product,
     compatibleMechanisms: EPCatalog.compatibleMechanisms, productSeries: EPCatalog.productSeries,
     frameSlotCount: EPCatalog.frameSlotCount, moduleWord: EPCatalog.moduleWord, mechanismSpan: EPCatalog.mechanismSpan,

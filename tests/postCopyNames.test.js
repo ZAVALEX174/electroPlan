@@ -26,6 +26,7 @@ const EPPostFit = require("../js/postfit.js");
 const EPSelection = require("../js/selection.js");
 const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
+const EPRoomVariants = require("../js/roomVariants.js");
 const EPNotices = require("../js/notices.js");
 
 /* Реальный каталог VIMAR — те же файлы и порядок, что в index.html. */
@@ -91,7 +92,7 @@ const eur = n => Number(n.toFixed(2));
 /* ─── СТЕНД настоящего pastePosts (вырезка из app.js) на реальном каталоге ─── */
 const CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "frameFacingLabels",
   "frameFacingSelectionLabels", "templateMechSeries", "frameSwapEmptyText", "roomCatalogFilter",
-  "frameFitsTemplateMechs", "preferOwnFrame", "frameForRoomPlacement", "copyPosts", "pastePosts"];
+  "frameFitsTemplateMechs", "placementFits", "preferOwnFrame", "frameForRoomPlacement", "copyPosts", "pastePosts"];
 function makeStand({ posts, rooms, pointer }) {
   const state = { posts, rooms: rooms || [], devices: [], selected: null };
   const roomAt = x => state.rooms.find(r => x >= r.x0 && x < r.x1) || null;
@@ -103,7 +104,7 @@ function makeStand({ posts, rooms, pointer }) {
   let ptr = pointer || { overCanvas: false, clientX: 0, clientY: 0 };
   const ctx = {
     _copyBuffer: null, state, EPNotices, notices,
-    EPPostCopy, EPPosts, EPLightingGroups, EPSelection, EPCatalog, EPRoom,
+    EPPostCopy, EPPosts, EPLightingGroups, EPSelection, EPCatalog, EPRoom, EPRoomVariants,
     byKind, frameProduct: product, product,
     compatibleMechanisms: EPCatalog.compatibleMechanisms, productSeries: EPCatalog.productSeries,
     frameSlotCount: EPCatalog.frameSlotCount, moduleWord: EPCatalog.moduleWord, mechanismSpan: EPCatalog.mechanismSpan,
