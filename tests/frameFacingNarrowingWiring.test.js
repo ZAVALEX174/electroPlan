@@ -281,3 +281,65 @@ test("§switch-msg: текст подтверждения называет ус�
   assert.match(msg, /стандарт «немецкий».*серия «Arke»/, "перечислил условия");
   assert.match(msg, /механизмы поста будут сброшены/, "предупредил о сбросе механизмов");
 });
+
+/* --- §switch-wire: НАСТОЯЩАЯ builderVariantSwitch из postBuilder.js ------------------------------
+   Выше §switch-* бьют ЧИСТУЮ applyBuilderVariantChange с рукодельным d. Но applicable/fits/reset для
+   неё СОБИРАЕТ builderVariantSwitch из состояния окна поста, и этот сбор не держал ни один тест
+   (регэксп В4/В5 сторожит лишь проводку onChange, не вычисление applicable). Мутация «applicable:true»
+   проходила зелёной — §7.1, край правки. Здесь режем и исполняем НАСТОЯЩУЮ builderVariantSwitch вместе
+   с её зависимостями (roomCatalogFilter/frameFacingSelectionLabels) на реальном каталоге VIMAR.
+   МУТАЦИОННАЯ ТАБЛИЦА (прогнана, см. отчёт):
+     applicable:…→true (убрать editingPlacedId/editingTemplateId/frameAuto/!!frame) → §switch-wire-placed;
+     fits:placementFits(frame,crit)→true (не судить совместимость)                   → §switch-wire-ok;
+     reset без frameAuto=true / без сброса slots                                     → §switch-wire-ok. */
+const SWITCH_CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "roomCatalogFilter",
+  "frameFacingLabels", "frameFacingSelectionLabels", "builderVariantSwitch"];
+function runSwitch({ builder, frameCode, room }) {
+  const frame = frameCode ? PRODUCTS.find(p => p.code === frameCode) : null;
+  const state = { products: PRODUCTS, builder };
+  const apply = spy(), restore = spy();
+  const confirm = (() => { const f = m => { f.calls.push(m); return f.ret; }; f.calls = []; f.ret = true; return f; })();
+  const ctx = {
+    state, byKind: byKindOf, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, EPBuilderSlots,
+    frameProduct: id => (frame && String(frame.id) === String(id) ? frame : null),
+    $: () => ({ value: frame ? String(frame.id) : "" }),
+    keySlotKind: () => null, confirm, apply, restore
+  };
+  stand.run(SWITCH_CUT, ctx)(room, 0, apply, restore);
+  return { apply, restore, confirm, builder };
+}
+test("§switch-wire-ok: новый пост, накладка чужой серии (Plana в варианте Arke), ОК → спросили, сброс frameAuto+slots, apply", () => {
+  const builder = { editingPlacedId: null, editingTemplateId: null, frameAuto: false, slots: [{ k: "x" }] };
+  const r = runSwitch({ builder, frameCode: "14642.01", room: { id: "r1", collection: "Arke" } });
+  assert.equal(r.confirm.calls.length, 1, "несовместимость собрана из состояния → подтверждение спрошено");
+  assert.match(r.confirm.calls[0], /серия «Arke»/, "в тексте условия варианта (crit через roomCatalogFilter)");
+  assert.equal(builder.frameAuto, true, "ОК → reset вернул накладку к авто-умолчанию (frameAuto=true)");
+  assert.equal(builder.slots.length, 0, "ОК → механизмы поста сброшены");
+  assert.equal(r.apply.calls.length, 1, "новый вариант применён");
+  assert.equal(r.restore.calls.length, 0);
+});
+test("§switch-wire-fits: новый пост, накладка своей серии (Arke в варианте Arke) → молча apply, без подтверждения", () => {
+  const builder = { editingPlacedId: null, editingTemplateId: null, frameAuto: false, slots: [{ k: "x" }] };
+  const r = runSwitch({ builder, frameCode: "19642.01", room: { id: "r1", collection: "Arke" } });
+  assert.equal(r.confirm.calls.length, 0, "совместимая накладка (fits) → не спрашиваем");
+  assert.equal(r.apply.calls.length, 1, "применено молча");
+  assert.equal(builder.frameAuto, false, "ничего не сброшено");
+  assert.equal(builder.slots.length, 1, "механизмы на месте");
+});
+test("§switch-wire-placed: редактируется пост НА ПЛАНЕ (editingPlacedId) → правило неприменимо, молча apply даже при чужой накладке", () => {
+  // Ровно край мутации applicable:true — несовместимая накладка, но пост уже на плане: спрашивать НЕЛЬЗЯ.
+  const builder = { editingPlacedId: "p1", editingTemplateId: null, frameAuto: false, slots: [{ k: "x" }] };
+  const r = runSwitch({ builder, frameCode: "14642.01", room: { id: "r1", collection: "Arke" } });
+  assert.equal(r.confirm.calls.length, 0, "пост на плане → подтверждение не спрашивали");
+  assert.equal(r.apply.calls.length, 1, "применено молча (как было)");
+  assert.equal(builder.frameAuto, false, "ничего не сброшено");
+  assert.equal(builder.slots.length, 1, "механизмы не тронуты");
+});
+test("§switch-wire-auto: новый пост, накладка АВТО (frameAuto=true) → правило неприменимо, молча apply", () => {
+  // frameAuto=true значит накладку человек руками не выбирал — сбрасывать нечего, вопроса нет.
+  const builder = { editingPlacedId: null, editingTemplateId: null, frameAuto: true, slots: [{ k: "x" }] };
+  const r = runSwitch({ builder, frameCode: "14642.01", room: { id: "r1", collection: "Arke" } });
+  assert.equal(r.confirm.calls.length, 0, "авто-накладка → не спрашиваем");
+  assert.equal(r.apply.calls.length, 1, "применено молча");
+  assert.equal(builder.slots.length, 1, "механизмы не тронуты");
+});
