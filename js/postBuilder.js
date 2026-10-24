@@ -553,7 +553,7 @@ function renderBuilder(){
   const frameSelect=$("postFrameSelect"),allFrames=byKind("frame");
   /* Селектор «Вариант отделки» (К8а): виден при >1 варианте; смена варианта = смена комнаты
      (state.builder.variantIndex + changeBuilderRoom → applyAutoDefaultFrame + перерисовка, §7.1). */
-  EPRoomVariantsUi.renderBuilderVariantSelect({$,room:(state.rooms||[]).find(r=>r.id===state.builder.roomId),index:state.builder.variantIndex,onChange:i=>{state.builder.variantIndex=i;changeBuilderRoom(state.builder.roomId)}});
+  EPRoomVariantsUi.renderBuilderVariantSelect({$,room:(state.rooms||[]).find(r=>r.id===state.builder.roomId),index:state.builder.variantIndex,onChange:i=>{state.builder.variantIndex=i;changeBuilderRoom(state.builder.roomId)},variantHasNoFrames:v=>!EPCatalog.productsForRoom(allFrames,roomCatalogFilter(v)).length});
   /* ⚠️ КОЛЛЕКЦИЯ КОМНАТЫ СУЖАЕТ СПИСОК НАКЛАДОК ПЕРВЫМ ШАГОМ (E13). Помещение закреплено за
      коллекцией — предлагаем накладки только её (встреча 24.08: «отсеять неподходящие рамки»).
      Фильтр по числу модулей идёт УЖЕ по этому пулу, а не по всему каталогу. Пост вне комнат /

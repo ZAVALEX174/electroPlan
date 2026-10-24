@@ -170,20 +170,24 @@ function builderInitialIndex(room, frame, isExisting, fits){
 }
 /* Подпись варианта в селекторе: «Вариант N: <стандарт словом> · <серия> · <цвет>»; ни одного признака
    не задано → «Вариант N: любая отделка». Стандарт словом — через переданный standardLabel (тот же
-   EPCatalog.standardLabel, что везде); серия/цвет — прямо поля варианта (канонические из каталога). */
-function builderVariantLabel(variant, i, standardLabel){
+   EPCatalog.standardLabel, что везде); серия/цвет — прямо поля варианта (канонические из каталога).
+   noFrames (К8г, решение владельца Б): под вариант в каталоге нет ни одной накладки — к подписи
+   добавляем « — нет накладок», чтобы собрать несовместимое через окно поста тоже было видно нельзя. */
+function builderVariantLabel(variant, i, standardLabel, noFrames){
   const parts = [];
   if (variant.standard) parts.push(standardLabel(variant.standard));
   if (variant.collection) parts.push(variant.collection);
   if (variant.frameColor) parts.push(variant.frameColor);
-  return "Вариант " + (i + 1) + ": " + (parts.length ? parts.join(" · ") : "любая отделка");
+  return "Вариант " + (i + 1) + ": " + (parts.length ? parts.join(" · ") : "любая отделка")
+    + (noFrames ? " — нет накладок" : "");
 }
 /* Отрисовать и привязать селектор «Вариант» в окне поста. Поле ПОЯВЛЯЕТСЯ ТОЛЬКО при >1 варианте
    (решение: при одном варианте селектора нет, выбирать не из чего) — иначе скрыто и пусто. deps:
-   { $, room, index, onChange }. onChange(i) — реакция окна на выбор: ровно смена комнаты (postBuilder
-   зовёт applyAutoDefaultFrame + renderBuilder), второй трактовки нет (§7.1). Подпись содержит ПОЛЯ
-   ВАРИАНТА из файла проекта (серия/цвет) — пользовательский ввод, поэтому в HTML кладём через esc
-   (value — индекс-число, экранировать нечего). */
+   { $, room, index, onChange, variantHasNoFrames? }. onChange(i) — реакция окна на выбор: ровно смена
+   комнаты (postBuilder зовёт applyAutoDefaultFrame + renderBuilder), второй трактовки нет (§7.1).
+   variantHasNoFrames(variant) — необязательный предикат «под вариант накладок нет» (К8г, Б): нет его
+   → пометки нет (прежнее поведение). Подпись содержит ПОЛЯ ВАРИАНТА из файла проекта (серия/цвет) —
+   пользовательский ввод, поэтому в HTML кладём через esc (value — индекс-число, экранировать нечего). */
 function renderBuilderVariantSelect(deps){
   const $ = deps.$, wrap = $("builderVariantField"), sel = $("builderVariantSelect");
   if (!wrap || !sel) return;
@@ -192,16 +196,66 @@ function renderBuilderVariantSelect(deps){
   wrap.hidden = false;
   const idx = builderIndex(deps.room, deps.index);
   const standardLabel = Catalog().standardLabel;
+  const noFrames = typeof deps.variantHasNoFrames === "function" ? deps.variantHasNoFrames : () => false;
   sel.innerHTML = variants.map((v, i) =>
-    '<option value="' + i + '"' + (i === idx ? ' selected' : '') + '>' + esc(builderVariantLabel(v, i, standardLabel)) + '</option>'
+    '<option value="' + i + '"' + (i === idx ? ' selected' : '') + '>' + esc(builderVariantLabel(v, i, standardLabel, noFrames(v))) + '</option>'
   ).join("");
   sel.value = String(idx);
   sel.onchange = e => deps.onChange(Number(e.target.value) || 0);
 }
 
+/* ─── К8г: СУЖЕНИЕ ОТДЕЛКИ В ПАНЕЛИ КОМНАТЫ («Списком») + «нет накладок» ───────────────────────────
+   «Нельзя собрать несовместимое»: в виде «Списком» каждое поле отделки предлагает только значения,
+   при которых под ВЕРХНИЕ уже выбранные поля варианта есть накладки. Отбор — ТОТ ЖЕ Catalog().
+   productsForRoom, что у мастера «С картинками» и у конструктора поста (§7.1): второй копии правила
+   нет. Порядок полей — V().FIELDS (стандарт→серия→материал→форма→цвет); критерий берём ТОЛЬКО из
+   полей ВЫШЕ текущего — нижние как раз выбирают, они сужать не должны.
+   validate(variant,prop) — валидированное действующее значение поля (мёртвое/снятое из прайса → null);
+   его даёт app.js (EPRoom.roomCollection/roomFrameFacing по спискам каталога) — один источник
+   валидации и для подписей, и здесь. */
+function facingUpperPool(frames, variant, prop, validate){
+  const fields = V().FIELDS, i = fields.indexOf(prop), criteria = {};
+  for (let k = 0; k < i; k++){ const up = validate(variant, fields[k]); if (up) criteria[fields[k]] = up; }
+  return Catalog().productsForRoom(frames, criteria);
+}
+/* Значения признака В ПУЛЕ — та же диспетчеризация, что у мастера (framePickerDeps.valuesOf): стандарт
+   раскрывает BOTH (productStandards), серия — массив (productCollections), отделка — скаляр
+   (productFacingValues). */
+function facingValuesOf(pool, prop){
+  const C = Catalog();
+  return prop === "standard" ? C.productStandards(pool)
+    : prop === "collection" ? C.productCollections(pool) : C.productFacingValues(pool, prop);
+}
+/* <option>ы одного поля отделки для вида «Списком». Значения сужены верхними полями. Решение владельца
+   (А): сохранённое значение, выпавшее из суженного списка, но валидное по каталогу, ОСТАЁТСЯ выбранным
+   отдельной опцией «<значение> (не подходит)» — данные проекта не трогаем ни при открытии, ни при
+   сохранении. emptyLabel — текст пункта «не задано». Подпись стандарта — словом (standardLabel),
+   прочие признаки человеческие как есть. Значения серии/цвета из файла проекта — в HTML через esc. */
+function facingFieldOptionsHtml(frames, variant, prop, emptyLabel, validate){
+  const values = facingValuesOf(facingUpperPool(frames, variant, prop, validate), prop);
+  const cur = validate(variant, prop);
+  const label = v => prop === "standard" ? Catalog().standardLabel(v) : v;
+  let html = '<option value=""' + (cur ? '' : ' selected') + '>' + esc(emptyLabel) + '</option>'
+    + values.map(v => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(label(v)) + '</option>').join("");
+  if (cur && values.indexOf(cur) === -1)
+    html += '<option value="' + esc(cur) + '" selected>' + esc(label(cur)) + ' (не подходит)</option>';
+  return html;
+}
+/* Есть ли под ВЕСЬ вариант хоть одна накладка (решение владельца Б). Критерий — все пять полей
+   варианта (валидированные тем же validate), отбор — тот же productsForRoom. True → накладок нет,
+   вызывающий (панель комнаты и селектор окна поста) показывает «нет подходящих накладок». Полный
+   критерий собираем по V().FIELDS — это перечень тех же полей, что строит roomCatalogFilter у окна
+   поста; сам отбор (productsForRoom) один, второй копии нет (§7.1). */
+function variantHasNoFrames(frames, variant, validate){
+  const criteria = {};
+  V().FIELDS.forEach(f => { const v = validate(variant, f); if (v) criteria[f] = v; });
+  return Catalog().productsForRoom(frames, criteria).length === 0;
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
 const api = { activeIndex, setActiveIndex, applyResult, writeField, writeSelection, tabsHtml, removeBtnHtml, bindTabs,
-  builderIndex, builderInitialIndex, builderVariantLabel, renderBuilderVariantSelect };
+  builderIndex, builderInitialIndex, builderVariantLabel, renderBuilderVariantSelect,
+  facingFieldOptionsHtml, variantHasNoFrames };
 if (typeof window !== "undefined") window.EPRoomVariantsUi = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

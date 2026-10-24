@@ -1490,32 +1490,25 @@ function renderProperties(){
     const roomVariants=EPRoomVariants.list(r);
     const roomVariantIdx=EPRoomVariantsUi.activeIndex(r.id,roomVariants.length);
     const facingEntity=roomVariants[roomVariantIdx];
-    const standardList=frameStandardList();
-    const roomStd=EPRoom.roomFrameFacing(facingEntity,"standard",standardList);
-    const standardOptions=`<option value=""${roomStd?"":" selected"}>Не задан — накладки любого стандарта</option>`
-      +standardList.map(code=>`<option value="${esc(code)}"${code===roomStd?" selected":""}>${esc(EPCatalog.standardLabel(code))}</option>`).join("");
-    /* Коллекция накладок комнаты (E13). ⚠️ В ОТЛИЧИЕ ОТ СХЕМЫ у коллекции НЕТ значения-умолчания
-       проекта: «не задана» — это не «как в проекте», а «фильтра нет, предлагать все накладки».
-       roomColl — действующая коллекция (EPRoom.roomCollection валидирует по списку каталога:
-       мёртвое/отсутствующее значение → null → селектор в «Не задана», r.collection не трогаем до
-       выбора человека). Список коллекций — из каталога (frameCollectionList), не константа. */
-    const collectionList=frameCollectionList();
-    const roomColl=EPRoom.roomCollection(facingEntity,collectionList);
-    const collectionOptions=`<option value=""${roomColl?"":" selected"}>Не задана — предлагать все накладки</option>`
-      +collectionList.map(name=>`<option value="${esc(name)}"${name===roomColl?" selected":""}>${esc(name)}</option>`).join("");
-    /* Отделка накладки комнаты (E14): материал, форма, цвет. Тот же приём, что у коллекции: значения
-       из каталога (frameFacingList), действующее — через EPRoom.roomFrameFacing (мёртвое → «не
-       задан», r.<признак> не трогаем). Плейсхолдер/подсказку держим ПОФИЛЬДНО из-за рода слова
-       (материал «задан», форма «задана»), а не собираем строкой. Селекторы id room_<признак>Select. */
+    /* К8г: одно валидирование поля отделки ВЫБРАННОГО варианта (мёртвое → null, не сужает), как в
+       roomCatalogFilter у окна поста — один источник (§7.1). Опции каждого поля СУЖЕНЫ верхними полями
+       варианта (правило «нельзя собрать несовместимое» в facingFieldOptionsHtml поверх того же
+       productsForRoom, что у мастера): несовместимые скрыты, сохранённое несовместимое (А) — «(не подходит)». */
+    const facingValidate=(v,p)=>p==="collection"?EPRoom.roomCollection(v,frameCollectionList()):EPRoom.roomFrameFacing(v,p,p==="standard"?frameStandardList():frameFacingList(p));
+    const roomFrames=byKind("frame");
+    const roomStd=facingValidate(facingEntity,"standard");
+    const standardOptions=EPRoomVariantsUi.facingFieldOptionsHtml(roomFrames,facingEntity,"standard","Не задан — накладки любого стандарта",facingValidate);
+    const roomColl=facingValidate(facingEntity,"collection");
+    const collectionOptions=EPRoomVariantsUi.facingFieldOptionsHtml(roomFrames,facingEntity,"collection","Не задана — предлагать все накладки",facingValidate);
+    /* Отделка (E14): материал, форма, цвет. Плейсхолдер/подсказку держим ПОФИЛЬДНО из-за рода слова
+       (материал «задан», форма «задана»). Опции — тот же facingFieldOptionsHtml. id room_<признак>Select. */
     const facingSpecs=[
       {prop:"frameMaterial",label:"Материал накладки",empty:"Не задан — любой материал",on:"Предлагаются накладки только этого материала",off:"Материал не задан — не сужается"},
       {prop:"frameShape",label:"Форма накладки",empty:"Не задана — любая форма",on:"Предлагаются накладки только этой формы",off:"Форма не задана — не сужается"},
       {prop:"frameColor",label:"Цвет накладки",empty:"Не задан — любой цвет",on:"Предлагаются накладки только этого цвета",off:"Цвет не задан — не сужается"}
     ].map(spec=>{
-      const values=frameFacingList(spec.prop);
-      const cur=EPRoom.roomFrameFacing(facingEntity,spec.prop,values);
-      const options=`<option value=""${cur?"":" selected"}>${esc(spec.empty)}</option>`
-        +values.map(v=>`<option value="${esc(v)}"${v===cur?" selected":""}>${esc(v)}</option>`).join("");
+      const cur=facingValidate(facingEntity,spec.prop);
+      const options=EPRoomVariantsUi.facingFieldOptionsHtml(roomFrames,facingEntity,spec.prop,spec.empty,facingValidate);
       return {...spec,cur,options};
     });
     const facingFieldsHtml=facingSpecs.map(spec=>
@@ -1543,6 +1536,12 @@ function renderProperties(){
       :`<div class="room-facing-summary room-facing-standard${roomStd?" own":""}">Стандарт: ${esc(roomStd?EPCatalog.standardLabel(roomStd):"не задан")}</div>
         <div class="room-facing-summary${facingChosen.length?" own":""}">${facingChosen.length?esc(facingChosen.join(" · ")):(roomStd?"Серия, материал, форма и цвет не заданы":"Отделка не задана — предлагаются все накладки каталога")}</div>
         <button type="button" class="btn ghost room-facing-pick-btn" id="roomFramePickerBtn">Подобрать накладку</button>`;
+    /* К8г, решение владельца (Б): под полями отделки ВЫБРАННОГО варианта — строка, когда под него нет
+       ни одной накладки. Текст/условия — существующие frameFacingEmptyText/frameFacingSelectionLabels
+       (та же формулировка, что у хинта окна поста; §7.1); функции — в ПРАВОЙ ветке тернарника. */
+    const facingEmptyNote=EPRoomVariantsUi.variantHasNoFrames(roomFrames,facingEntity,facingValidate)
+      ?`<small class="prop-hint room-facing-none">${esc(frameFacingEmptyText(frameFacingSelectionLabels(roomCatalogFilter(facingEntity)).join(", ")))}</small>`
+      :"";
     const facingBlockHtml=`<div class="room-facing-block">
       ${EPRoomVariantsUi.tabsHtml(roomVariants,roomVariantIdx)}
       <div class="room-facing-head"><span class="room-facing-title">Отделка накладки</span>
@@ -1552,6 +1551,7 @@ function renderProperties(){
         </div>
       </div>
       ${facingBody}
+      ${facingEmptyNote}
       ${EPRoomVariantsUi.removeBtnHtml(roomVariants)}
     </div>`;
     props.innerHTML=`<label>Название комнаты<input id="roomName" value="${esc(r.name)}" autocomplete="off"></label>
