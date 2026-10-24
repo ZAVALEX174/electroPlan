@@ -1,6 +1,6 @@
 /* ПОВЕДЕНЧЕСКИЙ тест монтажного СТАНДАРТА комнаты (встреча 24.08 §4.1: «первое, что должны мы
    выбрать»). Проверяем связку app.js на НАСТОЯЩЕМ каталоге VIMAR (тот же путь и порядок, что
-   index.html: catalog-vimar.js → catalog-vimar-attrs.js → data.js), EPCatalog/EPRoom настоящие:
+   index.html: catalog-vimar.js → catalog-vimar-attrs.js → data.js), EPCatalog/EPRoom, EPRoomVariants, EPRoomVariantsUi настоящие:
 
      1) стандарт — такой же критерий комнаты, как коллекция/отделка: roomCatalogFilter несёт его,
         collectionFramePool сужает им пул ТЕМ ЖЕ productsForRoom (§7.1), «универсальные» (BOTH)
@@ -28,6 +28,8 @@ const stand = require("./helpers/appStand.js");
 
 const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
+const EPRoomVariants = require("../js/roomVariants.js");
+const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
 const EPFramePicker = require("../js/framePicker.js");
 const EPLightingGroups = require("../js/lightingGroups.js");
 
@@ -54,10 +56,10 @@ function stateFor(room) {
   return { products: PRODUCTS, rooms: [Object.assign({ id: "r1", name: "Комната" }, room)], posts: [{ id: "p1", roomId: "r1" }], builder: { editingPlacedId: "p1" } };
 }
 function filterFor(room) {
-  return stand.run(FILTER_CUT, { state: stateFor(room), byKind: byKindOf, EPCatalog, EPRoom })();
+  return stand.run(FILTER_CUT, { state: stateFor(room), byKind: byKindOf, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi })();
 }
 function poolFor(room) {
-  const pool = stand.run(POOL_CUT, { state: stateFor(room), byKind: byKindOf, EPCatalog, EPRoom });
+  const pool = stand.run(POOL_CUT, { state: stateFor(room), byKind: byKindOf, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi });
   return pool(activeFrames());
 }
 
@@ -97,7 +99,7 @@ function renderList(room) {
     findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
     applySelectionClasses: spy(), getObjectsInRoom: () => [], roomAutoAreaText: () => "",
     polygonAreaPx: () => 0, lightingScheme: () => "classic",
-    EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
+    EPLightingGroups, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
     EPPrefs: { get: (k, fb) => (k === "frameFacingView" ? "list" : fb), set: () => {} },
     setTool: spy(), persistProject: spy(), renderSummary: spy(), renderAll: spy(), mountedRoomId: null
   };
@@ -132,7 +134,7 @@ test("§picker-read: openFramePicker сеет sel.standard из room.standard (�
   const stub = () => ({ classList: { add() {}, remove() {} }, querySelector: () => null });
   const ctx = {
     framePickerRoomId: null, framePickerSel: null, framePickerStep: 0,
-    byKind: byKindOf, EPCatalog, EPRoom, EPFramePicker, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
+    byKind: byKindOf, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPFramePicker, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
     renderFramePicker: () => {}, $: stub, setTimeout: () => 0
   };
   stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "openFramePicker"], ctx)(

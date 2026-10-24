@@ -338,6 +338,9 @@ function openPostBuilder({templateId=null,placedId=null}={}){
   state.builder.roomId=placedId?(src.roomId??null)
     :templateId?(state.rooms[0]?state.rooms[0].id:null)
     :(newPostRoom()?.id??null);
+  /* Вариант отделки окна (К8а): новый пост → 0; существующий/шаблон → первый вариант, которому годится
+     накладка (EPRoomVariantsUi.builderInitialIndex), иначе 0; в проект НЕ пишется. ДО модульностей. */
+  state.builder.variantIndex=EPRoomVariantsUi.builderInitialIndex(state.rooms.find(r=>r.id===state.builder.roomId),frameProduct(src.frameId),!!(placedId||templateId),(v,f)=>!!f&&EPCatalog.productsForRoom([f],roomCatalogFilter(v)).length>0);
   /* Наполняем селектор ДО присвоения value: варианты — модульности каталога плюс фактическая
      ёмкость этого поста. Иначе пост с исчезнувшей модульностью не нашёл бы своей опции и
      показал бы чужое значение (см. frameSlotOptions). Многорядные 14/21 теперь входят в
@@ -490,18 +493,16 @@ function builderCapacity(){
    (editingPlacedId → roomId → комната); шаблон и НОВЫЙ пост комнаты не имеют → все критерии null →
    фильтра нет (пост «вне комнат»). Валидируем по спискам каталога: мёртвое (снятое из прайса)
    значение → null → предикат не применяется. */
-/* Комната, ПОД КОТОРУЮ конструктор сужает каталог (ОТДЕЛКА-ПОРЯДОК, п.3). Источник — селектор
-   «Комната» (state.builder.roomId): для нового поста его задаёт человек ДО сборки, для поста на
-   плане openPostBuilder инициализирует его комнатой поста. Если roomId по какой-то причине не
-   задан (старый вызов, тест-стенд без builder.roomId) — фолбэк на комнату размещённого поста, чтобы
-   прежнее поведение E13/E14 не сломалось. Комнаты нет → null (каталог не сужаем). */
+/* Отделка, ПОД КОТОРУЮ конструктор сужает каталог (ОТДЕЛКА-ПОРЯДОК п.3 + ВАРИАНТ К8а). ЕДИНАЯ точка:
+   отсюда отделку читают и накладки, и начинка, и умолчание, и хинты — ВАРИАНТ выбирается ровно здесь,
+   один раз (§7.1). Комната — из селектора «Комната» (roomId), фолбэк на комнату поста. Берём ВЫБРАННЫЙ
+   вариант (state.builder.variantIndex, зажат EPRoomVariantsUi.builderIndex); одновариантная комната →
+   вариант 0 = плоские поля = прежнее поведение байт-в-байт. Комнаты нет → null (каталог не сужаем). */
 function builderFilterRoom(){
-  if(state.builder.roomId!=null){
-    const r=state.rooms.find(x=>x.id===state.builder.roomId);
-    if(r)return r;
-  }
-  const placed=state.builder.editingPlacedId?state.posts.find(p=>p.id===state.builder.editingPlacedId):null;
-  return placed?state.rooms.find(r=>r.id===placed.roomId)||null:null;
+  const byId=state.builder.roomId!=null?state.rooms.find(x=>x.id===state.builder.roomId):null;
+  const placed=!byId&&state.builder.editingPlacedId?state.posts.find(p=>p.id===state.builder.editingPlacedId):null;
+  const room=byId||(placed?state.rooms.find(r=>r.id===placed.roomId)||null:null);
+  return room?EPRoomVariants.list(room)[EPRoomVariantsUi.builderIndex(room,state.builder.variantIndex)]||null:null;
 }
 function builderRoomFilter(){
   return roomCatalogFilter(builderFilterRoom());
@@ -550,6 +551,9 @@ function collectionFramePool(allFrames){
 function renderBuilder(){
   const count=Number($("postSlotCount").value),allMechanisms=byKind("mechanism");
   const frameSelect=$("postFrameSelect"),allFrames=byKind("frame");
+  /* Селектор «Вариант отделки» (К8а): виден при >1 варианте; смена варианта = смена комнаты
+     (state.builder.variantIndex + changeBuilderRoom → applyAutoDefaultFrame + перерисовка, §7.1). */
+  EPRoomVariantsUi.renderBuilderVariantSelect({$,room:(state.rooms||[]).find(r=>r.id===state.builder.roomId),index:state.builder.variantIndex,onChange:i=>{state.builder.variantIndex=i;changeBuilderRoom(state.builder.roomId)}});
   /* ⚠️ КОЛЛЕКЦИЯ КОМНАТЫ СУЖАЕТ СПИСОК НАКЛАДОК ПЕРВЫМ ШАГОМ (E13). Помещение закреплено за
      коллекцией — предлагаем накладки только её (встреча 24.08: «отсеять неподходящие рамки»).
      Фильтр по числу модулей идёт УЖЕ по этому пулу, а не по всему каталогу. Пост вне комнат /
@@ -1519,7 +1523,7 @@ $("savePost").onclick=savePostBuilder;$("postSlotCount").onchange=changePostSlot
    «ручной выбор, годный для комнаты, не перетирать»). */
 $("postFrameSelect").onchange=()=>{state.builder.frameAuto=false;renderBuilder()};
 /* Смена «Комнаты поста» — вся логика в changeBuilderRoom (вынесена, чтобы связку проверял тест). */
-$("builderRoomSelect").onchange=e=>changeBuilderRoom(e.target.value||null);
+$("builderRoomSelect").onchange=e=>{state.builder.variantIndex=0;changeBuilderRoom(e.target.value||null)};
 /* Галочка «ограничить цветом накладки» (решение владельца 16.09): меняет только цветовой отбор
    начинки — накладка и раскладка те же, достаточно перерисовать конструктор (renderBuilder
    пересчитает catalogMechs). */

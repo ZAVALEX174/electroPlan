@@ -4,7 +4,7 @@
 
    Исполняем НАСТОЯЩИЙ текст app.js в vm на НАСТОЯЩЕМ каталоге VIMAR, ОБОГАЩЁННОМ data.js (тот же
    путь и порядок, что index.html: catalog-vimar.js → catalog-vimar-attrs.js → data.js), — отделка
-   доезжает до товара ровно так, как в браузере. EPCatalog/EPRoom настоящие.
+   доезжает до товара ровно так, как в браузере. EPCatalog/EPRoom, EPRoomVariants, EPRoomVariantsUi настоящие.
 
    ЯКОРИ (замерено продакшн-функциями, числа НЕ хардкодим вслепую):
      A) комната Eikon Evo + материал «Камень»: пул 20 из 222 (коллекция), модульности
@@ -29,6 +29,8 @@ const stand = require("./helpers/appStand.js");
 
 const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
+const EPRoomVariants = require("../js/roomVariants.js");
+const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
 
 /* Обогащённый каталог — как в браузере: три файла в том же порядке, что index.html. Отделка
    (frameMaterial/frameShape/frameColor) подмешивается data.js, а не руками — второй копии merge нет. */
@@ -70,7 +72,7 @@ function filterFor(room) {
     posts: [{ id: "p1", roomId: "r1" }],
     builder: { editingPlacedId: "p1" }
   };
-  return stand.run(FILTER_CUT, { state, byKind: k => PRODUCTS.filter(x => x.kind === k && x.active), EPCatalog, EPRoom })();
+  return stand.run(FILTER_CUT, { state, byKind: k => PRODUCTS.filter(x => x.kind === k && x.active), EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi })();
 }
 
 test("§A-filter: критерий несёт коллекцию И отделку комнаты", () => {
@@ -97,7 +99,7 @@ function poolFor(room) {
     posts: [{ id: "p1", roomId: "r1" }],
     builder: { editingPlacedId: "p1" }
   };
-  const pool = stand.run(POOL_CUT, { state, byKind: k => PRODUCTS.filter(x => x.kind === k && x.active), EPCatalog, EPRoom });
+  const pool = stand.run(POOL_CUT, { state, byKind: k => PRODUCTS.filter(x => x.kind === k && x.active), EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi });
   return pool(activeFrames());
 }
 
@@ -122,7 +124,7 @@ function slotOptions(room, extra) {
   const dom = stand.makeDom();
   const render = stand.run(SLOT_CUT, {
     state, $: dom.$, byKind: k => PRODUCTS.filter(x => x.kind === k && x.active),
-    frameSlotOptions: EPCatalog.frameSlotOptions, EPCatalog, EPRoom
+    frameSlotOptions: EPCatalog.frameSlotOptions, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi
   });
   render(extra);
   return optionValues(dom.$("postSlotCount").innerHTML).map(Number);
@@ -148,7 +150,7 @@ function hintFor(room) {
     posts: [{ id: "p1", roomId: "r1" }],
     builder: { editingPlacedId: "p1" }
   };
-  const hint = stand.run(HINT_CUT, { state, byKind: k => PRODUCTS.filter(x => x.kind === k && x.active), EPCatalog, EPRoom });
+  const hint = stand.run(HINT_CUT, { state, byKind: k => PRODUCTS.filter(x => x.kind === k && x.active), EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi });
   return hint(activeFrames());
 }
 

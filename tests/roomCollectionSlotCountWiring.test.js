@@ -46,6 +46,8 @@ const stand = require("./helpers/appStand.js");
 
 const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
+const EPRoomVariants = require("../js/roomVariants.js");
+const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
 const EPPosts = require("../js/posts.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
 
@@ -76,7 +78,7 @@ function slotCtx(state, dom) {
     state, $: dom.$,
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
     frameSlotOptions: EPCatalog.frameSlotOptions,
-    EPCatalog, EPRoom
+    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi
   };
 }
 const SLOT_CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "builderInnardsFilter", "collectionFramePool", "renderPostSlotCountSelect"];
@@ -142,7 +144,7 @@ function builderCtx(state, dom, captured) {
     mechanismSpan: EPCatalog.mechanismSpan,
     moduleWord: EPCatalog.moduleWord,
     esc: s => String(s == null ? "" : s),
-    EPCatalog, EPRoom, EPPosts, EPBuilderSlots,
+    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPosts, EPBuilderSlots,
     productSeries: seriesOf,
     productOptionLabel: i => `[${i.code}] ${i.name}`,
     // перехват: забираем options.emptyContext, отрисовку списка не трогаем

@@ -29,6 +29,13 @@ function V() {
   if (typeof require !== "undefined") return require("./roomVariants.js");
   return null;
 }
+/* Каталог нужен лишь для подписи «стандарт словом» (standardLabel) в селекторе варианта окна поста.
+   Резолвим как V(): в браузере namespace загружен (catalog.js раньше), в Node — через require. */
+function Catalog() {
+  if (typeof window !== "undefined" && window.EPCatalog) return window.EPCatalog;
+  if (typeof require !== "undefined") return require("./catalog.js");
+  return null;
+}
 
 /* Активная вкладка: к какой комнате относится и её индекс. Не проект — живёт только в сеансе. */
 let activeSel = { roomId: null, index: 0 };
@@ -132,8 +139,63 @@ function bindTabs(room, deps) {
   };
 }
 
+/* ─── СЕЛЕКТОР «ВАРИАНТ» В ОКНЕ ПОСТА (К8а, часть 3, решение владельца 24.10) ──────────────────────
+   Отдельно от вкладок панели комнаты (выше): в окне поста выбирают, ПОД КАКОЙ вариант отделки комнаты
+   собирается пост — от него накладка и механизмы. Структура/лимит вариантов — та же EPRoomVariants (V()),
+   второй копии нет (§7.1). Вариант у поста НЕ хранится: индекс живёт в state.builder (окно поста зовёт
+   эти функции), как и выбранная комната. */
+
+/* Зажать индекс варианта в границы комнаты [0, N-1]. N всегда ≥1 (V().list не пуст), поэтому для
+   одновариантной комнаты всегда 0 — поведение байт-в-байт прежнего (пост собирается по единственной
+   отделке = плоским полям). Нестроковый/пустой index → 0. */
+function builderIndex(room, index){
+  const n = V().list(room).length;
+  const i = (index | 0);
+  return i < 0 ? 0 : (i > n - 1 ? n - 1 : i);
+}
+/* Начальный вариант при ОТКРЫТИИ окна (производное решение, сообщено владельцу): новый пост → 0
+   (isExisting=false); существующий пост/шаблон → индекс ПЕРВОГО варианта, которому подходит его накладка
+   (V().fitIndex по предикату fits от вызывающего — он знает каталог), не подошёл ни одному → 0. Комнаты
+   нет → 0. Так пост на плане открывается на «своём» варианте, а не всегда на первом. */
+function builderInitialIndex(room, frame, isExisting, fits){
+  if (!room || !isExisting) return 0;
+  const i = V().fitIndex(V().list(room), frame, fits);
+  return i < 0 ? 0 : i;
+}
+/* Подпись варианта в селекторе: «Вариант N: <стандарт словом> · <серия> · <цвет>»; ни одного признака
+   не задано → «Вариант N: любая отделка». Стандарт словом — через переданный standardLabel (тот же
+   EPCatalog.standardLabel, что везде); серия/цвет — прямо поля варианта (канонические из каталога). */
+function builderVariantLabel(variant, i, standardLabel){
+  const parts = [];
+  if (variant.standard) parts.push(standardLabel(variant.standard));
+  if (variant.collection) parts.push(variant.collection);
+  if (variant.frameColor) parts.push(variant.frameColor);
+  return "Вариант " + (i + 1) + ": " + (parts.length ? parts.join(" · ") : "любая отделка");
+}
+/* Отрисовать и привязать селектор «Вариант» в окне поста. Поле ПОЯВЛЯЕТСЯ ТОЛЬКО при >1 варианте
+   (решение: при одном варианте селектора нет, выбирать не из чего) — иначе скрыто и пусто. deps:
+   { $, room, index, onChange }. onChange(i) — реакция окна на выбор: ровно смена комнаты (postBuilder
+   зовёт applyAutoDefaultFrame + renderBuilder), второй трактовки нет (§7.1). Подпись — из каноничных
+   полей каталога (серия/цвет/стандарт словом через Catalog().standardLabel), пользовательского ввода
+   нет — не экранируем, как в tabsHtml выше. */
+function renderBuilderVariantSelect(deps){
+  const $ = deps.$, wrap = $("builderVariantField"), sel = $("builderVariantSelect");
+  if (!wrap || !sel) return;
+  const variants = deps.room ? V().list(deps.room) : [];
+  if (variants.length <= 1) { wrap.hidden = true; sel.innerHTML = ""; return; }
+  wrap.hidden = false;
+  const idx = builderIndex(deps.room, deps.index);
+  const standardLabel = Catalog().standardLabel;
+  sel.innerHTML = variants.map((v, i) =>
+    '<option value="' + i + '"' + (i === idx ? ' selected' : '') + '>' + builderVariantLabel(v, i, standardLabel) + '</option>'
+  ).join("");
+  sel.value = String(idx);
+  sel.onchange = e => deps.onChange(Number(e.target.value) || 0);
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
-const api = { activeIndex, setActiveIndex, applyResult, writeField, writeSelection, tabsHtml, removeBtnHtml, bindTabs };
+const api = { activeIndex, setActiveIndex, applyResult, writeField, writeSelection, tabsHtml, removeBtnHtml, bindTabs,
+  builderIndex, builderInitialIndex, builderVariantLabel, renderBuilderVariantSelect };
 if (typeof window !== "undefined") window.EPRoomVariantsUi = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

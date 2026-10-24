@@ -23,6 +23,8 @@ const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
 const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
+const EPRoomVariants = require("../js/roomVariants.js");
+const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
 
 /* Синтетический каталог: «Arke» — у ЖИВОЙ накладки (список коллекций непуст и осмыслен),
    «GhostFrame» — ТОЛЬКО у неактивной накладки (byKind("frame") её не вернёт),
@@ -52,7 +54,7 @@ test("§1 селектор «Коллекция комнаты» (renderProperti
     props,
     byKind,
     EPCatalog,
-    EPRoom,
+    EPRoom, EPRoomVariants, EPRoomVariantsUi,
     EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
     EPLightingGroups: { SCHEMES: [{ id: "classic", label: "Классическая", supported: true }] },
     lightingScheme: () => "classic",
@@ -86,7 +88,7 @@ test("§2 builderRoomFilter не признаёт валидной коллек�
     posts: [{ id: "p1", roomId: "r1" }],
     builder: { editingPlacedId: "p1" }
   };
-  const filter = stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter"], { state, byKind, EPCatalog, EPRoom })();
+  const filter = stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter"], { state, byKind, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi })();
 
   assert.equal(filter.collection, null,
     "«GhostFrame» жива только у неактивной накладки → не валидна как коллекция комнаты → критерий пуст (весь каталог)");

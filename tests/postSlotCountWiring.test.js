@@ -129,7 +129,7 @@ function makeCtx(state, dom) {
     renderBuilderComposition: (frame, errorHtml) => { dom.$("builderComposition").innerHTML = frame ? "<composition>" : (errorHtml || ""); },
     renderBuilder: () => {},
     builderCtx: {},
-    collectionFramePool: frames => frames, frameFacingHintText: () => "", EPCatalog, builderInnardsFilter: () => ({}), builderFilterRoom: () => null, frameFacingList: () => [], EPRoom: { roomFrameFacing: () => null },
+    collectionFramePool: frames => frames, frameFacingHintText: () => "", EPCatalog, builderInnardsFilter: () => ({}), builderFilterRoom: () => null, frameFacingList: () => [], EPRoom: { roomFrameFacing: () => null }, EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
     EPBuilderSlots, EPPosts, EPThermoSensor: require("../js/thermoSensor.js")
   };
   /* Контекст создаёт стенд при stand.run(...); свойства, дописанные в ctx до вызова

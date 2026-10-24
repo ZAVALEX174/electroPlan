@@ -51,7 +51,7 @@ function makeBuilderCtx(products, dom) {
     renderBuilderComposition: () => {}, renderBuilder: () => {}, builderCtx: {},
     collectionFramePool: frames => frames, frameFacingHintText: () => "", EPCatalog,
     builderInnardsFilter: () => ({}), builderFilterRoom: () => null, frameFacingList: () => [],
-    EPRoom: { roomFrameFacing: () => null }, EPBuilderSlots, EPPosts, EPThermoSensor
+    EPRoom: { roomFrameFacing: () => null }, EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"), EPBuilderSlots, EPPosts, EPThermoSensor
   };
 }
 
