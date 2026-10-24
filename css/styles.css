@@ -164,6 +164,16 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .room-facing-view-btn{padding:4px 8px;border:0;background:#fff;color:var(--blue-dark);font-size:9px;font-weight:800;cursor:pointer}
 .room-facing-view-btn.active{background:var(--blue-soft);color:var(--blue-dark);box-shadow:inset 0 0 0 1px var(--blue)}
 .room-facing-block .room-standard-field,.room-facing-block .room-collection-field,.room-facing-block .room-facing-field{margin-top:10px}
+/* Вкладки вариантов отделки комнаты (К8а): «Отделка: [Вариант 1] … [+ вариант]». Кнопки в стиле
+   переключателя вида (.room-facing-view-btn): активная подсвечена, «+ вариант» — пунктирная. */
+.room-variants-tabs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.room-variants-label{color:var(--muted);font-size:10px;font-weight:800}
+.room-variants-list{display:inline-flex;flex-wrap:wrap;gap:4px}
+.room-variant-tab{padding:4px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--blue-dark);font-size:9px;font-weight:800;cursor:pointer}
+.room-variant-tab.active{background:var(--blue-soft);box-shadow:inset 0 0 0 1px var(--blue)}
+.room-variant-add{padding:4px 9px;border:1px dashed var(--blue);border-radius:8px;background:#fff;color:var(--blue-dark);font-size:9px;font-weight:800;cursor:pointer}
+.room-variant-remove-row{margin-top:10px}
+.room-variant-remove{width:100%}
 /* Сводка выбранного в виде «С картинками» — чтобы «что выбрано в одном виде, видно в другом» без
    открытия мастера. .own — отделка задана (акцент, как «своя схема»); пусто — приглушённо. */
 .room-facing-summary{margin:2px 0 8px;color:var(--muted);font-size:10px;line-height:1.4}

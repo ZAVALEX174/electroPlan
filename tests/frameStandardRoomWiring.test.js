@@ -97,7 +97,7 @@ function renderList(room) {
     findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
     applySelectionClasses: spy(), getObjectsInRoom: () => [], roomAutoAreaText: () => "",
     polygonAreaPx: () => 0, lightingScheme: () => "classic",
-    EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"),
+    EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
     EPPrefs: { get: (k, fb) => (k === "frameFacingView" ? "list" : fb), set: () => {} },
     setTool: spy(), persistProject: spy(), renderSummary: spy(), renderAll: spy(), mountedRoomId: null
   };
@@ -132,7 +132,7 @@ test("§picker-read: openFramePicker сеет sel.standard из room.standard (�
   const stub = () => ({ classList: { add() {}, remove() {} }, querySelector: () => null });
   const ctx = {
     framePickerRoomId: null, framePickerSel: null, framePickerStep: 0,
-    byKind: byKindOf, EPCatalog, EPRoom, EPFramePicker, EPRoomWalls: require("../js/roomWalls.js"),
+    byKind: byKindOf, EPCatalog, EPRoom, EPFramePicker, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
     renderFramePicker: () => {}, $: stub, setTimeout: () => 0
   };
   stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "openFramePicker"], ctx)(
@@ -146,7 +146,7 @@ test("§picker-write: applyFramePicker пишет room.standard и снимае�
   const room = { id: "r1", name: "Гостиная", standard: "IT" };
   const ctx = {
     framePickerRoomId: "r1", framePickerSel: { standard: "DE", collection: "Arke" }, framePickerStep: 0,
-    EPFramePicker, state: { rooms: [room] }, persistProject: spy(), renderProperties: spy(), $: stand.makeDom().$
+    EPFramePicker, EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"), state: { rooms: [room] }, persistProject: spy(), renderProperties: spy(), $: stand.makeDom().$
   };
   stand.run(["closeFramePicker", "applyFramePicker"], ctx)();
   assert.equal(room.standard, "DE", "мастер записал стандарт в room.standard — то же поле, что читает список");
@@ -154,7 +154,7 @@ test("§picker-write: applyFramePicker пишет room.standard и снимае�
   const room2 = { id: "r2", name: "Кухня", standard: "IT" };
   const ctx2 = {
     framePickerRoomId: "r2", framePickerSel: { collection: "Arke" }, framePickerStep: 0,
-    EPFramePicker, state: { rooms: [room2] }, persistProject: spy(), renderProperties: spy(), $: stand.makeDom().$
+    EPFramePicker, EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"), state: { rooms: [room2] }, persistProject: spy(), renderProperties: spy(), $: stand.makeDom().$
   };
   stand.run(["closeFramePicker", "applyFramePicker"], ctx2)();
   assert.ok(!("standard" in room2), "стандарт не выбран в мастере → поле снято (как «Не задан» в списке)");

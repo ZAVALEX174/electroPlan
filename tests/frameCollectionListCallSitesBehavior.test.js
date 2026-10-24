@@ -53,7 +53,7 @@ test("§1 селектор «Коллекция комнаты» (renderProperti
     byKind,
     EPCatalog,
     EPRoom,
-    EPRoomWalls: require("../js/roomWalls.js"),
+    EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
     EPLightingGroups: { SCHEMES: [{ id: "classic", label: "Классическая", supported: true }] },
     lightingScheme: () => "classic",
     findSelectedEntity: () => room,

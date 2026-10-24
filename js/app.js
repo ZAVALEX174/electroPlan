@@ -1478,8 +1478,15 @@ function renderProperties(){
        коллекции: значения из каталога (frameStandardList), действующее — через EPRoom.roomFrameFacing
        (мёртвое → «не задан», r.standard не трогаем). Подпись человеку — словом (EPCatalog.standardLabel),
        а не кодом IT/DE. */
+    /* Варианты отделки комнаты (К8а): до пяти наборов (вариант 1 = плоские поля, 2..5 — moreVariants;
+       всё в EPRoomVariants). Поля отделки ниже строятся из ВЫБРАННОЙ вкладки (facingEntity) — EPRoom.*
+       читают любой объект, вариант отдаётся им как «комната», второй трактовки списков нет (§7.1).
+       Вкладка — состояние интерфейса: смена комнаты → Вариант 1. Посты пока по варианту 1 (часть 3). */
+    const roomVariants=EPRoomVariants.list(r);
+    const roomVariantIdx=EPRoomVariantsUi.activeIndex(r.id,roomVariants.length);
+    const facingEntity=roomVariants[roomVariantIdx];
     const standardList=frameStandardList();
-    const roomStd=EPRoom.roomFrameFacing(r,"standard",standardList);
+    const roomStd=EPRoom.roomFrameFacing(facingEntity,"standard",standardList);
     const standardOptions=`<option value=""${roomStd?"":" selected"}>Не задан — накладки любого стандарта</option>`
       +standardList.map(code=>`<option value="${esc(code)}"${code===roomStd?" selected":""}>${esc(EPCatalog.standardLabel(code))}</option>`).join("");
     /* Коллекция накладок комнаты (E13). ⚠️ В ОТЛИЧИЕ ОТ СХЕМЫ у коллекции НЕТ значения-умолчания
@@ -1488,7 +1495,7 @@ function renderProperties(){
        мёртвое/отсутствующее значение → null → селектор в «Не задана», r.collection не трогаем до
        выбора человека). Список коллекций — из каталога (frameCollectionList), не константа. */
     const collectionList=frameCollectionList();
-    const roomColl=EPRoom.roomCollection(r,collectionList);
+    const roomColl=EPRoom.roomCollection(facingEntity,collectionList);
     const collectionOptions=`<option value=""${roomColl?"":" selected"}>Не задана — предлагать все накладки</option>`
       +collectionList.map(name=>`<option value="${esc(name)}"${name===roomColl?" selected":""}>${esc(name)}</option>`).join("");
     /* Отделка накладки комнаты (E14): материал, форма, цвет. Тот же приём, что у коллекции: значения
@@ -1501,7 +1508,7 @@ function renderProperties(){
       {prop:"frameColor",label:"Цвет накладки",empty:"Не задан — любой цвет",on:"Предлагаются накладки только этого цвета",off:"Цвет не задан — не сужается"}
     ].map(spec=>{
       const values=frameFacingList(spec.prop);
-      const cur=EPRoom.roomFrameFacing(r,spec.prop,values);
+      const cur=EPRoom.roomFrameFacing(facingEntity,spec.prop,values);
       const options=`<option value=""${cur?"":" selected"}>${esc(spec.empty)}</option>`
         +values.map(v=>`<option value="${esc(v)}"${v===cur?" selected":""}>${esc(v)}</option>`).join("");
       return {...spec,cur,options};
@@ -1532,6 +1539,7 @@ function renderProperties(){
         <div class="room-facing-summary${facingChosen.length?" own":""}">${facingChosen.length?esc(facingChosen.join(" · ")):(roomStd?"Серия, материал, форма и цвет не заданы":"Отделка не задана — предлагаются все накладки каталога")}</div>
         <button type="button" class="btn ghost room-facing-pick-btn" id="roomFramePickerBtn">Подобрать накладку</button>`;
     const facingBlockHtml=`<div class="room-facing-block">
+      ${EPRoomVariantsUi.tabsHtml(roomVariants,roomVariantIdx)}
       <div class="room-facing-head"><span class="room-facing-title">Отделка накладки</span>
         <div class="room-facing-view" role="group" aria-label="Вид выбора отделки">
           <button type="button" id="roomFacingViewList" class="room-facing-view-btn${facingView==="list"?" active":""}" aria-pressed="${facingView==="list"}">Списком</button>
@@ -1539,6 +1547,7 @@ function renderProperties(){
         </div>
       </div>
       ${facingBody}
+      ${EPRoomVariantsUi.removeBtnHtml(roomVariants)}
     </div>`;
     props.innerHTML=`<label>Название комнаты<input id="roomName" value="${esc(r.name)}" autocomplete="off"></label>
     <label>Площадь<input id="roomArea" value="${esc(r.area||"")}" placeholder="${esc(autoArea||"Например, 18,6 м²")}" autocomplete="off"></label>
@@ -1594,32 +1603,19 @@ function renderProperties(){
     /* Селекторы коллекции и отделки существуют ТОЛЬКО в виде «Списком» — в виде «С картинками» их в
        разметке нет, обработчики на несуществующие узлы вешать нельзя (в браузере $() вернёт null). */
     if(facingView==="list"){
-      /* Стандарт монтажа применяется СРАЗУ по change — как коллекция и по той же причине НЕ денежный:
-         сужает только каталог конструктора, состав и цену существующих постов не трогает (в estimate.js
-         стандарт не входит). Поэтому renderSummary/renderAll не нужны — только перерисовать карточку
-         (обновить подпись «задан/не задан» и сводку) и сохранить. «Не задан» (value="") СНИМАЕТ поле. */
-      $("roomStandardSelect").onchange=e=>{
-        const val=e.target.value;
-        if(val)r.standard=val; else delete r.standard;
-        renderProperties();persistProject();
-      };
-      $("roomCollectionSelect").onchange=e=>{
-        const val=e.target.value;
-        if(val)r.collection=val; else delete r.collection;
-        renderProperties();persistProject();
-      };
-      /* Отделка накладки (E14) применяется СРАЗУ по change — как коллекция и по той же причине НЕ
-         денежная: сужает только каталог конструктора, состав и цену существующих постов не трогает
-         (в estimate.js отделка не входит). Поэтому renderSummary/renderAll не нужны — только
-         перерисовать карточку комнаты (обновить подпись «задан/не задан») и сохранить. «Не задан»
-         (value="") СНИМАЕТ поле. Один обработчик на три селектора — правило хранения в одной точке. */
-      facingSpecs.forEach(spec=>{
-        $("room_"+spec.prop+"Select").onchange=e=>{
-          const val=e.target.value;
-          if(val)r[spec.prop]=val; else delete r[spec.prop];
-          renderProperties();persistProject();
-        };
-      });
+      /* Стандарт, коллекция и отделка применяются СРАЗУ по change и пишутся в ВЫБРАННЫЙ вариант
+         (roomVariantIdx) через EPRoomVariantsUi.writeField — один каскад EPRoomVariants на все
+         селекторы и на мастер (§7.1). Признаки НЕ денежные (в estimate.js не входят, посты пока по
+         варианту 1): renderSummary/renderAll не нужны — только перерисовать карточку и сохранить.
+         «Не задан» (value="") СНИМАЕТ признак. Один цикл на все селекторы — правило в одной точке. */
+      [["roomStandardSelect","standard"],["roomCollectionSelect","collection"]]
+        .concat(facingSpecs.map(spec=>["room_"+spec.prop+"Select",spec.prop]))
+        .forEach(([selId,prop])=>{
+          $(selId).onchange=e=>{
+            EPRoomVariantsUi.writeField(r,roomVariantIdx,prop,e.target.value);
+            renderProperties();persistProject();
+          };
+        });
     }
     $("roomSchemeSelect").onchange=e=>{
       const val=e.target.value;
@@ -1633,6 +1629,7 @@ function renderProperties(){
       renderAll();renderProperties();renderSummary();persistProject();
     };
     EPRoomWalls.bindRoomFields(r,{$,persistProject});   /* К4в: привязка чекбоксов отметок стен — в модуле (разметка вставлена выше) */
+    EPRoomVariantsUi.bindTabs(r,{$,renderProperties,persistProject});   /* К8а: вкладки вариантов, «+ вариант», «Удалить вариант» — в модуле (разметка вставлена выше) */
   }
 }
 /* ---- Группы света и схема электрики проекта (C8) ------------------------------------
@@ -2305,15 +2302,18 @@ const framePickerDeps={
 function frameStepValueLabel(prop,value){return prop==="standard"?EPCatalog.standardLabel(value):value;}
 function openFramePicker(room){
   framePickerRoomId=room.id;
-  /* Инициализация из ТЕХ ЖЕ настроек комнаты, что читает список-вид, с ТОЙ ЖЕ валидацией мёртвых
-     значений (EPRoom): убранная из прайса серия/цвет не должны прийти в мастер как выбранные. */
+  /* Инициализация из ВЫБРАННОГО варианта отделки (К8а), а не из плоских полей: мастер читает тот же
+     набор, что показывают селекторы-список над кнопкой. EPRoom.* валидируют мёртвые (снятые из прайса)
+     значения и читают любой объект, поэтому вариант передаётся им как «комната». */
+  const variants=EPRoomVariants.list(room);
+  const facingEntity=variants[EPRoomVariantsUi.activeIndex(room.id,variants.length)];
   const sel={};
-  const std=EPRoom.roomFrameFacing(room,"standard",frameStandardList());
+  const std=EPRoom.roomFrameFacing(facingEntity,"standard",frameStandardList());
   if(std)sel.standard=std;
-  const coll=EPRoom.roomCollection(room,frameCollectionList());
+  const coll=EPRoom.roomCollection(facingEntity,frameCollectionList());
   if(coll)sel.collection=coll;
   ["frameMaterial","frameShape","frameColor"].forEach(prop=>{
-    const v=EPRoom.roomFrameFacing(room,prop,frameFacingList(prop));
+    const v=EPRoom.roomFrameFacing(facingEntity,prop,frameFacingList(prop));
     if(v)sel[prop]=v;
   });
   framePickerSel=sel;
@@ -2375,15 +2375,15 @@ function pickFrameStep(value){
   renderFramePicker();
 }
 function applyFramePicker(){
-  /* «Применить» записывает выбор в ТЕ ЖЕ поля комнаты, что и список-вид: пустой признак СНИМАЕТ поле
-     (как «Не задан» в селекторе). Отделка не денежная (в estimate.js не входит) — persistProject
-     без renderSummary/renderAll, как у onchange списка. renderProperties обновит карточку и сводку. */
+  /* «Применить» записывает выбор в ВЫБРАННЫЙ вариант (К8а) тем же каскадом (writeSelection), что и
+     список-вид; пустой признак СНИМАЕТ его. Вкладка не меняется, пока открыт мастер, — индекс тот же
+     activeIndex, что и в openFramePicker. Отделка не денежная — persistProject без renderSummary/
+     renderAll, renderProperties обновит карточку и сводку. */
   const room=state.rooms.find(r=>r.id===framePickerRoomId);
   if(room){
-    EPFramePicker.STEPS.forEach(s=>{
-      const v=framePickerSel[s.prop];
-      if(v)room[s.prop]=v; else delete room[s.prop];
-    });
+    const variants=EPRoomVariants.list(room);
+    const idx=EPRoomVariantsUi.activeIndex(room.id,variants.length);
+    EPRoomVariantsUi.writeSelection(room,idx,framePickerSel);
     persistProject();
   }
   closeFramePicker();

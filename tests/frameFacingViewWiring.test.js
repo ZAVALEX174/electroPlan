@@ -65,7 +65,7 @@ function renderRoomView(view, room) {
     roomAutoAreaText: () => "",
     polygonAreaPx: () => 0,
     lightingScheme: () => "classic",
-    EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"),
+    EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
     /* EPPrefs отдаёт запрошенный вид — привычка человека; тест доказывает, что renderProperties им
        управляется (а не проектом). */
     EPPrefs: { get: (k, fb) => (k === "frameFacingView" ? view : fb), set: () => {} },
@@ -112,7 +112,7 @@ test("applyFramePicker пишет заданные признаки и СНИМ�
     framePickerRoomId: "r1",
     framePickerSel: { collection: "Arke", frameMaterial: "Металл" },
     framePickerStep: 2,
-    EPFramePicker,
+    EPFramePicker, EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
     state: { rooms: [{ id: "r0", name: "Другая" }, room] },
     persistProject, renderProperties,
     $: dom.$
@@ -132,7 +132,7 @@ test("applyFramePicker бьёт по ВЫДЕЛЕННОЙ комнате мас�
   const dom = stand.makeDom();
   const ctx = {
     framePickerRoomId: "r1", framePickerSel: { collection: "Plana" }, framePickerStep: 0,
-    EPFramePicker, state: { rooms: [decoy, target] },
+    EPFramePicker, EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"), state: { rooms: [decoy, target] },
     persistProject: spy(), renderProperties: spy(), $: dom.$
   };
   stand.run(["closeFramePicker", "applyFramePicker"], ctx)();
@@ -166,7 +166,7 @@ function makeLive(room, view) {
     findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
     applySelectionClasses: spy(), getObjectsInRoom: () => [], roomAutoAreaText: () => "",
     polygonAreaPx: () => 0, lightingScheme: () => "classic",
-    EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"), EPFramePicker,
+    EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"), EPFramePicker,
     EPPrefs: { get: (k, fb) => (k in prefs ? prefs[k] : fb), set: (k, v) => { prefs[k] = v; } },
     setTool: spy(), persistProject: spy(), renderSummary: spy(), renderAll: spy(),
     mountedRoomId: null
