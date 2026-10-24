@@ -43,6 +43,23 @@ function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+/* Подпись комнаты человеку в заголовках отделки (К8б, решение владельца): «для какой комнаты вы
+   выбираете». Имя — текущее room.name; пустое нормализуем в «Комната» ТЕМ ЖЕ правилом, что saveRoom/
+   EPRoomDraft.commit, — одна подпись у комнаты во всех местах (§7.1). Возвращаем УЖЕ экранированным:
+   результат уходит в innerHTML заголовка панели отделки и окна «Подбор накладки». */
+function roomLabel(room) {
+  const name = String(room && room.name != null ? room.name : "").trim() || "Комната";
+  return esc(name);
+}
+
+/* Полный текст заголовка блока «Отделка накладки — <комната>» в правой панели. Держим в ОДНОМ месте:
+   его зовёт и шаблон панели (renderProperties), и точечное обновление после переименования комнаты
+   (flushRoomDraft — как updateRoomLabelText для подписи на холсте), чтобы два заголовка не разошлись
+   (§7.1). Имя через roomLabel — уже экранировано, префикс статичен; результат уходит в innerHTML. */
+function facingTitle(room) {
+  return "Отделка накладки — " + roomLabel(room);
+}
+
 /* Активная вкладка: к какой комнате относится и её индекс. Не проект — живёт только в сеансе. */
 let activeSel = { roomId: null, index: 0 };
 
@@ -275,7 +292,7 @@ function applyBuilderVariantChange(d){
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
-const api = { activeIndex, setActiveIndex, applyResult, writeField, writeSelection, tabsHtml, removeBtnHtml, bindTabs,
+const api = { roomLabel, facingTitle, activeIndex, setActiveIndex, applyResult, writeField, writeSelection, tabsHtml, removeBtnHtml, bindTabs,
   builderIndex, builderInitialIndex, builderVariantLabel, renderBuilderVariantSelect,
   facingFieldOptionsHtml, variantHasNoFrames, builderVariantResetMessage, applyBuilderVariantChange };
 if (typeof window !== "undefined") window.EPRoomVariantsUi = api;

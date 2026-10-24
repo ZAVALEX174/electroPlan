@@ -1277,6 +1277,7 @@ function flushRoomDraft(){
   if(!res.commit)return;
   room.name=res.name;room.area=res.area;
   updateRoomLabelText(room);   /* точечно, без renderRooms — flush идёт из beginPress (см. выше) */
+  const ftEl=props.querySelector(".room-facing-title");if(ftEl)ftEl.innerHTML=EPRoomVariantsUi.facingTitle(room);   /* К8б: тот же приём для заголовка блока отделки — назван новым именем сразу, без renderProperties */
   persistProject();
 }
 /* §7.1: где живёт выделенная сущность — ОДНА карта kind→поиск на входе панели свойств. Ветки
@@ -1544,7 +1545,7 @@ function renderProperties(){
       :"";
     const facingBlockHtml=`<div class="room-facing-block">
       ${EPRoomVariantsUi.tabsHtml(roomVariants,roomVariantIdx)}
-      <div class="room-facing-head"><span class="room-facing-title">Отделка накладки</span>
+      <div class="room-facing-head"><span class="room-facing-title">${EPRoomVariantsUi.facingTitle(r)}</span>
         <div class="room-facing-view" role="group" aria-label="Вид выбора отделки">
           <button type="button" id="roomFacingViewList" class="room-facing-view-btn${facingView==="list"?" active":""}" aria-pressed="${facingView==="list"}">Списком</button>
           <button type="button" id="roomFacingViewPictures" class="room-facing-view-btn${facingView==="pictures"?" active":""}" aria-pressed="${facingView==="pictures"}">С картинками</button>
@@ -2204,6 +2205,7 @@ const framePickerDeps={
 function frameStepValueLabel(prop,value){return prop==="standard"?EPCatalog.standardLabel(value):value;}
 function openFramePicker(room){
   framePickerRoomId=room.id;
+  $("framePickerTitle").innerHTML="Подбор накладки — "+EPRoomVariantsUi.roomLabel(room);   /* К8б: для какой комнаты подбираем (room.name уже экранирован roomLabel) */
   /* Инициализация из ВЫБРАННОГО варианта отделки (К8а), а не из плоских полей: мастер читает тот же
      набор, что показывают селекторы-список над кнопкой. EPRoom.* валидируют мёртвые (снятые из прайса)
      значения и читают любой объект, поэтому вариант передаётся им как «комната». */
