@@ -13,7 +13,7 @@
 
    Исполняем НАСТОЯЩИЕ collectionFramePool/builderRoomFilter/frameCollectionList/frameOptions/
    builderCapacity/renderBuilder из app.js на НАСТОЯЩЕМ каталоге VIMAR через общий стенд appStand
-   (vm + DOM-шим). EPCatalog/EPRoom — настоящие: правило пересечения проверяется по продакшн-коду.
+   (vm + DOM-шим). EPCatalog/EPRoom, EPRoomVariants, EPRoomVariantsUi — настоящие: правило пересечения проверяется по продакшн-коду.
 
    ЧТО КРАСНЕЕТ (мутационная таблица — в отчёте):
    1) убрать сужение (collectionFramePool → allFrames): в комнате Arke появятся рамки Plana → §1;
@@ -27,6 +27,8 @@ const stand = require("./helpers/appStand.js");
 
 const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
+const EPRoomVariants = require("../js/roomVariants.js");
+const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
 const EPPosts = require("../js/posts.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
 
@@ -67,7 +69,7 @@ const slotsOf = (id, n) => EPBuilderSlots.fromPost({ mechanismIds: Array.from({ 
 const optionValues = html => [...html.matchAll(/<option value="([^"]*)"/g)].map(m => m[1]).filter(Boolean);
 
 /* Контекст vm: доменная логика и каталог настоящие. collectionFramePool/builderRoomFilter/
-   frameCollectionList НЕ заглушаем — их и проверяем, поэтому пробрасываем EPCatalog/EPRoom. */
+   frameCollectionList НЕ заглушаем — их и проверяем, поэтому пробрасываем EPCatalog/EPRoom, EPRoomVariants, EPRoomVariantsUi. */
 function makeCtx(state, dom) {
   const byKind = kind => state.products.filter(x => x.kind === kind && x.active);
   return {
@@ -79,7 +81,7 @@ function makeCtx(state, dom) {
     productSeries: seriesOf,
     productOptionLabel: i => `[${i.code}] ${i.name}`,
     esc: s => String(s == null ? "" : s),
-    EPCatalog, EPRoom,
+    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi,
     enhancePicker: () => {}, resolveMissingFrame: () => null,
     mechanismModulesTotal: ids => ids.reduce((s, id) => s + EPCatalog.mechanismSpan(product(id)), 0),
     assembledPostHtml: () => "<post-preview>",

@@ -22,6 +22,7 @@ const EPPosts = require("../js/posts.js");
 const EPEstimate = require("../js/estimate.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
 const EPLightingGroups = require("../js/lightingGroups.js");
+const EPRoomVariants = require("../js/roomVariants.js");
 
 /* --- Синтетический каталог: две серии, один цвет-гамма «Белая», разные модульности. Цветами и
    ценами управляем точно, а productsForRoom/frameSlotCount/facingColorKey исполняются НАСТОЯЩИЕ. --- */
@@ -104,7 +105,7 @@ function renderLibrary(selected) {
   const ctx = {
     state, $: dom.$, esc: s => String(s == null ? "" : s),
     frameProduct: product, byKind,
-    EPCatalog, EPRoom, EPPosts,
+    EPCatalog, EPRoom, EPPosts, EPRoomVariants,
     frameSlotCount: EPCatalog.frameSlotCount, moduleWord: EPCatalog.moduleWord,
     mechanismModulesTotal: ids => (ids || []).reduce((s, id) => s + EPCatalog.mechanismSpan(product(id)), 0),
     assembledPostHtml: () => "<post-preview>",
@@ -133,7 +134,7 @@ test("renderTemplates: белая комната, а белых постов н�
   const state = { templates: [T_BLACK], rooms: [ROOM_B_WHITE], products: PRODUCTS, selected: { kind: "room", id: ROOM_B_WHITE.id } };
   const ctx = {
     state, $: dom.$, esc: s => String(s == null ? "" : s),
-    frameProduct: product, byKind, EPCatalog, EPRoom, EPPosts,
+    frameProduct: product, byKind, EPCatalog, EPRoom, EPPosts, EPRoomVariants,
     frameSlotCount: EPCatalog.frameSlotCount, moduleWord: EPCatalog.moduleWord,
     mechanismModulesTotal: () => 2, assembledPostHtml: () => "", document: { querySelectorAll: () => [] }
   };
@@ -146,7 +147,7 @@ test("renderTemplates: белая комната, а белых постов н�
 /* ============================ 3. ПОСТАНОВКА: addPending ============================ */
 
 const SWAP_CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "frameFacingLabels", "frameFacingSelectionLabels",
-  "templateMechSeries", "frameSwapEmptyText", "roomCatalogFilter", "frameFitsTemplateMechs", "preferOwnFrame", "frameForRoomPlacement", "addPending"];
+  "templateMechSeries", "frameSwapEmptyText", "roomCatalogFilter", "frameFitsTemplateMechs", "placementFits", "preferOwnFrame", "frameForRoomPlacement", "addPending"];
 
 function placeTemplate({ template, room, catalog = EPCatalog, products = PRODUCTS }) {
   const prod = id => products.find(p => Number(p.id) === Number(id));
@@ -158,7 +159,7 @@ function placeTemplate({ template, room, catalog = EPCatalog, products = PRODUCT
     /* В19: addPending читает/пишет переменные модуля (связь клика по иконке с двойным кликом);
        в изолированной вырезке их нет — кладём в контекст, как top-level let app.js. */
     _placeOnPostIcon: null, _lastIconPlacement: null,
-    EPCatalog: catalog, EPRoom, EPPosts,
+    EPCatalog: catalog, EPRoom, EPPosts, EPRoomVariants,
     byKind: byKindL, frameProduct: prod, product: prod, compatibleMechanisms: EPCatalog.compatibleMechanisms,
     productSeries: EPCatalog.productSeries,
     frameSlotCount: EPCatalog.frameSlotCount, moduleWord: EPCatalog.moduleWord, mechanismSpan: EPCatalog.mechanismSpan,
@@ -283,7 +284,7 @@ function renderPropsLibrary(state, dom) {
   const ctx = {
     state, props: stand.makeElement(), $: dom.$, esc: s => String(s == null ? "" : s),
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
-    frameProduct: product, EPCatalog, EPRoom, EPPosts, EPLightingGroups, EPRoomWalls: require("../js/roomWalls.js"),
+    frameProduct: product, EPCatalog, EPRoom, EPPosts, EPLightingGroups, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
     frameSlotCount: EPCatalog.frameSlotCount, moduleWord: EPCatalog.moduleWord,
     mechanismModulesTotal: ids => (ids || []).reduce((s, id) => s + EPCatalog.mechanismSpan(product(id)), 0),
     assembledPostHtml: () => "<post-preview>", document: { querySelectorAll: () => [] },

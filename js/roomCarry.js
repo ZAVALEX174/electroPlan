@@ -10,9 +10,10 @@
 
    ЧТО ПЕРЕНОСИМ. Только введённое человеком: имя (если оно НЕ авто-формата), непустую площадь,
    схему электрики комнаты (room.lightingScheme — своя схема, отличная от проектной), монтажный
-   стандарт (room.standard — IT/DE), коллекцию накладок (room.collection, E13) и отделку накладок
-   комнаты (room.frameMaterial/frameShape/frameColor, E14). Список полей расширяется в normUserFields —
-   правило сбора «ручного» держим в одной точке.
+   стандарт (room.standard — IT/DE), коллекцию накладок (room.collection, E13), отделку накладок
+   комнаты (room.frameMaterial/frameShape/frameColor, E14) и доп.варианты отделки (room.moreVariants,
+   К8а — варианты 2..5 набора; вариант 1 едет плоскими полями). Список полей расширяется в
+   normUserFields — правило сбора «ручного» держим в одной точке.
    НЕ переносим геометрию (polygon, seedX/seedY, x/y, roomSource) и id — они на то и
    пересчитываются, а привязка объектов к комнатам всё равно пересчитывается заново.
 
@@ -62,6 +63,16 @@ function defaultGeom() {
 function roomWalls() {
   if (typeof window !== "undefined" && window.EPRoomWalls) return window.EPRoomWalls;
   if (typeof require !== "undefined") return require("./roomWalls.js");
+  return null;
+}
+
+/* Варианты отделки комнаты (К8а, room.moreVariants) живут в EPRoomVariants — зовём ЕЁ, чтобы правило
+   «что такое валидный вариант и сколько их» было одним (§7.1), без второй копии чистки/среза. Как
+   defaultGeom/roomWalls: в браузере namespace уже загружен (roomVariants.js подключён раньше), в Node —
+   через require; обе ветки опциональны, нет модуля → доп.варианты не переносим (а не падаем). */
+function roomVariants() {
+  if (typeof window !== "undefined" && window.EPRoomVariants) return window.EPRoomVariants;
+  if (typeof require !== "undefined") return require("./roomVariants.js");
   return null;
 }
 
@@ -131,7 +142,18 @@ function normUserFields(o) {
   const rw = roomWalls();
   const kindsArr = rw ? rw.normalizeKinds(o.wallKinds) : [];
   const wallKinds = kindsArr.length ? kindsArr : null;
-  return { name, area, lightingScheme, standard, collection, frameMaterial, frameShape, frameColor, wallKinds };
+  /* Доп.варианты отделки комнаты (К8а, room.moreVariants) — варианты 2..5 набора отделки. Вариант 1 уже
+     уехал ПЛОСКИМИ полями выше (standard/collection/frameMaterial/frameShape/frameColor), а moreVariants —
+     остальные варианты ТОЙ ЖЕ комнаты: при переносе они обязаны ехать ВМЕСТЕ с вариантом 1 (одна комната —
+     один набор, варианты двух комнат не склеиваются — carry назначает один-к-одному по геометрии).
+     Нормализацию (чистку мусора) и срез до пяти держим в одной точке EPRoomVariants.serialize(list) — то
+     же правило, что при чтении вариантов; второй копии не плодим. serialize.list() кладёт вариант 1 в
+     fields (его мы НЕ берём — он в плоских полях), а варианты 2..n — в moreVariants: ровно их и несём.
+     Пусто/нет модуля → null: отсутствие поля = «доп.вариантов нет», материализовать нельзя (как wallKinds). */
+  const rv = roomVariants();
+  const mv = rv ? rv.serialize(rv.list(o)).moreVariants : [];
+  const moreVariants = mv.length ? mv : null;
+  return { name, area, lightingScheme, standard, collection, frameMaterial, frameShape, frameColor, wallKinds, moreVariants };
 }
 
 /* Есть ли в наборе полей хоть одно переносимое (не null). Одно правило «нести/помнить нечего» —
@@ -140,13 +162,14 @@ function normUserFields(o) {
 function hasAnyField(f) {
   return f.name != null || f.area != null || f.lightingScheme != null || f.standard != null
     || f.collection != null || f.frameMaterial != null || f.frameShape != null || f.frameColor != null
-    || f.wallKinds != null;
+    || f.wallKinds != null || f.moreVariants != null;
 }
 
 /* carry(oldRooms, newRooms[, geom]) → массив переносов
-   [{ toId, fromId, name, area, lightingScheme, standard, collection, frameMaterial, frameShape, frameColor, wallKinds }].
+   [{ toId, fromId, name, area, lightingScheme, standard, collection, frameMaterial, frameShape, frameColor, wallKinds, moreVariants }].
    Каждый перенос — на ОДНУ новую комнату (toId); каждое поле = значение для записи либо null, если оно
-   не переносится (wallKinds — непустой нормализованный массив либо null). В массив попадают только пары, где переносить есть хоть что-то. geom по умолчанию —
+   не переносится (wallKinds — непустой нормализованный массив либо null; moreVariants — непустой массив
+   вариантов 2..5 либо null). В массив попадают только пары, где переносить есть хоть что-то. geom по умолчанию —
    EPGeom (defaultGeom); из него берётся roomMatchPoint — точка сопоставления ВНУТРИ контура (В13). */
 function carry(oldRooms, newRooms, geom) {
   geom = geom || defaultGeom();
@@ -188,7 +211,7 @@ function carry(oldRooms, newRooms, geom) {
     if (!hasAnyField(f)) { usedSrc.add(c.s.room); usedDst.add(c.d.room); return; }
     usedSrc.add(c.s.room); usedDst.add(c.d.room);
     out.push({ toId: c.d.room.id, fromId: c.s.room.id, name: f.name, area: f.area, lightingScheme: f.lightingScheme,
-      standard: f.standard, collection: f.collection, frameMaterial: f.frameMaterial, frameShape: f.frameShape, frameColor: f.frameColor, wallKinds: f.wallKinds });
+      standard: f.standard, collection: f.collection, frameMaterial: f.frameMaterial, frameShape: f.frameShape, frameColor: f.frameColor, wallKinds: f.wallKinds, moreVariants: f.moreVariants });
   });
   return out;
 }
@@ -273,7 +296,7 @@ function reconcile(oldRooms, newRooms, memory, geom) {
     usedMem.add(c.s.i); usedDst.add(c.d.room);
     const f = c.s.fields;
     transfers.push({ toId: c.d.room.id, fromId: null, name: f.name, area: f.area, lightingScheme: f.lightingScheme,
-      standard: f.standard, collection: f.collection, frameMaterial: f.frameMaterial, frameShape: f.frameShape, frameColor: f.frameColor, wallKinds: f.wallKinds });
+      standard: f.standard, collection: f.collection, frameMaterial: f.frameMaterial, frameShape: f.frameShape, frameColor: f.frameColor, wallKinds: f.wallKinds, moreVariants: f.moreVariants });
   });
 
   /* Обновлённая память: НЕвыданные прежние записи (usedMem убирает розданные — запись забывается сразу

@@ -20,6 +20,8 @@ const stand = require("./helpers/appStand.js");
 
 const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
+const EPRoomVariants = require("../js/roomVariants.js");
+const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
 const EPPosts = require("../js/posts.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
 
@@ -107,7 +109,7 @@ function makeCtx(state, dom) {
     productSeries: EPCatalog.productSeries,
     productOptionLabel: i => `[${i.code}] ${i.name}`,
     esc: s => String(s == null ? "" : s),
-    EPCatalog, EPRoom,
+    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi,
     enhancePicker: () => {}, resolveMissingFrame: () => null,
     mechanismModulesTotal: ids => ids.reduce((s, id) => s + EPCatalog.mechanismSpan(product(id)), 0),
     assembledPostHtml: () => "<post-preview>",
@@ -187,7 +189,7 @@ test("builderInnardsFilter: галочка вкл → {elementColor: цвет н
     if (restrict !== undefined) builder.restrictInnardsColor = restrict;
     const state = { products: PRODUCTS, posts: [{ id: "p1", roomId: "r1", frameId: FRAME.id }], rooms: [ROOM], builder };
     return stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "builderInnardsFilter"],
-      { state, byKind: k => state.products.filter(x => x.kind === k && x.active), EPCatalog, EPRoom })();
+      { state, byKind: k => state.products.filter(x => x.kind === k && x.active), EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi })();
   };
   // объект приходит из vm-realm — deepStrictEqual сверял бы прототип между realm'ами, проверяем поля вручную.
   const on = filterFor("r1", true);

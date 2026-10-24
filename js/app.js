@@ -440,11 +440,16 @@ function renderTemplates(){
      (§7.1: одно правило сравнения цвета на весь проект). Комната без цвета / выбрана не комната / комнат
      нет → roomColor=null → показываем ВСЁ (работу не блокируем, п.2). */
   const selRoom=state.selected&&state.selected.kind==="room"?state.rooms.find(r=>r.id===state.selected.id):null;
-  const roomColor=selRoom?EPRoom.roomFrameFacing(selRoom,"frameColor",frameFacingList("frameColor")):null;
-  const templates=state.templates.filter(t=>EPPosts.templateFitsRoomColor(t,roomColor,{frameProduct,facingColorKey:EPCatalog.facingColorKey}));
-  /* Отфильтровали в ноль (у комнаты цвет задан, а постов этого цвета в памяти нет) — «Сохранённых постов
-     пока нет» было бы ложью: посты есть, просто другого цвета. Говорим честно и называем цвет. */
-  if(!templates.length){list.innerHTML=`<div class="library-empty">${esc(`Готовых постов под цвет накладки комнаты («${roomColor}») в памяти нет — соберите пост для этой комнаты или выберите комнату другого цвета.`)}</div>`;return}
+  /* К8а, п.3: видны посты, подходящие цвету ХОТЯ БЫ ОДНОГО варианта отделки; вариант без цвета → всё.
+     Цвета всех вариантов (EPRoomVariants.list, вариант несёт те же поля отделки) разрешаем тем же
+     EPRoom.roomFrameFacing и списком каталога, что весь E14. Хотя бы один вариант без цвета (every не
+     прошёл) → roomColors=null = «не сужаем». Одновариантная комната → [цвет] или null, прежнее поведение. */
+  const variantColors=selRoom?EPRoomVariants.list(selRoom).map(v=>EPRoom.roomFrameFacing(v,"frameColor",frameFacingList("frameColor"))):null;
+  const roomColors=variantColors&&variantColors.every(Boolean)?variantColors:null;
+  const templates=state.templates.filter(t=>EPPosts.templateFitsRoomColors(t,roomColors,{frameProduct,facingColorKey:EPCatalog.facingColorKey}));
+  /* Отфильтровали в ноль (у комнаты цвет(а) задан(ы), а постов такого цвета в памяти нет) — «Сохранённых
+     постов пока нет» было бы ложью: посты есть, просто другого цвета. Говорим честно и называем цвет(а). */
+  if(!templates.length){list.innerHTML=`<div class="library-empty">${esc(`Готовых постов под цвет накладки комнаты («${roomColors.join("», «")}») в памяти нет — соберите пост для этой комнаты или выберите комнату другого цвета.`)}</div>`;return}
   /* Миниатюра — то же собранное изделие, что в конструкторе (единая EPPostImage): рамка,
      разделение на посты/импосты и модули. Раньше здесь была россыпь иконок механизмов —
      по замечанию владельца «нет получившегося полного изображения рамки и модулей». */
@@ -1478,8 +1483,15 @@ function renderProperties(){
        коллекции: значения из каталога (frameStandardList), действующее — через EPRoom.roomFrameFacing
        (мёртвое → «не задан», r.standard не трогаем). Подпись человеку — словом (EPCatalog.standardLabel),
        а не кодом IT/DE. */
+    /* Варианты отделки комнаты (К8а): до пяти наборов (вариант 1 = плоские поля, 2..5 — moreVariants;
+       всё в EPRoomVariants). Поля отделки ниже строятся из ВЫБРАННОЙ вкладки (facingEntity) — EPRoom.*
+       читают любой объект, вариант отдаётся им как «комната», второй трактовки списков нет (§7.1).
+       Вкладка — состояние интерфейса: смена комнаты → Вариант 1. Посты пока по варианту 1 (часть 3). */
+    const roomVariants=EPRoomVariants.list(r);
+    const roomVariantIdx=EPRoomVariantsUi.activeIndex(r.id,roomVariants.length);
+    const facingEntity=roomVariants[roomVariantIdx];
     const standardList=frameStandardList();
-    const roomStd=EPRoom.roomFrameFacing(r,"standard",standardList);
+    const roomStd=EPRoom.roomFrameFacing(facingEntity,"standard",standardList);
     const standardOptions=`<option value=""${roomStd?"":" selected"}>Не задан — накладки любого стандарта</option>`
       +standardList.map(code=>`<option value="${esc(code)}"${code===roomStd?" selected":""}>${esc(EPCatalog.standardLabel(code))}</option>`).join("");
     /* Коллекция накладок комнаты (E13). ⚠️ В ОТЛИЧИЕ ОТ СХЕМЫ у коллекции НЕТ значения-умолчания
@@ -1488,7 +1500,7 @@ function renderProperties(){
        мёртвое/отсутствующее значение → null → селектор в «Не задана», r.collection не трогаем до
        выбора человека). Список коллекций — из каталога (frameCollectionList), не константа. */
     const collectionList=frameCollectionList();
-    const roomColl=EPRoom.roomCollection(r,collectionList);
+    const roomColl=EPRoom.roomCollection(facingEntity,collectionList);
     const collectionOptions=`<option value=""${roomColl?"":" selected"}>Не задана — предлагать все накладки</option>`
       +collectionList.map(name=>`<option value="${esc(name)}"${name===roomColl?" selected":""}>${esc(name)}</option>`).join("");
     /* Отделка накладки комнаты (E14): материал, форма, цвет. Тот же приём, что у коллекции: значения
@@ -1501,7 +1513,7 @@ function renderProperties(){
       {prop:"frameColor",label:"Цвет накладки",empty:"Не задан — любой цвет",on:"Предлагаются накладки только этого цвета",off:"Цвет не задан — не сужается"}
     ].map(spec=>{
       const values=frameFacingList(spec.prop);
-      const cur=EPRoom.roomFrameFacing(r,spec.prop,values);
+      const cur=EPRoom.roomFrameFacing(facingEntity,spec.prop,values);
       const options=`<option value=""${cur?"":" selected"}>${esc(spec.empty)}</option>`
         +values.map(v=>`<option value="${esc(v)}"${v===cur?" selected":""}>${esc(v)}</option>`).join("");
       return {...spec,cur,options};
@@ -1532,6 +1544,7 @@ function renderProperties(){
         <div class="room-facing-summary${facingChosen.length?" own":""}">${facingChosen.length?esc(facingChosen.join(" · ")):(roomStd?"Серия, материал, форма и цвет не заданы":"Отделка не задана — предлагаются все накладки каталога")}</div>
         <button type="button" class="btn ghost room-facing-pick-btn" id="roomFramePickerBtn">Подобрать накладку</button>`;
     const facingBlockHtml=`<div class="room-facing-block">
+      ${EPRoomVariantsUi.tabsHtml(roomVariants,roomVariantIdx)}
       <div class="room-facing-head"><span class="room-facing-title">Отделка накладки</span>
         <div class="room-facing-view" role="group" aria-label="Вид выбора отделки">
           <button type="button" id="roomFacingViewList" class="room-facing-view-btn${facingView==="list"?" active":""}" aria-pressed="${facingView==="list"}">Списком</button>
@@ -1539,6 +1552,7 @@ function renderProperties(){
         </div>
       </div>
       ${facingBody}
+      ${EPRoomVariantsUi.removeBtnHtml(roomVariants)}
     </div>`;
     props.innerHTML=`<label>Название комнаты<input id="roomName" value="${esc(r.name)}" autocomplete="off"></label>
     <label>Площадь<input id="roomArea" value="${esc(r.area||"")}" placeholder="${esc(autoArea||"Например, 18,6 м²")}" autocomplete="off"></label>
@@ -1594,32 +1608,19 @@ function renderProperties(){
     /* Селекторы коллекции и отделки существуют ТОЛЬКО в виде «Списком» — в виде «С картинками» их в
        разметке нет, обработчики на несуществующие узлы вешать нельзя (в браузере $() вернёт null). */
     if(facingView==="list"){
-      /* Стандарт монтажа применяется СРАЗУ по change — как коллекция и по той же причине НЕ денежный:
-         сужает только каталог конструктора, состав и цену существующих постов не трогает (в estimate.js
-         стандарт не входит). Поэтому renderSummary/renderAll не нужны — только перерисовать карточку
-         (обновить подпись «задан/не задан» и сводку) и сохранить. «Не задан» (value="") СНИМАЕТ поле. */
-      $("roomStandardSelect").onchange=e=>{
-        const val=e.target.value;
-        if(val)r.standard=val; else delete r.standard;
-        renderProperties();persistProject();
-      };
-      $("roomCollectionSelect").onchange=e=>{
-        const val=e.target.value;
-        if(val)r.collection=val; else delete r.collection;
-        renderProperties();persistProject();
-      };
-      /* Отделка накладки (E14) применяется СРАЗУ по change — как коллекция и по той же причине НЕ
-         денежная: сужает только каталог конструктора, состав и цену существующих постов не трогает
-         (в estimate.js отделка не входит). Поэтому renderSummary/renderAll не нужны — только
-         перерисовать карточку комнаты (обновить подпись «задан/не задан») и сохранить. «Не задан»
-         (value="") СНИМАЕТ поле. Один обработчик на три селектора — правило хранения в одной точке. */
-      facingSpecs.forEach(spec=>{
-        $("room_"+spec.prop+"Select").onchange=e=>{
-          const val=e.target.value;
-          if(val)r[spec.prop]=val; else delete r[spec.prop];
-          renderProperties();persistProject();
-        };
-      });
+      /* Стандарт, коллекция и отделка применяются СРАЗУ по change и пишутся в ВЫБРАННЫЙ вариант
+         (roomVariantIdx) через EPRoomVariantsUi.writeField — один каскад EPRoomVariants на все
+         селекторы и на мастер (§7.1). Признаки НЕ денежные (в estimate.js не входят, посты пока по
+         варианту 1): renderSummary/renderAll не нужны — только перерисовать карточку и сохранить.
+         «Не задан» (value="") СНИМАЕТ признак. Один цикл на все селекторы — правило в одной точке. */
+      [["roomStandardSelect","standard"],["roomCollectionSelect","collection"]]
+        .concat(facingSpecs.map(spec=>["room_"+spec.prop+"Select",spec.prop]))
+        .forEach(([selId,prop])=>{
+          $(selId).onchange=e=>{
+            EPRoomVariantsUi.writeField(r,roomVariantIdx,prop,e.target.value);
+            renderProperties();persistProject();
+          };
+        });
     }
     $("roomSchemeSelect").onchange=e=>{
       const val=e.target.value;
@@ -1633,6 +1634,7 @@ function renderProperties(){
       renderAll();renderProperties();renderSummary();persistProject();
     };
     EPRoomWalls.bindRoomFields(r,{$,persistProject});   /* К4в: привязка чекбоксов отметок стен — в модуле (разметка вставлена выше) */
+    EPRoomVariantsUi.bindTabs(r,{$,renderProperties,persistProject});   /* К8а: вкладки вариантов, «+ вариант», «Удалить вариант» — в модуле (разметка вставлена выше) */
   }
 }
 /* ---- Группы света и схема электрики проекта (C8) ------------------------------------
@@ -2108,112 +2110,9 @@ function roomCatalogFilter(room){
     frameColor:EPRoom.roomFrameFacing(room,"frameColor",frameFacingList("frameColor"))
   };
 }
-/* Подмена накладки готового поста под КОМНАТУ размещения (ОТДЕЛКА-ПОРЯДОК, п.5 + монтажный стандарт).
-   Идёт ЧЕРЕЗ тот же отбор, что и весь каталог под комнату (roomCatalogFilter → productsForRoom, как
-   collectionFramePool), а не через свою копию правил (§7.1). Возвращает:
-     {frameId:null}          — накладку НЕ меняем: пост лёг вне комнат; у комнаты нет ни серии, ни
-                               отделки, ни стандарта (иначе пул = весь каталог и мы подставили бы
-                               случайную накладку); ЛИБО задан только стандарт, а накладка поста ему
-                               УЖЕ соответствует — менять нечего;
-     {frameId:<id>}          — нашли накладку той же модульности → пост берёт её (и цену — она из
-                               frameId во всех документах);
-     {blocked:true,message}  — комната сузила отбор, но накладки нужной серии/цвета/стандарта той же
-                               модульности в каталоге нет: пост НЕ ставим с чужой накладкой, человеку
-                               говорим чего и почему не нашли (формулировка в духе E14, frameSwapEmptyText).
-
-   ⚠️ МОНТАЖНЫЙ СТАНДАРТ сужает пул наравне с серией и отделкой (он в criteria), НО САМ ПО СЕБЕ
-   запускает подмену ТОЛЬКО когда накладка поста стандарту НЕ годится: под годную (в т.ч.
-   универсальную BOTH) менять нечего, поведение прежнее. «Годится ли накладка под стандарт» решает
-   ТОТ ЖЕ productsForRoom (§7.1) — накладка проходит его фильтр по стандарту ⇒ годится; второго
-   сравнения стандартов в коде нет. Накладка поста не резолвится (пропала из прайса) — судить нечем,
-   на одном стандарте подмену не запускаем (серия/отделка, если заданы, запустят её и дадут блокировку).
-
-   ⚠️ ПОДМЕНА МЕНЯЕТ ТОЛЬКО ТО, ЧЕГО ТРЕБУЕТ КОМНАТА. Сначала ищем накладку ТОЙ ЖЕ серии и цвета, что
-   у поста (комната их не сузила — незачем терять белый Neve Up ради первой попавшейся из пула в нужном
-   стандарте), и лишь если такой нет — берём любую подходящую по нынешнему правилу. Обе выборки идут
-   через ОДИН pickRoomFrame (второй копии подбора нет); предпочтение выражаем ТЕМ ЖЕ productsForRoom,
-   доузив пул серией и цветом поста. Комната, задавшая свою серию/цвет, вытеснит из own накладки поста →
-   own пуст → фолбэк на общий pool, то есть требование комнаты побеждает. */
-function frameForRoomPlacement(template,room){
-  if(!room)return {frameId:null};
-  const criteria=roomCatalogFilter(room);
-  const frame=frameProduct(template.frameId);
-  const standardMismatch=!!(criteria.standard&&frame&&!EPCatalog.productsForRoom([frame],{standard:criteria.standard}).length);
-  const constrained=criteria.collection||criteria.frameMaterial||criteria.frameShape||criteria.frameColor||standardMismatch;
-  if(!constrained)return {frameId:null};
-  const pool=EPCatalog.productsForRoom(byKind("frame"),criteria);
-  /* НАКЛАДКА ПОСТА УЖЕ ПОДХОДИТ КОМНАТЕ → НЕ ТРОГАЕМ (решение владельца 10.10). «Подходит» — тот же
-     отбор, что строит pool (EPCatalog.productsForRoom), но применённый К ОДНОЙ накладке поста, а НЕ
-     членством в pool активных: СНЯТАЯ с производства накладка (active=false) в pool из byKind не
-     попадает, и членством её молча признавали бы «неподходящей» и подменяли, хотя отделка совпадает
-     (В23, решение 13.10 — снятая остаётся, если подходит). productsForRoom([frame],criteria) судит
-     ТОЛЬКО отделку, не active: снятую подходящую оставляет один в один, неподходящую пропускает в
-     подмену как обычную (решение 1). Для активной результат тот же, что у прежней pool.some (активная
-     проходит criteria ⇔ она в pool) — денежные дефекты блока (22669.75, 14652.24) не возвращаются. */
-  if(frame&&EPCatalog.productsForRoom([frame],criteria).length)return {frameId:null};
-  /* КАНДИДАТ-НАКЛАДКА ГОДИТСЯ, ТОЛЬКО ЕСЛИ В НЕЁ СОБИРАЕТСЯ СОСТАВ ПОСТА — ТЕМ ЖЕ критерием, которым
-     конструктор разрешает сохранение (EPPosts.distributePosts: valid && full; см. savePostBuilder /
-     $("savePost").disabled). Своего определения «собирается» не вводим. Серийную совместимость
-     (frameFitsTemplateMechs) оставляем рядом: distributePosts судит раскладку по импостам и ширине,
-     а серию клавиш не проверяет. Без раскладочной проверки немецкую 2+2 приняли бы под клавишу 3М —
-     клавиша легла бы верхом на импост (конструктор такой пост сохранить не даёт), и копия/«Разместить»
-     ставили бы несобираемый пост (valid=false) с чужой ценой. Кандидат, в который не собирается, —
-     не кандидат; не осталось ни одного → прежний случай «подходящей накладки нет» (blocked). */
-  const fitsSeries=frameFitsTemplateMechs(template);
-  const mechIds=Array.isArray(template.mechanismIds)?template.mechanismIds:[];
-  const assembles=f=>{const d=EPPosts.distributePosts(mechIds,f,{product,mechanismSpan});return d.valid&&d.full;};
-  const deps={frameProduct,frameSlotCount,frameFitsMechs:f=>fitsSeries(f)&&assembles(f)};
-  /* own — доужение до серии и цвета накладки поста: сохраняем то, чего комната не сужала. Через ОБЩИЙ
-     preferOwnFrame (§7.1, тот же приём «своё → пул», что у defaultFrameForRoom); стандарт в own НЕ
-     включаем — подмена и запускается из-за смены стандарта комнатой, его сохранять незачем. */
-  const ownCriteria={collection:productSeries(frame)[0],frameColor:EPPosts.templateFrameColor(template,{frameProduct})};
-  const swap=preferOwnFrame(pool,ownCriteria,p=>EPPosts.pickRoomFrame(template.frameId,p,deps));
-  return swap?{frameId:swap.id}:{blocked:true,message:frameSwapEmptyText(template,room,criteria)};
-}
-/* Предикат «в накладку-кандидата встают ВСЕ клавиши шаблона» — ПРАВИЛОМ КОНСТРУКТОРА
-   (EPCatalog.compatibleMechanisms, совместимость по серии), а НЕ своим сравнением серий (§7.1): именно
-   этот набор конструктор строит в renderBuilder (mechs=compatibleMechanisms(selectedFrame,allMechanisms))
-   и по нему же окно поста показывало «Занято 0 из 3», когда серия клавиш и накладки разошлись. Кандидат
-   годится, только если КАЖДЫЙ механизм шаблона попал в совместимый набор этой накладки.
-   Механизмы шаблона резолвим через product() (active НЕ фильтрует) и добавляем в пул сравнения — снятую
-   с производства клавишу судим по серии (как keepMechs в конструкторе), а не выкидываем за отсутствие в
-   активном каталоге. Пропавший из прайса артикул (product=null) серии не имеет — проверить нечем, на нём
-   подмену не блокируем (его слот и так станет явным пробелом в конструкторе). Клавиш нет вовсе → накладке
-   всё равно, любая подходит по размеру. */
-function frameFitsTemplateMechs(template){
-  const items=(Array.isArray(template.mechanismIds)?template.mechanismIds:[]).map(id=>product(id)).filter(Boolean);
-  if(!items.length)return ()=>true;
-  const pool=byKind("mechanism").concat(items);
-  return frame=>{const compatible=compatibleMechanisms(frame,pool);return items.every(item=>compatible.includes(item));};
-}
-/* ОДНА формулировка «под комнату накладки, в которую встают клавиши поста, нет» при размещении готового
-   поста (п.5). Параллельна frameFacingEmptyText/innardsEmptyText: называем комнату, что сузило выбор
-   (frameFacingSelectionLabels — серия+отделка, тот же источник, что у хинта и мастера), модульность,
-   которой не хватило, И СЕРИЮ КЛАВИШ ПОСТА. Обе причины блокировки — нет накладки нужной модульности
-   в серии/цвете комнаты ИЛИ накладки есть, но клавиши поста в них не встают по серии (правило
-   конструктора) — сводятся к одному честному тексту: под комнату не нашлось накладки на N модулей, в
-   которую встают клавиши этого поста. Так владелец видит ОБЕ серии — комнаты (в list) и клавиш поста —
-   и понимает, почему готовый пост чужой серии сюда не встал. Модульность берём у накладки шаблона
-   (frameSlotCount); неизвестна (битая накладка) → moduleWord честно скажет «— модулей». Серии клавиш
-   нет (пустой пост / пропавшие артикулы) → упоминание клавиш опускаем. */
-function frameSwapEmptyText(template,room,criteria){
-  const mods=frameSlotCount(frameProduct(template.frameId));
-  const list=frameFacingSelectionLabels(criteria).join(", ");
-  const mechSeries=templateMechSeries(template);
-  const keys=mechSeries?`, в которую встают клавиши этого поста (серия «${mechSeries}»),`:"";
-  return `Для комнаты «${room.name}» (${list}) не нашлось накладки на ${moduleWord(mods)}${keys} — готовый пост не размещён. Соберите пост для этой комнаты или добавьте подходящую накладку.`;
-}
-/* Серии клавиш (механизмов) шаблона — через тот же productSeries, что и у накладок (§7.1, не своя
-   разборка поля series). Резолвим id через product() (active не фильтрует — снятая клавиша серию несёт),
-   собираем различные серии. Нужно тексту блокировки, чтобы назвать «серию клавиш поста». Пустой пост /
-   пропавшие артикулы → пустая строка. */
-function templateMechSeries(template){
-  const set=new Set();
-  (Array.isArray(template.mechanismIds)?template.mechanismIds:[]).forEach(id=>{
-    const item=product(id);if(item)productSeries(item).forEach(s=>set.add(s));
-  });
-  return [...set].join(", ");
-}
+/* Подмена накладки готового поста под комнату размещения (ОТДЕЛКА-ПОРЯДОК п.5 + варианты отделки К8а)
+   вынесена в js/postVariant.js (EPPostVariant.attach): frameForRoomPlacement и её помощники. Здесь —
+   только `const {frameForRoomPlacement}=EPPostVariant.attach(...)` ниже, у остальных attach-вызовов. */
 /* Текст хинта «сколько накладок показано из скольких и ЧТО сузило выбор» (E14, п.5–6). Считается ОТ
    ТОГО ЖЕ критерия и того же productsForRoom, что фильтрует renderBuilder, — второго правила отбора
    нет (§7.1). Показываем ТОЛЬКО когда задан хотя бы один признак ОТДЕЛКИ (материал/форма/цвет):
@@ -2305,15 +2204,18 @@ const framePickerDeps={
 function frameStepValueLabel(prop,value){return prop==="standard"?EPCatalog.standardLabel(value):value;}
 function openFramePicker(room){
   framePickerRoomId=room.id;
-  /* Инициализация из ТЕХ ЖЕ настроек комнаты, что читает список-вид, с ТОЙ ЖЕ валидацией мёртвых
-     значений (EPRoom): убранная из прайса серия/цвет не должны прийти в мастер как выбранные. */
+  /* Инициализация из ВЫБРАННОГО варианта отделки (К8а), а не из плоских полей: мастер читает тот же
+     набор, что показывают селекторы-список над кнопкой. EPRoom.* валидируют мёртвые (снятые из прайса)
+     значения и читают любой объект, поэтому вариант передаётся им как «комната». */
+  const variants=EPRoomVariants.list(room);
+  const facingEntity=variants[EPRoomVariantsUi.activeIndex(room.id,variants.length)];
   const sel={};
-  const std=EPRoom.roomFrameFacing(room,"standard",frameStandardList());
+  const std=EPRoom.roomFrameFacing(facingEntity,"standard",frameStandardList());
   if(std)sel.standard=std;
-  const coll=EPRoom.roomCollection(room,frameCollectionList());
+  const coll=EPRoom.roomCollection(facingEntity,frameCollectionList());
   if(coll)sel.collection=coll;
   ["frameMaterial","frameShape","frameColor"].forEach(prop=>{
-    const v=EPRoom.roomFrameFacing(room,prop,frameFacingList(prop));
+    const v=EPRoom.roomFrameFacing(facingEntity,prop,frameFacingList(prop));
     if(v)sel[prop]=v;
   });
   framePickerSel=sel;
@@ -2375,15 +2277,15 @@ function pickFrameStep(value){
   renderFramePicker();
 }
 function applyFramePicker(){
-  /* «Применить» записывает выбор в ТЕ ЖЕ поля комнаты, что и список-вид: пустой признак СНИМАЕТ поле
-     (как «Не задан» в селекторе). Отделка не денежная (в estimate.js не входит) — persistProject
-     без renderSummary/renderAll, как у onchange списка. renderProperties обновит карточку и сводку. */
+  /* «Применить» записывает выбор в ВЫБРАННЫЙ вариант (К8а) тем же каскадом (writeSelection), что и
+     список-вид; пустой признак СНИМАЕТ его. Вкладка не меняется, пока открыт мастер, — индекс тот же
+     activeIndex, что и в openFramePicker. Отделка не денежная — persistProject без renderSummary/
+     renderAll, renderProperties обновит карточку и сводку. */
   const room=state.rooms.find(r=>r.id===framePickerRoomId);
   if(room){
-    EPFramePicker.STEPS.forEach(s=>{
-      const v=framePickerSel[s.prop];
-      if(v)room[s.prop]=v; else delete room[s.prop];
-    });
+    const variants=EPRoomVariants.list(room);
+    const idx=EPRoomVariantsUi.activeIndex(room.id,variants.length);
+    EPRoomVariantsUi.writeSelection(room,idx,framePickerSel);
     persistProject();
   }
   closeFramePicker();
@@ -4243,6 +4145,15 @@ const {makeDraggable,placePendingAtEvent,onSpaceKeydown,canvasPointer}=EPCanvasI
   tightestRoomAtPoint,refreshAfterRoomAssignments,removeEntity,renderAll,renderGroupLinks,renderProperties,
   renderRooms:()=>renderRooms(),renderSummary,scheduleSave,selectEntity,setTool,state,toast,uid,
   updateObjectRoom,updateStatus,view,warnWallMismatch,zoomBy
+});
+
+/* Подмена накладки готового поста под варианты отделки комнаты (К8а, И2) — js/postVariant.js. Поднимаем
+   ДО EPPostCopyUi.attach и addPending: обе зовут возвращённую frameForRoomPlacement (копирование и
+   «Разместить» подменяют накладку ОДНИМ правилом, §7.1). Зависимости — общий с окном поста отбор, что
+   остался в app.js (roomCatalogFilter/preferOwnFrame/подбор накладок); к низу файла все объявлены (TDZ нет). */
+const {frameForRoomPlacement}=EPPostVariant.attach({
+  byKind,compatibleMechanisms,frameFacingSelectionLabels,frameProduct,frameSlotCount,
+  mechanismSpan,moduleWord,preferOwnFrame,product,productSeries,roomCatalogFilter
 });
 
 /* Копирование/вставка постов (Б9, И2) вынесено в js/postCopyUi.js. Поднимаем ПОСЛЕ EPCanvasInput.attach:

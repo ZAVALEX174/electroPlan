@@ -116,7 +116,7 @@ function renderRoom(room, opts) {
     roomAutoAreaText: () => "",
     polygonAreaPx: () => 0,
     lightingScheme: () => "classic",
-    EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"),
+    EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
     /* Вид отделки (списком / с картинками) — привычка человека из EPPrefs. Заглушка отдаёт fallback,
        то есть «списком»: эти тесты про селекторы вида-списка, а не про переключатель вида. */
     EPPrefs: { get: (k, fb) => fb, set: () => {} },

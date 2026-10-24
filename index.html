@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261023.2">
+  <link rel="stylesheet" href="css/styles.css?v=20261024.1">
 </head>
 <body>
 <div class="app">
@@ -353,6 +353,13 @@
           <label class="builder-room-field" id="builderRoomField" hidden>Комната поста
             <select id="builderRoomSelect"></select>
           </label>
+          <!-- Вариант отделки комнаты (К8а, решение владельца 24.10): под какой из вариантов помещения
+               собираем пост — от него накладка и механизмы. Поле появляется ТОЛЬКО когда у комнаты >1
+               варианта (иначе выбирать не из чего), вариант у поста НЕ хранится. Наполняет и
+               показывает/скрывает EPRoomVariantsUi.renderBuilderVariantSelect из renderBuilder. -->
+          <label class="builder-room-field" id="builderVariantField" hidden>Вариант отделки
+            <select id="builderVariantSelect"></select>
+          </label>
           <div class="form-row">
             <label>Количество модулей рамки
               <select id="postSlotCount"></select>
@@ -692,7 +699,7 @@
 <script src="js/catalogPool.js?v=20261019.1"></script>
 <!-- Автосостав термодатчика терморегулятора (К5а). Чистое правило, до posts.js/app.js. -->
 <script src="js/thermoSensor.js?v=20261022.1"></script>
-<script src="js/posts.js?v=20261022.1"></script>
+<script src="js/posts.js?v=20261024.1"></script>
 <script src="js/picker.js?v=20260801.1"></script>
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
 <script src="js/catalogSections.js?v=20261019.1"></script>
@@ -724,8 +731,13 @@
 <script src="js/roomsFromLines.js?v=20260801.1"></script>
 <script src="js/roomDraft.js?v=20260828.2"></script>
 <script src="js/room.js?v=20260915.1"></script>
+<!-- Варианты отделки комнаты (К8а): до пяти наборов {стандарт/серия/материал/форма/цвет} на
+     помещение. Чистый модуль (ни DOM, ни state, ни каталога) — список/операции над вариантами и
+     правило размещения. Грузится до app.js, который в частях 3–4 добавит селектор и размещение. -->
+<script src="js/roomVariants.js?v=20261024.1"></script>
 <script src="js/roomWalls.js?v=20261018.1"></script>
-<script src="js/roomCarry.js?v=20261018.1"></script>
+<script src="js/roomVariantsUi.js?v=20261024.3"></script>
+<script src="js/roomCarry.js?v=20261024.1"></script>
 <script src="js/roomAssign.js?v=20260831.1"></script>
 <script src="js/planTrace.js?v=20260727.1"></script>
 <script src="js/roomSegmentation.js?v=20260723"></script>
@@ -744,7 +756,7 @@
      «висящего» промиса и провязка кнопок. Вынесена из app.js (И1). Грузится ДО app.js, который
      подключает её через EPWallScope.create({$, WALL_STEP_LABEL}). -->
 <script src="js/wallScope.js?v=20260927.1"></script>
-<script src="js/postBuilder.js?v=20261024.1"></script>
+<script src="js/postBuilder.js?v=20261024.3"></script>
 <script src="js/rooms.js?v=20261006.1"></script>
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
@@ -759,7 +771,7 @@
      buildRoomsFromLines) и автоопределение комнат (detectRooms/detectRoomsML), перенос ручных полей
      carryUserRoomFields. Вынесено из app.js (И1, последний кусок). Грузится ДО app.js, который зовёт
      EPRoomDetect.attach(ctx) ДО EPCanvasInput.attach (тот берёт из него addRoomLinePoint). -->
-<script src="js/roomDetect.js?v=20261018.1"></script>
+<script src="js/roomDetect.js?v=20261024.1"></script>
 <script src="js/history.js?v=20261005.2"></script>
 <!-- Копирование постов (Ctrl+C/Ctrl+V): чистый модуль (ни DOM, ни state) — снимок выделенного для
      буфера, сборка копий с новыми id/номерами/координатами и новыми номерами проходных. Грузится ДО
@@ -778,6 +790,9 @@
      (EP_DATA.settings.packMultiple) и сохранением. До app.js, который зовёт EPPackMultiple.attach(ctx)
      и передаёт возвращённую syncPackMultiple в restoreProject. -->
 <script src="js/packMultipleUi.js?v=20261023.2"></script>
-<script src="js/app.js?v=20261023.4"></script>
+<!-- Подмена накладки готового поста под варианты отделки комнаты (К8а): EPPostVariant.attach(ctx).
+     После posts.js/room.js/roomVariants.js/catalog.js, до app.js, который зовёт attach. -->
+<script src="js/postVariant.js?v=20261024.2"></script>
+<script src="js/app.js?v=20261024.2"></script>
 </body>
 </html>

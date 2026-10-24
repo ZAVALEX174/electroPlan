@@ -83,3 +83,24 @@ test("К4в: у старой авто-комнаты отметок нет — �
   assert.equal(room.name, "Кухня", "предпосылка: перенос состоялся");
   assert.ok(!("wallKinds" in room), "без отметок у источника поле не материализуется");
 });
+
+test("К8а: доп.варианты (moreVariants) старой авто-комнаты применяются на пересчитанную новую (глубокая копия)", () => {
+  const more = [{ standard: "DE", collection: "Plana" }];
+  const oldR = rect("old1", 0, 0, 100, 100, { name: "Комната 1", moreVariants: more, autoPolygon: true });
+  const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
+  const [room] = runCarry([oldR], [newR]);
+  /* carryUserRoomFields исполняется в vm — объекты вариантов рождены в его realm; структуру сверяем через
+     JSON (кросс-realm-безопасно), ссылки — напрямую (identity от realm не зависит). */
+  assert.deepEqual(JSON.parse(JSON.stringify(room.moreVariants)), [{ standard: "DE", collection: "Plana" }],
+    "доп.варианты обязаны переехать — без строки `if(t.moreVariants!=null)room.moreVariants=...` они исчезали бы при правке линий");
+  assert.notEqual(room.moreVariants, more, "кладётся КОПИЯ массива — комната не делит его со старой/памятью");
+  assert.notEqual(room.moreVariants[0], more[0], "варианты тоже копии — объект варианта не делится со старой");
+});
+
+test("К8а: у старой авто-комнаты доп.вариантов нет — поле moreVariants на новой НЕ создаётся", () => {
+  const oldR = rect("old1", 0, 0, 100, 100, { name: "Кухня", autoPolygon: true });
+  const newR = rect("new1", 0, 0, 100, 100, { name: "Комната 1", autoPolygon: true });
+  const [room] = runCarry([oldR], [newR]);
+  assert.equal(room.name, "Кухня", "предпосылка: перенос состоялся");
+  assert.ok(!("moreVariants" in room), "без доп.вариантов у источника поле не материализуется");
+});

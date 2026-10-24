@@ -2,13 +2,13 @@
    сейчас редактируется, а НЕ у первой комнаты проекта (js/app.js builderRoomFilter).
 
    ЗАЧЕМ. builderRoomFilter — ядро E13: editingPlacedId → пост → roomId → комната →
-   EPRoom.roomCollection. Во всех прежних тестах E13 комната была ровно одна, поэтому подмена тела
+   EPRoom, EPRoomVariants, EPRoomVariantsUi.roomCollection. Во всех прежних тестах E13 комната была ровно одна, поэтому подмена тела
    на `state.rooms[0]` проходила мутацию ЗЕЛЁНОЙ — «берём коллекцию именно нужной комнаты» ничем
    не удерживалось. Ставим в проект ДВЕ комнаты с РАЗНЫМИ коллекциями и редактируем пост во ВТОРОЙ:
    критерий обязан вернуть коллекцию ВТОРОЙ комнаты, а не первой.
 
    Исполняем НАСТОЯЩИЙ текст builderRoomFilter/frameCollectionList из app.js в vm на НАСТОЯЩЕМ
-   каталоге VIMAR; EPRoom/EPCatalog настоящие — правило и валидация коллекции по каталогу идут
+   каталоге VIMAR; EPRoom, EPRoomVariants, EPRoomVariantsUi/EPCatalog настоящие — правило и валидация коллекции по каталогу идут
    продакшн-кодом.
 
    МУТАЦИОННАЯ ТАБЛИЦА (в отчёте):
@@ -23,6 +23,8 @@ const stand = require("./helpers/appStand.js");
 
 const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
+const EPRoomVariants = require("../js/roomVariants.js");
+const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
 
 const PRODUCTS = stand.loadVimarCatalog().products;
 
@@ -37,7 +39,7 @@ function makeCtx(state) {
   return {
     state,
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
-    EPRoom, EPCatalog
+    EPRoom, EPRoomVariants, EPRoomVariantsUi, EPCatalog
   };
 }
 const CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter"];

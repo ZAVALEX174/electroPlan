@@ -38,6 +38,8 @@ const stand = require("./helpers/appStand.js");
 
 const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
+const EPRoomVariants = require("../js/roomVariants.js");
+const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
 const EPPosts = require("../js/posts.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
 const EPSeriesMatch = require("../js/seriesMatch.js");
@@ -172,7 +174,7 @@ function builderCtx(state, dom, captured) {
     mechanismSpan: EPCatalog.mechanismSpan,
     moduleWord: EPCatalog.moduleWord,
     esc: s => String(s == null ? "" : s),
-    EPCatalog, EPRoom, EPPosts, EPBuilderSlots, EPSeriesMatch,
+    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPosts, EPBuilderSlots, EPSeriesMatch,
     productSeries: seriesOf,
     productOptionLabel: i => `[${i.code}] ${i.name}`,
     // перехват: забираем options.resolveMissing, отрисовку списка не трогаем
