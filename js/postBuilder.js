@@ -46,25 +46,22 @@ const {
   toast,uid,updateStatus
 }=ctx;
 
-/* Пустой поиск накладки: артикул есть в каталоге, но отсеян фильтром. Возвращаем описание, а
-   когда причина — число модулей, ещё и действие «переключить». null — если артикула нет или он и
-   так подходит под текущий фильтр (тогда обычный список его и так показал бы).
-   ⚠️ ДВЕ ПРИЧИНЫ ОТСЕВА, РАЗНОЕ ПОВЕДЕНИЕ. Коллекция комнаты (E13) сужает список ПЕРВЫМ шагом,
-   поэтому её проверяем раньше числа модулей: накладка чужой коллекции скрыта именно ею. Здесь мы
-   ОБЪЯСНЯЕМ (как resolveMissingMechanism про «другую серию»), но действия не даём — сменить
-   коллекцию помещения из конструктора поста было бы решением за человека; это отдельный
-   осознанный выбор в свойствах комнаты. Отсев по числу модулей остаётся с действием
-   «переключить»: размер — свойство самого поста, его человек и меняет здесь. */
-function resolveMissingFrame(query,currentCount,frameSelect,collection){
+/* Пустой поиск накладки: артикул есть в каталоге, но отсеян фильтром. filter — отбор ВЫБРАННОГО
+   варианта комнаты (roomCatalogFilter), не только коллекция. null — артикула нет или он и так подходит.
+   ⚠️ ДВЕ ПРИЧИНЫ (К8г): несовместимость с вариантом (стандарт/серия/отделка) судим ПЕРВОЙ тем же
+   EPPostVariant.placementFits, что размещение и окно (§7.1), и «переключить» НЕ даём — отбор меняют в
+   свойствах комнаты; отсев лишь по числу модулей остаётся с «переключить» (размер — свойство поста). */
+function resolveMissingFrame(query,currentCount,frameSelect,filter){
   const item=findByExactCode(byKind("frame"),query);
   if(!item)return null;
-  if(collection&&!EPSeriesMatch.seriesCompatible(productSeries(item),collection)){
+  if(!EPPostVariant.placementFits(item,filter||{})){
+    const labels=frameFacingSelectionLabels(filter||{});
     return{
-      lead:"Артикул есть в каталоге, но другой коллекции.",
+      lead:"Артикул есть в каталоге, но не подходит этой комнате.",
       code:item.code||"без артикула",
       name:item.name||"Без названия",
       note:`коллекция ${productSeries(item).join(", ")||"—"}`,
-      reason:`помещение закреплено за коллекцией «${collection}», а эта накладка — коллекции «${productSeries(item).join(", ")||"—"}». Сменить коллекцию можно в свойствах комнаты.`
+      reason:`не подходит отбору этой комнаты${labels.length?`: ${labels.join(", ")}`:""}. Изменить отбор можно в свойствах комнаты.`
     };
   }
   const target=frameSlotCount(item);
@@ -551,21 +548,17 @@ function collectionFramePool(allFrames){
 function renderBuilder(){
   const count=Number($("postSlotCount").value),allMechanisms=byKind("mechanism");
   const frameSelect=$("postFrameSelect"),allFrames=byKind("frame");
-  /* Селектор «Вариант отделки» (К8а): виден при >1 варианте; смена варианта = смена комнаты
-     (state.builder.variantIndex + changeBuilderRoom → applyAutoDefaultFrame + перерисовка, §7.1). */
-  EPRoomVariantsUi.renderBuilderVariantSelect({$,room:(state.rooms||[]).find(r=>r.id===state.builder.roomId),index:state.builder.variantIndex,onChange:i=>{state.builder.variantIndex=i;changeBuilderRoom(state.builder.roomId)},variantHasNoFrames:v=>!EPCatalog.productsForRoom(allFrames,roomCatalogFilter(v)).length});
-  /* ⚠️ КОЛЛЕКЦИЯ КОМНАТЫ СУЖАЕТ СПИСОК НАКЛАДОК ПЕРВЫМ ШАГОМ (E13). Помещение закреплено за
-     коллекцией — предлагаем накладки только её (встреча 24.08: «отсеять неподходящие рамки»).
-     Фильтр по числу модулей идёт УЖЕ по этому пулу, а не по всему каталогу. Пост вне комнат /
-     комната без коллекции / шаблон / новый пост → пул = весь каталог (collectionFramePool).
-     Накладка, СЕЙЧАС стоящая в посте, ниже добавляется в frameList отдельно (requestedFrame) —
-     даже будь она чужой коллекции, из поста она не пропадёт и состав/цена не изменятся молча. */
+  /* Селектор «Вариант отделки» (К8а): виден при >1 варианте; смена варианта идёт через
+     builderVariantSwitch (К8г(2): подтверждение, если накладка не подходит новому варианту). */
+  EPRoomVariantsUi.renderBuilderVariantSelect({$,room:(state.rooms||[]).find(r=>r.id===state.builder.roomId),index:state.builder.variantIndex,onChange:i=>builderVariantSwitch((state.rooms||[]).find(r=>r.id===state.builder.roomId),i,()=>{state.builder.variantIndex=i;changeBuilderRoom(state.builder.roomId)},renderBuilder),variantHasNoFrames:v=>!EPCatalog.productsForRoom(allFrames,roomCatalogFilter(v)).length});
+  /* ⚠️ ОТДЕЛКА КОМНАТЫ СУЖАЕТ СПИСОК НАКЛАДОК ПЕРВЫМ ШАГОМ (E13/E14, collectionFramePool); фильтр по
+     числу модулей идёт уже по этому пулу. Стоящая в посте накладка добавляется в frameList отдельно
+     (requestedFrame) — даже чужой коллекции из поста не пропадёт, состав/цена не изменятся молча. */
   const poolFrames=collectionFramePool(allFrames);
   const matchingFrames=poolFrames.filter(frame=>frameSlotCount(frame)===count);
   const frames=matchingFrames.length?matchingFrames:poolFrames;
-  /* Хинт отделки (E14, п.5–6): «показано из скольких» и что сузило выбор — либо словами про пустое
-     сочетание. Ставим на КАЖДЫЙ render (в т.ч. в ветках frameMissing/frameUnset ниже), до ранних
-     выходов, чтобы человек всегда видел, чем сужен каталог. Пустая настройка → текст пуст. */
+  /* Хинт отделки (E14, п.5–6): «показано из скольких» и что сузило — либо словами про пустое сочетание.
+     Ставим на КАЖДЫЙ render (в т.ч. frameMissing/frameUnset ниже), до ранних выходов. Пусто → текст пуст. */
   {const fh=$("builderFrameFacingHint");if(fh){const t=frameFacingHintText(allFrames);fh.textContent=t;fh.classList.toggle("is-empty",t!==""&&poolFrames.length===0);}}
   /* ⚠️ dataset.preferredFrameId ГЛАВНЕЕ ТЕКУЩЕГО ЗНАЧЕНИЯ СЕЛЕКТА, а не наоборот.
      Тут был баг «двойной клик по посту на плане сбрасывает редактирование» (заказчик, 24.08:
@@ -698,7 +691,7 @@ function renderBuilder(){
         :(collection?`накладок${collSuffix}`:(facing.length?"накладок":"загруженных накладок"));
       return base+facingSuffix;
     },
-    resolveMissing:q=>resolveMissingFrame(q,count,frameSelect,builderRoomFilter().collection)
+    resolveMissing:q=>resolveMissingFrame(q,count,frameSelect,builderRoomFilter())
   });
   /* ⚠️ НАКЛАДКИ НЕТ — СЧИТАТЬ НЕЧЕГО. Это состояние (`selectedFrame` не разрешился в товар)
      появилось, когда перестали молча подменять недоступную накладку. Ёмкость, раскладка по
@@ -1338,6 +1331,13 @@ function changePostSlotCount(){
    (applyAutoDefaultFrame(null,null), ближайшая к 3): смена комнаты даёт то же, что открытие сразу в этой
    комнате (п.2). Ручной выбор/шаблон/пост на плане — applyAutoDefaultFrame no-op. Ёмкость и автоимя —
    у новой накладки; пул пуст → прежняя ёмкость, имя не трогаем. */
+/* К8г(2): смена варианта/комнаты у НОВОГО поста с выбранной руками накладкой, НЕ подходящей новому
+   варианту → подтверждение (сброс накладки к умолчанию и ВСЕХ механизмов). Развилку (ОК/Отмена/
+   подходит) держит EPRoomVariantsUi.applyBuilderVariantChange (одно правило на оба селектора, §7.1). */
+function builderVariantSwitch(room,index,apply,restore){
+  const nv=EPRoomVariants.list(room||{})[EPRoomVariantsUi.builderIndex(room||{},index)]||{},frame=frameProduct($("postFrameSelect").value),crit=roomCatalogFilter(nv);
+  EPRoomVariantsUi.applyBuilderVariantChange({applicable:!state.builder.editingPlacedId&&!state.builder.editingTemplateId&&!state.builder.frameAuto&&!!frame,fits:EPPostVariant.placementFits(frame,crit),message:EPRoomVariantsUi.builderVariantResetMessage(frameFacingSelectionLabels(crit)),confirm:m=>confirm(m),reset:()=>{state.builder.frameAuto=true;state.builder.slots=EPBuilderSlots.fromPost({},keySlotKind)},apply,restore});
+}
 function changeBuilderRoom(roomId){
   state.builder.roomId=roomId;
   const auto=applyAutoDefaultFrame(null,null);
@@ -1523,7 +1523,7 @@ $("savePost").onclick=savePostBuilder;$("postSlotCount").onchange=changePostSlot
    «ручной выбор, годный для комнаты, не перетирать»). */
 $("postFrameSelect").onchange=()=>{state.builder.frameAuto=false;renderBuilder()};
 /* Смена «Комнаты поста» — вся логика в changeBuilderRoom (вынесена, чтобы связку проверял тест). */
-$("builderRoomSelect").onchange=e=>{state.builder.variantIndex=0;changeBuilderRoom(e.target.value||null)};
+$("builderRoomSelect").onchange=e=>{const roomId=e.target.value||null;builderVariantSwitch((state.rooms||[]).find(r=>r.id===roomId),0,()=>{state.builder.variantIndex=0;changeBuilderRoom(roomId)},renderBuilderRoomSelect)};
 /* Галочка «ограничить цветом накладки» (решение владельца 16.09): меняет только цветовой отбор
    начинки — накладка и раскладка те же, достаточно перерисовать конструктор (renderBuilder
    пересчитает catalogMechs). */

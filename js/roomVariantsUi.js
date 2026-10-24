@@ -252,10 +252,32 @@ function variantHasNoFrames(frames, variant, validate){
   return Catalog().productsForRoom(frames, criteria).length === 0;
 }
 
+/* ─── К8г, решение владельца (2): смена ВАРИАНТА/КОМНАТЫ у НОВОГО поста с несовместимой накладкой ───
+   Текст подтверждения: накладка, выбранная руками, не подходит новому варианту; продолжение сбросит
+   её к умолчанию варианта и ВСЕ механизмы поста. labels — условия варианта (frameFacingSelectionLabels),
+   их даёт окно поста; пусто → без скобок. Формулировку держим здесь, у правила (§7.1). */
+function builderVariantResetMessage(labels){
+  const cond = labels && labels.length ? " (" + labels.join(", ") + ")" : "";
+  return "Выбранная накладка не подходит этому варианту отделки" + cond
+    + ". Продолжить? Накладка заменится на подходящую по умолчанию, а все механизмы поста будут сброшены.";
+}
+/* Развилка смены варианта/комнаты у поста. d — замыкания от окна поста (postBuilder, §7.1 — одно
+   правило на оба селектора): applicable — правило применимо (НОВЫЙ пост, накладка выбрана руками,
+   она есть); fits — подходит ли текущая накладка новому варианту (EPPostVariant.placementFits, тот же
+   предикат, что у размещения и окна); confirm(msg) — подтверждение существующим способом окна;
+   reset() — сбросить механизмы и вернуть накладку к авто-умолчанию; apply() — записать вариант/комнату
+   и перерисовать; restore() — вернуть селектор на прежнее значение, ничего не меняя.
+   Не применимо или накладка подходит → молча apply(); иначе ОК → reset+apply, Отмена → restore. */
+function applyBuilderVariantChange(d){
+  if(!d.applicable || d.fits){ d.apply(); return; }
+  if(d.confirm(d.message)){ d.reset(); d.apply(); }
+  else d.restore();
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
 const api = { activeIndex, setActiveIndex, applyResult, writeField, writeSelection, tabsHtml, removeBtnHtml, bindTabs,
   builderIndex, builderInitialIndex, builderVariantLabel, renderBuilderVariantSelect,
-  facingFieldOptionsHtml, variantHasNoFrames };
+  facingFieldOptionsHtml, variantHasNoFrames, builderVariantResetMessage, applyBuilderVariantChange };
 if (typeof window !== "undefined") window.EPRoomVariantsUi = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

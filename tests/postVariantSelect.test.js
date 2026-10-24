@@ -169,9 +169,9 @@ test("В3: комнаты нет (roomId null, не на плане) → null (�
 test("★ В4: renderBuilder рисует селектор и вешает onChange = «variantIndex + changeBuilderRoom»", () => {
   const src = stand.sourceOf("postBuilder.js");
   assert.match(src, /EPRoomVariantsUi\.renderBuilderVariantSelect\(/, "renderBuilder зовёт отрисовку селектора варианта");
-  // onChange ставит выбранный вариант И прогоняет путь смены комнаты (applyAutoDefaultFrame + renderBuilder внутри)
-  assert.match(src, /onChange:i=>\{state\.builder\.variantIndex=i;changeBuilderRoom\(state\.builder\.roomId\)\}/,
-    "смена варианта = та же логика, что смена комнаты (changeBuilderRoom)");
+  // onChange идёт через builderVariantSwitch (К8г(2): подтверждение при несовместимой накладке); apply = variantIndex=i + changeBuilderRoom
+  assert.match(src, /onChange:i=>builderVariantSwitch\(.*?,i,\(\)=>\{state\.builder\.variantIndex=i;changeBuilderRoom\(state\.builder\.roomId\)\},renderBuilder\)/,
+    "смена варианта идёт через builderVariantSwitch; apply-замыкание = variantIndex=i + changeBuilderRoom");
   // openPostBuilder инициализирует вариант: новый → 0, существующий → fitIndex по накладке
   assert.match(src, /state\.builder\.variantIndex=EPRoomVariantsUi\.builderInitialIndex\(/, "openPostBuilder задаёт начальный вариант");
 });
@@ -198,8 +198,8 @@ test("★ В5: changeBuilderRoom НЕ трогает variantIndex (смену в
 
 test("★ В5: обработчики разведены — комната сбрасывает вариант в 0, вариант сохраняет выбор; changeBuilderRoom нейтрален", () => {
   const src = stand.sourceOf("postBuilder.js");
-  assert.match(src, /builderRoomSelect"\)\.onchange=e=>\{state\.builder\.variantIndex=0;changeBuilderRoom\(/,
-    "смена КОМНАТЫ сбрасывает вариант в 0 (решение «по умолчанию первый»); мутация «убрать сброс» краснит здесь");
+  assert.match(src, /builderRoomSelect"\)\.onchange=e=>\{const roomId=e\.target\.value\|\|null;builderVariantSwitch\(.*?,0,\(\)=>\{state\.builder\.variantIndex=0;changeBuilderRoom\(roomId\)\},renderBuilderRoomSelect\)\}/,
+    "смена КОМНАТЫ идёт через builderVariantSwitch; apply-замыкание сбрасывает вариант в 0 (решение «по умолчанию первый»)");
   // changeBuilderRoom в теле НЕ упоминает variantIndex — сброс живёт только в обработчике комнаты
   const body = src.slice(src.indexOf("function changeBuilderRoom("));
   const end = body.indexOf("\nasync function savePostBuilder");

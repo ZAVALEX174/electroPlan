@@ -491,6 +491,7 @@ test("★ нетронутость: «Переключить на N модуле
     state, $: dom.$, byKind: kind => state.products.filter(x => x.kind === kind && x.active),
     productSeries: p => (p && p.series) || [], frameSlotCount: EPCatalog.frameSlotCount,
     frameProduct: product, moduleWord: EPCatalog.moduleWord, defaultPostName: EPCatalog.defaultPostName,
+    EPPostVariant, EPCatalog,
     esc: s => String(s == null ? "" : s), toast: m => toasts.push(m), renderBuilder: () => {}
   };
   /* currentCount=3, а 19642.01 — 2М → resolveMissingFrame даёт onAction «Переключить на 2 модуля».

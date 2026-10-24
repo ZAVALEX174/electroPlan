@@ -13,11 +13,15 @@
    IT → все 10; DE + Eikon Flat → 0 накладок.
 
    МУТАЦИОННАЯ ТАБЛИЦА (прогнана руками, см. отчёт):
-     (а) facingUpperPool без productsForRoom (values от полного каталога)  → §DE-list (появятся 4 пустые серии);
-     (б) facingUpperPool: критерий от ВСЕХ полей (не только верхних)       → §A-variant2 (вариант 1 сузит вариант 2);
-         builderFilterRoom/панель от варианта 1 вместо выбранного          → §A-variant2;
-     (в) facingFieldOptionsHtml без ветки «(не подходит)»                   → §A-notfit (несовместимое пропадёт из селектора);
-     (г) builderVariantLabel без « — нет накладок»                         → §B-postselect (пометки в окне поста нет).
+     facingUpperPool без productsForRoom (values от полного каталога)   → §DE-list, §A-notfit, §A-variant2, §material-narrows;
+     facingUpperPool: критерий от ВСЕХ полей (k<fields.length, не верхних) → §upper-only (нижнее поле сузило бы верхнее);
+     facingUpperPool: k<Math.min(i,2) (отделка ниже серии не сужает)    → §material-narrows (цвет не сузится материалом);
+     панель/предикат от варианта 1 вместо выбранного (facingEntity[0])   → §A-variant2;
+     facingFieldOptionsHtml без ветки «(не подходит)»                    → §A-notfit;
+     variantHasNoFrames: FIELDS.slice(0,2) (пустоту судят лишь по верхним) → §B-lower;
+     builderVariantLabel без « — нет накладок»                          → §B-postselect;
+     предикат variantHasNoFrames в postBuilder:renderBuilder → v=>false   → §B-postwire (настоящий renderBuilder);
+     applyBuilderVariantChange: confirm(true)→restore / без ветки confirm → §switch-ok/§switch-cancel.
    Запуск: node --test tests/frameFacingNarrowingWiring.test.js */
 "use strict";
 const test = require("node:test");
@@ -32,6 +36,9 @@ const EPRoom = require("../js/room.js");
 const EPRoomVariants = require("../js/roomVariants.js");
 const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
 const EPLightingGroups = require("../js/lightingGroups.js");
+const EPPosts = require("../js/posts.js");
+const EPBuilderSlots = require("../js/builderSlots.js");
+const EPPostVariant = require("../js/postVariant.js");
 
 /* Обогащённый каталог — как в браузере: стандарт (поле standard) подмешивает data.js. */
 const JS_DIR = path.join(__dirname, "..", "js");
@@ -177,4 +184,100 @@ test("§B-postselect: вариант без накладок помечен « �
   assert.equal(opts.length, 2, "две опции по числу вариантов");
   assert.doesNotMatch(opts[0], /нет накладок/, "вариант 1 (Plana) совместим — пометки нет");
   assert.match(opts[1], /— нет накладок/, "вариант 2 (Eikon Flat под DE) помечен «— нет накладок»");
+});
+
+test("§material-narrows: цвет сужается МАТЕРИАЛОМ (поле ниже серии) — не все цвета коллекции", () => {
+  // Eikon Evo: 33 цвета всего, с материалом «Камень» — 4. Поле цвета (индекс 4) обязано сузиться
+  // материалом (индекс 2). Мутация k<Math.min(i,2) взяла бы критерий лишь из стандарт+серия → 33.
+  const html = renderPanel({ id: "r1", name: "Гостиная", polygon: null, collection: "Eikon Evo", frameMaterial: "Камень" });
+  const colors = options(html, "room_frameColorSelect").slice(1).filter(o => !/не подходит/.test(o.text)).map(o => o.value);
+  assert.equal(colors.length, 4, "цветов ровно 4 (сужены материалом «Камень»), а не 33 всей серии");
+  assert.ok(colors.includes("Сланец") && !colors.includes("Аква"),
+    "в списке каменные цвета, «Аква» (не каменный) отсутствует");
+});
+
+test("§B-lower: пустоту под вариант судим по ВСЕМ полям — комбинация с нижним полём (0 накладок)", () => {
+  // Eikon Evo + Камень + Аква = 0 (Аква — не каменный цвет), но Eikon Evo + Камень = 4 > 0.
+  // Мутация FIELDS.slice(0,2) судила бы лишь по серии (Eikon Evo > 0) и строку «нет накладок» не показала бы.
+  const html = renderPanel({ id: "r1", name: "Гостиная", polygon: null, collection: "Eikon Evo", frameMaterial: "Камень", frameColor: "Аква" });
+  const m = html.match(/<small class="prop-hint room-facing-none">([\s\S]*?)<\/small>/);
+  assert.ok(m, "строка «нет накладок» показана: под серию+материал+цвет накладок нет");
+  assert.match(m[1], /Аква/, "в условиях назван цвет, которым добили пул до нуля");
+});
+
+/* --- §B-postwire: предикат «нет накладок» в НАСТОЯЩЕМ renderBuilder (постройка из postBuilder.js) --- */
+const RB_CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter",
+  "builderRoomFilter", "collectionFramePool", "frameFacingLabels", "frameFacingSelectionLabels", "frameFacingEmptyText",
+  "frameFacingHintText", "builderCapacity", "renderBuilder"];
+test("§B-postwire: renderBuilder помечает « — нет накладок» у варианта с 0 накладок (предикат из postBuilder:556 подключён)", () => {
+  // НАСТОЯЩИЙ renderBuilder зовёт renderBuilderVariantSelect с предикатом variantHasNoFrames; мутация
+  // «v=>false» в постройке убрала бы пометку — этот тест через настоящий код её ловит.
+  const product = id => PRODUCTS.find(p => Number(p.id) === Number(id));
+  const dom = stand.makeDom({ selects: ["postFrameSelect", "postSlotCount", "builderVariantSelect"] });
+  dom.$("postFrameSelect").dataset.preferredFrameId = "";   // frameUnset: ранний путь, но вариант-селектор уже отрисован
+  dom.$("postSlotCount").value = "2";
+  const state = { products: PRODUCTS,
+    rooms: [{ id: "r1", name: "Гостиная", standard: "DE", collection: "Plana", moreVariants: [{ standard: "DE", collection: "Eikon Flat" }] }],
+    posts: [{ id: "p1", roomId: "r1", mechanismIds: [] }],
+    builder: { slots: [], target: { mode: "add" }, roomId: "r1", variantIndex: 0, editingPlacedId: "p1" } };
+  const ctx = {
+    state, $: dom.$, esc: s => String(s == null ? "" : s),
+    byKind: kind => state.products.filter(x => x.kind === kind && x.active),
+    frameProduct: product, product, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, EPPosts, EPBuilderSlots,
+    frameSlotCount: EPCatalog.frameSlotCount, frameSlotOptions: EPCatalog.frameSlotOptions,
+    compatibleMechanisms: EPCatalog.compatibleMechanisms, mechanismSpan: EPCatalog.mechanismSpan,
+    productSeries: EPCatalog.productSeries, moduleWord: EPCatalog.moduleWord,
+    frameOptions: (items, selId) => (items || []).map(i => `<option value="${i.id}">${i.id}</option>`).join(""),
+    enhancePicker: () => {}, resolveMissingFrame: () => null,
+    lightingFor: () => ({}), projectPostsWithBuilder: () => [], builderPostDraft: () => ({ mechanismIds: [] }),
+    moduleLayout: () => [], lightingRowsFor: () => [], retargetBuilderSlot: () => {},
+    renderBuilderSlots: () => {}, renderBuilderCatalog: () => {}, renderBuilderComposition: () => {},
+    builderInnardsFilter: () => ({}), builderCtx: {}
+  };
+  stand.run(RB_CUT, ctx)();
+  const opts = [...dom.$("builderVariantSelect").innerHTML.matchAll(/<option value="(\d+)"[^>]*>([\s\S]*?)<\/option>/g)].map(o => o[2]);
+  assert.equal(opts.length, 2, "селектор варианта показал обе вкладки");
+  assert.doesNotMatch(opts[0], /нет накладок/, "вариант 1 (Plana) — накладки есть");
+  assert.match(opts[1], /— нет накладок/, "вариант 2 (Eikon Flat под DE) помечен — предикат postBuilder подключён");
+});
+
+/* --- Развилка смены варианта/комнаты у нового поста (п.2): applyBuilderVariantChange + текст --- */
+const spy = (ret) => { const f = (...a) => { f.calls.push(a); return ret; }; f.calls = []; return f; };
+function switchCase(over) {
+  const apply = spy(), reset = spy(), restore = spy();
+  const d = Object.assign({ applicable: true, fits: false, message: "MSG", confirm: () => true, reset, apply, restore }, over);
+  EPRoomVariantsUi.applyBuilderVariantChange(d);
+  return { apply, reset, restore, confirmArg: d.confirm.calls && d.confirm.calls[0] };
+}
+test("§switch-ok: несовместимо + ОК → reset + apply (механизмы сброшены, накладка применена)", () => {
+  const r = switchCase({ confirm: spy(true) });
+  assert.equal(r.reset.calls.length, 1, "механизмы сброшены");
+  assert.equal(r.apply.calls.length, 1, "новый вариант применён");
+  assert.equal(r.restore.calls.length, 0, "селектор не возвращён — продолжили");
+});
+test("§switch-cancel: несовместимо + Отмена → restore, НИЧЕГО не менять", () => {
+  const r = switchCase({ confirm: spy(false) });
+  assert.equal(r.reset.calls.length, 0, "механизмы НЕ сброшены");
+  assert.equal(r.apply.calls.length, 0, "вариант НЕ применён");
+  assert.equal(r.restore.calls.length, 1, "селектор возвращён на прежнее значение");
+});
+test("§switch-fits: накладка подходит → молча apply, без подтверждения", () => {
+  const confirm = spy(true);
+  const r = switchCase({ fits: true, confirm });
+  assert.equal(confirm.calls.length, 0, "подтверждение не спрашивали");
+  assert.equal(r.apply.calls.length, 1, "вариант применён молча");
+  assert.equal(r.reset.calls.length, 0, "ничего не сброшено");
+});
+test("§switch-na: правило неприменимо (пост на плане / авто-накладка) → молча apply", () => {
+  const confirm = spy(true);
+  const r = switchCase({ applicable: false, confirm });
+  assert.equal(confirm.calls.length, 0, "подтверждение не спрашивали");
+  assert.equal(r.apply.calls.length, 1, "применён молча");
+  assert.equal(r.reset.calls.length, 0);
+});
+test("§switch-msg: текст подтверждения называет условия и предупреждает о сбросе механизмов", () => {
+  const msg = EPRoomVariantsUi.builderVariantResetMessage(["стандарт «немецкий»", "серия «Arke»"]);
+  assert.match(msg, /не подходит этому варианту/, "назвал несовместимость");
+  assert.match(msg, /стандарт «немецкий».*серия «Arke»/, "перечислил условия");
+  assert.match(msg, /механизмы поста будут сброшены/, "предупредил о сбросе механизмов");
 });
