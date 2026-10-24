@@ -291,10 +291,12 @@ test("§switch-msg: текст подтверждения называет ус�
    МУТАЦИОННАЯ ТАБЛИЦА (прогнана, см. отчёт):
      applicable:…→true (убрать editingPlacedId/editingTemplateId/frameAuto/!!frame) → §switch-wire-placed;
      fits:placementFits(frame,crit)→true (не судить совместимость)                   → §switch-wire-ok;
-     reset без frameAuto=true / без сброса slots                                     → §switch-wire-ok. */
+     reset без frameAuto=true / без сброса slots                                     → §switch-wire-ok;
+     nv=list(room)[builderIndex(room,index)] → list(room)[0] (игнор выбранного index) → §switch-wire-index-ask/§switch-wire-index-fits
+       (прежние §switch-wire-* все на index=0 и одновариантной комнате — мутацию list[0] не ловят). */
 const SWITCH_CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "roomCatalogFilter",
   "frameFacingLabels", "frameFacingSelectionLabels", "builderVariantSwitch"];
-function runSwitch({ builder, frameCode, room }) {
+function runSwitch({ builder, frameCode, room, index = 0 }) {
   const frame = frameCode ? PRODUCTS.find(p => p.code === frameCode) : null;
   const state = { products: PRODUCTS, builder };
   const apply = spy(), restore = spy();
@@ -305,7 +307,7 @@ function runSwitch({ builder, frameCode, room }) {
     $: () => ({ value: frame ? String(frame.id) : "" }),
     keySlotKind: () => null, confirm, apply, restore
   };
-  stand.run(SWITCH_CUT, ctx)(room, 0, apply, restore);
+  stand.run(SWITCH_CUT, ctx)(room, index, apply, restore);
   return { apply, restore, confirm, builder };
 }
 test("§switch-wire-ok: новый пост, накладка чужой серии (Plana в варианте Arke), ОК → спросили, сброс frameAuto+slots, apply", () => {
@@ -342,4 +344,102 @@ test("§switch-wire-auto: новый пост, накладка АВТО (frameA
   assert.equal(r.confirm.calls.length, 0, "авто-накладка → не спрашиваем");
   assert.equal(r.apply.calls.length, 1, "применено молча");
   assert.equal(builder.slots.length, 1, "механизмы не тронуты");
+});
+/* --- §switch-wire-index: смена варианта судит ВЫБРАННЫЙ index, а не всегда вариант 0 ---------------
+   Состязательный проход (К8г): мутация nv=list(room)[builderIndex(room,index)] → list(room)[0] проходит
+   весь npm test зелёной — все прежние §switch-wire-* зовут builderVariantSwitch с index=0 и одновариантной
+   комнатой, где [0] и [index] совпадают. Нужны ДВА варианта и переход НА ВТОРОЙ. 19653.02 — Arke, стандарт
+   IT (замерено): подходит варианту Arke IT и НЕ подходит Arke DE. */
+test("§switch-wire-index-ask: переход на вариант 1 (Arke DE, несовместим) → спросили ИМЕННО по варианту 1, не по 0 (Arke IT)", () => {
+  // Вариант 0 = Arke IT (накладке подходит), вариант 1 = Arke DE (не подходит). index=1 обязан спросить;
+  // мутация list[0] взяла бы вариант 0 (подходит) → fits=true → молча apply, вопрос бы пропал (денежный
+  // дефект: несовместимый вариант применился бы без сброса механизмов).
+  const builder = { editingPlacedId: null, editingTemplateId: null, frameAuto: false, slots: [{ k: "x" }] };
+  const room = { id: "r1", standard: "IT", collection: "Arke", moreVariants: [{ standard: "DE", collection: "Arke" }] };
+  const r = runSwitch({ builder, frameCode: "19653.02", room, index: 1 });
+  assert.equal(r.confirm.calls.length, 1, "вариант 1 (Arke DE) несовместим накладке Arke IT → подтверждение спрошено");
+  assert.match(r.confirm.calls[0], /немецкий/, "в тексте стандарт именно варианта 1");
+  assert.equal(builder.slots.length, 0, "ОК → механизмы сброшены");
+  assert.equal(r.apply.calls.length, 1, "новый вариант применён");
+});
+test("§switch-wire-index-fits: переход на вариант 1 (Arke IT, совместим) → молча apply, не берём вариант 0 (Arke DE)", () => {
+  // Обратный край: вариант 0 = Arke DE (не подходит), вариант 1 = Arke IT (подходит). index=1 обязан НЕ
+  // спрашивать; мутация list[0] взяла бы вариант 0 (не подходит) → спросила бы зря и сбросила механизмы.
+  const builder = { editingPlacedId: null, editingTemplateId: null, frameAuto: false, slots: [{ k: "x" }] };
+  const room = { id: "r1", standard: "DE", collection: "Arke", moreVariants: [{ standard: "IT", collection: "Arke" }] };
+  const r = runSwitch({ builder, frameCode: "19653.02", room, index: 1 });
+  assert.equal(r.confirm.calls.length, 0, "вариант 1 (Arke IT) подходит накладке Arke IT → не спрашиваем");
+  assert.equal(r.apply.calls.length, 1, "применено молча");
+  assert.equal(builder.slots.length, 1, "механизмы не тронуты");
+});
+
+/* --- §rm-wire: resolveMissingFrame получает ПОЛНЫЙ фильтр ВЫБРАННОГО варианта из НАСТОЯЩЕГО renderBuilder
+   (postBuilder.js, точка вызова resolveMissing) -----------------------------------------------------
+   Состязательный проход (К8г): в точке вызова передать {collection:builderRoomFilter().collection} вместо
+   всего фильтра — проходит зелёной. tests/resolveMissingFrameCollection.test.js её НЕ ловит: он бьёт Plana
+   против Arke, т.е. различие по СЕРИИ, а мутация серию сохраняет (ловится и старым правилом «по серии»).
+   Нужен артикул, совпадающий по СЕРИИ, но НЕ по СТАНДАРТУ: 19652.01 — Arke, стандарт IT, 2 модуля
+   (замерено на обогащённом каталоге). В комнате Arke DE полный фильтр {standard:DE,collection:Arke} его
+   отсекает → «не подходит этой комнате» без действия; мутация {collection:Arke} → placementFits=true →
+   ветка модулей с «Переключить на 2 модуля» (денежный/составной дефект: предложили бы поставить
+   несовместимую накладку). Режем и исполняем НАСТОЯЩИЙ renderBuilder, перехватывая resolveMissing из
+   enhancePicker — как §B-postwire, но с захватом options.
+   МУТАЦИОННАЯ ТАБЛИЦА (прогнана, см. отчёт):
+     resolveMissing: builderRoomFilter() → {collection:builderRoomFilter().collection} → §rm-standard, §rm-variant;
+     builderFilterRoom: list(room)[builderIndex(room,variantIndex)] → list(room)[0] (игнор variantIndex) → §rm-variant. */
+const RM_CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter",
+  "builderRoomFilter", "collectionFramePool", "frameFacingLabels", "frameFacingSelectionLabels", "frameFacingEmptyText",
+  "frameFacingHintText", "builderCapacity", "findByExactCode", "resolveMissingFrame", "renderBuilder"];
+function resolveMissingWired({ room, variantIndex, count }) {
+  const product = id => PRODUCTS.find(p => Number(p.id) === Number(id));
+  // postSlotCount — обычный узел (не <select>): его value держит count детерминированно (у makeSelect
+  // присвоение не входящего в options значения снимается в ""). Накладка пустая (frameUnset): renderBuilder
+  // доходит до enhancePicker и выходит ранним путём, успев отдать resolveMissing.
+  const dom = stand.makeDom({ selects: ["postFrameSelect", "builderVariantSelect"] });
+  dom.$("postFrameSelect").dataset.preferredFrameId = "";
+  dom.$("postSlotCount").value = String(count);
+  const state = { products: PRODUCTS, rooms: [room],
+    posts: [{ id: "p1", roomId: room.id, mechanismIds: [] }],
+    builder: { slots: [], target: { mode: "add" }, roomId: room.id, variantIndex, editingPlacedId: "p1" } };
+  const captured = {};
+  const ctx = {
+    state, $: dom.$, esc: s => String(s == null ? "" : s),
+    byKind: kind => state.products.filter(x => x.kind === kind && x.active),
+    frameProduct: product, product, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, EPPosts, EPBuilderSlots,
+    frameSlotCount: EPCatalog.frameSlotCount, frameSlotOptions: EPCatalog.frameSlotOptions,
+    compatibleMechanisms: EPCatalog.compatibleMechanisms, mechanismSpan: EPCatalog.mechanismSpan,
+    productSeries: EPCatalog.productSeries, moduleWord: EPCatalog.moduleWord,
+    frameOptions: (items) => (items || []).map(i => `<option value="${i.id}">${i.id}</option>`).join(""),
+    enhancePicker: (sel, options) => { captured.options = options; },
+    changePostSlotCount: () => {}, toast: () => {},
+    lightingFor: () => ({}), projectPostsWithBuilder: () => [], builderPostDraft: () => ({ mechanismIds: [] }),
+    moduleLayout: () => [], lightingRowsFor: () => [], retargetBuilderSlot: () => {},
+    renderBuilderSlots: () => {}, renderBuilderCatalog: () => {}, renderBuilderComposition: () => {},
+    builderInnardsFilter: () => ({}), builderCtx: {} };
+  stand.run(RM_CUT, ctx)();
+  assert.equal(typeof captured.options, "object", "enhancePicker вызван renderBuilder");
+  assert.equal(typeof captured.options.resolveMissing, "function", "resolveMissing — функция");
+  return captured.options.resolveMissing;
+}
+test("§rm-standard: resolveMissing отсекает артикул, совпавший по СЕРИИ, но не по СТАНДАРТУ (Arke IT в комнате Arke DE)", () => {
+  // Комната немецкая Arke (один вариант), count=3. 19652.01 — Arke, стандарт IT, 2 модуля.
+  const rm = resolveMissingWired({ room: { id: "r1", name: "Гостиная", standard: "DE", collection: "Arke" }, variantIndex: 0, count: 3 });
+  const res = rm("19652.01");
+  assert.ok(res, "артикул есть в каталоге — подсказка обязана быть");
+  assert.equal(res.lead, "Артикул есть в каталоге, но не подходит этой комнате.",
+    "несовместимость по стандарту судится ПЕРВОЙ — renderBuilder передал ПОЛНЫЙ фильтр, не только серию");
+  assert.match(res.reason, /немецкий/, "в причине назван стандарт комнаты (frameFacingSelectionLabels)");
+  assert.ok(!("actionLabel" in res), "несовместимой по стандарту накладке «Переключить» НЕ предлагаем");
+});
+test("§rm-variant: resolveMissing берёт фильтр ВЫБРАННОГО варианта (variantIndex=1 = Arke DE), а не первого (Arke IT)", () => {
+  // Вариант 0 = Arke IT (19652.01 ему подошёл бы), вариант 1 = Arke DE (не подходит). variantIndex=1.
+  // Ловит И потерю стандарта (мутация точки вызова), И потерю variantIndex (мутация builderFilterRoom).
+  const room = { id: "r1", name: "Гостиная", standard: "IT", collection: "Arke", moreVariants: [{ standard: "DE", collection: "Arke" }] };
+  const rm = resolveMissingWired({ room, variantIndex: 1, count: 3 });
+  const res = rm("19652.01");
+  assert.ok(res);
+  assert.equal(res.lead, "Артикул есть в каталоге, но не подходит этой комнате.",
+    "фильтр варианта 1 (DE) отсёк артикул — выбранный вариант и его стандарт дошли до resolveMissing");
+  assert.match(res.reason, /немецкий/, "условия варианта 1 (стандарт немецкий)");
+  assert.ok(!("actionLabel" in res), "действия нет: накладка несовместима выбранному варианту");
 });
