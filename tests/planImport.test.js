@@ -51,9 +51,13 @@ const EPImageFormats = require("../js/imageFormats.js");
    конвертер» покраснела. */
 const heicStub = { calls: 0, lastFile: null,
   toJpegDataUrl(file) { this.calls++; this.lastFile = file; return Promise.resolve("data:image/jpeg;base64,HEICJPEG"); } };
+/* Заглушка DXF-парсера в window: настоящий vendor/dxf-parser тянется тегом <script> (в Node не
+   загрузится). parseSync бросает — этого хватает тесту M7: нам важно, что .dxf с картиночной
+   сигнатурой уходит в CAD-ветку (importDxf), а не читается как растр. */
+class DxfParserStub { parseSync() { throw new Error("stub parser: содержимое не DXF"); } }
 function loadModule() {
   const sandbox = {
-    window: {}, URL, TextDecoder, EPImageFormats, EPHeicImport: heicStub,
+    window: { DxfParser: DxfParserStub }, URL, TextDecoder, EPImageFormats, EPHeicImport: heicStub,
     DOMException: typeof DOMException !== "undefined" ? DOMException : Error,
     document: {
       baseURI: "http://localhost/",
@@ -142,6 +146,54 @@ test("accept, подсказка и текст ошибки собраны из 
   assert.equal(api.unsupportedMessage,
     "Поддерживаются PNG, JPG (JFIF), WEBP, GIF, BMP, AVIF, SVG, HEIC, PDF, DXF и DWG",
     "текст ошибки импорта — из того же перечня");
+});
+
+test("повреждённый HEIC — понятный тост, а не общий (ветка heic ловит ошибку декодера)", async () => {
+  const api = loadModule();
+  const original = heicStub.toJpegDataUrl;
+  // libheif на битом/нестандартном HEIC бросает ошибку ЧАСТО С ПУСТЫМ message — до правки это давало
+  // общий тост «Не удалось импортировать план». Теперь ветка heic заменяет её понятной причиной.
+  heicStub.toJpegDataUrl = () => Promise.reject(new Error(""));
+  try {
+    await assert.rejects(() => api.importFile(fakeFile("broken.heic", SIGS.heic)),
+      /Не удалось открыть HEIC — файл повреждён или не поддерживается/);
+  } finally { heicStub.toJpegDataUrl = original; }
+});
+
+test("подпись прогресса — по СОДЕРЖИМОМУ: HEIC(.jpg)→HEIC, .jfif→JPG, pdf/dxf/dwg и мусор — по расширению", async () => {
+  const api = loadModule();
+  // HEIC, которому поставили имя .jpg (частый случай с айфона/мессенджеров), не должен подписываться «JPG».
+  assert.equal(await api.progressLabel(fakeFile("photo.jpg", SIGS.heic)), "HEIC");
+  assert.equal(await api.progressLabel(fakeFile("plan.jfif", SIGS.jpeg)), "JPG", ".jfif(JPEG) → короткое имя JPG");
+  assert.equal(await api.progressLabel(fakeFile("plan.png", SIGS.png)), "PNG");
+  // Наши форматы EPImageFormats не знает — для них подпись по расширению (заголовок даже не читаем).
+  assert.equal(await api.progressLabel(fakeFile("doc.pdf", [])), "PDF");
+  assert.equal(await api.progressLabel(fakeFile("d.dxf", [])), "DXF");
+  assert.equal(await api.progressLabel(fakeFile("d.dwg", [])), "DWG");
+  assert.equal(await api.progressLabel(fakeFile("weird.xyz", SIGS.junk)), "XYZ", "нераспознанное — по расширению");
+});
+
+test("M7: pdf/dxf/dwg не уходят в растровую ветку даже при картиночной сигнатуре", async () => {
+  const api = loadModule();
+  // Файл назван .dxf, а внутри — SVG (картиночная сигнатура). С исключением !PLAN_EXTRA_EXTS.includes(ext)
+  // он идёт в CAD-ветку (importDxf → парсер-заглушка бросает «Не удалось разобрать DXF»). Убери исключение —
+  // он вернулся бы картинкой SVG (detail «исходное изображение»), и этот тест покраснеет.
+  await assert.rejects(() => api.importFile(fakeFile("drawing.dxf", SIGS.svg)), /Не удалось разобрать DXF/);
+});
+
+test("PDF-страница проходит через ЕДИНОЕ правило уменьшения (fitRasterForStorage)", () => {
+  // importPdf нельзя прогнать в Node (нужны pdf.js/DOM), поэтому инвариант держим на уровне исходника:
+  // результат importPdf обязан уходить через тот же fitRasterForStorage, что растр и HEIC, иначе
+  // тяжёлая фото-страница не влезет в снимок и пропадёт после F5. Мутация «вернуть canvas.toDataURL
+  // напрямую» (убрать вызов) красит этот тест.
+  const body = SRC.slice(SRC.indexOf("async function importPdf"), SRC.indexOf("function decodeDxf"));
+  assert.ok(/fitRasterForStorage\s*\(/.test(body), "importPdf должен прогонять PNG через fitRasterForStorage");
+});
+
+test("ни один формат EPImageFormats не помечен unsupported — поэтому в importFile нет ветки unsupported", () => {
+  // Ветку info.unsupported из importFile убрали как мёртвую. Этот страж фиксирует допущение: появится
+  // unsupported-формат — importFile снова должен отвергать его словами, и ветку надо вернуть.
+  assert.ok(EPImageFormats.FORMATS.every((f) => !f.unsupported), "появился unsupported-формат — верни ветку в importFile");
 });
 
 test("вендорный dxf-parser разбирает ASCII DXF с линиями", () => {

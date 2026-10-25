@@ -3767,13 +3767,13 @@ function applyImportedPlan(file,result){
    (EPPlanDrop ниже) зовут его — одно правило, без копии логики импорта (§7.1 HANDOFF). */
 async function importPlanFile(f){
   if(!f)return;
-  const ext=f.name.split(".").pop()?.toLowerCase()||"",format=ext.toUpperCase();
-  setUploadPopover(false);
-  showTraceProgress(true,`Импорт ${format}`,ext==="pdf"?"Чтение страниц документа…":ext==="dwg"?"Преобразование DWG и подготовка геометрии…":ext==="dxf"?"Разбор векторной геометрии…":"Подготовка изображения…");
+  const ext=f.name.split(".").pop()?.toLowerCase()||"";setUploadPopover(false);
+  /* Подпись прогресса — по СОДЕРЖИМОМУ (detect в модуле), не по расширению: HEIC с именем .jpg не «JPG». Нет модуля — откат на расширение, ошибку даст проверка в try; под-сообщение по расширению (о ходе процесса). */
+  const label=window.EPPlanImport?await EPPlanImport.progressLabel(f):ext.toUpperCase();showTraceProgress(true,`Импорт ${label}`,ext==="pdf"?"Чтение страниц документа…":ext==="dwg"?"Преобразование DWG и подготовка геометрии…":ext==="dxf"?"Разбор векторной геометрии…":"Подготовка изображения…");
   try{
     if(!window.EPPlanImport)throw new Error("Модуль импорта не загружен");
     const result=await EPPlanImport.importFile(f,{selectPdfPage:choosePdfPage});
-    showTraceProgress(true,`Импорт ${format}`,"Подготовка изображения плана…");await applyImportedPlan(f,result);toast(`${result.format} импортирован`);
+    showTraceProgress(true,`Импорт ${label}`,"Подготовка изображения плана…");await applyImportedPlan(f,result);toast(`${result.format} импортирован`);
   }catch(error){if(error?.name!=="AbortError"){console.error(error);toast(error?.message||"Не удалось импортировать план")}}
   finally{showTraceProgress(false)}
 }

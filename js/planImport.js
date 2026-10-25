@@ -130,8 +130,12 @@
       context.fillRect(0, 0, canvas.width, canvas.height);
       await page.render({ canvasContext: context, viewport, background: "white" }).promise;
       page.cleanup();
+      // Фото-/сканированная страница даёт тяжёлый PNG (десятки МБ), который не влезает в снимок проекта
+      // и теряется после F5. Прогоняем результат через ТО ЖЕ единственное правило уменьшения, что растр
+      // и HEIC (§7.1): лёгкий векторный PDF decide оставит keep (байт-в-байт), тяжёлую страницу ужмёт.
+      const dataUrl = await fitRasterForStorage(canvas.toDataURL("image/png"), "image/png", "pdf");
       return {
-        dataUrl: canvas.toDataURL("image/png"),
+        dataUrl,
         width: canvas.width,
         height: canvas.height,
         format: "PDF",
@@ -421,6 +425,17 @@
     return best || dataUrl;   /* даже нижняя ступень велика — отдаём самый лёгкий (страховка persistProject) */
   }
 
+  /* Короткое имя формата для подписи прогресса «Импорт …». Решается ТЕМ ЖЕ detect, что и сам импорт
+     (по содержимому, не по расширению): HEIC с именем .jpg больше не подписывается «Импорт JPG», а
+     .jfif — «Импорт JFIF». Наши PDF/DXF/DWG общий EPImageFormats не знает — для них (и для
+     нераспознанного) берём расширение в верхнем регистре, как было. */
+  async function progressLabel(file) {
+    const ext = ImageFormats.extOf(file && file.name || "");
+    if (PLAN_EXTRA_EXTS.includes(ext)) return ext.toUpperCase();
+    const info = ImageFormats.detect(await readHeader(file), file && file.name, file && file.type);
+    return info ? info.short : ext.toUpperCase();
+  }
+
   async function importFile(file, options) {
     if (!file) throw new Error("Файл не выбран");
     if (file.size > MAX_FILE_BYTES) throw new Error("Файл слишком большой — максимум 100 МБ");
@@ -431,13 +446,15 @@
       // HEIC (айфон/мессенджеры) браузер сам не рисует — перегоняем в JPEG ОДНИМ местом (EPHeicImport),
       // дальше data-URL идёт на холст тем же путём, что обычный растр. Поворот уже применён libheif.
       if (info.format === "heic") {
-        const dataUrl = await HeicImport.toJpegDataUrl(file);
+        let dataUrl;
+        // Повреждённый/нестандартный HEIC: libheif бросает ошибку часто с пустым message, и до
+        // пользователя доходил общий тост «Не удалось импортировать план». Даём понятную причину
+        // (по образцу бланка КП «Не удалось открыть HEIC: …», §7.1).
+        try { dataUrl = await HeicImport.toJpegDataUrl(file); }
+        catch { throw new Error("Не удалось открыть HEIC — файл повреждён или не поддерживается"); }
         // Большое HEIC-фото (айфон 12 Мп+) после конверсии в JPEG тоже ужимаем под localStorage.
         const fitted = await fitRasterForStorage(dataUrl, "image/jpeg", "heic");
         return { dataUrl: fitted, format: info.short, detail: "сконвертировано из HEIC" };
-      }
-      if (info.unsupported) {
-        throw new Error(`Формат ${info.label} браузер пока не открывает — сохраните план как JPG или PNG`);
       }
       // MIME чиним: у .jfif file.type пуст, и без правки Image не декодирует data-URL.
       const dataUrl = ImageFormats.withMime(await readDataUrl(file), info.mime);
@@ -453,5 +470,5 @@
     throw new Error(UNSUPPORTED_MESSAGE);
   }
 
-  window.EPPlanImport = { importFile, supportedExtensions, acceptAttr, formatsHint, unsupportedMessage: UNSUPPORTED_MESSAGE };
+  window.EPPlanImport = { importFile, progressLabel, supportedExtensions, acceptAttr, formatsHint, unsupportedMessage: UNSUPPORTED_MESSAGE };
 })();
