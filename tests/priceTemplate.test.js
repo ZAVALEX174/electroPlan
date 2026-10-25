@@ -96,6 +96,36 @@ test("цена не число → ошибка priceBad", () => {
   assert.ok(err(res, "priceBad"));
 });
 
+test("цена ≤ 0 → ошибка priceBad (ноль и отрицательная)", () => {
+  assert.ok(err(T.check(grid([mech({ "Прайс розница РФ, Евро": 0 })])), "priceBad"), "ноль");
+  assert.ok(err(T.check(grid([mech({ "Прайс розница РФ, Евро": -5 })])), "priceBad"), "отрицательная");
+  assert.ok(err(T.check(grid([mech({ "Прайс розница РФ, Евро": "0" })])), "priceBad"), "текст «0»");
+});
+
+test("startRow: пустые строки над шапкой — номера строк в отчёте = строки Excel", () => {
+  // Лист с диапазоном от 3-й строки Excel: rows[0] — шапка (Excel 3), данные с rows[1] (Excel 4).
+  // Пустая цена в rows[2] — это Excel-строка 5. Без startRow номер был бы занижен до 3.
+  const rows = [
+    HEADER.slice(),
+    mech({ "Артикул": "A1" }),
+    mech({ "Артикул": "A2", "Прайс розница РФ, Евро": null }),
+  ];
+  const res = T.check(rows, { startRow: 3 });
+  assert.equal(res.stats.headerRow, 3);
+  assert.deepEqual(err(res, "priceEmpty").rows, [5]);
+  // Тот же вход без startRow (лист от A1) — номер строки 3 (индекс+1), как у обычного листа.
+  assert.deepEqual(err(T.check(rows), "priceEmpty").rows, [3]);
+});
+
+test("накладка с модулями «два» → ошибка frameMod (значение не разбирается)", () => {
+  const res = T.check(grid([frame({ "Количество модулей": "два" })]));
+  assert.ok(err(res, "frameMod"), "ожидали ошибку количества модулей");
+  assert.equal(res.ok, false);
+  // число/доля/«7+7»/«1, 2» — валидны, ошибки нет
+  assert.equal(T.check(grid([frame({ "Количество модулей": "7+7" })])).ok, true);
+  assert.equal(T.check(grid([frame({ "Количество модулей": 0.5 })])).ok, true);
+});
+
 test("цена с запятой/пробелами как текст — допустима", () => {
   const res = T.check(grid([mech({ "Прайс розница РФ, Евро": "1 234,50" })]));
   assert.equal(res.ok, true);

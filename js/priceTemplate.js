@@ -24,6 +24,15 @@
 const norm = (v) => String(v == null ? "" : v).trim();
 const fold = (v) => norm(v).toLowerCase();
 
+/* Общий разбор листа (цена, шапка, номер строки Excel, размер в модулях) живёт в одном месте —
+   js/priceSheet.js (§7.1): те же функции зовёт конвертер, поэтому проверка и сборка каталога не
+   разъезжаются. Браузеру — window.EPPriceSheet (подключён до этого файла), Node — require. */
+function sheetApi() {
+  if (typeof window !== "undefined" && window.EPPriceSheet) return window.EPPriceSheet;
+  if (typeof require !== "undefined") return require("./priceSheet.js");
+  return null;
+}
+
 /* ---- Закрытые списки допустимых значений (сверяются с конвертером в тестах) ---- */
 
 // Тип управления: буквы, которые распознаёт controlRoleOf (CONTROL_ROLES). Остальные значения
@@ -62,10 +71,12 @@ const FX_CODE_RE = /\.FX(\.|$)/i;
 
 /* ---- Описание столбцов шаблона ---- */
 
-// Порядок: 21 столбец файла заказчика 2026-10-10 в его порядке + 4 желательных из прежнего файла
+// Порядок: столбцы файла заказчика 2026-10-10 в его порядке + 4 желательных из прежнего файла
 // («Подгруппы», «Принцип обработки», «Модульность для коробки», «Группа доступа»). required=true —
 // обязательный столбец (нет столбца → ошибка); false — желательный (нет → предупреждение).
 // Поле appliesTo описывает, для каких товаров значение обязано быть ЗАПОЛНЕНО (проверяется в check).
+// «Изображение» и «Кодировка цвета накладки» в шаблон НЕ выносим (решение владельца 25.10):
+// программа их не читает (в COL конвертера их нет), шаблону и проверке они не нужны.
 const COLUMNS = [
   { name: "Артикул", required: true, appliesTo: "Все товары",
     explain: "Код позиции у производителя. По нему программа узнаёт товар и сверяет повторы.",
@@ -109,8 +120,6 @@ const COLUMNS = [
     explain: "Сколько горизонтальных рядов постов в накладке.", allowed: "Целое число (1, 2, 3).", example: "1" },
   { name: "Цвет механизма", required: false, appliesTo: "Механизмы и клавиши",
     explain: "Собственный цвет начинки (не накладки).", allowed: "Название цвета или пусто.", example: "Белый" },
-  { name: "Кодировка цвета накладки", required: false, appliesTo: "Накладки",
-    explain: "Код цвета накладки у производителя (для справки).", allowed: "Код или пусто.", example: "11" },
   { name: "Цвет накладки", required: true, appliesTo: "Накладки",
     explain: "Цвет отделки. По нему конструктор сужает выбор накладок под отделку комнаты.",
     allowed: "Название цвета.", example: "Белый" },
@@ -124,8 +133,6 @@ const COLUMNS = [
     explain: "Цвет свечения индикатора.", allowed: "Название цвета или пусто.", example: "Голубая" },
   { name: "Позиция подсветки 1 - верх, 2 - центр, 3 - низ", required: false, appliesTo: "Клавиши с подсветкой",
     explain: "Где на клавише индикатор.", allowed: "1 — верх, 2 — центр, 3 — низ, или пусто.", example: "2" },
-  { name: "Изображение", required: false, appliesTo: "По необходимости",
-    explain: "Имя/ссылка файла изображения позиции.", allowed: "Текст или пусто.", example: "20001.jpg" },
   // Желательные столбцы прежнего файла — программа их читает, если они есть; без них работает.
   { name: "Подгруппы", required: false, appliesTo: "Механизмы",
     explain: "Подраздел механизма в конструкторе (Выключатели, Диммеры, Датчики движения …).",
@@ -168,16 +175,21 @@ function makeBucket() {
 }
 
 /*
- * Проверка прайса. rows — массив строк листа (XLSX sheet_to_json({header:1})): массив массивов,
- * первая строка файла = rows[0]. Номер строки в отчёте — как в Excel (индекс + 1), чтобы заказчик
- * нашёл её глазами. Строку шапки ищем по столбцу «Артикул» (как конвертер).
+ * Проверка прайса. rows — массив строк листа (XLSX sheet_to_json({header:1})): массив массивов.
+ * opts.startRow — номер первой строки массива в Excel (из !ref листа, см. EPPriceSheet.startRowOf):
+ * когда над шапкой есть пустые строки, диапазон листа начинается не с A1 и rows[0] — не 1-я строка
+ * Excel. Передают его окно проверки и тест; по умолчанию 1 (лист с A1). Номер строки в отчёте =
+ * индекс + startRow, чтобы заказчик нашёл строку глазами. Шапку и цену разбираем общими функциями
+ * EPPriceSheet (§7.1) — теми же, что у конвертера.
  *
  * Возвращает { ok, errors, warnings, stats }. Каждый элемент errors/warnings:
  *   { key, count, rows, message } — message уже готов к показу (без HTML; экранирование — на уровне окна).
  * ok === true, если ошибок нет (предупреждения на ok не влияют).
  */
-function check(rows) {
+function check(rows, opts) {
   const grid = Array.isArray(rows) ? rows : [];
+  const S = sheetApi();
+  const startRow = (opts && Number.isFinite(opts.startRow)) ? opts.startRow : 1;
   const errors = makeBucket();
   const warnings = makeBucket();
   const stats = {
@@ -185,17 +197,13 @@ function check(rows) {
     frames: 0, supports: 0, boxes: 0, accessories: 0, mechanisms: 0,
   };
 
-  // Строка шапки — первая, где встречается «Артикул».
-  let headerIdx = -1;
-  for (let i = 0; i < grid.length; i++) {
-    const row = grid[i];
-    if (Array.isArray(row) && row.some((c) => norm(c) === "Артикул")) { headerIdx = i; break; }
-  }
+  // Строка шапки — первая, где встречается «Артикул» (общая функция конвертера).
+  const headerIdx = S ? S.findHeaderRow(grid) : -1;
   if (headerIdx < 0) {
     errors.add("noHeader", null, () => "в файле не найдена строка шапки со столбцом «Артикул» — это не тот лист или не тот формат.");
     return { ok: false, errors: errors.list(), warnings: warnings.list(), stats };
   }
-  stats.headerRow = headerIdx + 1;
+  stats.headerRow = headerIdx + startRow;
 
   const header = (grid[headerIdx] || []).map(norm);
   const colIndex = new Map();
@@ -216,7 +224,7 @@ function check(rows) {
 
   for (let r = headerIdx + 1; r < grid.length; r++) {
     const row = grid[r];
-    const excelRow = r + 1;
+    const excelRow = r + startRow;
     if (!Array.isArray(row) || row.every((c) => norm(c) === "")) { stats.blankRows++; continue; }
 
     const code = iCode < 0 ? "" : norm(row[iCode]);
@@ -235,12 +243,12 @@ function check(rows) {
     seen.add(code);
     stats.dataRows++;
 
-    // --- Цена ---
+    // --- Цена --- (разбор тот же, что у конвертера: EPPriceSheet.parsePrice)
     const priceCell = cellAt(row, "Прайс розница РФ, Евро");
     if (norm(priceCell) === "") {
       errors.add("priceEmpty", excelRow, (rr) => "нет цены — " + rr.length + " (строки " + sampleRows(rr) + ").");
     } else {
-      const pv = typeof priceCell === "number" ? priceCell : Number(String(priceCell).replace(/\s+/g, "").replace(",", "."));
+      const pv = S ? S.parsePrice(priceCell) : NaN;
       if (!Number.isFinite(pv) || pv <= 0) {
         errors.add("priceBad", excelRow, (rr) => "цена не число или не больше нуля — " + rr.length + " (строки " + sampleRows(rr) + ").");
       }
@@ -268,8 +276,10 @@ function check(rows) {
     if (frame) {
       if (norm(cellAt(row, "Монтажный стандарт")) === "")
         errors.add("frameStd", excelRow, (rr) => "монтажный стандарт пуст у " + rr.length + " накладок (строки " + sampleRows(rr) + ").");
-      if (norm(cellAt(row, "Количество модулей")) === "")
-        errors.add("frameMod", excelRow, (rr) => "количество модулей пусто у " + rr.length + " накладок (строки " + sampleRows(rr) + ").");
+      // Количество модулей у накладки задаёт раскладку на посты. Ошибка, если конвертер не
+      // разберёт значение (EPPriceSheet.moduleCountOf): пусто или текст вроде «два» (null).
+      if (!S || S.moduleCountOf(cellAt(row, "Количество модулей")) == null)
+        errors.add("frameMod", excelRow, (rr) => "количество модулей пусто или не распознано у " + rr.length + " накладок (строки " + sampleRows(rr) + "); ожидается число (2), доля (0.5), «7+7» или «1, 2».");
       if (norm(cellAt(row, "Материал накладки")) === "")
         errors.add("frameMat", excelRow, (rr) => "материал накладки пуст у " + rr.length + " накладок (строки " + sampleRows(rr) + ").");
       if (norm(cellAt(row, "Форма накладки")) === "")

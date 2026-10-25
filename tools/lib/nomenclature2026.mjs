@@ -41,6 +41,10 @@ import {
 
 const require = createRequire(import.meta.url);
 const XLSX = require("xlsx");
+// Общий разбор листа прайса (выбор листа, строка шапки, смещение строк, цена, размер в модулях)
+// живёт в одном месте с проверкой — js/priceSheet.js (§7.1): конвертер тащит его через require,
+// чтобы «проверка приняла файл» и «конвертер прочитал его так же» не разъезжались.
+const EPPriceSheet = require("../../js/priceSheet.js");
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(here, "../..");     // electroplan-project/
@@ -129,14 +133,9 @@ export function wallTypeOf2026(raw) {
    Прежний moduleCountOf брал максимум ВСЕГДА — на «7+7» он дал бы 7 вместо 14 (накладка на
    14 мест превратилась бы в 7), поэтому для нового файла нужен раздельный разбор. */
 export function moduleCountOf2026(raw) {
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  const s = norm(raw);
-  if (!s) return null;
-  if (/^\d+[.,]\d+$/.test(s)) return Number(s.replace(",", "."));
-  const nums = (s.match(/\d+/g) || []).map(Number);
-  if (!nums.length) return null;
-  if (s.includes("+")) return nums.reduce((a, b) => a + b, 0);
-  return Math.max(...nums);
+  // Разбор живёт в общем модуле (EPPriceSheet.moduleCountOf) — им же пользуется проверка, чтобы
+  // «два» в модулях у накладки она ловила по тому же правилу, что и конвертер. Имя сохранено.
+  return EPPriceSheet.moduleCountOf(raw);
 }
 
 /* Разбор одной строки CSV с кавычками и разделителем «;» (поля «Источник»/«Примечание» могут
@@ -222,9 +221,10 @@ export function readFrameStandardOverrides(jsonPath = DEFAULT_FRAME_STANDARD_OVE
   return map;
 }
 
-// Имена столбцов нового файла (шапка 3-й строки). Нормализация поиска гасит расхождения по
-// пробелам — как в readNomenclature с «Подгруппы ». Столбцов principle/subgroup/boxModularity/
-// accessGroup в новом файле НЕТ — их at() вернёт null, и они возьмутся из прежнего файла.
+// Имена столбцов нового файла. Нормализация поиска гасит расхождения по пробелам — как в
+// readNomenclature с «Подгруппы ». Столбцов principle/subgroup/boxModularity/accessGroup в файле
+// заказчика 2026-10-10 НЕТ — их at() вернёт null, и значение возьмётся из прежнего файла; но если
+// заказчик добавит их в новый прайс (решение владельца 25.10), конвертер прочитает их оттуда.
 const COL = {
   code: "Артикул", name: "Наименование", price: "Прайс розница РФ, Евро",
   pack: "Кол-во в упаковке", note: "Примечание", moduleSize: "Количество модулей",
@@ -235,6 +235,8 @@ const COL = {
   askBacklight: "Спрашивать подсветку 1 - да, пусто - нет",
   backlightColor: "Цвет подсветки",
   backlightPosition: "Позиция подсветки 1 - верх, 2 - центр, 3 - низ",
+  principle: "Принцип обработки", subgroup: "Подгруппы",
+  boxModularity: "Модульность для коробки", accessGroup: "Группа доступа",
 };
 
 // Позицию подсветки новый файл пишет строкой («1»/«2»/«3»), прежний — числом. Приводим к числу.
@@ -260,11 +262,21 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
   excludeSeries = ["idea"],
 } = {}) {
   const wb = XLSX.readFile(xlsPath);
-  // Лист данных — «VIMAR » (с пробелом); первый лист (BExRepositorySheet) служебный. По trim,
-  // как ищет лист прайса в build-catalog.mjs; на крайний случай — последний лист книги.
-  const sheetName = wb.SheetNames.find((n) => n.trim() === "VIMAR") || wb.SheetNames[wb.SheetNames.length - 1];
+  // Лист данных выбираем общей функцией проверки (EPPriceSheet.chooseSheet, §7.1): лист «VIMAR» по
+  // trim (служебный BExRepositorySheet мимо), иначе первый лист со столбцом «Артикул», иначе первый
+  // лист книги. Прежде конвертер брал ПОСЛЕДНИЙ лист — на файле-шаблоне (листы «Прайс»/«Пояснения»)
+  // это давало 0 записей, расходясь с проверкой. startRow — номер первой строки листа в Excel (из
+  // !ref), чтобы sourceRow совпадал с номером строки Excel при листе не от A1.
+  const toGrid = (nm) => XLSX.utils.sheet_to_json(wb.Sheets[nm], { header: 1, raw: true, defval: null, blankrows: true });
+  const chosen = EPPriceSheet.chooseSheet({
+    names: wb.SheetNames,
+    grid: toGrid,
+    ref: (nm) => wb.Sheets[nm] && wb.Sheets[nm]["!ref"],
+  });
+  const sheetName = chosen.name;
   const ws = wb.Sheets[sheetName];
-  const grid = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: true });
+  const grid = chosen.grid;
+  const startRow = chosen.startRow;
 
   // Объединённые ячейки «Примечание» (49 вертикальных объединений на 388 строк): значение
   // стоит только в верхней строке диапазона, у остальных null. Раскрываем на весь диапазон —
@@ -281,8 +293,10 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
     }
   }
 
-  const HEADER_ROW = 2;                        // шапка в 3-й строке (индекс 2), данные с 4-й
-  const header = (grid[HEADER_ROW] || []).map(norm);
+  // Шапка — первая строка со столбцом «Артикул» (та же функция, что у проверки). На файле
+  // заказчика это 3-я строка (индекс 2), как было у прежнего жёсткого HEADER_ROW=2.
+  const HEADER_ROW = EPPriceSheet.findHeaderRow(grid);
+  const header = (HEADER_ROW >= 0 ? grid[HEADER_ROW] : []).map(norm);
   const colIndex = new Map();
   header.forEach((h, i) => { if (h && !colIndex.has(h)) colIndex.set(h, i); });
   const at = (row, name) => {
@@ -451,14 +465,24 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
       (stats.unrecognizedControl[controlType] ||= []).push(code);
     }
 
-    // --- Монтажное правило и подгруппа: столбцов в новом файле НЕТ → только из прежнего ---
-    let principle = old && old.principle ? old.principle : null;
+    // --- Монтажное правило, подгруппа, модульность, группа доступа: новый файл главнее, если
+    //     значение есть; пусто → из прежнего (решение владельца 25.10). Разбор — тот же, что
+    //     nomenclature.mjs применяет к прежнему файлу: principle/subgroup — строка (trim), иначе
+    //     null; boxModularity/accessGroup — только число. В файле 2026-10-10 этих столбцов нет
+    //     (at() вернёт null) → всё берётся из прежнего, как раньше; bump помечает источник. ---
+    let principle = norm(at(row, COL.principle)) || null;
+    if (!principle && old && old.principle) { principle = old.principle; }
     if (principle) bump("principle");
-    let subgroup = old && old.subgroup ? old.subgroup : null;
+    let subgroup = norm(at(row, COL.subgroup)) || null;
+    if (!subgroup && old && old.subgroup) { subgroup = old.subgroup; }
     if (subgroup) bump("subgroup");
-    let boxModularity = old && old.boxModularity != null ? old.boxModularity : null;
+    const boxModCell = at(row, COL.boxModularity);
+    let boxModularity = typeof boxModCell === "number" ? boxModCell : null;
+    if (boxModularity == null && old && old.boxModularity != null) { boxModularity = old.boxModularity; }
     if (boxModularity != null) bump("boxModularity");
-    let accessGroup = old && old.accessGroup != null ? old.accessGroup : null;
+    const accessCell = at(row, COL.accessGroup);
+    let accessGroup = typeof accessCell === "number" ? accessCell : null;
+    if (accessGroup == null && old && old.accessGroup != null) { accessGroup = old.accessGroup; }
     if (accessGroup != null) bump("accessGroup");
 
     // --- Подсветка клавиш: новый главнее; если в новом пусто, а в прежнем есть — из прежнего ---
@@ -472,8 +496,12 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
       if (old.backlightPosition != null) { backlightPosition = old.backlightPosition; bump("backlightPosition"); }
     }
 
+    // Цена — общим разбором (EPPriceSheet.parsePrice): число ИЛИ текст с запятой/точкой («6,99»).
+    // Прежде брали только числовую ячейку, и текстовая цена проваливалась в запасной прайс 01.07.26
+    // (у 20506 — 173,43 € вместо 6,99 €). На файле заказчика все цены числовые — результат тот же.
     const priceCell = at(row, COL.price);
-    const nomPrice = typeof priceCell === "number" && Number.isFinite(priceCell) ? priceCell : null;
+    const priceParsed = EPPriceSheet.parsePrice(priceCell);
+    const nomPrice = Number.isFinite(priceParsed) ? priceParsed : null;
     // Кол-во в упаковке (К6): целое число штук в коробке поставщика. В файле клетка бывает и ЧИСЛОМ,
     // и ТЕКСТОМ («50») — 135 позиций (Plana, Arke, Eikon, Linea, Neve Up) заданы строкой, и разбор
     // только по typeof number терял их упаковку. Принимаем оба вида: строку берём, только если после
@@ -492,7 +520,7 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
     const groupForRole = (groupKey === "механизм" || groupKey === "механизмы") ? "механизмы" : group;
 
     const rec = {
-      sourceRow: r + 1,
+      sourceRow: r + startRow,
       code,
       brand: "VIMAR",                             // «Бренд» в новом файле отдельной колонкой не вынесен
       name,

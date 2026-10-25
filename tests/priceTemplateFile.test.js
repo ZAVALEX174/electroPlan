@@ -15,6 +15,10 @@
    Зелёный ≠ проверенное правило (§7.1): мутационная проверка — в отчёте координатору. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 const XLSX = require("xlsx");
 const T = require("../js/priceTemplate.js");
 const F = require("../js/priceTemplateFile.js");
@@ -55,6 +59,28 @@ test("check() на шаблоне БЕЗ строк-примеров (тольк
   assert.equal(res.errors.length, 0, "ложных ошибок нет: " + res.errors.map((e) => e.key).join(", "));
   assert.equal(res.ok, true);
   assert.equal(res.stats.dataRows, 0);
+});
+
+test("сквозной: шаблон → check ok → конвертер даёт 3 записи тех же артикулов/цен/видов (§7.1)", async (t) => {
+  // 1) собственный шаблон проходит проверку
+  assert.equal(T.check(grid("Прайс")).ok, true, "шаблон не прошёл check");
+  // 2) конвертер на ТОМ ЖЕ файле — те же 3 записи. До починки конвертер брал последний лист
+  //    («Пояснения») и давал 0 записей; теперь берёт «Прайс», как проверка.
+  const N = await import(pathToFileURL(require.resolve("../tools/lib/nomenclature2026.mjs")).href);
+  if (!fs.existsSync(N.DEFAULT_OLD_NOMENCLATURE)) { t.skip("прежний файл недоступен: " + N.DEFAULT_OLD_NOMENCLATURE); return; }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "k9sweep-"));
+  const p = path.join(dir, "tpl.xlsx");
+  fs.writeFileSync(p, Buffer.from(bytes));
+  const r = N.readNomenclature2026(p);
+  assert.equal(r.records.length, 3, "конвертер должен прочитать 3 строки-примера");
+  const m = new Map(r.records.map((x) => [x.code, x]));
+  const expect = { "09661.01": ["frame", 3.12], "09001": ["mechanism", 4.3], "14600": ["support", 3.14] };
+  for (const [code, [kind, price]] of Object.entries(expect)) {
+    assert.ok(m.has(code), "нет записи " + code);
+    assert.equal(m.get(code).kind, kind, "вид " + code);
+    assert.equal(m.get(code).nomPrice, price, "цена " + code);
+    assert.equal(typeof m.get(code).nomPrice, "number", "цена числом " + code);
+  }
 });
 
 test("лист «Пояснения»: по строке на столбец, поля из COLUMNS", () => {

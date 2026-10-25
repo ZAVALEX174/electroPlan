@@ -140,17 +140,21 @@ function attach(ctx) {
     return xlsxPromise;
   }
 
-  /* Лист с данными ищем так же, как check(): первый лист, где есть строка-шапка со столбцом «Артикул».
-     Нет такого ни на одном листе — отдаём первый лист, и check() вернёт понятную ошибку «не найдена шапка».
-     header:1 — как в тесте модуля и в конвертере: массив массивов, цена приходит числом/строкой, check это разбирает. */
+  /* Лист данных выбираем ТОЙ ЖЕ функцией, что и конвертер (EPPriceSheet.chooseSheet, §7.1): лист
+     «VIMAR» по trim, иначе первый лист со столбцом «Артикул», иначе первый лист. startRow — номер
+     первой строки листа в Excel (из !ref), чтобы номера строк в отчёте совпали с номерами Excel.
+     header:1 — как в тесте модуля и в конвертере: массив массивов, цена приходит числом/строкой. */
   function pickSheetRows(XLSX, wb) {
+    const S = (typeof window !== "undefined") ? window.EPPriceSheet : null;
     const names = (wb && wb.SheetNames) || [];
     const toRows = (nm) => XLSX.utils.sheet_to_json(wb.Sheets[nm], { header: 1 });
-    for (const nm of names) {
-      const rows = toRows(nm);
-      if (rows.some((r) => Array.isArray(r) && r.some((c) => String(c == null ? "" : c).trim() === "Артикул"))) return rows;
-    }
-    return names.length ? toRows(names[0]) : [];
+    if (!S) return { rows: names.length ? toRows(names[0]) : [], startRow: 1 };
+    const chosen = S.chooseSheet({
+      names,
+      grid: toRows,
+      ref: (nm) => wb.Sheets[nm] && wb.Sheets[nm]["!ref"],
+    });
+    return { rows: chosen.grid, startRow: chosen.startRow };
   }
 
   /* Проверка выбранного файла. Любой сбой чтения (не Excel, битый файл) — понятное сообщение в окне,
@@ -165,18 +169,18 @@ function attach(ctx) {
       setReport(info("Не удалось загрузить библиотеку чтения Excel. Обновите страницу и попробуйте снова."));
       return;
     }
-    let rows;
+    let picked;
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buf), { type: "array" });
-      rows = pickSheetRows(XLSX, wb);
+      picked = pickSheetRows(XLSX, wb);
     } catch (e) {
       setReport(info("Не удалось прочитать файл как Excel (.xls или .xlsx). Выберите файл прайса в формате Excel."));
       return;
     }
     const T = (typeof window !== "undefined") ? window.EPPriceTemplate : null;
     if (!T) { setReport(info("Не удалось проверить файл: модуль проверки недоступен.")); return; }
-    const report = buildReport(T.check(rows), esc);
+    const report = buildReport(T.check(picked.rows, { startRow: picked.startRow }), esc);
     setReport(reportHtml(report));
   }
 
