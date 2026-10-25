@@ -70,6 +70,19 @@ function moduleCountOf(raw) {
   return Math.max(...nums);
 }
 
+/* Герметичная крышка/накладка — лицевая накладка группы «Накладной или Гермитичный монтаж»
+   (из неё собирается герметичный пост), а не аксессуар. Отличаем от коробки/лампы/розетки той же
+   группы по названию («Крышка…»/«Накладка…»). Гейт по группе обязателен: слово «Накладка» несут и
+   обычные рамки группы «Рамка» — их это правило не касается. Одно место для проверки и конвертера
+   (§7.1): в check() такая позиция — накладка (нужны стандарт/отделка/модули), и конвертер даёт ей
+   kind=frame тем же правилом. Якорь начала строки без \b: в JS \w — ASCII, границы слова между
+   кириллицей и пробелом нет; имена уже нормализованы (trim). */
+const HERMETIC_GROUP_KEY = "накладной или гермитичный монтаж";
+const HERMETIC_COVER_NAME_RE = /^(Крышка|Накладка)/i;
+function isHermeticCover(group, name) {
+  return norm(group).toLowerCase() === HERMETIC_GROUP_KEY && HERMETIC_COVER_NAME_RE.test(norm(name));
+}
+
 /* Выбор листа данных прайса. wbLike:
      { names: [имена листов], grid(name) -> массив строк, ref?(name) -> строка !ref }.
    Правило (решение владельца 25.10, одно для проверки и конвертера): лист «VIMAR» (по trim);
@@ -86,7 +99,10 @@ function chooseSheet(wbLike) {
   return { name, grid: wbLike.grid(name), startRow: startRowOf(ref) };
 }
 
-const api = { parsePrice, findHeaderRow, startRowOf, moduleCountOf, chooseSheet };
+const api = {
+  parsePrice, findHeaderRow, startRowOf, moduleCountOf, chooseSheet,
+  HERMETIC_GROUP_KEY, HERMETIC_COVER_NAME_RE, isHermeticCover,
+};
 
 if (typeof window !== "undefined") window.EPPriceSheet = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;

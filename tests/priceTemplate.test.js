@@ -126,6 +126,47 @@ test("накладка с модулями «два» → ошибка frameMod 
   assert.equal(T.check(grid([frame({ "Количество модулей": 0.5 })])).ok, true);
 });
 
+// Гермокрышка — лицевая накладка (решение владельца 25.10, вариант «а»): check считает её
+// накладкой тем же правилом, что конвертер (EPPriceSheet.isHermeticCover), и требует стандарт/
+// отделку/модули. Полный пример гермокрышки.
+const hermCover = (over) => row(Object.assign({
+  "Артикул": "09911.01", "Наименование": "Крышка на 2 модуля Neve Up IP55, белая",
+  "Прайс розница РФ, Евро": 5, "Кол-во в упаковке": 1, "Коллекция": "NEVE UP",
+  "Функциональная группа": "Накладной или Гермитичный монтаж",
+  "Количество модулей": 2, "Монтажный стандарт": "Итальянский и Немецкий",
+  "Цвет накладки": "Белый", "Материал накладки": "Технополимер", "Форма накладки": "Классика",
+}, over || {}));
+
+test("гермокрышка со стандартом/отделкой/модулями — валидна и считается накладкой", () => {
+  const res = T.check(grid([hermCover()]));
+  assert.equal(res.ok, true);
+  assert.equal(res.stats.frames, 1, "гермокрышка посчитана накладкой");
+  assert.equal(res.stats.accessories, 0);
+});
+
+test("гермокрышка без стандарта → ошибка frameStd (как у накладки)", () => {
+  const res = T.check(grid([hermCover({ "Монтажный стандарт": "" })]));
+  assert.ok(err(res, "frameStd"), "ожидали ошибку монтажного стандарта у гермокрышки");
+  assert.equal(res.ok, false);
+});
+
+test("гермокрышка без отделки → ошибки материал/форма/цвет", () => {
+  const res = T.check(grid([hermCover({ "Материал накладки": "", "Форма накладки": "", "Цвет накладки": "" })]));
+  assert.ok(err(res, "frameMat"));
+  assert.ok(err(res, "frameShape"));
+  assert.ok(err(res, "frameColor"));
+});
+
+test("коробка/лампа той же группы — НЕ накладка (гейт по названию «Крышка…/Накладка…»)", () => {
+  // «Коробка IP55…» группы «Накладной или Гермитичный монтаж» — аксессуар, стандарт/отделка не нужны.
+  const res = T.check(grid([hermCover({ "Артикул": "B1", "Наименование": "Коробка IP55 на 3 модуля",
+    "Монтажный стандарт": "", "Материал накладки": "", "Форма накладки": "", "Цвет накладки": "",
+    "Количество модулей": "" })]));
+  assert.equal(res.ok, true, "коробка не должна требовать отделку/стандарт/модули");
+  assert.equal(res.stats.accessories, 1);
+  assert.equal(res.stats.frames, 0);
+});
+
 test("цена с запятой/пробелами как текст — допустима", () => {
   const res = T.check(grid([mech({ "Прайс розница РФ, Евро": "1 234,50" })]));
   assert.equal(res.ok, true);
@@ -261,14 +302,20 @@ test("распознавание типа стены совпадает с wallT
 
 /* ---------- Прогон на настоящем файле заказчика ---------- */
 
-test("реальный файл: ok=false, ошибки только по отделке накладок, цена/артикул/группа чисты", (t) => {
+test("реальный файл: ok=false, ошибки только по накладкам (с гермокрышками); цена/артикул/группа чисты", (t) => {
   if (!realRes) { t.skip("файл заказчика недоступен: " + REAL_PATH); return; }
   assert.equal(realRes.ok, false);
-  // ошибки — только пустые материал/форма/цвет накладки
+  // Накладки (включая 34 гермокрышки — решение владельца 25.10, вариант «а»): пусты отделка,
+  // монтажный стандарт и количество модулей. У обычных рамок (1605) стандарт заполнен, а у
+  // гермокрышек пуст — отсюда frameStd:34. Модули у всех 34 гермокрышек пусты — frameMod:34.
   const errKeys = realRes.errors.map((e) => e.key).sort();
-  assert.deepEqual(errKeys, ["frameColor", "frameMat", "frameShape"]);
-  for (const k of ["frameColor", "frameMat", "frameShape"]) assert.ok(err(realRes, k).count > 1000);
-  // ложных ошибок по цене/артикулу/группе быть не должно
+  assert.deepEqual(errKeys, ["frameColor", "frameMat", "frameMod", "frameShape", "frameStd"]);
+  assert.equal(err(realRes, "frameColor").count, 1639);   // 1605 рамок + 34 гермокрышки
+  assert.equal(err(realRes, "frameMat").count, 1639);
+  assert.equal(err(realRes, "frameShape").count, 1639);
+  assert.equal(err(realRes, "frameStd").count, 34);       // стандарт пуст только у гермокрышек
+  assert.equal(err(realRes, "frameMod").count, 34);       // модули пусты только у гермокрышек
+  // ложных ошибок по цене/артикулу/наименованию/дублям быть не должно
   for (const k of ["priceEmpty", "priceBad", "dup", "nameEmpty"]) assert.equal(err(realRes, k), undefined, k);
   // все цены — числа > 0, дублей нет
   assert.ok(realRes.stats.dataRows > 2000);

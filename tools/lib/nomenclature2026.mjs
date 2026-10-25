@@ -101,12 +101,13 @@ const MAPPED_GROUP_KEYS = new Set(GROUP_KIND_2026.keys());
    правилом, не списком 34 кодов: новые крышки следующего файла заказчика станут накладками сами, а
    «Коробка …» / «Суппорт …» / «Лампа …» останутся accessory. Гейт по группе обязателен: слово
    «Накладка» несут и обычные рамки группы «Рамка» — их этот перевод не касается. */
-export const HERMETIC_GROUP_KEY = "накладной или гермитичный монтаж";
-// Без \b после кириллицы: в JS \w ASCII-only, границы слова между кириллицей и пробелом нет —
-// \b тут не срабатывает. Достаточно якоря начала строки: имена уже нормализованы (trim).
-export const HERMETIC_COVER_NAME_RE = /^(Крышка|Накладка)/i;
+// Правило «герметичная крышка/накладка → лицевая накладка» живёт в общем модуле (EPPriceSheet,
+// §7.1): им же пользуется проверка файла, чтобы считать вид позиции так же, как конвертер. Здесь —
+// тонкие делегаты с прежними именами (их импортируют тесты и build-*).
+export const HERMETIC_GROUP_KEY = EPPriceSheet.HERMETIC_GROUP_KEY;
+export const HERMETIC_COVER_NAME_RE = EPPriceSheet.HERMETIC_COVER_NAME_RE;
 export function isHermeticCover(group, name) {
-  return norm(group).toLowerCase() === HERMETIC_GROUP_KEY && HERMETIC_COVER_NAME_RE.test(norm(name));
+  return EPPriceSheet.isHermeticCover(group, name);
 }
 
 /* Тип стены нового файла: «Бетон» и «Кирпич» → solid (сплошная), «ГКЛ» → hollow. «Бетон» —
