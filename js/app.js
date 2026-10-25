@@ -3113,11 +3113,6 @@ function companySignature(){return docImage("signature");}
 function companyStamp(){return docImage("stamp");}
 function loadDocImage(file,kind){
   const cfg=DOC_IMAGES[kind];
-  /* Годен ли файл — решает общий чистый EPDocImages (тип картинки, честный предел размера) ТЕМ ЖЕ
-     правилом для всех трёх картинок (§7.1). subject — какая это картинка, для сообщения человеку.
-     Не годен → говорим словами и НЕ сохраняем молча битое (решение владельца п.3). */
-  const check=EPDocImages.validateSource(file,cfg.subject,EPImageFormats);
-  if(!check.ok){toast(check.reason);return;}
   /* Рисуем картинку в canvas и ужимаем под печать → PNG (у логотипов/подписей обычно прозрачный фон).
      Размер считает общий чистый EPDocImages.fitSize (пропорции, без растяжения, SVG 0×0 → целевой
      бокс) — в оркестраторе остаётся только вызов (§7.1). */
@@ -3134,17 +3129,20 @@ function loadDocImage(file,kind){
     };
     img.src=dataUrl;
   };
-  /* HEIC (айфон/мессенджеры) браузер сам не рисует — перегоняем в JPEG тем же ОДНИМ местом, что и
-     план (EPHeicImport), и дальше он идёт общим путём пережатия в PNG. Остальные форматы читаем как
+  /* Формат — по СОДЕРЖИМОМУ файла, ТЕМ ЖЕ правилом, что у плана (§7.1): читаем заголовок и решаем через
+     EPDocImages (detect по сигнатуре). Иначе бланк судил по имени/типу и отвергал HEIC с именем .jpg,
+     JPEG с именем .heic, JPEG без расширения — а план их брал. Не годен → словами, молча не сохраняем
+     (п.3). HEIC перегоняем в JPEG тем же ОДНИМ местом, что и план (EPHeicImport); остальное читаем как
      есть, починив MIME (у .jfif file.type пуст — иначе Image не декодирует data-URL). */
-  if(check.mime==="image/heic"){
-    EPHeicImport.toJpegDataUrl(file).then(toPng).catch(()=>toast("Не удалось открыть HEIC: "+cfg.subject));
-    return;
-  }
-  const reader=new FileReader();
-  reader.onerror=()=>toast("Не удалось прочитать файл: "+cfg.subject);
-  reader.onload=()=>toPng(EPImageFormats.withMime(reader.result,check.mime));
-  reader.readAsDataURL(file);
+  EPDocImages.readHeader(file).then(bytes=>{
+    const check=EPDocImages.validateSource(file,cfg.subject,EPImageFormats,bytes);
+    if(!check.ok){toast(check.reason);return;}
+    if(check.mime==="image/heic"){EPHeicImport.toJpegDataUrl(file).then(toPng).catch(()=>toast("Не удалось открыть HEIC: "+cfg.subject));return;}
+    const reader=new FileReader();
+    reader.onerror=()=>toast("Не удалось прочитать файл: "+cfg.subject);
+    reader.onload=()=>toPng(EPImageFormats.withMime(reader.result,check.mime));
+    reader.readAsDataURL(file);
+  }).catch(()=>toast("Не удалось прочитать файл: "+cfg.subject));
 }
 function clearDocImage(kind){EPPrefs.set(DOC_IMAGES[kind].pref,"");renderDocImage(kind);}
 /* Предпросмотр загруженной картинки и видимость кнопки «Убрать». Есть картинка → показываем её и

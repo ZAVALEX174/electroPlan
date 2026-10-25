@@ -48,7 +48,7 @@
           <label class="upload-btn">
             <input id="planUpload" type="file" accept=".png,.jpg,.jpeg,.jfif,.jpe,.pjpeg,.pjp,.webp,.gif,.bmp,.avif,.svg,.heic,.heif,.pdf,.dxf,.dwg,image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif,image/svg+xml,image/heic,application/pdf,application/dxf,application/acad,application/x-autocad,image/vnd.dwg,image/vnd.dxf" hidden>
             <span class="upload-icon">↑</span>
-            <span><b>Загрузить план</b><small>PNG · SVG · PDF · DXF · DWG</small></span>
+            <span><b>Загрузить план</b><small>PNG · JPG · PDF · DXF · DWG · фото из мессенджеров</small></span>
           </label>
           <button class="upload-help-btn" id="planUploadHelp" type="button" aria-label="Требования к файлу плана" aria-expanded="false" aria-controls="planUploadPopover">?</button>
           <div class="upload-popover" id="planUploadPopover" role="dialog" aria-labelledby="planUploadPopoverTitle" hidden>
@@ -545,19 +545,19 @@
       <div class="doc-logo-row">
         <button class="btn ghost small" type="button" id="docLogoBtn">Логотип компании…</button>
         <button class="btn ghost small" type="button" id="docLogoRemove" hidden>Убрать</button>
-        <input type="file" id="docLogoInput" accept="image/*" hidden>
+        <input type="file" id="docLogoInput" accept=".png,.jpg,.jpeg,.jfif,.jpe,.pjpeg,.pjp,.webp,.gif,.bmp,.avif,.svg,.heic,.heif,image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif,image/svg+xml,image/heic" hidden>
         <div class="doc-logo-preview" id="docLogoPreview" hidden></div>
       </div>
       <div class="doc-logo-row">
         <button class="btn ghost small" type="button" id="docSignatureBtn">Подпись…</button>
         <button class="btn ghost small" type="button" id="docSignatureRemove" hidden>Убрать</button>
-        <input type="file" id="docSignatureInput" accept="image/*" hidden>
+        <input type="file" id="docSignatureInput" accept=".png,.jpg,.jpeg,.jfif,.jpe,.pjpeg,.pjp,.webp,.gif,.bmp,.avif,.svg,.heic,.heif,image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif,image/svg+xml,image/heic" hidden>
         <div class="doc-logo-preview" id="docSignaturePreview" hidden></div>
       </div>
       <div class="doc-logo-row">
         <button class="btn ghost small" type="button" id="docStampBtn">Печать…</button>
         <button class="btn ghost small" type="button" id="docStampRemove" hidden>Убрать</button>
-        <input type="file" id="docStampInput" accept="image/*" hidden>
+        <input type="file" id="docStampInput" accept=".png,.jpg,.jpeg,.jfif,.jpe,.pjpeg,.pjp,.webp,.gif,.bmp,.avif,.svg,.heic,.heif,image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif,image/svg+xml,image/heic" hidden>
         <div class="doc-logo-preview" id="docStampPreview" hidden></div>
       </div>
       <label class="doc-terms-field">Условия сделки в подвале КП
@@ -715,7 +715,7 @@
 <script src="js/imageFormats.js?v=20261025.2"></script>
 <!-- Картинки бланка компании (логотип, подпись, печать) — одно правило «годен ли файл» и разметка
      <img> на все документы (§7.1). Грузится до offerPdf/installSheet, которые через него рисуют. -->
-<script src="js/docImages.js?v=20261025.2"></script>
+<script src="js/docImages.js?v=20261025.3"></script>
 <!-- Конвертация HEIC/HEIF (айфон, мессенджеры) в JPEG — ОДНО место на план и бланк КП (§7.1).
      Декодер vendor/heic-to подключается лениво, только когда реально пришёл HEIC. -->
 <script src="js/heicImport.js?v=20261025.1"></script>
@@ -810,6 +810,6 @@
 <script src="js/priceTemplate.js?v=20261025.2"></script>
 <script src="js/priceTemplateFile.js?v=20261025.1"></script>
 <script src="js/priceCheckUi.js?v=20261025.2"></script>
-<script src="js/app.js?v=20261025.2"></script>
+<script src="js/app.js?v=20261025.3"></script>
 </body>
 </html>

@@ -200,10 +200,15 @@ function makeSignatureCtx() {
   };
 }
 
-test("loadDocImage(подпись): негодный файл не сохраняется, причина названа словами", () => {
+/* loadDocImage теперь сперва читает заголовок (readHeader, async) и лишь затем валидирует/сохраняет —
+   синхронно после вызова ещё ничего не произошло, ждём один тик очереди. */
+const tick = () => new Promise(r => setTimeout(r, 0));
+
+test("loadDocImage(подпись): негодный файл не сохраняется, причина названа словами", async () => {
   const { ctx, toast, set, readCalls } = makeSignatureCtx();
   const load = stand.run(["loadDocImage"], ctx);
   load({ type: "application/pdf", size: 1000 }, "signature");   // не картинка
+  await tick();
   assert.equal(set.calls, 0, "битый файл подписи в EPPrefs не сохранён");
   assert.equal(readCalls.length, 0, "до чтения дело не дошло — отказали раньше");
   assert.equal(toast.calls, 1, "человеку показано сообщение");
@@ -211,10 +216,11 @@ test("loadDocImage(подпись): негодный файл не сохран�
   assert.match(toast.msg, /подписи/, "названо, что забракован именно файл подписи");
 });
 
-test("loadDocImage(подпись): годная картинка сохраняется в EPPrefs.companySignature", () => {
+test("loadDocImage(подпись): годная картинка сохраняется в EPPrefs.companySignature", async () => {
   const { ctx, set } = makeSignatureCtx();
   const load = stand.run(["loadDocImage"], ctx);
-  load({ type: "image/png", size: 1000 }, "signature");
+  load({ name: "sign.png", type: "image/png", size: 1000 }, "signature");
+  await tick();
   assert.equal(set.calls, 1, "подпись сохранена один раз");
   assert.equal(set.last[0], "companySignature", "ключ EPPrefs — подпись компании");
   assert.match(set.last[1], /^data:image\/png/, "сохранён ужатый растр data-URL'ом");

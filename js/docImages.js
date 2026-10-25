@@ -25,11 +25,26 @@
    высоте, но отказать великану надо словами и сразу, а не молча упереться в квоту хранилища. */
 const MAX_SOURCE_BYTES = 5 * 1024 * 1024;
 
+/* Первые байты файла для определения формата по СИГНАТУРЕ — тем же путём, что у плана (planImport
+   readHeader, §7.1): мессенджер меняет имя и теряет MIME, а первые байты не врут. Читаем только
+   заголовок (file.slice), на большом файле это копейки. Нет slice/arrayBuffer (узкий фейк в тесте
+   или не-File) → null: detect тогда решит по имени/типу, как раньше. Промис — arrayBuffer асинхронный;
+   оркестратор дочитывает файл, уже зная формат. Функция трогает только переданный file (без DOM/state). */
+const HEADER_BYTES = 4096;
+function readHeader(file) {
+  const blob = file && typeof file.slice === "function" ? file.slice(0, HEADER_BYTES) : file;
+  if (!blob || typeof blob.arrayBuffer !== "function") return Promise.resolve(null);
+  return blob.arrayBuffer().then((buf) => new Uint8Array(buf));
+}
+
 /* Годен ли ВЫБРАННЫЙ файл: это знакомая картинка и он в пределах размера. Возвращаем причину словами —
    оркестратор покажет её человеку и НЕ сохранит молча битое (решение владельца п.3). Какой формат —
-   решает ОБЩИЙ EPImageFormats (то же правило, что для плана, §7.1): по имени/типу файла, БЕЗ чтения
-   байтов, поэтому функция остаётся чистой и проверяется без браузера. Передаётся аргументом (в браузере
-   app.js подставит глобал) — модуль не лезет к чужому состоянию сам.
+   решает ОБЩИЙ EPImageFormats по СОДЕРЖИМОМУ (detect: сигнатура первых байтов, при промахе имя/MIME) —
+   ТО ЖЕ правило, что у плана (§7.1). Раньше бланк судил только по имени/типу (recognize) и расходился с
+   планом: HEIC с именем .jpg, JPEG с именем .heic, JPEG без расширения — план брал, логотип отвергал.
+   bytes — заголовок из readHeader; нет байтов → detect падает на имя/MIME, как прежде. Функция остаётся
+   чистой (байты приходят аргументом) и проверяется без браузера. Передаётся аргументом (в браузере app.js
+   подставит глобал) — модуль не лезет к чужому состоянию сам.
    Пустой file.type больше НЕ причина отказа: WhatsApp на Windows кладёт JPEG с расширением .jfif и
    пустым типом, и такой логотип раньше молча отвергался (решение владельца: грузить как JPG).
    При удаче возвращаем mime распознанного формата — оркестратору он нужен, чтобы починить data-URL
@@ -37,13 +52,13 @@ const MAX_SOURCE_BYTES = 5 * 1024 * 1024;
    subject — родительный падеж названия картинки («логотипа»/«подписи»/«печати»): один и тот же текст,
    но человек видит, какой именно файл забракован. Подлежащее всегда «Файл» (мужской род), чтобы
    согласование глагола не зависело от рода названия. */
-function validateSource(file, subject, formats) {
+function validateSource(file, subject, formats, bytes) {
   const what = typeof subject === "string" && subject.trim() ? subject.trim() : "изображения";
   const F = formats
     || (typeof window !== "undefined" && window.EPImageFormats)
     || (typeof require === "function" ? require("./imageFormats.js") : null);
   const labels = F ? F.rasterLabels.join(", ") : "PNG, JPG, SVG";
-  const info = file && F ? F.recognize(file.name, file.type) : null;
+  const info = file && F ? F.detect(bytes, file.name, file.type) : null;
   if (!info) {
     return { ok: false, reason: `Файл ${what} должен быть картинкой — ${labels}` };
   }
@@ -97,7 +112,7 @@ function imgHtml(src, esc, opts) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { validateSource, imgHtml, fitSize, MAX_SOURCE_BYTES };
+const api = { validateSource, readHeader, imgHtml, fitSize, MAX_SOURCE_BYTES };
 if (typeof window !== "undefined") window.EPDocImages = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

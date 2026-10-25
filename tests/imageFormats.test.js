@@ -6,7 +6,9 @@
      (а) сломать сигнатуру JPEG (FF D8 FF) → красит «JPEG по сигнатуре» и кейс «.jpg с PNG внутри»;
      (б) убрать "jfif" из расширений JPEG → красит «.jfif по имени → jpeg (пустой type)»;
      (в) вернуть HEIC в unsupported → красит «HEIC — принимаемый формат» и «списки форматов включают HEIC»;
-     (г) убрать HEIC из FORMATS → красит те же два теста (HEIC не распознаётся / нет в accept).
+     (г) убрать HEIC из FORMATS → красит те же два теста (HEIC не распознаётся / нет в accept);
+     (д) ftypBrands возвращает ТОЛЬКО major-бренд (без совместимых) → красит «mif1-major + avif-совместимый → AVIF»
+         (major mif1 ушёл бы в HEIC, потому что avif лежит именно в совместимых брендах).
    Запуск: node --test tests/imageFormats.test.js */
 "use strict";
 const test = require("node:test");
@@ -27,6 +29,8 @@ const BYTES = {
   avis: U([0, 0, 0, 0x1C, ...A("ftyp"), ...A("avis"), 0, 0, 0, 0, ...A("avismif1")]),
   heic: U([0, 0, 0, 0x18, ...A("ftyp"), ...A("heic"), 0, 0, 0, 0, ...A("mif1heic")]),
   heicMif1: U([0, 0, 0, 0x18, ...A("ftyp"), ...A("mif1"), 0, 0, 0, 0, ...A("mif1heic")]),
+  // major-бренд mif1 (общий HEIF), а «avif» лежит СРЕДИ СОВМЕСТИМЫХ — так пишут некоторые AVIF-энкодеры.
+  avifMif1: U([0, 0, 0, 0x1C, ...A("ftyp"), ...A("mif1"), 0, 0, 0, 0, ...A("avifmif1")]),
   svg: U(A('<?xml version="1.0" encoding="UTF-8"?>\n<!-- c -->\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>')),
   junk: U(A("Just a plain text file, not an image."))
 };
@@ -59,6 +63,13 @@ test("HEIC — принимаемый формат (не unsupported); mif1+heic
   assert.ok(!h1.unsupported, "HEIC декодируется (EPHeicImport) — больше не unsupported");
   assert.equal(h1.mime, "image/heic", "канонический mime для data-URL");
   assert.equal(F.detect(BYTES.heicMif1, "x").format, "heic", "mif1 с брендом heic — это HEIC, а не AVIF");
+});
+
+test("AVIF с major-брендом mif1 и avif В СОВМЕСТИМЫХ распознаётся как AVIF (бренд решает не только major)", () => {
+  // Разводит AVIF и HEIC по НАБОРУ брендов, а не по одному major: avif лежит среди совместимых —
+  // если бы читали только major (mif1), файл ушёл бы в HEIC. AVIF проверяется первым и выигрывает.
+  assert.equal(F.detect(BYTES.avifMif1, "x").format, "avif", "avif в совместимых брендах главнее major mif1");
+  assert.equal(F.detect(BYTES.avifMif1, "x").mime, "image/avif", "канонический mime AVIF для data-URL");
 });
 
 test("запасной путь: image/heif и image/heic-sequence — синонимы HEIC (как image/jpg для JPEG)", () => {
