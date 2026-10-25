@@ -22,6 +22,12 @@
      Подключается лениво внутри модуля; в Node-тесте подменяется заглушкой через песочницу. */
   const HeicImport = (typeof EPHeicImport !== "undefined" && EPHeicImport)
     || (typeof window !== "undefined" && window.EPHeicImport);
+  /* Правило уменьшения большого плана (целевой размер, «трогать/нет», ступени качества) — ОДНО место,
+     чистый EPPlanShrink. Здесь только РИСОВАНИЕ на canvas по его числам. В Node-тесте модуль не
+     инжектится и ветка уменьшения не выполняется (нет Image/canvas) — importFile отдаёт исходный
+     data-URL, как и раньше. */
+  const PlanShrink = (typeof EPPlanShrink !== "undefined" && EPPlanShrink)
+    || (typeof window !== "undefined" && window.EPPlanShrink);
   /* Форматы, которые умеет только этот модуль (растеризация), — добавляются к растровым из
      EPImageFormats, чтобы accept/подсказка/ошибка собирались из ОДНОГО перечня. */
   const PLAN_EXTRA_EXTS = ["pdf", "dxf", "dwg"];
@@ -364,6 +370,57 @@
   const formatsHint = SUPPORTED_LABELS.join(" · ");
   const supportedExtensions = ImageFormats.rasterExtensions.concat(PLAN_EXTRA_EXTS);
 
+  /* Декодирование data-URL в Image — только в браузере (нужны Image и canvas). Возвращает
+     загруженную картинку либо null, если декодировать нечем/не вышло. */
+  function decodeImage(dataUrl) {
+    if (typeof Image === "undefined") return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => resolve(null);
+      image.src = dataUrl;
+    });
+  }
+
+  /* Уменьшить/пережать растровый план, чтобы он гарантированно влез в снимок проекта (localStorage) и
+     пережил перезагрузку. РЕШЕНИЯ (целевой размер, «трогать/нет», ступени качества) принимает чистый
+     EPPlanShrink; здесь — только рисование на canvas по его числам.
+     - keep: исходный data-URL отдаём БАЙТ-В-БАЙТ (не перекодируем — требование владельца);
+     - redraw: рисуем в целевой размер. Сначала пробуем БЕЗ ПОТЕРЬ (PNG): скриншот/чертёж после
+       уменьшения часто и так влезает, а PNG сохраняет резкость и прозрачность. Если PNG велик —
+       пережимаем в JPEG, понижая качество по ступеням, пока не влезет в предел. Под прозрачностью
+       JPEG даёт чёрный фон, поэтому заливаем белым (лист бумаги). Если даже нижняя ступень не влезла,
+       отдаём самый лёгкий вариант — persistProject как и раньше подстрахует planTooBig (крайне
+       маловероятно для ≤4000 px). SVG и всё, что не декодировалось, не трогаем. */
+  async function fitRasterForStorage(dataUrl, mime, format) {
+    if (!PlanShrink || typeof document === "undefined" || typeof dataUrl !== "string") return dataUrl;
+    if (format === "svg") return dataUrl;   /* вектор не растеризуем — он лёгкий и масштабируемый */
+    const image = await decodeImage(dataUrl);
+    if (!image || !(image.naturalWidth > 0) || !(image.naturalHeight > 0)) return dataUrl;
+    const plan = PlanShrink.decide(image.naturalWidth, image.naturalHeight, dataUrl.length);
+    if (plan.action === "keep") return dataUrl;
+    const canvas = document.createElement("canvas");
+    canvas.width = plan.width; canvas.height = plan.height;
+    /* PNG без потерь: если влезет — лучший вариант (резкость, прозрачность сохранены). */
+    if (mime !== "image/jpeg") {
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const pngUrl = canvas.toDataURL("image/png");
+      if (PlanShrink.withinLimit(pngUrl.length)) return pngUrl;
+    }
+    /* JPEG по ступеням качества: белый фон под прозрачностью (JPEG без альфы), затем картинка. */
+    const jctx = canvas.getContext("2d");
+    jctx.fillStyle = "#fff"; jctx.fillRect(0, 0, canvas.width, canvas.height);
+    jctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    let best = null;
+    for (const q of PlanShrink.qualitySteps()) {
+      const jpg = canvas.toDataURL("image/jpeg", q);
+      best = jpg;
+      if (PlanShrink.withinLimit(jpg.length)) return jpg;
+    }
+    return best || dataUrl;   /* даже нижняя ступень велика — отдаём самый лёгкий (страховка persistProject) */
+  }
+
   async function importFile(file, options) {
     if (!file) throw new Error("Файл не выбран");
     if (file.size > MAX_FILE_BYTES) throw new Error("Файл слишком большой — максимум 100 МБ");
@@ -375,14 +432,19 @@
       // дальше data-URL идёт на холст тем же путём, что обычный растр. Поворот уже применён libheif.
       if (info.format === "heic") {
         const dataUrl = await HeicImport.toJpegDataUrl(file);
-        return { dataUrl, format: info.short, detail: "сконвертировано из HEIC" };
+        // Большое HEIC-фото (айфон 12 Мп+) после конверсии в JPEG тоже ужимаем под localStorage.
+        const fitted = await fitRasterForStorage(dataUrl, "image/jpeg", "heic");
+        return { dataUrl: fitted, format: info.short, detail: "сконвертировано из HEIC" };
       }
       if (info.unsupported) {
         throw new Error(`Формат ${info.label} браузер пока не открывает — сохраните план как JPG или PNG`);
       }
       // MIME чиним: у .jfif file.type пуст, и без правки Image не декодирует data-URL.
       const dataUrl = ImageFormats.withMime(await readDataUrl(file), info.mime);
-      return { dataUrl, format: info.short, detail: "исходное изображение" };
+      // Большой растр (> 4000 px по длинной стороне или не влезающий в снимок) уменьшаем/пережимаем,
+      // чтобы план пережил перезагрузку; маленький и влезающий остаётся байт-в-байт (SVG не трогаем).
+      const fitted = await fitRasterForStorage(dataUrl, info.mime, info.format);
+      return { dataUrl: fitted, format: info.short, detail: "исходное изображение" };
     }
     const extension = extensionOf(file);
     if (extension === "pdf") return importPdf(file, options);

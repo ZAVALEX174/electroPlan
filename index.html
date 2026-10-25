@@ -751,7 +751,9 @@
 <script src="js/planTrace.js?v=20260727.1"></script>
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
-<script src="js/planImport.js?v=20261025.2"></script>
+<!-- Уменьшение большого растрового плана под localStorage (чистое правило) — до planImport.js, который его зовёт. -->
+<script src="js/planShrink.js?v=20261025.1"></script>
+<script src="js/planImport.js?v=20261025.3"></script>
 <!-- Пользовательские предпочтения интерфейса (вид выбора отделки и т.п.) — один ключ ep_prefs,
      отдельно от снимка проекта. Грузится до app.js, который через него читает выбранный вид. -->
 <script src="js/prefs.js?v=20260915.1"></script>
