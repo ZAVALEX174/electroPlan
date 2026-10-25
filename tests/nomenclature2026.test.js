@@ -261,3 +261,64 @@ test("ручной оверрайд отделки главнее CSV и бэк�
   assert.equal(byCode().get("FR1").frameMaterialRaw, "Металл");
   assert.equal(res.stats.facingOverridden, 1);
 });
+
+/* --- Починка К9 25.10: разбор листа общий с проверкой (§7.1) --- */
+
+// Собрать мини-книгу нового формата (служебный лист + «VIMAR », шапка в 3-й строке) из aoa.
+function writeNewBook(fileName, header, dataRows) {
+  const aoa = [[], [], header.slice(), ...dataRows];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: header.length - 1 } });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["служебный"]]), "BExRepositorySheet");
+  XLSX.utils.book_append_sheet(wb, ws, "VIMAR ");
+  const p = path.join(dir, fileName);
+  XLSX.writeFile(wb, p, { bookType: "xls" });
+  return p;
+}
+
+test("цена-текст «6,99»/«12.50» в новом файле → nomPrice разобран числом (не запасной прайс)", () => {
+  const H = ["Артикул", "Наименование", "Прайс розница РФ, Евро", "Кол-во в упаковке",
+    "Примечание", "Количество модулей", "Коллекция", "Тип управления", "Функциональная группа"];
+  const p = writeNewBook("textprice.xls", H, [
+    ["20506", "Механизм X", "6,99", 10, null, 1, "Arke", null, "Механизм"],
+    ["99999.9", "Механизм Y", "12.50", 10, null, 1, "Arke", null, "Механизм"],
+  ]);
+  const m = new Map(N.readNomenclature2026(p, { oldXlsPath: oldXls, finishCsv: csv }).records.map((x) => [x.code, x]));
+  assert.equal(m.get("20506").nomPrice, 6.99);    // «6,99» → 6.99, а не null (прежде падало в прайс 173,43)
+  assert.equal(m.get("99999.9").nomPrice, 12.5);  // «12.50» → 12.5
+});
+
+test("новые столбцы «Принцип обработки»/«Модульность для коробки»/«Подгруппы»/«Группа доступа» читаются из нового файла", () => {
+  const H = ["Артикул", "Наименование", "Прайс розница РФ, Евро", "Кол-во в упаковке",
+    "Примечание", "Количество модулей", "Коллекция", "Тип управления", "Функциональная группа",
+    "Тип стены", "Монтажный стандарт", "Количество уровней в рамке", "Цвет механизма",
+    "Цвет накладки", "Материал накладки", "Форма накладки",
+    "Принцип обработки", "Подгруппы", "Модульность для коробки", "Группа доступа"];
+  const p = writeNewBook("newcols.xls", H, [
+    ["88888.01", "Накладка новая 2М", 5, 10, null, 2, "Eikon", null, "Рамка",
+      null, "Итальянский", null, null, "Белый", "Технополимер", "Классика",
+      "BUTTON", "Выключатели", 2, 1],
+  ]);
+  const rec = N.readNomenclature2026(p, { oldXlsPath: oldXls, finishCsv: csv }).records.find((x) => x.code === "88888.01");
+  assert.equal(rec.principle, "BUTTON");
+  assert.equal(rec.subgroup, "Выключатели");
+  assert.equal(rec.boxModularity, 2);
+  assert.equal(rec.accessGroup, 1);
+});
+
+test("выбор листа как у проверки: нет «VIMAR» → первый лист со столбцом «Артикул»", () => {
+  // Книга из листов «Пояснения» (без «Артикула») и «Прайс» (с шапкой) — прежде конвертер брал
+  // ПОСЛЕДНИЙ лист и читал 0 записей; теперь берёт первый лист с «Артикулом», как проверка.
+  const H = ["Артикул", "Наименование", "Прайс розница РФ, Евро", "Кол-во в упаковке",
+    "Примечание", "Количество модулей", "Коллекция", "Тип управления", "Функциональная группа"];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Столбец", "Что это"]]), "Пояснения");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([H, ["20001.0", "Мех", 5, 10, null, 1, "Arke", null, "Механизм"]]), "Прайс");
+  const p = path.join(dir, "twosheets.xls");
+  XLSX.writeFile(wb, p, { bookType: "xls" });
+  const r = N.readNomenclature2026(p, { oldXlsPath: oldXls, finishCsv: csv });
+  assert.equal(r.stats.sheet, "Прайс");
+  assert.equal(r.records.length, 1);
+  assert.equal(r.records[0].code, "20001.0");
+});

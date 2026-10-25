@@ -3968,7 +3968,7 @@ document.onkeydown=e=>{
   /* Отмена/возврат плана (Б4, ч.А). Решение по нажатию — чистый EPHistory.hotkeyAction: он сам
      пропускает текстовые поля (там Ctrl+Z — браузерная отмена ввода), разбирает Ctrl/⌘+Z/Y/Shift+Z и
      молчит при открытой модалке. Модалки, при которых не работаем, — те же пять окон, что и везде. */
-  const anyModalOpen=["postModal","framePickerModal","scaleModal","pdfPageModal","wallScopeModal","projectConfirmModal","kpSetupModal"]
+  const anyModalOpen=["postModal","framePickerModal","scaleModal","pdfPageModal","wallScopeModal","projectConfirmModal","kpSetupModal","priceCheckModal"]
     .some(id=>{const m=$(id);return m&&m.classList.contains("open")});
   const histAction=EPHistory.hotkeyAction(e,{modalOpen:anyModalOpen});
   if(histAction){e.preventDefault();histAction==="undo"?undoPlan():redoPlan();return}
@@ -4006,6 +4006,9 @@ document.onkeydown=e=>{
     /* Окно «Данные проекта и КП» (EPProjectSetup) — самостоятельное: Esc = «Готово», просто скрываем.
        Значения уже записаны по ходу ввода, промисов за кнопками нет. */
     if($("kpSetupModal").classList.contains("open")){closeKpSetup();return}
+    /* Окно «Прайс по шаблону» (EPPriceCheckUi) — самостоятельное: Esc = «Закрыть», просто скрываем.
+       Отчёт — только показ, промисов за кнопками нет; const инициализирован к моменту нажатия клавиши. */
+    if($("priceCheckModal").classList.contains("open")){closePriceCheck();return}
     if($("pdfPageModal").classList.contains("open")){finishPdfPageSelection(null);return}
     /* Вопрос об охвате правки типа стены висит ПОВЕРХ конструктора, поэтому разбирается
        раньше конструктора: иначе Esc закрыл бы окно поста из-под неразрешённого промиса. */
@@ -4197,6 +4200,11 @@ const {setCleanBaseline}=EPProjectFile.attach({
    выше: const инициализирован к моменту нажатия клавиши, TDZ нет). Поля окна читают/пишут прежние функции
    app.js по id — тут только показ/скрытие окна. */
 const {close:closeKpSetup,maybeOpenOnLoad:maybeOpenKpSetup}=EPProjectSetup.attach({$});
+
+/* Окно «Прайс по шаблону» (К9 ч.3, EPPriceCheckUi.attach). Строит окно, вешает кнопку шапки
+   (#priceTemplateBtn), «Скачать шаблон» и «Проверить файл» (чтение .xls через SheetJS — внутри модуля);
+   возвращает close для Esc-диспетчера выше. Каталог/проект модуль не трогает — он их не знает. */
+const {close:closePriceCheck}=EPPriceCheckUi.attach({$,esc,openBtnId:"priceTemplateBtn"});
 
 /* Галка «рассчитать кратно упаковке» (К6, EPPackMultiple.attach). Поднимаем здесь, внизу: к этому
    моменту определены EP_DATA и scheduleSave (нет TDZ), а restoreProject (выше) зовёт возвращённую

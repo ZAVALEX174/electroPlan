@@ -515,6 +515,28 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .builder-composition{margin-top:12px;padding:10px;border:1px solid #d5e4f0;border-radius:10px;background:#fff}.composition-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px;margin-bottom:6px}.composition-head span{color:var(--muted);text-align:right}.composition-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px dashed #e2ecf4;font-size:11px}.composition-row span{color:var(--muted)}.composition-row b{text-align:right}.composition-row.is-missing b{color:#c0492f}.composition-row.total b{color:var(--blue-dark);font-size:13px}.composition-note{margin-top:6px;color:#c0492f;font-size:10px}
 .modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
 .modal-footer button:disabled{cursor:not-allowed;opacity:.45;transform:none;box-shadow:none}
+/* Окно «Прайс по шаблону» (К9 ч.3, EPPriceCheckUi). Два действия в ряд, ниже — отчёт проверки:
+   итог (зелёный/красный) и группы «Ошибки»/«Предупреждения» списком. */
+.price-check-modal{width:min(720px,100%)}
+.pc-actions{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.pc-file-btn{cursor:pointer}
+.pc-report:empty{display:none}
+.pc-info{margin:0;color:var(--muted);font-size:13px}
+.pc-summary{margin:4px 0 14px;padding:11px 14px;border-radius:11px;font-weight:700;font-size:14px}
+.pc-summary.ok{background:#e7f6ec;border:1px solid #9bd7af;color:#1c6b3a}
+.pc-summary.bad{background:#fdecec;border:1px solid #e9a7a7;color:#9a2626}
+.pc-group{margin-top:12px}
+.pc-group-title{margin:0 0 6px;font-size:12px;font-weight:900;letter-spacing:.04em;text-transform:uppercase}
+.pc-group-title.bad{color:#b02a2a}
+.pc-group-title.warn{color:#9a6b12}
+.pc-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
+.pc-item{display:flex;gap:8px;align-items:flex-start;padding:8px 11px;border-radius:9px;font-size:13px;line-height:1.35}
+.pc-item.bad{background:#fdf2f2;border:1px solid #f0cccc}
+.pc-item.warn{background:#fcf6e8;border:1px solid #ecdcae}
+.pc-count{flex:0 0 auto;min-width:22px;height:20px;padding:0 6px;border-radius:999px;font-size:11px;font-weight:800;color:#fff;display:inline-flex;align-items:center;justify-content:center}
+.pc-item.bad .pc-count{background:#c23a3a}
+.pc-item.warn .pc-count{background:#c69314}
+.pc-text{flex:1 1 auto}
 /* Мастер отделки накладки (вид «С картинками», E14). Обычная центрированная модалка (.modal), как
    #scaleModal: тело со своим скроллом. Крошки сверху — выбранное и переход на любой шаг; сетка
    плиток — варианты текущего шага с фото и счётчиком. */
