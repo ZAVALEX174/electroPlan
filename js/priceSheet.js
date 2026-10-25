@@ -53,6 +53,23 @@ function startRowOf(ref) {
   return m ? parseInt(m[1], 10) : 1;
 }
 
+/* Левый верхний угол диапазона !ref в 0-based координатах {r, c} («C4:X13» → {r:3, c:2};
+   «A1:…» → {r:0, c:0}). Нужен для раскрытия объединённых ячеек (!merges): их координаты
+   абсолютны от A1, а sheet_to_json({header:1}) строит массив от ВЕРХНЕГО-ЛЕВОГО угла !ref.
+   При листе не от A1 (пустые строки сверху И/ИЛИ пустые столбцы слева) индекс объединения
+   в этом массиве смещён на угол — и по строке, и по столбцу (§7.1, край: смещение по обеим
+   осям, не только по строке). Нет/битый !ref — угол A1. */
+function rangeOrigin(ref) {
+  const def = { r: 0, c: 0 };
+  if (!ref || typeof ref !== "string") return def;
+  const m = /^([A-Za-z]+)(\d+)/.exec(ref.split(":")[0].trim());
+  if (!m) return def;
+  let c = 0;
+  const letters = m[1].toUpperCase();
+  for (let i = 0; i < letters.length; i++) c = c * 26 + (letters.charCodeAt(i) - 64);
+  return { r: parseInt(m[2], 10) - 1, c: c - 1 };
+}
+
 /* Размер в модулях из «Количество модулей»:
    - число (3) → как есть; дробь («0.5»/«0,5») → как есть (не список, не сумма);
    - со знаком «+» («7+7», «3+3») → СУММА слагаемых (многорядная накладка: 7+7 = 14 мест);
@@ -100,7 +117,7 @@ function chooseSheet(wbLike) {
 }
 
 const api = {
-  parsePrice, findHeaderRow, startRowOf, moduleCountOf, chooseSheet,
+  parsePrice, findHeaderRow, startRowOf, rangeOrigin, moduleCountOf, chooseSheet,
   HERMETIC_GROUP_KEY, HERMETIC_COVER_NAME_RE, isHermeticCover,
 };
 

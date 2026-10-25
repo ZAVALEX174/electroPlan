@@ -37,6 +37,16 @@ test("startRowOf: номер первой строки из !ref; нет !ref �
   assert.equal(S.startRowOf(""), 1);
 });
 
+test("rangeOrigin: верхний-левый угол !ref в 0-based {r,c}; нет/битый !ref → A1", () => {
+  assert.deepEqual(S.rangeOrigin("C4:X13"), { r: 3, c: 2 });    // смещение и по строке, и по столбцу
+  assert.deepEqual(S.rangeOrigin("A1:U3194"), { r: 0, c: 0 });  // от A1 — смещения нет
+  assert.deepEqual(S.rangeOrigin("B10:D20"), { r: 9, c: 1 });
+  assert.deepEqual(S.rangeOrigin("AA2:AC5"), { r: 1, c: 26 });  // двухбуквенный столбец
+  assert.deepEqual(S.rangeOrigin(undefined), { r: 0, c: 0 });
+  assert.deepEqual(S.rangeOrigin(null), { r: 0, c: 0 });
+  assert.deepEqual(S.rangeOrigin(""), { r: 0, c: 0 });
+});
+
 test("moduleCountOf: «+» → сумма, «,» → максимум, дробь → как есть, мусор → null", () => {
   assert.equal(S.moduleCountOf("7+7"), 14);
   assert.equal(S.moduleCountOf("3+3"), 6);

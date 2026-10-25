@@ -284,13 +284,20 @@ export function readNomenclature2026(xlsPath = DEFAULT_NOMENCLATURE_2026, {
   // иначе у ~339 строк примечание читалось бы пустым. ТОЛЬКО одностолбцовые (вертикальные)
   // объединения: горизонтальных в файле нет (проверено), а копировать значение поперёк колонок
   // было бы ошибкой (затёрло бы соседние поля).
+  // Координаты !merges абсолютны от A1, а grid (sheet_to_json {header:1}) идёт от верхнего-левого
+  // угла !ref: при листе не от A1 (пустые строки сверху И/ИЛИ пустые столбцы слева) индекс в grid
+  // смещён — и по строке, и по столбцу (§7.1, край). Приводим координаты объединения к индексам
+  // grid через угол диапазона, иначе примечание уедет на соседнюю строку/столбец.
+  const origin = EPPriceSheet.rangeOrigin(ws["!ref"]);
   for (const m of (ws["!merges"] || [])) {
     if (m.s.c !== m.e.c) continue;
-    const top = grid[m.s.r] ? grid[m.s.r][m.s.c] : null;
+    const sr = m.s.r - origin.r, sc = m.s.c - origin.c, er = m.e.r - origin.r;
+    if (sr < 0 || sc < 0) continue;     // объединение выше/левее начала грида — вне данных листа
+    const top = grid[sr] ? grid[sr][sc] : null;
     if (top == null) continue;
-    for (let rr = m.s.r + 1; rr <= m.e.r; rr++) {
+    for (let rr = sr + 1; rr <= er; rr++) {
       if (!grid[rr]) grid[rr] = [];
-      if (grid[rr][m.s.c] == null) grid[rr][m.s.c] = top;
+      if (grid[rr][sc] == null) grid[rr][sc] = top;
     }
   }
 
