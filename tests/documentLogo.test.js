@@ -17,6 +17,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
 const EPDocImages = require("../js/docImages.js");
+const EPImageFormats = require("../js/imageFormats.js");
 const { buildHtml: offerHtml } = require("../js/offerPdf.js");
 const { buildHtml: installHtml } = require("../js/installSheet.js");
 
@@ -29,11 +30,24 @@ const logoImgOf = html => (html.match(/<img[^>]*alt="Логотип компан
 
 /* ---- EPDocImages: чистое правило (годность файла + разметка элемента) ---- */
 test("validateSource: не картинка — отказ со словами, картинка — ok", () => {
-  const bad = EPDocImages.validateSource({ type: "application/pdf", size: 1000 });
+  const bad = EPDocImages.validateSource({ name: "doc.pdf", type: "application/pdf", size: 1000 });
   assert.equal(bad.ok, false, "pdf — не картинка");
   assert.match(bad.reason, /картинк/i, "человеку сказано, что нужна картинка");
-  assert.equal(EPDocImages.validateSource({ type: "image/png", size: 1000 }).ok, true, "png принят");
-  assert.equal(EPDocImages.validateSource({ type: "image/svg+xml", size: 1000 }).ok, true, "svg принят");
+  assert.equal(EPDocImages.validateSource({ name: "logo.png", type: "image/png", size: 1000 }).ok, true, "png принят");
+  assert.equal(EPDocImages.validateSource({ name: "logo.svg", type: "image/svg+xml", size: 1000 }).ok, true, "svg принят");
+});
+
+test("validateSource: .jfif с ПУСТЫМ file.type принят (WhatsApp на Windows) и отдаёт MIME для data-URL", () => {
+  // Файл из мессенджера: JPEG с расширением .jfif и пустым type — раньше молчаливо отвергался.
+  const r = EPDocImages.validateSource({ name: "logo.jfif", type: "", size: 1000 });
+  assert.equal(r.ok, true, "jfif с пустым типом — годный логотип");
+  assert.equal(r.mime, "image/jpeg", "оркестратору отдан канонический MIME, чтобы Image декодировал data-URL");
+});
+
+test("validateSource: HEIC распознан и отклонён понятным текстом (часть 1 его не рисует)", () => {
+  const r = EPDocImages.validateSource({ name: "photo.heic", type: "", size: 1000 }, EPImageFormats);
+  assert.equal(r.ok, false, "heic в части 1 не принимаем");
+  assert.match(r.reason, /HEIC/, "в отказе назван формат HEIC");
 });
 
 test("validateSource: файл крупнее предела — отказ со словами", () => {
@@ -130,7 +144,7 @@ function makeLoaderCtx() {
   function Image() { const self = this; Object.defineProperty(self, "src", { set() { self.width = 200; self.height = 100; if (self.onload) self.onload(); } }); }
   const document = { createElement: () => ({ getContext: () => ({ drawImage() {} }), toDataURL: () => "data:image/png;base64,OUT" }) };
   return {
-    ctx: { EPDocImages, toast, EPPrefs: { set, get: () => "" }, FileReader, Image, document,
+    ctx: { EPDocImages, EPImageFormats, toast, EPPrefs: { set, get: () => "" }, FileReader, Image, document,
       renderDocImage: () => {}, DOC_IMAGE_PRINT_H: 160, DOC_IMAGE_MAX_W: 480,
       DOC_IMAGES: { logo: { pref: "companyLogo", subject: "логотипа", alt: "Логотип компании",
         preview: "docLogoPreview", remove: "docLogoRemove", saved: "Логотип сохранён" } } },
@@ -151,8 +165,17 @@ test("loadDocImage НЕ сохраняет негодный файл и гово
 test("loadDocImage сохраняет годную картинку data-URL'ом в EPPrefs", () => {
   const { ctx, set } = makeLoaderCtx();
   const load = stand.run(["loadDocImage"], ctx);
-  load({ type: "image/png", size: 1000 }, "logo");
+  load({ name: "logo.png", type: "image/png", size: 1000 }, "logo");
   assert.equal(set.calls, 1, "логотип сохранён один раз");
   assert.equal(set.last[0], "companyLogo", "ключ EPPrefs — логотип компании (общий для проектов)");
   assert.match(set.last[1], /^data:image\/png/, "сохранён ужатый растр data-URL'ом");
+});
+
+test("loadDocImage: .jfif с пустым file.type (мессенджер) доходит до сохранения, а не отвергается", () => {
+  const { ctx, set, readCalls } = makeLoaderCtx();
+  const load = stand.run(["loadDocImage"], ctx);
+  load({ name: "logo.jfif", type: "", size: 1000 }, "logo");
+  assert.equal(readCalls.length, 1, "файл прочитан — пустой type больше не повод для отказа");
+  assert.equal(set.calls, 1, "логотип из мессенджера сохранён");
+  assert.equal(set.last[0], "companyLogo", "ключ EPPrefs — логотип компании");
 });

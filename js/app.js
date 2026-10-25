@@ -3116,7 +3116,7 @@ function loadDocImage(file,kind){
   /* Годен ли файл — решает общий чистый EPDocImages (тип картинки, честный предел размера) ТЕМ ЖЕ
      правилом для всех трёх картинок (§7.1). subject — какая это картинка, для сообщения человеку.
      Не годен → говорим словами и НЕ сохраняем молча битое (решение владельца п.3). */
-  const check=EPDocImages.validateSource(file,cfg.subject);
+  const check=EPDocImages.validateSource(file,cfg.subject,EPImageFormats);
   if(!check.ok){toast(check.reason);return;}
   const reader=new FileReader();
   reader.onerror=()=>toast("Не удалось прочитать файл: "+cfg.subject);
@@ -3126,15 +3126,24 @@ function loadDocImage(file,kind){
     img.onload=()=>{
       /* Ужимаем до печатной высоты (и ширины), сохраняя пропорции; больше исходника не растягиваем
          (scale ≤ 1). Растр на canvas → PNG: у логотипов/подписей обычно прозрачный фон. */
-      const scale=Math.min(DOC_IMAGE_PRINT_H/img.height,DOC_IMAGE_MAX_W/img.width,1);
-      const w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale));
+      const iw=img.naturalWidth||img.width||0,ih=img.naturalHeight||img.height||0;
+      let w,h;
+      if(iw>0&&ih>0){
+        const scale=Math.min(DOC_IMAGE_PRINT_H/ih,DOC_IMAGE_MAX_W/iw,1);
+        w=Math.max(1,Math.round(iw*scale));h=Math.max(1,Math.round(ih*scale));
+      }else{
+        /* SVG без собственных width/height даёт нулевые размеры (иначе canvas вышел бы 1×1 точкой) —
+           рисуем в целевой печатный бокс, чтобы логотип в КП был виден. */
+        w=DOC_IMAGE_MAX_W;h=DOC_IMAGE_PRINT_H;
+      }
       const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
       canvas.getContext("2d").drawImage(img,0,0,w,h);
       EPPrefs.set(cfg.pref,canvas.toDataURL("image/png"));
       renderDocImage(kind);
       toast(cfg.saved);
     };
-    img.src=reader.result;
+    /* MIME чиним распознанным форматом: у .jfif file.type пуст, и Image не декодирует такой data-URL. */
+    img.src=EPImageFormats.withMime(reader.result,check.mime);
   };
   reader.readAsDataURL(file);
 }

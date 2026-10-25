@@ -1,7 +1,9 @@
 /**
  * ElectroPlan — локальный импорт планов.
- * PNG/JPG/SVG/WEBP читаются напрямую, PDF растеризуется через PDF.js,
- * DXF преобразуется в чистый геометрический растр, DWG сначала конвертируется в DXF.
+ * Растровые/векторные картинки (PNG, JPG/JFIF, WEBP, GIF, BMP, AVIF, SVG) браузер рисует сам —
+ * читаются напрямую; какой формат годен и какой у него MIME решает ОДИН модуль EPImageFormats
+ * (то же правило, что у бланка КП, §7.1). PDF растеризуется через PDF.js, DXF преобразуется в
+ * чистый геометрический растр, DWG сначала конвертируется в DXF.
  */
 (function () {
   "use strict";
@@ -9,6 +11,16 @@
   const MAX_FILE_BYTES = 100 * 1024 * 1024;
   const MAX_CAD_POINTS = 300000;
   const RASTER_LONG_SIDE = 3200;
+  const HEADER_BYTES = 4096; /* заголовка хватает для магии форматов и корня SVG */
+  /* Единый источник правила «какая это картинка». В браузере — глобал (грузится до planImport.js),
+     в Node-тесте инжектится в песочницу. */
+  const ImageFormats = (typeof EPImageFormats !== "undefined" && EPImageFormats)
+    || (typeof window !== "undefined" && window.EPImageFormats);
+  /* Форматы, которые умеет только этот модуль (растеризация), — добавляются к растровым из
+     EPImageFormats, чтобы accept/подсказка/ошибка собирались из ОДНОГО перечня. */
+  const PLAN_EXTRA_EXTS = ["pdf", "dxf", "dwg"];
+  const PLAN_EXTRA_MIMES = ["application/pdf", "application/dxf", "application/acad", "application/x-autocad", "image/vnd.dwg", "image/vnd.dxf"];
+  const PLAN_EXTRA_LABELS = ["PDF", "DXF", "DWG"];
   const scriptUrl = new URL(document.currentScript?.src || "js/planImport.js", document.baseURI);
   const rootUrl = new URL("../", scriptUrl);
   const assetUrl = (path) => new URL(path, rootUrl).href;
@@ -328,20 +340,44 @@
     return importDxfBytes(dxfBytes instanceof Uint8Array ? dxfBytes : new Uint8Array(dxfBytes), "DWG");
   }
 
+  /* Первые байты файла для определения формата по сигнатуре (file.slice есть у File/Blob; в тестах
+     фейк-файл отдаёт их сам). Читаем только заголовок — на 100-МБ плане это копейки. */
+  async function readHeader(file) {
+    const blob = typeof file.slice === "function" ? file.slice(0, HEADER_BYTES) : file;
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+
+  /* Перечень принимаемых форматов словами — растровые из EPImageFormats плюс наши PDF/DXF/DWG. */
+  const SUPPORTED_LABELS = ImageFormats.rasterLabels.concat(PLAN_EXTRA_LABELS);
+  const UNSUPPORTED_MESSAGE = "Поддерживаются " + ImageFormats.listWithAnd(SUPPORTED_LABELS);
+  /* Строка accept для <input type=file>: сначала все расширения, затем MIME-типы (как было).
+     Генерируется из тех же списков, что и сообщение, — расхождение ловит тест. */
+  const acceptAttr = ImageFormats.rasterExtensions.concat(PLAN_EXTRA_EXTS).map((e) => "." + e)
+    .concat(ImageFormats.rasterMimes, PLAN_EXTRA_MIMES).join(",");
+  /* Подпись перечня для подсказки «Как подготовить чертёж» (разделитель — средняя точка). */
+  const formatsHint = SUPPORTED_LABELS.join(" · ");
+  const supportedExtensions = ImageFormats.rasterExtensions.concat(PLAN_EXTRA_EXTS);
+
   async function importFile(file, options) {
     if (!file) throw new Error("Файл не выбран");
     if (file.size > MAX_FILE_BYTES) throw new Error("Файл слишком большой — максимум 100 МБ");
-    const extension = extensionOf(file);
-    // Растровые/векторные картинки, которые браузер рисует сам, читаем как data URL без растеризации.
-    // JPG/JPEG/WEBP идут тем же путём, что PNG: отдельного декодера им не нужно.
-    if (extension === "png" || extension === "svg" || extension === "jpg" || extension === "jpeg" || extension === "webp") {
-      return { dataUrl: await readDataUrl(file), format: extension.toUpperCase(), detail: "исходное изображение" };
+    // Растровые/векторные картинки, которые браузер рисует сам, маршрутизируем по СИГНАТУРЕ первых
+    // байтов (не по расширению): .jfif с мессенджера — это JPEG, и читается тем же путём, что PNG.
+    const info = ImageFormats.detect(await readHeader(file), file.name, file.type);
+    if (info && !PLAN_EXTRA_EXTS.includes(ImageFormats.extOf(file.name))) {
+      if (info.unsupported) {
+        throw new Error(`Формат ${info.label} браузер пока не открывает — сохраните план как JPG или PNG`);
+      }
+      // MIME чиним: у .jfif file.type пуст, и без правки Image не декодирует data-URL.
+      const dataUrl = ImageFormats.withMime(await readDataUrl(file), info.mime);
+      return { dataUrl, format: info.short, detail: "исходное изображение" };
     }
+    const extension = extensionOf(file);
     if (extension === "pdf") return importPdf(file, options);
     if (extension === "dxf") return importDxf(file);
     if (extension === "dwg") return importDwg(file);
-    throw new Error("Поддерживаются PNG, JPG, SVG, WEBP, PDF, DXF и DWG");
+    throw new Error(UNSUPPORTED_MESSAGE);
   }
 
-  window.EPPlanImport = { importFile, supportedExtensions: ["png", "jpg", "jpeg", "svg", "webp", "pdf", "dxf", "dwg"] };
+  window.EPPlanImport = { importFile, supportedExtensions, acceptAttr, formatsHint, unsupportedMessage: UNSUPPORTED_MESSAGE };
 })();

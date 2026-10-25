@@ -30,6 +30,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const stand = require("./helpers/appStand.js");
 const EPDocImages = require("../js/docImages.js");
+const EPImageFormats = require("../js/imageFormats.js");
 const EPOfferPdf = require("../js/offerPdf.js");
 const { buildHtml, signatureBlockHtml } = EPOfferPdf;
 
@@ -191,7 +192,7 @@ function makeSignatureCtx() {
   /* DOC_IMAGES отдаём сюда данными, как стенд отдаёт остальную лексику app.js: под проверкой —
      общий loadDocImage и настоящий EPDocImages.validateSource, а не эта таблица. */
   return {
-    ctx: { EPDocImages, toast, EPPrefs: { set, get: () => "" }, FileReader, Image, document,
+    ctx: { EPDocImages, EPImageFormats, toast, EPPrefs: { set, get: () => "" }, FileReader, Image, document,
       renderDocImage: () => {}, DOC_IMAGE_PRINT_H: 160, DOC_IMAGE_MAX_W: 480,
       DOC_IMAGES: { signature: { pref: "companySignature", subject: "подписи", alt: "Подпись",
         preview: "docSignaturePreview", remove: "docSignatureRemove", saved: "Подпись сохранена" } } },
