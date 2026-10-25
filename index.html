@@ -65,7 +65,7 @@
               <li>Один этаж, без наклона, перспективы, штампа и таблиц</li>
               <li>Самая тонкая перегородка — не менее 3–5 пикселей</li>
             </ul>
-            <p>JPG принимается; для фотоснимков чертежа возможны артефакты сжатия — чётче всего импортируются PNG и векторные форматы. Файлы обрабатываются локально и не отправляются во внешние сервисы.</p>
+            <p>JPG принимается; для фотоснимков чертежа возможны артефакты сжатия — чётче всего импортируются PNG и векторные форматы. Файлы обрабатываются локально и не отправляются во внешние сервисы. HEIC (фото с айфона) открывается библиотекой libheif, лицензия LGPL-3.0.</p>
           </div>
         </div>
         <div class="trace-panel">
@@ -219,6 +219,10 @@
           <div class="hover-card" id="hoverCard"></div>
           <canvas id="analysisCanvas" hidden></canvas>
         </div>
+        <!-- Рамка перетаскивания файла плана: лежит в окне вида (.canvas-scroll), а НЕ в #canvas —
+             у #canvas transform от pan/zoom, рамка должна держаться в экранных координатах. Показ —
+             класс .drag-over на .canvas-scroll (вешает EPPlanDrop через app.js). -->
+        <div class="canvas-dropzone" id="canvasDropzone" aria-hidden="true"><span>Отпустите, чтобы загрузить план</span></div>
       </div>
 
       <div class="canvas-footer">
@@ -812,6 +816,7 @@
 <script src="js/priceTemplate.js?v=20261025.2"></script>
 <script src="js/priceTemplateFile.js?v=20261025.1"></script>
 <script src="js/priceCheckUi.js?v=20261025.2"></script>
-<script src="js/app.js?v=20261025.3"></script>
+<script src="js/planDrop.js?v=20261025.2"></script>
+<script src="js/app.js?v=20261025.4"></script>
 </body>
 </html>

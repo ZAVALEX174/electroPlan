@@ -3763,26 +3763,24 @@ function applyImportedPlan(file,result){
   });
 }
 
-$("planUpload").onchange=async e=>{
-  const input=e.target,f=input.files[0];if(!f)return;
-  const ext=f.name.split(".").pop()?.toLowerCase()||"";
-  const format=ext.toUpperCase();
+/* Общий путь загрузки плана: и кнопка «Загрузить план» (#planUpload), и перетаскивание файла на холст
+   (EPPlanDrop ниже) зовут его — одно правило, без копии логики импорта (§7.1 HANDOFF). */
+async function importPlanFile(f){
+  if(!f)return;
+  const ext=f.name.split(".").pop()?.toLowerCase()||"",format=ext.toUpperCase();
   setUploadPopover(false);
   showTraceProgress(true,`Импорт ${format}`,ext==="pdf"?"Чтение страниц документа…":ext==="dwg"?"Преобразование DWG и подготовка геометрии…":ext==="dxf"?"Разбор векторной геометрии…":"Подготовка изображения…");
   try{
     if(!window.EPPlanImport)throw new Error("Модуль импорта не загружен");
     const result=await EPPlanImport.importFile(f,{selectPdfPage:choosePdfPage});
-    showTraceProgress(true,`Импорт ${format}`,"Подготовка изображения плана…");
-    await applyImportedPlan(f,result);
-    toast(`${result.format} импортирован`);
-  }catch(error){
-    if(error?.name!=="AbortError"){
-      console.error(error);toast(error?.message||"Не удалось импортировать план");
-    }
-  }finally{
-    showTraceProgress(false);input.value="";
-  }
-};
+    showTraceProgress(true,`Импорт ${format}`,"Подготовка изображения плана…");await applyImportedPlan(f,result);toast(`${result.format} импортирован`);
+  }catch(error){if(error?.name!=="AbortError"){console.error(error);toast(error?.message||"Не удалось импортировать план")}}
+  finally{showTraceProgress(false)}
+}
+$("planUpload").onchange=e=>{const i=e.target;importPlanFile(i.files[0]).finally(()=>{i.value=""})};
+/* Перетаскивание файла плана на холст — тот же importPlanFile. Рамка/надпись — класс drag-over на окне
+   вида (css); Esc снимает рамку (вешаем на document). Новый план заменяет прежний так же, как кнопка. */
+EPPlanDrop.attach({el:canvasScroll,escTarget:document,onFile:importPlanFile,show:()=>canvasScroll.classList.add("drag-over"),hide:()=>canvasScroll.classList.remove("drag-over")});
 /* «Очистить холст» сносит всё нарисованное — а с ним теряет смысл и угол мира: сбрасываем worldAngle
    в 0 (Б3, ч.2а). Сброс — ТЕМ ЖЕ правилом, что поворот (setWorldAngle → EPViewport.rotateAt вокруг
    центра окна), а НЕ прямой записью worldAngle=0: прямая запись оставляла panX/panY подобранными под
