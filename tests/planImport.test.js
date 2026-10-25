@@ -2,7 +2,7 @@
    1) вендорные файлы, которые модуль грузит по жёстким путям, физически на месте
       (именно их отсутствие ломало PDF/DXF/DWG: «Failed to fetch dynamically imported module»);
    2) маршрутизация по СИГНАТУРЕ первых байтов (общий EPImageFormats) — PNG/JPG(JFIF)/WEBP/GIF/BMP/
-      AVIF/SVG читаются как картинка, HEIC распознаётся и отклоняется, мусор отклоняется;
+      AVIF/SVG читаются как картинка, HEIC уходит в конвертер EPHeicImport (здесь — заглушка), мусор отклоняется;
    3) вендорный dxf-parser действительно разбирает ASCII DXF (а не только «подключается»).
    PDF/DWG через PDF.js и wasm требуют DOM/модульного рантайма браузера — здесь не проверяются,
    как это сделать вручную описано в отчёте и в tests ниже коротко. */
@@ -45,9 +45,15 @@ test("wasm-конвертер DWG укомплектован glue-скрипто
 // Прогоняем IIFE модуля в песочнице с минимальными заглушками DOM: ветка картинок зависит только от
 // FileReader, file.slice (чтение заголовка) и общего EPImageFormats; остальное (PDF/CAD) сюда не заходит.
 const EPImageFormats = require("../js/imageFormats.js");
+/* Заглушка декодера HEIC: настоящий (vendor/heic-to) требует браузера (Worker/canvas), поэтому
+   маршрут HEIC в модуле проверяем с подменой — она лишь подтверждает, что importFile зовёт ОДНО
+   место конверсии и возвращает его data-URL JPEG. Счётчик вызовов — чтобы мутация «не звать
+   конвертер» покраснела. */
+const heicStub = { calls: 0, lastFile: null,
+  toJpegDataUrl(file) { this.calls++; this.lastFile = file; return Promise.resolve("data:image/jpeg;base64,HEICJPEG"); } };
 function loadModule() {
   const sandbox = {
-    window: {}, URL, TextDecoder, EPImageFormats,
+    window: {}, URL, TextDecoder, EPImageFormats, EPHeicImport: heicStub,
     DOMException: typeof DOMException !== "undefined" ? DOMException : Error,
     document: {
       baseURI: "http://localhost/",
@@ -88,7 +94,7 @@ test("растровые картинки маршрутизируются ПО 
   const api = loadModule();
   // Массив приходит из vm-реалма с чужим Array.prototype — копируем, чтобы deepEqual сверял содержимое.
   assert.deepEqual([...api.supportedExtensions],
-    ["png", "jpg", "jpeg", "jfif", "jpe", "pjpeg", "pjp", "webp", "gif", "bmp", "avif", "svg", "pdf", "dxf", "dwg"]);
+    ["png", "jpg", "jpeg", "jfif", "jpe", "pjpeg", "pjp", "webp", "gif", "bmp", "avif", "svg", "heic", "heif", "pdf", "dxf", "dwg"]);
   const cases = [["png", "PNG", "image/png"], ["jpeg", "JPG", "image/jpeg"], ["webp", "WEBP", "image/webp"],
     ["gif", "GIF", "image/gif"], ["bmp", "BMP", "image/bmp"], ["avif", "AVIF", "image/avif"], ["svg", "SVG", "image/svg+xml"]];
   for (const [sig, short, mime] of cases) {
@@ -109,15 +115,20 @@ test("WhatsApp .jfif (JPEG, пустой type) читается как JPG; .jpg
   assert.equal(mislabeled.format, "PNG", "решает сигнатура, а не расширение");
 });
 
-test("HEIC распознан и отклонён понятным текстом (часть 1 его не рисует)", async () => {
+test("HEIC уходит в конвертер EPHeicImport и возвращается data-URL JPEG", async () => {
   const api = loadModule();
-  await assert.rejects(() => api.importFile(fakeFile("photo.heic", SIGS.heic)), /HEIC/);
+  heicStub.calls = 0;
+  const result = await api.importFile(fakeFile("photo.heic", SIGS.heic));
+  assert.equal(heicStub.calls, 1, "importFile вызвал ОДНО место конверсии ровно раз");
+  assert.equal(result.format, "HEIC", "в статусе — исходный формат HEIC");
+  assert.ok(result.dataUrl.startsWith("data:image/jpeg"), "на холст уходит JPEG из конвертера");
+  assert.match(result.detail, /HEIC/, "подпись отмечает, что сконвертировано из HEIC");
 });
 
 test("неизвестное расширение/мусор и слишком большой файл отклоняются внятно", async () => {
   const api = loadModule();
   await assert.rejects(() => api.importFile(fakeFile("plan.xyz", SIGS.junk)),
-    /Поддерживаются PNG, JPG \(JFIF\), WEBP, GIF, BMP, AVIF, SVG, PDF, DXF и DWG/);
+    /Поддерживаются PNG, JPG \(JFIF\), WEBP, GIF, BMP, AVIF, SVG, HEIC, PDF, DXF и DWG/);
   await assert.rejects(() => api.importFile(fakeFile("huge.png", SIGS.png, 200 * 1024 * 1024)), /слишком большой/);
 });
 
@@ -129,7 +140,7 @@ test("accept, подсказка и текст ошибки собраны из 
   assert.equal(accept, api.acceptAttr, "accept в index.html совпадает со списком модуля");
   assert.equal(hint, api.formatsHint, "подсказка #planUploadPopover совпадает со списком модуля");
   assert.equal(api.unsupportedMessage,
-    "Поддерживаются PNG, JPG (JFIF), WEBP, GIF, BMP, AVIF, SVG, PDF, DXF и DWG",
+    "Поддерживаются PNG, JPG (JFIF), WEBP, GIF, BMP, AVIF, SVG, HEIC, PDF, DXF и DWG",
     "текст ошибки импорта — из того же перечня");
 });
 

@@ -56,6 +56,21 @@ function validateSource(file, subject, formats) {
   return { ok: true, mime: info.mime };
 }
 
+/* Размер растра при ужатии картинки бланка на canvas. Вписываем исходник iw×ih в печатный бокс
+   maxW×maxH с сохранением пропорций и БЕЗ растяжения (scale ≤ 1): логотип/подпись мельче бокса
+   остаётся как есть, крупнее — ужимается под печать. Нулевые iw/ih (SVG без собственных width/height
+   даёт 0×0 — иначе canvas вышел бы точкой 1×1) → рисуем в целевой бокс целиком, чтобы картинка была
+   видна. Чистый расчёт вынесен сюда из оркестратора и покрыт автотестом (§7.1): в app.js остаётся вызов. */
+function fitSize(iw, ih, maxW, maxH) {
+  const w0 = Number(iw) || 0;
+  const h0 = Number(ih) || 0;
+  if (w0 > 0 && h0 > 0) {
+    const scale = Math.min(maxH / h0, maxW / w0, 1);
+    return { width: Math.max(1, Math.round(w0 * scale)), height: Math.max(1, Math.round(h0 * scale)) };
+  }
+  return { width: maxW, height: maxH };
+}
+
 /* Безопасный <img> из data-URL для документа. Пусто или не data-URL картинки → "" (никакого
    пустого <img>: без картинки документ обязан выглядеть ровно как раньше). Принимаем ТОЛЬКО
    data:image/… — документы открываются через window.open, внешний путь туда всё равно не доедет,
@@ -82,7 +97,7 @@ function imgHtml(src, esc, opts) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { validateSource, imgHtml, MAX_SOURCE_BYTES };
+const api = { validateSource, imgHtml, fitSize, MAX_SOURCE_BYTES };
 if (typeof window !== "undefined") window.EPDocImages = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

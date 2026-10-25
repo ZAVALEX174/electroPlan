@@ -46,7 +46,7 @@
         <div class="section-head"><h3>Исходный план</h3><span class="status-dot" id="planStatusDot"></span></div>
         <div class="upload-control">
           <label class="upload-btn">
-            <input id="planUpload" type="file" accept=".png,.jpg,.jpeg,.jfif,.jpe,.pjpeg,.pjp,.webp,.gif,.bmp,.avif,.svg,.pdf,.dxf,.dwg,image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif,image/svg+xml,application/pdf,application/dxf,application/acad,application/x-autocad,image/vnd.dwg,image/vnd.dxf" hidden>
+            <input id="planUpload" type="file" accept=".png,.jpg,.jpeg,.jfif,.jpe,.pjpeg,.pjp,.webp,.gif,.bmp,.avif,.svg,.heic,.heif,.pdf,.dxf,.dwg,image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif,image/svg+xml,image/heic,application/pdf,application/dxf,application/acad,application/x-autocad,image/vnd.dwg,image/vnd.dxf" hidden>
             <span class="upload-icon">↑</span>
             <span><b>Загрузить план</b><small>PNG · SVG · PDF · DXF · DWG</small></span>
           </label>
@@ -56,7 +56,7 @@
               <strong id="planUploadPopoverTitle">Как подготовить чертёж</strong>
               <button id="closePlanUploadPopover" type="button" aria-label="Закрыть">×</button>
             </div>
-            <div class="upload-format-row"><span>Поддерживаются</span><b>PNG · JPG (JFIF) · WEBP · GIF · BMP · AVIF · SVG · PDF · DXF · DWG</b></div>
+            <div class="upload-format-row"><span>Поддерживаются</span><b>PNG · JPG (JFIF) · WEBP · GIF · BMP · AVIF · SVG · HEIC · PDF · DXF · DWG</b></div>
             <ul>
               <li>Предпочтительны векторные PDF, SVG, DXF и DWG</li>
               <li>В многостраничном PDF можно выбрать нужную страницу</li>
@@ -712,10 +712,13 @@
 <script src="js/estimate.js?v=20261023.2"></script>
 <!-- Единое правило «какая это картинка» (формат по сигнатуре первых байтов, MIME для data-URL).
      Грузится ДО planImport.js и docImages.js, которые оба к нему обращаются (§7.1). -->
-<script src="js/imageFormats.js?v=20261025.1"></script>
+<script src="js/imageFormats.js?v=20261025.2"></script>
 <!-- Картинки бланка компании (логотип, подпись, печать) — одно правило «годен ли файл» и разметка
      <img> на все документы (§7.1). Грузится до offerPdf/installSheet, которые через него рисуют. -->
-<script src="js/docImages.js?v=20261025.1"></script>
+<script src="js/docImages.js?v=20261025.2"></script>
+<!-- Конвертация HEIC/HEIF (айфон, мессенджеры) в JPEG — ОДНО место на план и бланк КП (§7.1).
+     Декодер vendor/heic-to подключается лениво, только когда реально пришёл HEIC. -->
+<script src="js/heicImport.js?v=20261025.1"></script>
 <script src="js/offerPdf.js?v=20261023.5"></script>
 <script src="js/installSheet.js?v=20261022.1"></script>
 <script src="js/supplierSpec.js?v=20261024.2"></script>
@@ -748,7 +751,7 @@
 <script src="js/planTrace.js?v=20260727.1"></script>
 <script src="js/roomSegmentation.js?v=20260723"></script>
 <script src="js/floorplanML.js?v=20260726.2"></script>
-<script src="js/planImport.js?v=20261025.1"></script>
+<script src="js/planImport.js?v=20261025.2"></script>
 <!-- Пользовательские предпочтения интерфейса (вид выбора отделки и т.п.) — один ключ ep_prefs,
      отдельно от снимка проекта. Грузится до app.js, который через него читает выбранный вид. -->
 <script src="js/prefs.js?v=20260915.1"></script>

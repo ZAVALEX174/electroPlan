@@ -5,7 +5,8 @@
    МУТАЦИОННАЯ ТАБЛИЦА (в отчёте):
      (а) сломать сигнатуру JPEG (FF D8 FF) → красит «JPEG по сигнатуре» и кейс «.jpg с PNG внутри»;
      (б) убрать "jfif" из расширений JPEG → красит «.jfif по имени → jpeg (пустой type)»;
-     (в) снять unsupported у HEIC → красит «HEIC распознан, но помечен unsupported».
+     (в) вернуть HEIC в unsupported → красит «HEIC — принимаемый формат» и «списки форматов включают HEIC»;
+     (г) убрать HEIC из FORMATS → красит те же два теста (HEIC не распознаётся / нет в accept).
    Запуск: node --test tests/imageFormats.test.js */
 "use strict";
 const test = require("node:test");
@@ -52,11 +53,19 @@ test("каждый принятый формат отдаёт каноничес
   assert.equal(F.detect(BYTES.svg, "x").mime, "image/svg+xml");
 });
 
-test("HEIC распознаётся (в т.ч. major-бренд mif1), но помечен unsupported — часть 1 его не рисует", () => {
+test("HEIC — принимаемый формат (не unsupported); mif1+heic — это HEIC, а не AVIF", () => {
   const h1 = F.detect(BYTES.heic, "x");
   assert.equal(h1.format, "heic");
-  assert.equal(h1.unsupported, true, "браузер сам HEIC не открывает — помечаем");
+  assert.ok(!h1.unsupported, "HEIC декодируется (EPHeicImport) — больше не unsupported");
+  assert.equal(h1.mime, "image/heic", "канонический mime для data-URL");
   assert.equal(F.detect(BYTES.heicMif1, "x").format, "heic", "mif1 с брендом heic — это HEIC, а не AVIF");
+});
+
+test("запасной путь: image/heif и image/heic-sequence — синонимы HEIC (как image/jpg для JPEG)", () => {
+  assert.equal(F.recognize("noext", "image/heif").format, "heic", "image/heif — синоним HEIC");
+  assert.equal(F.recognize("noext", "image/heic-sequence").format, "heic", "image/heic-sequence — синоним HEIC");
+  assert.equal(F.recognize("photo.heic", "").format, "heic", ".heic по имени");
+  assert.equal(F.recognize("photo.heif", "").format, "heic", ".heif по имени");
 });
 
 test("сигнатура ГЛАВНЕЕ имени: .jpg с байтами PNG распознаётся как PNG", () => {
@@ -96,17 +105,18 @@ test("withMime чинит пустой/чужой MIME в data-URL, канони
 
 test("listWithAnd собирает перечень форматов через запятую и «и» перед последним", () => {
   assert.equal(F.listWithAnd(F.rasterLabels.concat(["PDF", "DXF", "DWG"])),
-    "PNG, JPG (JFIF), WEBP, GIF, BMP, AVIF, SVG, PDF, DXF и DWG");
+    "PNG, JPG (JFIF), WEBP, GIF, BMP, AVIF, SVG, HEIC, PDF, DXF и DWG");
   assert.equal(F.listWithAnd(["A"]), "A");
   assert.equal(F.listWithAnd(["A", "B"]), "A и B");
 });
 
-test("списки форматов (расширения/MIME/подписи) не содержат unsupported-HEIC", () => {
+test("списки форматов (расширения/MIME/подписи) включают HEIC — он принимается", () => {
   assert.deepEqual(F.rasterExtensions,
-    ["png", "jpg", "jpeg", "jfif", "jpe", "pjpeg", "pjp", "webp", "gif", "bmp", "avif", "svg"]);
+    ["png", "jpg", "jpeg", "jfif", "jpe", "pjpeg", "pjp", "webp", "gif", "bmp", "avif", "svg", "heic", "heif"]);
+  // В accept идёт один канонический mime HEIC (image/heif — только синоним при распознавании, как image/jpg).
   assert.deepEqual(F.rasterMimes,
-    ["image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp", "image/avif", "image/svg+xml"]);
-  assert.deepEqual(F.rasterLabels, ["PNG", "JPG (JFIF)", "WEBP", "GIF", "BMP", "AVIF", "SVG"]);
-  assert.ok(!F.rasterExtensions.includes("heic"), "heic в принимаемых не значится");
-  assert.ok(!F.rasterMimes.includes("image/heic"), "image/heic в accept не попадёт");
+    ["image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp", "image/avif", "image/svg+xml", "image/heic"]);
+  assert.deepEqual(F.rasterLabels, ["PNG", "JPG (JFIF)", "WEBP", "GIF", "BMP", "AVIF", "SVG", "HEIC"]);
+  assert.ok(F.rasterExtensions.includes("heic") && F.rasterExtensions.includes("heif"), "heic/heif в принимаемых");
+  assert.ok(F.rasterMimes.includes("image/heic"), "image/heic попадёт в accept");
 });

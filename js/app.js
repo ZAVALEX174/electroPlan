@@ -3118,33 +3118,32 @@ function loadDocImage(file,kind){
      Не годен → говорим словами и НЕ сохраняем молча битое (решение владельца п.3). */
   const check=EPDocImages.validateSource(file,cfg.subject,EPImageFormats);
   if(!check.ok){toast(check.reason);return;}
-  const reader=new FileReader();
-  reader.onerror=()=>toast("Не удалось прочитать файл: "+cfg.subject);
-  reader.onload=()=>{
+  /* Рисуем картинку в canvas и ужимаем под печать → PNG (у логотипов/подписей обычно прозрачный фон).
+     Размер считает общий чистый EPDocImages.fitSize (пропорции, без растяжения, SVG 0×0 → целевой
+     бокс) — в оркестраторе остаётся только вызов (§7.1). */
+  const toPng=dataUrl=>{
     const img=new Image();
     img.onerror=()=>toast("Не удалось разобрать картинку: "+cfg.subject);
     img.onload=()=>{
-      /* Ужимаем до печатной высоты (и ширины), сохраняя пропорции; больше исходника не растягиваем
-         (scale ≤ 1). Растр на canvas → PNG: у логотипов/подписей обычно прозрачный фон. */
-      const iw=img.naturalWidth||img.width||0,ih=img.naturalHeight||img.height||0;
-      let w,h;
-      if(iw>0&&ih>0){
-        const scale=Math.min(DOC_IMAGE_PRINT_H/ih,DOC_IMAGE_MAX_W/iw,1);
-        w=Math.max(1,Math.round(iw*scale));h=Math.max(1,Math.round(ih*scale));
-      }else{
-        /* SVG без собственных width/height даёт нулевые размеры (иначе canvas вышел бы 1×1 точкой) —
-           рисуем в целевой печатный бокс, чтобы логотип в КП был виден. */
-        w=DOC_IMAGE_MAX_W;h=DOC_IMAGE_PRINT_H;
-      }
+      const {width:w,height:h}=EPDocImages.fitSize(img.naturalWidth||img.width||0,img.naturalHeight||img.height||0,DOC_IMAGE_MAX_W,DOC_IMAGE_PRINT_H);
       const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
       canvas.getContext("2d").drawImage(img,0,0,w,h);
       EPPrefs.set(cfg.pref,canvas.toDataURL("image/png"));
       renderDocImage(kind);
       toast(cfg.saved);
     };
-    /* MIME чиним распознанным форматом: у .jfif file.type пуст, и Image не декодирует такой data-URL. */
-    img.src=EPImageFormats.withMime(reader.result,check.mime);
+    img.src=dataUrl;
   };
+  /* HEIC (айфон/мессенджеры) браузер сам не рисует — перегоняем в JPEG тем же ОДНИМ местом, что и
+     план (EPHeicImport), и дальше он идёт общим путём пережатия в PNG. Остальные форматы читаем как
+     есть, починив MIME (у .jfif file.type пуст — иначе Image не декодирует data-URL). */
+  if(check.mime==="image/heic"){
+    EPHeicImport.toJpegDataUrl(file).then(toPng).catch(()=>toast("Не удалось открыть HEIC: "+cfg.subject));
+    return;
+  }
+  const reader=new FileReader();
+  reader.onerror=()=>toast("Не удалось прочитать файл: "+cfg.subject);
+  reader.onload=()=>toPng(EPImageFormats.withMime(reader.result,check.mime));
   reader.readAsDataURL(file);
 }
 function clearDocImage(kind){EPPrefs.set(DOC_IMAGES[kind].pref,"");renderDocImage(kind);}

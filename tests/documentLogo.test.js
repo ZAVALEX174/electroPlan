@@ -10,7 +10,9 @@
      (б) при пустом логотипе в шапку лезет пустой <img>        → красит «без логотипа шапка КП…» и
                                                                   «…шапка листа монтажника не меняется» (identical + нет alt);
      (в) снята проверка типа/размера файла                     → красит unit-тесты validateSource и
-                                                                  «loadDocImage НЕ сохраняет негодный файл…».
+                                                                  «loadDocImage НЕ сохраняет негодный файл…»;
+     (г) fitSize без ветки 0×0 (вернуть 1×1 вместо бокса)       → красит «fitSize: SVG без размеров…»;
+     (д) в loadDocImage убран вызов EPHeicImport для HEIC       → красит «loadDocImage: HEIC-логотип…».
    Запуск: node --test tests/ */
 "use strict";
 const test = require("node:test");
@@ -44,10 +46,25 @@ test("validateSource: .jfif с ПУСТЫМ file.type принят (WhatsApp н�
   assert.equal(r.mime, "image/jpeg", "оркестратору отдан канонический MIME, чтобы Image декодировал data-URL");
 });
 
-test("validateSource: HEIC распознан и отклонён понятным текстом (часть 1 его не рисует)", () => {
+test("validateSource: HEIC принят (айфон/мессенджер) и отдаёт mime image/heic для конверсии", () => {
+  // Файл с айфона: пустой file.type и расширение .heic. Теперь принимаем — loadDocImage перегонит
+  // его в JPEG через EPHeicImport, а mime image/heic говорит оркестратору, что это HEIC-ветка.
   const r = EPDocImages.validateSource({ name: "photo.heic", type: "", size: 1000 }, EPImageFormats);
-  assert.equal(r.ok, false, "heic в части 1 не принимаем");
-  assert.match(r.reason, /HEIC/, "в отказе назван формат HEIC");
+  assert.equal(r.ok, true, "heic теперь принимаем — его декодирует EPHeicImport");
+  assert.equal(r.mime, "image/heic", "оркестратору отдан mime HEIC — по нему он выберет конверсию");
+});
+
+/* ---- EPDocImages.fitSize: размер растра при ужатии (чистый расчёт, вынесен из app.js) ---- */
+test("fitSize: крупную картинку вписывает в бокс с сохранением пропорций", () => {
+  // 1000×500 в бокс 480×160 → упирается в высоту 160, ширина 320 (пропорция 2:1 сохранена).
+  assert.deepEqual(EPDocImages.fitSize(1000, 500, 480, 160), { width: 320, height: 160 });
+});
+test("fitSize: мелкую картинку НЕ растягивает (scale ≤ 1)", () => {
+  assert.deepEqual(EPDocImages.fitSize(100, 40, 480, 160), { width: 100, height: 40 });
+});
+test("fitSize: SVG без размеров (0×0) рисуется в целевой бокс целиком, а не в точку 1×1", () => {
+  assert.deepEqual(EPDocImages.fitSize(0, 0, 480, 160), { width: 480, height: 160 });
+  assert.deepEqual(EPDocImages.fitSize(300, 0, 480, 160), { width: 480, height: 160 }, "нулевая сторона → бокс");
 });
 
 test("validateSource: файл крупнее предела — отказ со словами", () => {
@@ -178,4 +195,19 @@ test("loadDocImage: .jfif с пустым file.type (мессенджер) до�
   assert.equal(readCalls.length, 1, "файл прочитан — пустой type больше не повод для отказа");
   assert.equal(set.calls, 1, "логотип из мессенджера сохранён");
   assert.equal(set.last[0], "companyLogo", "ключ EPPrefs — логотип компании");
+});
+
+test("loadDocImage: HEIC-логотип (айфон) идёт через конвертер EPHeicImport, потом сохраняется PNG'ом", async () => {
+  const { ctx, set, readCalls } = makeLoaderCtx();
+  // Заглушка конвертера: HEIC → JPEG data-URL. Счётчик — чтобы мутация «не звать конвертер» краснела.
+  const heic = { calls: 0, toJpegDataUrl(file) { this.calls++; return Promise.resolve("data:image/jpeg;base64,HEICJPEG"); } };
+  ctx.EPHeicImport = heic;
+  const load = stand.run(["loadDocImage"], ctx);
+  load({ name: "photo.heic", type: "", size: 1000 }, "logo");
+  await new Promise(r => setTimeout(r, 0)); /* дать разрешиться промису конверсии */
+  assert.equal(heic.calls, 1, "HEIC отдан ОДНОМУ месту конверсии");
+  assert.equal(readCalls.length, 0, "FileReader для HEIC не нужен — байты уже в data-URL из конвертера");
+  assert.equal(set.calls, 1, "после конверсии логотип сохранён");
+  assert.equal(set.last[0], "companyLogo", "ключ EPPrefs — логотип компании");
+  assert.match(set.last[1], /^data:image\/png/, "сохранён ужатый растр PNG'ом (общий путь)");
 });

@@ -2,8 +2,10 @@
  * ElectroPlan — локальный импорт планов.
  * Растровые/векторные картинки (PNG, JPG/JFIF, WEBP, GIF, BMP, AVIF, SVG) браузер рисует сам —
  * читаются напрямую; какой формат годен и какой у него MIME решает ОДИН модуль EPImageFormats
- * (то же правило, что у бланка КП, §7.1). PDF растеризуется через PDF.js, DXF преобразуется в
- * чистый геометрический растр, DWG сначала конвертируется в DXF.
+ * (то же правило, что у бланка КП, §7.1). HEIC с айфона браузер не рисует — его перегоняет в JPEG
+ * общий EPHeicImport (та же конверсия, что у логотипа), и дальше он идёт как обычный растр. PDF
+ * растеризуется через PDF.js, DXF преобразуется в чистый геометрический растр, DWG сначала
+ * конвертируется в DXF.
  */
 (function () {
   "use strict";
@@ -16,6 +18,10 @@
      в Node-тесте инжектится в песочницу. */
   const ImageFormats = (typeof EPImageFormats !== "undefined" && EPImageFormats)
     || (typeof window !== "undefined" && window.EPImageFormats);
+  /* Декодер HEIC — ОДНО место конверсии (EPHeicImport над vendor/heic-to), общее с бланком КП (§7.1).
+     Подключается лениво внутри модуля; в Node-тесте подменяется заглушкой через песочницу. */
+  const HeicImport = (typeof EPHeicImport !== "undefined" && EPHeicImport)
+    || (typeof window !== "undefined" && window.EPHeicImport);
   /* Форматы, которые умеет только этот модуль (растеризация), — добавляются к растровым из
      EPImageFormats, чтобы accept/подсказка/ошибка собирались из ОДНОГО перечня. */
   const PLAN_EXTRA_EXTS = ["pdf", "dxf", "dwg"];
@@ -365,6 +371,12 @@
     // байтов (не по расширению): .jfif с мессенджера — это JPEG, и читается тем же путём, что PNG.
     const info = ImageFormats.detect(await readHeader(file), file.name, file.type);
     if (info && !PLAN_EXTRA_EXTS.includes(ImageFormats.extOf(file.name))) {
+      // HEIC (айфон/мессенджеры) браузер сам не рисует — перегоняем в JPEG ОДНИМ местом (EPHeicImport),
+      // дальше data-URL идёт на холст тем же путём, что обычный растр. Поворот уже применён libheif.
+      if (info.format === "heic") {
+        const dataUrl = await HeicImport.toJpegDataUrl(file);
+        return { dataUrl, format: info.short, detail: "сконвертировано из HEIC" };
+      }
       if (info.unsupported) {
         throw new Error(`Формат ${info.label} браузер пока не открывает — сохраните план как JPG или PNG`);
       }

@@ -9,9 +9,10 @@
    и MIME оставлены ЗАПАСНЫМ путём: когда заголовок не читали (валидация бланка смотрит только имя)
    или сигнатура не распозналась, но имя говорит о знакомом формате.
 
-   HEIC (айфон/мессенджеры) модуль РАСПОЗНАЁТ, но помечает unsupported: браузер его сам не рисует,
-   нужен декодер. В части 1 он отклоняется понятным текстом; часть 2 встроит конвертацию в это же
-   место (снимет unsupported и добавит mime), и обе подсистемы подхватят её без правок.
+   HEIC (айфон/мессенджеры) модуль РАСПОЗНАЁТ и считает принимаемым форматом: браузер его сам не
+   рисует, но приложение перегоняет HEIC в JPEG одним местом (EPHeicImport над vendor/heic-to) ещё до
+   показа — и план, и бланк КП идут дальше тем же путём, что обычная картинка. Здесь HEIC лишь даёт
+   канонический mime image/heic; само декодирование — не дело этого чистого модуля.
 
    Чистый модуль: ни DOM, ни state. Сигнатуру читает по переданным байтам, data-URL правит строкой —
    всё проверяется в Node без браузера (PLAN 7.1). Интерфейс — window.EPImageFormats. */
@@ -30,7 +31,7 @@ const FORMATS = [
   { format: "bmp",  label: "BMP",        short: "BMP",  exts: ["bmp"],                                      mime: "image/bmp" },
   { format: "avif", label: "AVIF",       short: "AVIF", exts: ["avif"],                                     mime: "image/avif" },
   { format: "svg",  label: "SVG",        short: "SVG",  exts: ["svg"],                                      mime: "image/svg+xml" },
-  { format: "heic", label: "HEIC",       short: "HEIC", exts: ["heic", "heif"],                             mime: "image/heic", unsupported: true }
+  { format: "heic", label: "HEIC",       short: "HEIC", exts: ["heic", "heif"],                             mime: "image/heic" }
 ];
 
 const BY_FORMAT = {};
@@ -116,6 +117,9 @@ function recognize(name, type) {
     if (byMime) return byMime;
     // image/jpg и image/pjpeg — нестандартные синонимы JPEG, которые встречаются в дикой природе.
     if (mime === "image/jpg" || mime === "image/pjpeg") return BY_FORMAT.jpeg;
+    // image/heif и image/heic-sequence — синонимы HEIC (как jpg для JPEG): канонический mime у нас
+    // image/heic, поэтому в accept он один, но распознаём файл и по этим типам.
+    if (mime === "image/heif" || mime === "image/heic-sequence") return BY_FORMAT.heic;
   }
   return null;
 }
@@ -147,8 +151,9 @@ function listWithAnd(items) {
   return list.slice(0, -1).join(", ") + " и " + list[list.length - 1];
 }
 
-/* Растровые форматы, которые ПРИНИМАЕМ (без unsupported-HEIC): их расширения/типы/подписи идут в
-   accept, подсказку и сообщения. HEIC в этих списках нет — его мы только распознаём, чтобы отклонить. */
+/* Растровые форматы, которые ПРИНИМАЕМ: их расширения/типы/подписи идут в accept, подсказку и
+   сообщения. HEIC теперь здесь (его декодирует EPHeicImport до показа); флаг unsupported оставлен в
+   механике на случай будущих форматов, которые распознаём, но ещё не умеем открывать. */
 const supported = FORMATS.filter((f) => !f.unsupported);
 const rasterExtensions = supported.reduce((acc, f) => acc.concat(f.exts), []);
 const rasterMimes = supported.map((f) => f.mime);
