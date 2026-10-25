@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261024.1">
+  <link rel="stylesheet" href="css/styles.css?v=20261025.1">
 </head>
 <body>
 <div class="app">
@@ -28,6 +28,9 @@
       <button class="btn ghost" id="installSheetBtn">Лист монтажника</button>
       <button class="btn primary" id="pdfBtn">Коммерческое предложение PDF</button>
       <button class="btn ghost" id="xlsxBtn">Спецификация Excel</button>
+      <!-- Прайс по шаблону (К9, решение владельца 24.10): окно «Скачать шаблон» / «Проверить файл».
+           Разметку окна и логику строит EPPriceCheckUi (js/priceCheckUi.js) — здесь только кнопка. -->
+      <button class="btn ghost" id="priceTemplateBtn">Прайс по шаблону</button>
       <!-- Кол-во в упаковке (К6): галка рядом с выгрузкой Excel. По умолчанию снята; хранится в
            проекте (переживает перезагрузку и файл проекта). Включённая считает лист «По артикулам»
            кратно упаковке — округляет количество каждого артикула вверх до целых упаковок. -->
@@ -793,6 +796,11 @@
 <!-- Подмена накладки готового поста под варианты отделки комнаты (К8а): EPPostVariant.attach(ctx).
      После posts.js/room.js/roomVariants.js/catalog.js, до app.js, который зовёт attach. -->
 <script src="js/postVariant.js?v=20261024.2"></script>
-<script src="js/app.js?v=20261024.5"></script>
+<!-- Шаблон прайса и проверка файла заказчика (К9): правила столбцов (ч.1), генерация шаблона (ч.2),
+     окно «Прайс по шаблону» (ч.3). priceCheckUi подключаем ДО app.js — app.js его только провязывает. -->
+<script src="js/priceTemplate.js?v=20261025.1"></script>
+<script src="js/priceTemplateFile.js?v=20261025.1"></script>
+<script src="js/priceCheckUi.js?v=20261025.1"></script>
+<script src="js/app.js?v=20261025.1"></script>
 </body>
 </html>
