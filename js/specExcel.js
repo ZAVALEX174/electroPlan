@@ -478,6 +478,45 @@ function zip(files) {
   return out;
 }
 
+/* Сборка .xlsx из готовых листов — ЕДИНЫЙ писатель книги на проект (§7.1). sheets — массив
+   { name, xml }: имя листа и готовый XML тела (из sheetXml). styles — строка styles.xml (одна на
+   книгу). Части, их порядок и упаковка zip — те же, что были в build; вынесено, чтобы шаблон прайса
+   (priceTemplateFile.js) не заводил второй писатель OOXML/zip. Для N листов: worksheets — rId1..rIdN,
+   styles — rId(N+1); выход побайтно совпадает с прежним на двухлистовой книге «Спецификации». */
+const CT_PKG = "http://schemas.openxmlformats.org/package/2006/content-types";
+const REL_PKG = "http://schemas.openxmlformats.org/package/2006/relationships";
+const REL_DOC = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const CT_WS = "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
+function workbookBytes(sheets, styles) {
+  const contentTypes = `${XMLHEAD}<Types xmlns="${CT_PKG}">`
+    + `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`
+    + `<Default Extension="xml" ContentType="application/xml"/>`
+    + `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>`
+    + sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="${CT_WS}"/>`).join("")
+    + `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>`
+    + `</Types>`;
+  const rootRels = `${XMLHEAD}<Relationships xmlns="${REL_PKG}">`
+    + `<Relationship Id="rId1" Type="${REL_DOC}/officeDocument" Target="xl/workbook.xml"/>`
+    + `</Relationships>`;
+  const workbook = `${XMLHEAD}<workbook xmlns="${NS}" xmlns:r="${REL_DOC}">`
+    + `<sheets>` + sheets.map((s, i) => `<sheet name="${xmlEsc(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")
+    + `</sheets></workbook>`;
+  const workbookRels = `${XMLHEAD}<Relationships xmlns="${REL_PKG}">`
+    + sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="${REL_DOC}/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")
+    + `<Relationship Id="rId${sheets.length + 1}" Type="${REL_DOC}/styles" Target="styles.xml"/>`
+    + `</Relationships>`;
+
+  const files = [
+    { name: "[Content_Types].xml", data: utf8(contentTypes) },
+    { name: "_rels/.rels", data: utf8(rootRels) },
+    { name: "xl/workbook.xml", data: utf8(workbook) },
+    { name: "xl/_rels/workbook.xml.rels", data: utf8(workbookRels) },
+    { name: "xl/styles.xml", data: utf8(styles) },
+    ...sheets.map((s, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, data: utf8(s.xml) }))
+  ];
+  return zip(files);
+}
+
 function build(est, supplier, deps) {
   const d = deps || {};
   const config = offerOptionsApi();
@@ -494,36 +533,10 @@ function build(est, supplier, deps) {
      собирает оркестратор (docs.js) из каталога и проекта. Влияют ТОЛЬКО на лист «По артикулам». */
   const sheet2 = buildSupplierSheet(e, sup, options, config, estimate, rate, currency, d.packByCode, !!d.packMultiple);
 
-  const contentTypes = `${XMLHEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">`
-    + `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`
-    + `<Default Extension="xml" ContentType="application/xml"/>`
-    + `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>`
-    + `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
-    + `<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
-    + `<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>`
-    + `</Types>`;
-  const rootRels = `${XMLHEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`
-    + `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>`
-    + `</Relationships>`;
-  const workbook = `${XMLHEAD}<workbook xmlns="${NS}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">`
-    + `<sheets><sheet name="Спецификация" sheetId="1" r:id="rId1"/>`
-    + `<sheet name="По артикулам" sheetId="2" r:id="rId2"/></sheets></workbook>`;
-  const workbookRels = `${XMLHEAD}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`
-    + `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>`
-    + `<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>`
-    + `<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`
-    + `</Relationships>`;
-
-  const files = [
-    { name: "[Content_Types].xml", data: utf8(contentTypes) },
-    { name: "_rels/.rels", data: utf8(rootRels) },
-    { name: "xl/workbook.xml", data: utf8(workbook) },
-    { name: "xl/_rels/workbook.xml.rels", data: utf8(workbookRels) },
-    { name: "xl/styles.xml", data: utf8(stylesXml(currency)) },
-    { name: "xl/worksheets/sheet1.xml", data: utf8(sheet1) },
-    { name: "xl/worksheets/sheet2.xml", data: utf8(sheet2) }
-  ];
-  return zip(files);
+  return workbookBytes([
+    { name: "Спецификация", xml: sheet1 },
+    { name: "По артикулам", xml: sheet2 }
+  ], stylesXml(currency));
 }
 
 /* Имя файла выгрузки: номер КП (EPG-ГГГГ-NNNN), иначе название проекта, иначе «Спецификация».
@@ -540,7 +553,10 @@ function fileName(number, project) {
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для
    автотестов (PLAN 7.1). crc32 отдан наружу не для продакшена, а чтобы его можно было отдельно
    покрыть и сверить с независимым источником (zlib.crc32). */
-const api = { build, fileName, crc32 };
+/* Наружу, помимо build/fileName/crc32: низкоуровневый писатель OOXML (sheetXml/stylesXml/workbookBytes)
+   и конструкторы ячеек (txt/num) с индексом стиля шапки S_HEADER — чтобы шаблон прайса
+   (priceTemplateFile.js) строил свою книгу ТЕМ ЖЕ писателем, без второй копии (§7.1). */
+const api = { build, fileName, crc32, sheetXml, stylesXml, workbookBytes, txt, num, S_HEADER };
 if (typeof window !== "undefined") window.EPSpecExcel = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
