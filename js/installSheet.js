@@ -359,16 +359,15 @@ function buildHtml(data, deps) {
        Когда есть ОБА блока — кладём их в flex-ряд (сам ряд не рвём: break-inside:avoid у .post-visuals),
        иначе (только иллюстрация в виде «общая сборка», либо только схема) печатаем одиночным блоком. */
     const visuals = (illus && exploded) ? `<div class="post-visuals">${illus}${exploded}</div>` : (illus + exploded);
-    /* Шапка поста, мета и ряд «иллюстрация+схема» — ОДИН неделимый блок (.post-keep): прежде карточка
-       могла разорваться между метой и иллюстрацией, и «Пост № N» с метой оставались висеть на одной
-       странице, а картинка со схемой уезжали на другую (дефект приёмки). Таблицы ниже остаются вне
-       блока и переносятся по строкам, как и раньше. */
+    /* Карточка ТЕЧЁТ целиком — шапка, мета, таблицы переносятся между страницами где угодно (решение
+       владельца 26.10: «а в чём проблема делить пост на две страницы, взрыв-схема только не раздельная»).
+       Прежде шапку+мету+визуалы держал неделимый .post-keep, и этот ~450px-блок не паковался на страницу,
+       оставляя снизу пустоту. Теперь неделим ТОЛЬКО ряд «иллюстрация+схема» (.post-visuals) и сама
+       взрыв-схема (.post-exploded) — всё остальное свободно разрывается. */
     return `<section class="post-card">
-      <div class="post-keep">
       <div class="post-card-head"><span class="post-badge">Пост № ${esc(post.number)}</span></div>
       <dl class="post-meta">${meta}</dl>
       ${visuals}
-      </div>
       ${germanNote}
       <table class="modules"><thead><tr><th>Модуль</th><th>Элемент</th><th>Артикул</th><th>Примечание</th></tr></thead>
         <tbody>${moduleRows}</tbody></table>
@@ -404,29 +403,38 @@ function buildHtml(data, deps) {
   .doc-head{display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 12px;background:#edf6ff;border-radius:10px;margin-bottom:18px;color:#33465a;font-size:11px}
   /* Заголовок комнаты держится со своей ПЕРВОЙ карточкой (break-after:avoid): прежде он мог остаться
      внизу страницы, а карточки комнаты уезжали на следующую. */
-  .room-heading{font-size:15px;color:#185d96;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #d8e6f2;break-after:avoid;page-break-after:avoid}
+  .room-heading{font-size:15px;color:#185d96;margin:12px 0 8px;padding-bottom:6px;border-bottom:2px solid #d8e6f2;break-after:avoid;page-break-after:avoid}
   /* Карточку НЕ держим целиком на одной странице (K11): когда она не влезает в остаток листа (например,
      идёт сразу под планом), прежний break-inside:avoid уводил её ВСЮ на новую страницу и оставлял под
      планом пустое место. Теперь карточка течёт — таблицы при необходимости переносятся по строкам, —
      а неделимыми остаются только ряд иллюстрации+схемы (.post-visuals) и сама взрыв-схема (.post-exploded). */
-  .post-card{border:1px solid #d8e6f2;border-radius:12px;padding:14px 16px;margin:0 0 14px}
-  .post-card-head{margin-bottom:8px}
+  /* K11 раунд 4: вертикальные отступы карточки срезаны (padding 14→10, margin 14→10, head/meta/visuals
+     по 10→6). Шрифты и горизонтальные поля не трогаем — только пустота по вертикали, которой владелец
+     насчитал «очень много». На проекте из нескольких постов эти миллиметры решают, сколько постов
+     ляжет на страницу. */
+  .post-card{border:1px solid #d8e6f2;border-radius:12px;padding:10px 16px;margin:0 0 10px}
+  .post-card-head{margin-bottom:5px}
   .post-badge{display:inline-block;background:#1675c8;color:#fff;font-weight:bold;border-radius:8px;padding:4px 12px;font-size:14px}
-  .post-meta{display:flex;flex-wrap:wrap;gap:6px 22px;margin:0 0 10px}
+  .post-meta{display:flex;flex-wrap:wrap;gap:6px 22px;margin:0 0 6px}
   .post-meta-item{margin:0}.post-meta dt{color:#687f94;font-size:10px;text-transform:uppercase;letter-spacing:.03em}.post-meta dd{margin:0;font-weight:bold}
   .german-note{background:#fff5e6;border:1px solid #f0d8ac;border-radius:8px;padding:8px 10px;margin:0 0 10px;font-size:11px;color:#7a5a17}
   table{width:100%;border-collapse:collapse;margin-top:6px}
-  th,td{padding:7px 9px;border-bottom:1px solid #e2edf6;text-align:left}
+  /* K11 раунд 4: вертикальный padding строк срезан 7→4 (горизонтальный 9 оставлен для читаемости колонок).
+     Таблицы модулей и обвязки — самая длинная часть карточки; по 6px с каждой строки на проекте с
+     десятками строк складываются в целую страницу экономии. Шрифт строк не меняем. */
+  th,td{padding:4px 9px;border-bottom:1px solid #e2edf6;text-align:left}
   th{background:#e8f4ff;color:#185d96;font-size:11px}
   td.mod{font-weight:bold;color:#185d96;white-space:nowrap;width:64px}
   tr.post-row td{background:#f0f7ff;color:#185d96;font-weight:bold;font-size:11px}
-  .post-illus{margin:0 0 10px}
+  .post-illus{margin:0 0 6px}
   /* Ряд «иллюстрация + взрыв-схема» (K11): иллюстрация занимает свою натуральную ширину (182px),
      схема забирает остаток ряда и сжимается под него (max-width:100% внутри EPExplodedView),
      поэтому её высота падает — карточка влезает на страницу. Ряд не рвём между страницами. */
-  /* Шапка+мета+ряд визуалов держатся вместе (не отрываются друг от друга при переносе страницы). */
-  .post-keep{break-inside:avoid}
-  .post-visuals{display:flex;flex-wrap:nowrap;align-items:flex-start;gap:0 16px;margin:0 0 10px;break-inside:avoid}
+  /* Карточка делится между страницами где угодно (владелец 26.10): шапка, мета и таблицы текут свободно,
+     неделим ТОЛЬКО ряд иллюстрация+схема (.post-visuals) и сама взрыв-схема (.post-exploded) — их разрыв
+     и был запрещён («взрыв-схема только не раздельная»). Прежняя обёртка .post-keep, что держала шапку с
+     метой и схемой одним ~450px-блоком, снята: этот блок не паковался на страницу и оставлял пустоту. */
+  .post-visuals{display:flex;flex-wrap:nowrap;align-items:flex-start;gap:0 16px;margin:0 0 6px;break-inside:avoid}
   /* Взрыв-схема печатается 1:1 (flex:0 0 auto — не сжимается): её бокс и текст заданы в px, а позиции в %,
      и любое сжатие рассинхронило бы их — подпись наехала бы на соседний бокс, а слово порвалось бы посреди
      (дефект приёмки K11). Иллюстрация забирает ОСТАТОК ряда и сжимается сама (flex:1 1 0): у неё %-раскладка,
@@ -434,16 +442,20 @@ function buildHtml(data, deps) {
      натуральной ширины; на широких (3–4) схема шире → иллюстрация ужимается, но схема остаётся читаемой. */
   .post-visuals .post-illus{flex:1 1 0;min-width:0;margin:0}
   .post-visuals .post-exploded-wrap{flex:0 0 auto;max-width:100%}
-  .exploded-title{margin:0 0 4px;font-weight:bold;color:#185d96;font-size:12px}
+  .exploded-title{margin:0 0 3px;font-weight:bold;color:#185d96;font-size:12px}
   .post-exploded{margin:0;break-inside:avoid}
   td.code{font-family:"Courier New",monospace;color:#33465a}
   td.note{color:#687f94}td.right,th.right{text-align:right}td.empty{color:#687f94;font-style:italic}
-  .fittings-title{margin:14px 0 0;font-weight:bold;color:#185d96;font-size:12px}
+  .fittings-title{margin:9px 0 0;font-weight:bold;color:#185d96;font-size:12px}
   /* Блок «Группы света» держим ЦЕЛИКОМ (не рвём по последней строке): раньше его итоговая строка
      «Механизмы подобраны расчётом …» оставалась одна на почти пустой странице. Если блок длиннее
      страницы — движок всё равно разобьёт его, это не повиснет. */
   .lighting-block{break-inside:avoid;page-break-inside:avoid}
-  .footer{margin-top:26px;color:#687f94;font-size:10px}
+  /* Подвал держится ЗА предыдущим блоком (break-before:avoid), иначе он срывался на отдельную страницу
+     один, без содержимого (дефект K11: стр.6 из одного футера). Верхний отступ срезан 26→14: короткая
+     строка не должна тянуть за собой пустую страницу. Свод поставщику ниже всё равно уходит своей
+     страницей (его break-before:page), подвал остаётся с последним блоком монтажника. */
+  .footer{margin-top:14px;color:#687f94;font-size:10px;break-before:avoid;page-break-before:avoid}
   @media print{button{display:none}}
   </style></head><body>
   <div style="display:flex;justify-content:space-between;align-items:flex-start">
