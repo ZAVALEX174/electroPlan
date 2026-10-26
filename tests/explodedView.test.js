@@ -5,7 +5,7 @@
    VIMAR (pickIcon/iconSvg из EPPostImage) — поэтому в deps отдаём именно их, а не свою разметку. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildHtml, layoutColumns, layout, shortenName } = require("../js/explodedView.js");
+const { buildHtml, layoutColumns, layout, shortenName, linesNeeded } = require("../js/explodedView.js");
 const { pickIcon, iconSvg } = require("../js/postImage.js");
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -114,29 +114,111 @@ test("layout: ширина подписи вмещает самое длинно
   L.items.forEach((it, i) => assert.ok(it.labW >= 78, `подпись #${i} шириной ${it.labW}px < 78px — длинное слово порвётся`));
 });
 
-/* ---- shortenName: сокращение наименования подписи до двух строк (владелец 26.10) --------------
-   Чистая функция, обрезка по границе слова с «…». Полное имя остаётся в таблицах под схемой, поэтому
-   в подписи допустима потеря хвоста — но НЕ посреди набора слов без «…» и НЕ длиннее бюджета. */
-test("shortenName: имя короче бюджета возвращается как есть, без «…»", () => {
-  assert.equal(shortenName("Выключатель 1П 16AX", 22), "Выключатель 1П 16AX");
-  assert.equal(shortenName("", 22), "");
-  assert.equal(shortenName(null, 22), "");
+/* ---- shortenName: сокращение наименования подписи до двух строк ПО ШИРИНЕ (владелец 26.10) --------
+   Второй аргумент теперь — ШИРИНА бокса подписи в px (LABEL_W=80), а не число символов: 22 символа двум
+   строкам не равны (жирным 11px «Ш» вдвое шире «i»), раньше это давало третью строку и line-clamp рвал
+   слово. Оценку ширины держит linesNeeded; тест ниже гоняет её по всему каталогу. */
+const W = 80;   // LABEL_W подписи схемы
+
+test("shortenName: имя, влезающее в две строки, возвращается как есть, без «…»", () => {
+  const r = shortenName("Выключатель 1П 16AX", W);
+  assert.equal(r, "Выключатель 1П 16AX");
+  assert.ok(linesNeeded(r, W) <= 2, "и оно действительно укладывается в 2 строки");
+  assert.equal(shortenName("", W), "");
+  assert.equal(shortenName(null, W), "");
 });
 
-test("shortenName: длинное имя режется ПО СЛОВУ и оканчивается «…», длина ≤ бюджета", () => {
-  const r = shortenName("Коробка встраиваемая круглая для 1-2 модулей", 22);
+test("shortenName: длинное имя режется ПО СЛОВУ, оканчивается «…» и влезает в 2 строки", () => {
+  const src = "Коробка встраиваемая круглая для 1-2 модулей";
+  const r = shortenName(src, W);
   assert.ok(r.endsWith("…"), "есть многоточие обрезки");
-  assert.ok(r.length <= 22, `длина ${r.length} ≤ 22`);
+  assert.ok(linesNeeded(r, W) <= 2, `«${r}» укладывается в 2 строки`);
   /* рез именно по границе слова: без «…» остаются целые слова исходника */
   const kept = r.slice(0, -1);
-  assert.ok("Коробка встраиваемая круглая для 1-2 модулей".startsWith(kept), "сохранён префикс из целых слов");
+  assert.ok(src.startsWith(kept), "сохранён префикс из целых слов");
   assert.ok(!/\s$/.test(kept), "перед «…» нет висячего пробела");
 });
 
-test("shortenName: первое слово длиннее бюджета режется жёстко (иначе одно слово осталось бы целиком)", () => {
-  const r = shortenName("Электроустановочное", 10);   // одно слово 19 символов
-  assert.ok(r.endsWith("…") && r.length <= 10, `жёсткий рез до бюджета: «${r}»`);
-  assert.equal(r, "Электроус…");
+test("shortenName: висячая пунктуация перед «…» снимается (владелец 26.10: «модуля,…» → «модуля…»)", () => {
+  /* У «Накладка на 3 модуля, белая» после слова «модуля» стоит запятая; в подписи она не должна
+     прилипнуть к многоточию. */
+  const r = shortenName("Накладка на 3 модуля, белая", W);
+  assert.ok(r.endsWith("модуля…"), `«${r}» — без запятой перед «…»`);
+  assert.ok(!/[,\s]…$/.test(r), "перед «…» нет запятой или пробела");
+});
+
+test("shortenName: первое слово шире бюджета режется посимвольно (одно длинное слово не остаётся целиком)", () => {
+  const r = shortenName("Электроустановочноеизделие", W);   // одно слово, шире двух строк по 80px
+  assert.ok(r.endsWith("…"), `жёсткий рез с многоточием: «${r}»`);
+  assert.ok(linesNeeded(r, W) <= 2, "результат укладывается в 2 строки");
+  assert.ok("Электроустановочноеизделие".startsWith(r.slice(0, -1)), "сохранено начало слова");
+});
+
+/* ---- Д3/Д6: оценка ширины укладывает ВСЕ имена каталога в 2 строки ----------------------------
+   shortenName обязана по оценке linesNeeded уложить КАЖДОЕ наименование каталога в 2 строки по LABEL_W.
+   Это не тавтология: мутация, занижающая перенос (например, считать дефис неразрывным), красит тест —
+   имена с дефисом («Механизм-выключатель») тогда выходят на 3-ю строку. Каталог грузим через window-шим
+   (файл кладёт в window.EP_VIMAR_CATALOG, module.exports у него нет). */
+test("Д3: shortenName укладывает ВСЕ имена каталога в 2 строки по оценке (0 превышений)", () => {
+  global.window = global.window || {};
+  require("../js/catalog-vimar.js");
+  const products = global.window.EP_VIMAR_CATALOG.products;
+  const names = [...new Set(products.map(p => String(p.name || "")).filter(Boolean))];
+  const over = names.filter(n => linesNeeded(shortenName(n, W), W) > 2);
+  assert.equal(over.length, 0, `имена, не влезшие в 2 строки: ${over.slice(0, 5).join(" | ")}`);
+  assert.ok(names.length > 2000, `каталог загружен (${names.length} имён)`);
+});
+
+/* ---- Д6: buildHtml выводит СОКРАЩЁННОЕ имя, а не полное (мутация «печатать p.name» краснеет) ---- */
+test("buildHtml печатает сокращённое имя подписи, а не полное наименование", () => {
+  const longName = "Механизм-переключатель 1P 10AX с подсветкой белый";
+  const html = buildHtml({ parts: [{ role: "Модуль", pos: "1", name: longName, code: "20003", icon: {} }] }, deps);
+  const shortExpected = shortenName(longName, W);
+  assert.ok(shortExpected !== longName && shortExpected.endsWith("…"), "фикстура: имя реально сокращается");
+  assert.ok(html.includes(esc(shortExpected)), "в HTML стоит сокращённая строка подписи");
+  assert.ok(!html.includes(esc(longName)), "полного наименования в подписи нет (иначе мутация «печатать p.name» зелёная)");
+});
+
+/* ---- Д1/Д6: при многих деталях схема НЕ шире карточки, а стек растёт в высоту ------------------
+   Клавиша с механизмом группы света = две детали «Модуль» (клавиша + механизм). На 4 и 6 клавишах это 8
+   и 12 деталей: прежде схема росла вбок (sceneW до 826), вылезала за карточку (≈654px на A4) и max-width:
+   100% рассинхронивал подписи. Теперь layout наращивает рядность — ширина сцены ≤ ширины карточки,
+   пересечений нет. */
+const CARD_W = 654;   // внутренняя ширина карточки листа на A4
+const keysWithMech = nKeys => {
+  const p = [{ role: "Накладка", name: "Накладка 4М", code: "09664", photo: { imageUrl: "f", wide: true } }];
+  for (let i = 1; i <= nKeys; i++) {
+    p.push({ role: "Модуль", pos: String(i), name: "Выключатель 1П 16AX", code: "20001", photo: { imageUrl: "m" } });
+    p.push({ role: "Модуль", pos: `${i} · механизм`, name: "Механизм переключателя 1P 10AX", code: "09004.0", photo: { imageUrl: "m" } });
+  }
+  p.push({ role: "Суппорт", name: "Суппорт 4М", code: "09614" });
+  p.push({ role: "Монтажная коробка", name: "Коробка 4М", code: "V71304" });
+  return p;
+};
+[4, 6].forEach(nKeys => {
+  test(`layout: схема из ${nKeys} клавиш с механизмами (${nKeys * 2} деталей) не шире карточки и без пересечений`, () => {
+    const L = layout(keysWithMech(nKeys));
+    assert.ok(L.sceneW <= CARD_W, `ширина сцены ${L.sceneW}px ≤ ${CARD_W}px (не вылезает за карточку)`);
+    assert.deepEqual(overlapsIn(rectsOf(L)), [], "прямоугольники бокс/подпись не пересекаются");
+  });
+});
+
+/* ---- Д4: детали одной клавиши (клавиша + механизм + подсветка) не делятся между колонками -------- */
+test("layoutColumns: детали одной клавиши держатся одной колонкой (Д4)", () => {
+  const parts = [
+    { role: "Накладка" },
+    { role: "Модуль", pos: "1" }, { role: "Модуль", pos: "1 · механизм" }, { role: "Модуль", pos: "1 · подсветка" },
+    { role: "Модуль", pos: "2" }, { role: "Модуль", pos: "2 · механизм" },
+    { role: "Суппорт" }, { role: "Монтажная коробка" }
+  ];
+  const cols = layoutColumns(parts);
+  assert.ok(cols.some(c => c.join(",") === "1,2,3"), `детали клавиши 1 одной колонкой: ${JSON.stringify(cols)}`);
+  assert.ok(cols.some(c => c.join(",") === "4,5"), "детали клавиши 2 одной колонкой");
+  const key1 = new Set([1, 2, 3]), key2 = new Set([4, 5]);
+  cols.forEach(c => {
+    const has1 = c.some(i => key1.has(i)), has2 = c.some(i => key2.has(i));
+    assert.ok(!(has1 && has2), `колонка ${JSON.stringify(c)} смешала детали разных клавиш`);
+  });
 });
 
 test("код каждой детали присутствует в подписи отдельной моноширинной строкой (без слова «Артикул:»)", () => {
@@ -145,7 +227,7 @@ test("код каждой детали присутствует в подпис�
      (…/09663.jpg), поэтому голый includes(code) был бы ложно-зелёным. */
   const html = buildHtml(post, deps);
   post.parts.forEach(p => {
-    assert.ok(html.includes(`monospace;margin-top:1px">${p.code}</div>`),
+    assert.ok(html.includes(`monospace;margin-top:1px;overflow-wrap:anywhere">${p.code}</div>`),
       `код ${p.code} в моноширинной строке подписи детали «${p.name}»`);
   });
   assert.ok(!/Артикул:/.test(html), "слова «Артикул:» в подписях схемы больше нет");
@@ -283,7 +365,7 @@ test("пользовательский ввод в имени экранируе
 
 test("механизм без товара: код «—», вёрстка не падает", () => {
   const html = buildHtml({ parts: [{ role: "Модуль", pos: "1", name: "Механизм не найден (арт. 99999)", code: "", icon: {} }] }, deps);
-  assert.match(html, /monospace;margin-top:1px">—<\/div>/, "пустой код показан прочерком, а не пусто");
+  assert.match(html, /monospace;margin-top:1px;overflow-wrap:anywhere">—<\/div>/, "пустой код показан прочерком, а не пусто");
   assert.match(html, /Механизм не найден/, "имя-заглушка выведено (сокращение сохраняет начало)");
 });
 

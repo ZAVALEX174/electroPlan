@@ -475,3 +475,31 @@ test("лист монтажника без блока групп света со
   assert.equal(buildHtml({ posts: [italianPost], lightingHtml: "" }, deps),
     buildHtml({ posts: [italianPost] }, deps));
 });
+
+/* ---- Д6 (K11 раунд 5): неделима ТОЛЬКО взрыв-схема, карточка течёт; ряд визуалов переносит --------
+   Владелец 26.10: пост делится между страницами, неделим лишь ряд «иллюстрация+схема» и сама схема.
+   Карточка .post-card НЕ должна держаться целиком (прежний break-inside:avoid уводил её всю на новую
+   страницу, оставляя пустоту под планом). Тест фиксирует это правило в CSS листа, иначе его можно молча
+   вернуть и ничего не покраснеет. */
+test("CSS листа: break-inside:avoid у блока взрыв-схемы, но НЕ у карточки поста", () => {
+  const css = buildHtml({ posts: [italianPost] }, deps);
+  const ruleOf = sel => {
+    const i = css.indexOf(sel + "{");
+    assert.notEqual(i, -1, `правило ${sel} есть в CSS`);
+    return css.slice(i, css.indexOf("}", i));
+  };
+  assert.match(ruleOf(".post-exploded"), /break-inside:avoid/, "сама взрыв-схема неделима");
+  assert.ok(/\.post-visuals\{[^}]*break-inside:avoid/.test(css), "ряд иллюстрация+схема неделим");
+  assert.ok(!/break-inside:avoid/.test(ruleOf(".post-card")), "карточку целиком НЕ держим — она течёт между страницами");
+});
+
+test("CSS листа: ряд иллюстрация+схема переносит схему вниз (flex-wrap), иллюстрация не схлопывается", () => {
+  /* Д1: при широкой схеме ряд обязан ПЕРЕНОСИТЬ её под иллюстрацию (flex-wrap:wrap), а иллюстрация —
+     держать натуральную ширину (flex:0 0 auto), а не сжиматься в ноль (прежний flex:1 1 0;min-width:0). */
+  const css = buildHtml({ posts: [italianPost] }, deps);
+  assert.ok(/\.post-visuals\{[^}]*flex-wrap:wrap/.test(css), "ряд визуалов переносит содержимое");
+  const i = css.indexOf(".post-visuals .post-illus{");
+  const illusRule = css.slice(i, css.indexOf("}", i));
+  assert.match(illusRule, /flex:0 0 auto/, "иллюстрация держит натуральную ширину, не схлопывается");
+  assert.ok(!/min-width:0/.test(illusRule), "прежнего min-width:0 (схлопывание в ноль) больше нет");
+});
