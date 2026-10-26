@@ -402,7 +402,9 @@ function buildHtml(data, deps) {
   @page{size:A4;margin:14mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px;margin:0}
   h1{font-size:22px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:16px}
   .doc-head{display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 12px;background:#edf6ff;border-radius:10px;margin-bottom:18px;color:#33465a;font-size:11px}
-  .room-heading{font-size:15px;color:#185d96;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #d8e6f2}
+  /* Заголовок комнаты держится со своей ПЕРВОЙ карточкой (break-after:avoid): прежде он мог остаться
+     внизу страницы, а карточки комнаты уезжали на следующую. */
+  .room-heading{font-size:15px;color:#185d96;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #d8e6f2;break-after:avoid;page-break-after:avoid}
   /* Карточку НЕ держим целиком на одной странице (K11): когда она не влезает в остаток листа (например,
      идёт сразу под планом), прежний break-inside:avoid уводил её ВСЮ на новую страницу и оставлял под
      планом пустое место. Теперь карточка течёт — таблицы при необходимости переносятся по строкам, —
@@ -437,6 +439,10 @@ function buildHtml(data, deps) {
   td.code{font-family:"Courier New",monospace;color:#33465a}
   td.note{color:#687f94}td.right,th.right{text-align:right}td.empty{color:#687f94;font-style:italic}
   .fittings-title{margin:14px 0 0;font-weight:bold;color:#185d96;font-size:12px}
+  /* Блок «Группы света» держим ЦЕЛИКОМ (не рвём по последней строке): раньше его итоговая строка
+     «Механизмы подобраны расчётом …» оставалась одна на почти пустой странице. Если блок длиннее
+     страницы — движок всё равно разобьёт его, это не повиснет. */
+  .lighting-block{break-inside:avoid;page-break-inside:avoid}
   .footer{margin-top:26px;color:#687f94;font-size:10px}
   @media print{button{display:none}}
   </style></head><body>
@@ -447,7 +453,7 @@ function buildHtml(data, deps) {
   ${headerRows ? `<div class="doc-head">${headerRows}</div>` : ""}
   ${data.planBlockHtml || ""}
   ${body}
-  ${data.lightingHtml || ""}
+  ${data.lightingHtml ? `<div class="lighting-block">${data.lightingHtml}</div>` : ""}
   <div class="footer">Документ для монтажа. Позиции модулей указаны слева направо, как в собранной накладке.</div>
   ${data.supplierSpecHtml || ""}
   ${printScript}</body></html>`;
