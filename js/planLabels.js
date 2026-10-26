@@ -427,7 +427,12 @@ function buildHtml(spec, deps) {
     ? `<img src="${esc(L.imageUrl)}" alt="${esc(title)}" style="position:absolute;left:${f(L.image.left)}%;`
       + `top:${f(L.image.top)}%;width:${f(L.image.width)}%;height:${f(L.image.height)}%;object-fit:fill${tr}">`
     : "";
-  return `<section style="margin:0 0 16px;break-inside:avoid;page-break-inside:avoid;break-after:page;page-break-after:always">`
+  /* ПО УМОЛЧАНИЮ блок печатается своей страницей (эталон заказчика, КП). Лист монтажника (K11) просит
+     обратного: план не должен оставлять под собой пустой лист — следующий блок (карточка поста) идёт
+     сразу за ним. Он передаёт flowNext:true, и принудительный разрыв после плана снимается; КП флага не
+     передаёт, поэтому её план печатается как прежде (page-break-after:always под тестом). */
+  const breakAfter = s.flowNext ? "" : ";break-after:page;page-break-after:always";
+  return `<section style="margin:0 0 16px;break-inside:avoid;page-break-inside:avoid${breakAfter}">`
     + `<h2 style="font-size:16px;color:#185d96;margin:0 0 10px">${esc(title)}</h2>`
     + `<div style="width:${f(L.widthMm)}mm;max-width:100%;margin:0 auto">`
     + `<div style="position:relative;height:0;padding-top:${f(L.aspectPct)}%">`

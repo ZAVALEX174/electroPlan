@@ -5,7 +5,7 @@
    VIMAR (pickIcon/iconSvg из EPPostImage) — поэтому в deps отдаём именно их, а не свою разметку. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildHtml } = require("../js/explodedView.js");
+const { buildHtml, layoutColumns, layout } = require("../js/explodedView.js");
 const { pickIcon, iconSvg } = require("../js/postImage.js");
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -32,6 +32,88 @@ const post = {
   ]
 };
 
+/* ---- раскладка колонок ряда: чистая функция layoutColumns (K11) --------------------------
+   Механизмы (role==="Модуль") сворачиваются в стек по Y, но не выше двух рядов: лишние уходят в
+   соседнюю колонку. Так взрыв-схема немецко-французской сборки на 3–4 механизма перестаёт быть
+   высоким «вертикальным крестом» и влезает в лист рядом с иллюстрацией. Прежний контракт (1 механизм —
+   одиночная колонка, 2 — один стек) сохранён, иначе рассыпались бы геометрические тесты ниже. */
+const rolesOf = (nMech) => ["Накладка"].concat(Array(nMech).fill("Модуль"), ["Суппорт", "Монтажная коробка"]);
+
+test("layoutColumns: один механизм — одиночная колонка (горизонтальный ряд, прежний контракт)", () => {
+  assert.deepEqual(layoutColumns(rolesOf(1)), [[0], [1], [2], [3]]);
+});
+
+test("layoutColumns: два механизма — ОДНА колонка-стек (прежний контракт, тесты геометрии ниже)", () => {
+  assert.deepEqual(layoutColumns(rolesOf(2)), [[0], [1, 2], [3], [4]]);
+});
+
+test("layoutColumns: три механизма ложатся в ДВЕ колонки, стек не выше двух рядов", () => {
+  const cols = layoutColumns(rolesOf(3));
+  assert.deepEqual(cols, [[0], [1, 2], [3], [4], [5]]);
+  const mechCols = cols.slice(1, -2);                 // между накладкой и суппортом/коробкой
+  assert.equal(mechCols.length, 2, "механизмы разложены в две колонки, а не в одну высокую");
+  assert.ok(mechCols.every(c => c.length <= 2), "ни одна колонка стека не выше двух рядов");
+});
+
+test("layoutColumns: четыре механизма — 2×2, высота всё ещё два ряда (ни при каком числе не растёт)", () => {
+  const cols = layoutColumns(rolesOf(4));
+  const mechCols = cols.slice(1, -2);
+  assert.deepEqual(mechCols, [[1, 2], [3, 4]]);
+  assert.ok(mechCols.every(c => c.length <= 2), "высота стека ограничена двумя рядами и на четырёх механизмах");
+  const six = layoutColumns(rolesOf(6)).slice(1, -2);
+  assert.ok(six.every(c => c.length <= 2), "и на шести механизмах высота не превышает двух рядов");
+});
+
+test("layoutColumns: нет механизмов — каждая деталь своя колонка (вырожденный ряд)", () => {
+  assert.deepEqual(layoutColumns(["Накладка", "Суппорт"]), [[0], [1]]);
+  assert.deepEqual(layoutColumns([]), []);
+});
+
+/* ---- раскладка НЕ ПЕРЕСЕКАЕТСЯ: прямоугольники бокс/подпись в дизайн-координатах (K11, раунд 2) ----
+   Дефект приёмки: подпись механизма налезала на картинку соседнего и слова рвались посреди. Корень —
+   схему сжимал max-width, рассинхронив px-боксы и %-позиции. Чиним рендером 1:1 (installSheet), а ЗДЕСЬ
+   держим контракт раскладки: в координатах сцены НИ ОДИН прямоугольник (бокс детали ИЛИ зарезервированная
+   подпись labW×labH) не пересекается с чужим. Схема печатается 1:1, поэтому непересечение в этих
+   координатах = непересечение на бумаге. Чистая layout() позволяет проверить это без браузера. */
+const partsWith = nMech => {
+  const p = [{ role: "Накладка", name: "Накладка на 4 модуля (2+2), белая", code: "09664.01", photo: { imageUrl: "f", wide: true } }];
+  for (let i = 0; i < nMech; i++) p.push({ role: "Модуль", pos: String(i + 1), name: "Выключатель 1П 16AX 1 модуль, белый", code: "09001", photo: { imageUrl: "m" } });
+  p.push({ role: "Суппорт", name: "Суппорт для 2 модулей 71мм с защелками", code: "09602.1" });
+  p.push({ role: "Монтажная коробка", name: "Коробка встраиваемая круглая для 1-2 модулей", code: "V71001" });
+  return p;
+};
+/* Все прямоугольники сцены: по каждой детали — бокс (картинка/глиф) и зарезервированная подпись. */
+const rectsOf = L => {
+  const r = [];
+  L.items.forEach((it, i) => {
+    r.push({ t: `бокс#${i}`, x: it.cx - it.bw / 2, y: it.cy - it.bh / 2, w: it.bw, h: it.bh });
+    r.push({ t: `подпись#${i}`, x: it.labLeft, y: it.labTop, w: it.labW, h: it.labH });
+  });
+  return r;
+};
+const overlapsIn = rects => {
+  const ov = (a, b) => !(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y);
+  const hits = [];
+  for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++)
+    if (ov(rects[i], rects[j])) hits.push(`${rects[i].t} ∩ ${rects[j].t}`);
+  return hits;
+};
+
+[1, 2, 3, 4, 6].forEach(nMech => {
+  test(`layout: прямоугольники бокс/подпись НЕ пересекаются (${nMech} механизма)`, () => {
+    const hits = overlapsIn(rectsOf(layout(partsWith(nMech))));
+    assert.deepEqual(hits, [], `пересечения в раскладке: ${hits.join("; ")}`);
+  });
+});
+
+test("layout: ширина подписи вмещает самое длинное слово (слова не рвутся при 1:1)", () => {
+  /* Схема печатается 1:1, значит фактическая ширина подписи = labW (px). Самое длинное слово
+     наименования («Выключатель»/«встраиваемая») ≈ 77px при 11px-шрифте (замерено в Chrome).
+     Если labW станет меньше — слово начнёт рваться посреди (дефект приёмки). Гейт — labW ≥ 78. */
+  const L = layout(partsWith(3));
+  L.items.forEach((it, i) => assert.ok(it.labW >= 78, `подпись #${i} шириной ${it.labW}px < 78px — длинное слово порвётся`));
+});
+
 test("артикул каждой детали присутствует в подписи", () => {
   const html = buildHtml(post, deps);
   post.parts.forEach(p => {
@@ -50,12 +132,13 @@ test("фото рисуется у КАЖДОЙ детали каталога, �
   assert.match(html, /<img src="https:\/\/vimar\.example\/20208\.jpg"/, "фото механизма-розетки вставлено");
 });
 
-test("бокс фото: у накладки широкий (wide 128×84), у товара квадратный (92×92)", () => {
+test("бокс фото: у накладки широкий (wide 104×68), у товара квадратный (80×80)", () => {
   const html = buildHtml(post, deps);
   /* background:#fff отличает бокс ФОТО от плашки глифа (#f2f8ff) — так проверяем именно фото-бокс,
-     а не 92×92-плашку иконки суппорта/коробки. */
-  assert.ok(html.includes("width:128px;height:84px;background:#fff"), "широкий бокс под фото накладки (wide)");
-  assert.ok(html.includes("width:92px;height:92px;background:#fff"), "квадратный бокс под квадратное превью товара");
+     а не 80×80-плашку иконки суппорта/коробки. Размеры уменьшены в K11 (раунд 2), чтобы схема
+     вставала 1:1 рядом с иллюстрацией; пропорция широкого бокса сохранена (≈1.53). */
+  assert.ok(html.includes("width:104px;height:68px;background:#fff"), "широкий бокс под фото накладки (wide)");
+  assert.ok(html.includes("width:80px;height:80px;background:#fff"), "квадратный бокс под квадратное превью товара");
 });
 
 test("деталь без фото (суппорт/коробка) — каталожный глиф, а не пустой <img>", () => {

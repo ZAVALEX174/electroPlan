@@ -352,13 +352,23 @@ function buildHtml(data, deps) {
        В режиме «общая сборка» (showExploded=false) её не печатаем: остаётся только собранная накладка
        с клавишами выше. Решение про весь лист — showExploded, см. buildHtml. */
     const exploded = showExploded && post.explodedViewHtml
-      ? `<div class="exploded-title">Взрыв-схема поста</div><div class="post-exploded">${post.explodedViewHtml}</div>`
+      ? `<div class="post-exploded-wrap"><div class="exploded-title">Взрыв-схема поста</div><div class="post-exploded">${post.explodedViewHtml}</div></div>`
       : "";
+    /* Иллюстрация и взрыв-схема — В ОДНОМ РЯДУ (K11): раньше они шли друг под другом и съедали высоту,
+       из-за чего карточка на 3–4 механизма не влезала на страницу, а взрыв-схема уезжала переносом.
+       Когда есть ОБА блока — кладём их в flex-ряд (сам ряд не рвём: break-inside:avoid у .post-visuals),
+       иначе (только иллюстрация в виде «общая сборка», либо только схема) печатаем одиночным блоком. */
+    const visuals = (illus && exploded) ? `<div class="post-visuals">${illus}${exploded}</div>` : (illus + exploded);
+    /* Шапка поста, мета и ряд «иллюстрация+схема» — ОДИН неделимый блок (.post-keep): прежде карточка
+       могла разорваться между метой и иллюстрацией, и «Пост № N» с метой оставались висеть на одной
+       странице, а картинка со схемой уезжали на другую (дефект приёмки). Таблицы ниже остаются вне
+       блока и переносятся по строкам, как и раньше. */
     return `<section class="post-card">
+      <div class="post-keep">
       <div class="post-card-head"><span class="post-badge">Пост № ${esc(post.number)}</span></div>
       <dl class="post-meta">${meta}</dl>
-      ${illus}
-      ${exploded}
+      ${visuals}
+      </div>
       ${germanNote}
       <table class="modules"><thead><tr><th>Модуль</th><th>Элемент</th><th>Артикул</th><th>Примечание</th></tr></thead>
         <tbody>${moduleRows}</tbody></table>
@@ -389,11 +399,15 @@ function buildHtml(data, deps) {
   const subtitle = esc(data.subtitle || (single ? "Помодульная раскладка поста" : "Помодульная раскладка постов по проекту"));
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>
-  @page{size:A4;margin:14mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}
+  @page{size:A4;margin:14mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px;margin:0}
   h1{font-size:22px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:16px}
   .doc-head{display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 12px;background:#edf6ff;border-radius:10px;margin-bottom:18px;color:#33465a;font-size:11px}
   .room-heading{font-size:15px;color:#185d96;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #d8e6f2}
-  .post-card{border:1px solid #d8e6f2;border-radius:12px;padding:14px 16px;margin:0 0 14px;break-inside:avoid}
+  /* Карточку НЕ держим целиком на одной странице (K11): когда она не влезает в остаток листа (например,
+     идёт сразу под планом), прежний break-inside:avoid уводил её ВСЮ на новую страницу и оставлял под
+     планом пустое место. Теперь карточка течёт — таблицы при необходимости переносятся по строкам, —
+     а неделимыми остаются только ряд иллюстрации+схемы (.post-visuals) и сама взрыв-схема (.post-exploded). */
+  .post-card{border:1px solid #d8e6f2;border-radius:12px;padding:14px 16px;margin:0 0 14px}
   .post-card-head{margin-bottom:8px}
   .post-badge{display:inline-block;background:#1675c8;color:#fff;font-weight:bold;border-radius:8px;padding:4px 12px;font-size:14px}
   .post-meta{display:flex;flex-wrap:wrap;gap:6px 22px;margin:0 0 10px}
@@ -405,8 +419,21 @@ function buildHtml(data, deps) {
   td.mod{font-weight:bold;color:#185d96;white-space:nowrap;width:64px}
   tr.post-row td{background:#f0f7ff;color:#185d96;font-weight:bold;font-size:11px}
   .post-illus{margin:0 0 10px}
-  .exploded-title{margin:6px 0 4px;font-weight:bold;color:#185d96;font-size:12px}
-  .post-exploded{margin:0 0 10px;break-inside:avoid}
+  /* Ряд «иллюстрация + взрыв-схема» (K11): иллюстрация занимает свою натуральную ширину (182px),
+     схема забирает остаток ряда и сжимается под него (max-width:100% внутри EPExplodedView),
+     поэтому её высота падает — карточка влезает на страницу. Ряд не рвём между страницами. */
+  /* Шапка+мета+ряд визуалов держатся вместе (не отрываются друг от друга при переносе страницы). */
+  .post-keep{break-inside:avoid}
+  .post-visuals{display:flex;flex-wrap:nowrap;align-items:flex-start;gap:0 16px;margin:0 0 10px;break-inside:avoid}
+  /* Взрыв-схема печатается 1:1 (flex:0 0 auto — не сжимается): её бокс и текст заданы в px, а позиции в %,
+     и любое сжатие рассинхронило бы их — подпись наехала бы на соседний бокс, а слово порвалось бы посреди
+     (дефект приёмки K11). Иллюстрация забирает ОСТАТОК ряда и сжимается сама (flex:1 1 0): у неё %-раскладка,
+     она масштабируется без искажений. На узких постах (1–2 механизма) схема узкая → иллюстрация у своей
+     натуральной ширины; на широких (3–4) схема шире → иллюстрация ужимается, но схема остаётся читаемой. */
+  .post-visuals .post-illus{flex:1 1 0;min-width:0;margin:0}
+  .post-visuals .post-exploded-wrap{flex:0 0 auto;max-width:100%}
+  .exploded-title{margin:0 0 4px;font-weight:bold;color:#185d96;font-size:12px}
+  .post-exploded{margin:0;break-inside:avoid}
   td.code{font-family:"Courier New",monospace;color:#33465a}
   td.note{color:#687f94}td.right,th.right{text-align:right}td.empty{color:#687f94;font-style:italic}
   .fittings-title{margin:14px 0 0;font-weight:bold;color:#185d96;font-size:12px}

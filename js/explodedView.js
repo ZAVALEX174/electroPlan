@@ -47,70 +47,90 @@
    суппорт, коробка) центрируются по вертикали относительно самой высокой колонки — не «прилипают» к верху
    на фоне высокого стека. Ширина W зависит от числа колонок, высота H — от самой высокой колонки (стек). */
 const PAD_TOP = 14, PAD_BOT = 14, PAD_SIDE = 14;
-const ICON = 92;                  // сторона квадратной иконки-детали (было 46 — увеличено ~×2)
-const PHOTO_W = 128, PHOTO_H = 84;// бокс широкого фото накладки (накладка шире, чем высокая; ~×2 от 64×42)
-const PHOTO_SQ = 92;              // бокс квадратного фото товара (превью VIMAR — квадратные); = ICON,
+/* K11, раунд 2. Размеры уменьшены сознательно: во взрыв-схеме бокс и подпись заданы в ФИКСИРОВАННЫХ px,
+   а позиции — в % сцены. Пока сцена не масштабируется (её натуральная ширина ≤ контейнера), px и %
+   совпадают и подписи стоят точно в своём резерве. Как только сцена едет рядом с иллюстрацией и её
+   натуральная ширина больше ячейки, max-width:100% сжимает ТОЛЬКО позиции (%), а боксы и текст остаются
+   крупными — и подпись наезжает на соседний бокс (дефект приёмки). Поэтому держим натуральную ширину
+   сцены (3–4 механизма ≈ 508px) МЕНЬШЕ ячейки схемы в ряду — тогда рендер идёт 1:1 и наложений нет. */
+const ICON = 80;                  // сторона квадратной иконки-детали. 80 ≥ ширины самого длинного слова
+                                  //   наименования при 11px (замерено в Chrome: «Выключатель»/«встраиваемая» ≈ 77px),
+                                  //   поэтому при рендере 1:1 слово помещается в подпись и НЕ рвётся посреди
+const PHOTO_W = 104, PHOTO_H = 68;// бокс широкого фото накладки (та же пропорция ~1.53, что была у 128×84)
+const PHOTO_SQ = 80;              // бокс квадратного фото товара (превью VIMAR — квадратные); = ICON,
                                   //   чтобы фото и глифы-плашки товаров держали одну высоту в ряду
-const GAP_X = 24;                 // чистый горизонтальный просвет между соседними КОЛОНКАМИ: ~26% от ICON(92)
-                                  //   / ~19% от PHOTO_W(128) — глазу нужен зазор, пропорциональный крупным
-                                  //   иконкам, иначе ряд «слипается» (гейт — в тесте, ≥20px)
+const GAP_X = 24;                 // чистый горизонтальный просвет между соседними КОЛОНКАМИ (гейт в тесте ≥20px)
 const GAP_Y = 24;                 // чистый ВЕРТИКАЛЬНЫЙ просвет между карточками внутри стека механизмов —
-                                  //   от низа резерва подписи одной карточки до верха бокса следующей. Тот же
-                                  //   принцип «явный просвет», что и по X (гейт — в тесте, ≥20px), иначе
-                                  //   визуально механизм «наезжает» на подпись соседа
-const LABEL_W = 108;              // ширина блока подписи под иконкой: ≈ ширина иконки + небольшой запас —
-                                  //   длинное наименование переносится в несколько строк внутри бокса
+                                  //   от низа резерва подписи одной карточки до верха бокса следующей
+                                  //   (тот же гейт ≥20px), иначе механизм «наезжает» на подпись соседа
+const LABEL_W = ICON;             // ширина блока подписи = ширине бокса: подпись НЕ торчит за края бокса,
+                                  //   поэтому соседние подписи разделены полным GAP_X и не пересекаются
+                                  //   по горизонтали. Схема печатается 1:1 (см. installSheet .post-visuals),
+                                  //   так что эта ширина = фактической ширине подписи — слово в неё и помещается
 const TICK_GAP = 12;             // вертикальный зазор от низа иконки до верха подписи — в нём живёт тик-линия
-const LABEL_H = 100;             // резерв высоты под подпись с переносом длинного имени (kicker + до ~5 строк
-                                  //   наименования при 12px в узком боксе + артикул). Подписи спозиционированы
-                                  //   абсолютом; резерв закладываем в высоту КАЖДОЙ ячейки стека, чтобы подпись
-                                  //   механизма гарантированно не наехала на следующий бокс даже при длинном
-                                  //   имени (текст в Node не измерить — берём консервативный worst-case)
-const ICON_PX = 52;              // сторона глифа внутри 92-плашки (было 26 в 46-плашке — та же доля 0.565)
+const LABEL_H = 90;              // резерв высоты под подпись с переносом длинного имени (kicker + до ~3 строк
+                                  //   наименования при 11px в узком боксе + артикул на 2 строки). Подписи
+                                  //   спозиционированы абсолютом; резерв закладываем в высоту КАЖДОЙ ячейки стека,
+                                  //   чтобы подпись механизма не наехала на следующий бокс даже при длинном имени
+                                  //   (текст в Node не измерить — берём консервативный worst-case)
+const ICON_PX = 45;              // сторона глифа внутри 80-плашки (та же доля ~0.565)
 const INK = "#2f4257";           // цвет глифа — тёмно-синий чернил документа
+const MAX_STACK_ROWS = 2;        // стек механизмов выше ДВУХ рядов не растёт (K11): немецко-французская
+                                 //   сборка на 3–4 механизма «вертикальным крестом» не влезала в лист.
+                                 //   Лишние механизмы уходят в соседнюю колонку того же «шампура» —
+                                 //   высота схемы ограничена двумя рядами при любом числе механизмов,
+                                 //   а ширина растёт вбок (её гасит max-width:100% + ряд рядом с иллюстрацией)
 
-function buildHtml(spec, deps) {
-  const esc = (deps && deps.esc) || (s => String(s == null ? "" : s));
-  const pickIcon = (deps && deps.pickIcon) || (() => "generic");
-  const iconSvg = deps && deps.iconSvg;
-  const parts = (spec && Array.isArray(spec.parts) ? spec.parts : []).filter(Boolean);
-  const n = parts.length;
-  if (!n) return "";   /* нет деталей (пост без наполнения) — блок не рисуем, лист не падает */
-
-  /* Размер бокса детали: настоящее фото → широкий (накладка) или квадратный (товар); нет фото → плашка глифа. */
-  const boxW = p => (p.photo && p.photo.imageUrl) ? (p.photo.wide ? PHOTO_W : PHOTO_SQ) : ICON;
-  const boxH = p => (p.photo && p.photo.imageUrl) ? (p.photo.wide ? PHOTO_H : PHOTO_SQ) : ICON;
-
-  /* Группировка плоского списка деталей в КОЛОНКИ ряда. Оркестратор (buildExplodedSpec в app.js) кладёт
-     детали в порядке накладка(и) → подряд идущие механизмы → суппорт → коробка. Механизмы (role==="Модуль")
-     сворачиваем в ОДНУ колонку (стек по Y), остальное — по колонке на деталь. Механизмы гарантированно идут
-     подряд, поэтому берём непрерывный диапазон [firstMod..lastMod]. Модулей нет (пустой пост) → каждая деталь
-     = своя колонка: раскладка вырождается в прежний горизонтальный ряд, рендер не падает. Колонка — массив
-     ИНДЕКСОВ деталей сверху вниз (индекс, а не сама деталь, чтобы cx/cy/labTop заполнять по исходному i). */
-  const columns = [];
-  const firstMod = parts.findIndex(p => p.role === "Модуль");
-  if (firstMod === -1) {
-    parts.forEach((_, i) => columns.push([i]));
-  } else {
-    let lastMod = firstMod;
-    while (lastMod + 1 < n && parts[lastMod + 1].role === "Модуль") lastMod++;
-    for (let i = 0; i < firstMod; i++) columns.push([i]);   // накладка(и) — до первого механизма
-    const stack = [];
-    for (let i = firstMod; i <= lastMod; i++) stack.push(i); // блок подряд идущих механизмов — одна колонка
-    columns.push(stack);
-    for (let i = lastMod + 1; i < n; i++) columns.push([i]); // суппорт, коробка — после последнего механизма
+/* Раскладка плоского списка деталей в КОЛОНКИ ряда — ЧИСТАЯ функция от ролей (role каждой детали),
+   без геометрии и DOM: её можно проверить тестом отдельно. Оркестратор (buildExplodedSpec в app.js)
+   кладёт детали в порядке накладка(и) → подряд идущие механизмы → суппорт → коробка. Механизмы
+   (role==="Модуль") сворачиваются в стек по Y, но не выше MAX_STACK_ROWS деталей: как только ряд
+   стека заполнен, следующий механизм начинает НОВУЮ колонку. Так три-четыре механизма ложатся в
+   два ряда рядом, а не одной высокой колонкой. Остальные детали — по колонке на деталь.
+   Контракт прежних тестов сохранён: один механизм — колонка из одной детали (горизонтальный ряд),
+   два механизма — одна колонка-стек на одной X (MAX_STACK_ROWS=2 вмещает оба). Модулей нет (пустой
+   пост) → каждая деталь = своя колонка. Колонка — массив ИНДЕКСОВ деталей сверху вниз. */
+function layoutColumns(roles) {
+  const list = Array.isArray(roles) ? roles : [];
+  const n = list.length;
+  const cols = [];
+  const firstMod = list.findIndex(r => r === "Модуль");
+  if (firstMod === -1) { for (let i = 0; i < n; i++) cols.push([i]); return cols; }
+  let lastMod = firstMod;
+  while (lastMod + 1 < n && list[lastMod + 1] === "Модуль") lastMod++;
+  for (let i = 0; i < firstMod; i++) cols.push([i]);            // накладка(и) — до первого механизма
+  for (let c = firstMod; c <= lastMod; c += MAX_STACK_ROWS) {   // механизмы — колонками по MAX_STACK_ROWS
+    const col = [];
+    for (let i = c; i < c + MAX_STACK_ROWS && i <= lastMod; i++) col.push(i);
+    cols.push(col);
   }
+  for (let i = lastMod + 1; i < n; i++) cols.push([i]);         // суппорт, коробка — после механизмов
+  return cols;
+}
 
+/* Размер бокса детали: настоящее фото → широкий (накладка) или квадратный (товар); нет фото → плашка глифа. */
+const boxWof = p => (p && p.photo && p.photo.imageUrl) ? (p.photo.wide ? PHOTO_W : PHOTO_SQ) : ICON;
+const boxHof = p => (p && p.photo && p.photo.imageUrl) ? (p.photo.wide ? PHOTO_H : PHOTO_SQ) : ICON;
+
+/* ГЕОМЕТРИЯ взрыв-схемы — ЧИСТАЯ функция в координатах «дизайна» (px сцены), без DOM и без %: её
+   можно проверить тестом на отсутствие пересечений прямоугольников бокс/подпись. buildHtml лишь
+   переводит эти координаты в проценты и рисует. Схема печатается 1:1 (не масштабируется, см.
+   installSheet .post-visuals), поэтому НЕПЕРЕСЕЧЕНИЕ в этих координатах = непересечение на бумаге.
+   На вход parts (нужны role для колонок и photo для размера бокса), на выход sceneW/H, ось и по
+   каждой детали прямоугольники бокса и зарезервированной подписи (labW×labH).
+   Возвращает {sceneW,H,axisY,columns,colCenterX,items:[{cx,cy,bw,bh,labLeft,labTop,labW,labH}]}. */
+function layout(parts) {
+  const n = parts.length;
+  const columns = layoutColumns(parts.map(p => p.role));
   /* Ширина колонки — по самому широкому боксу в ней (в стеке механизмов все квадратные, но общий случай). */
-  const colW = columns.map(col => Math.max.apply(null, col.map(i => boxW(parts[i]))));
-
+  const colW = columns.map(col => Math.max.apply(null, col.map(i => boxWof(parts[i]))));
   /* Раскладка КАЖДОЙ колонки по Y относительно её верха (relTop[0]=0). Ячейка карточки = бокс + тик + резерв
      подписи (cellH); между карточками стека — чистый просвет GAP_Y. Дальше берём вертикальный размах БОКСОВ
      (от верха первого до низа последнего) и его середину boxSpanMid: по ней центрируем колонку на общей оси
      axisY. Так одиночные колонки садятся боксом ровно на ось (как в прежнем ряду), а стек раскрывается
      симметрично вверх-вниз от оси. topExtent/botExtent — насколько колонка торчит выше/ниже своей оси
      (низ = резерв подписи последней карточки), из их максимумов и складывается высота сцены. */
-  const cellH = i => boxH(parts[i]) + TICK_GAP + LABEL_H;
+  const cellH = i => boxHof(parts[i]) + TICK_GAP + LABEL_H;
   const relTop = columns.map(col => {
     const r = [0];
     for (let k = 1; k < col.length; k++) r[k] = r[k - 1] + cellH(col[k - 1]) + GAP_Y;
@@ -118,7 +138,7 @@ function buildHtml(spec, deps) {
   });
   const boxSpanMid = columns.map((col, j) => {
     const lastK = col.length - 1;
-    return (relTop[j][0] + relTop[j][lastK] + boxH(parts[col[lastK]])) / 2;
+    return (relTop[j][0] + relTop[j][lastK] + boxHof(parts[col[lastK]])) / 2;
   });
   const topExtent = columns.map((col, j) => boxSpanMid[j] - relTop[j][0]);
   const botExtent = columns.map((col, j) => {
@@ -128,7 +148,6 @@ function buildHtml(spec, deps) {
   const maxTop = Math.max.apply(null, topExtent), maxBot = Math.max.apply(null, botExtent);
   const axisY = PAD_TOP + maxTop;                    // общая ось: центры одиночных боксов и середина стека
   const H = PAD_TOP + maxTop + maxBot + PAD_BOT;
-
   /* Центры колонок по X — накопительно (край к краю + GAP_X). По краям учитываем, что подпись (LABEL_W)
      может быть шире крайнего бокса — отступ берём по большему, чтобы подпись не вылезла за сцену. */
   const colCenterX = [];
@@ -139,19 +158,33 @@ function buildHtml(spec, deps) {
   });
   const lastCol = columns.length - 1;
   const sceneW = colCenterX[lastCol] + Math.max(colW[lastCol] / 2, LABEL_W / 2) + PAD_SIDE;
-
-  /* Координаты каждой ДЕТАЛИ (по исходному индексу i): центр бокса cx/cy и верх её подписи labTop. Смещаем
-     колонку так, чтобы её boxSpanMid лёг на axisY; внутри колонки карточки идут по relTop. */
-  const cx = [], cy = [], labTop = [];
+  /* Прямоугольники каждой ДЕТАЛИ (по исходному индексу i): центр бокса cx/cy, верх и левый край подписи.
+     Смещаем колонку так, чтобы её boxSpanMid лёг на axisY; внутри колонки карточки идут по relTop. */
+  const items = new Array(n);
   columns.forEach((col, j) => {
     const offset = axisY - boxSpanMid[j];
     col.forEach((i, k) => {
       const cardTop = offset + relTop[j][k];
-      cx[i] = colCenterX[j];
-      cy[i] = cardTop + boxH(parts[i]) / 2;
-      labTop[i] = cardTop + boxH(parts[i]) + TICK_GAP;
+      const bw = boxWof(parts[i]), bh = boxHof(parts[i]);
+      items[i] = { cx: colCenterX[j], cy: cardTop + bh / 2, bw, bh,
+        labLeft: colCenterX[j] - LABEL_W / 2, labTop: cardTop + bh + TICK_GAP, labW: LABEL_W, labH: LABEL_H };
     });
   });
+  return { sceneW, H, axisY, columns, colCenterX, items };
+}
+
+function buildHtml(spec, deps) {
+  const esc = (deps && deps.esc) || (s => String(s == null ? "" : s));
+  const pickIcon = (deps && deps.pickIcon) || (() => "generic");
+  const iconSvg = deps && deps.iconSvg;
+  const parts = (spec && Array.isArray(spec.parts) ? spec.parts : []).filter(Boolean);
+  const n = parts.length;
+  if (!n) return "";   /* нет деталей (пост без наполнения) — блок не рисуем, лист не падает */
+
+  const L = layout(parts);
+  const columns = L.columns, colCenterX = L.colCenterX, axisY = L.axisY, sceneW = L.sceneW, H = L.H;
+  const boxH = p => boxHof(p);
+  const cx = L.items.map(it => it.cx), cy = L.items.map(it => it.cy), labTop = L.items.map(it => it.labTop);
 
   const px = x => (x / sceneW * 100).toFixed(3);   // px дизайна → % ширины сцены
   const py = y => (y / H * 100).toFixed(3);        // px дизайна → % высоты сцены
@@ -204,7 +237,7 @@ function buildHtml(spec, deps) {
     const kicker = p.pos ? `${p.role || ""} ${p.pos}`.trim() : (p.role || "");
     return `<div style="position:absolute;left:${px(cx[i] - LABEL_W / 2)}%;top:${py(labTop[i])}%;width:${px(LABEL_W)}%;font-family:Arial,sans-serif;text-align:center;box-sizing:border-box">`
       + (kicker ? `<div style="font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:#8195a9">${esc(kicker)}</div>` : "")
-      + `<div style="font-size:12px;color:#172b3f;font-weight:600;line-height:1.2;white-space:normal;overflow-wrap:break-word">${esc(p.name || "—")}</div>`
+      + `<div style="font-size:11px;color:#172b3f;font-weight:600;line-height:1.2;white-space:normal;overflow-wrap:break-word">${esc(p.name || "—")}</div>`
       + `<div style="font-size:11px;color:#33465a;font-family:'Courier New',monospace;margin-top:1px">Артикул: ${esc(p.code || "—")}</div>`
       + `</div>`;
   }).join("");
@@ -218,7 +251,7 @@ function buildHtml(spec, deps) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для
    автотестов (PLAN 7.1). */
-const api = { buildHtml };
+const api = { buildHtml, layoutColumns, layout };
 if (typeof window !== "undefined") window.EPExplodedView = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
