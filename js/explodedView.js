@@ -292,9 +292,12 @@ const stripTail = s => s.replace(/[\s,.;:–\-·(«]+$/, "");
 /* Сокращение наименования для подписи схемы — ПО ШИРИНЕ, в ≤ maxLines строк по maxW (владелец 26.10:
    «имя не длиннее двух строк, обрезка по слову»). НЕ словарь сокращений — формулировки руками не
    придумываем: отрезаем по границе слова и ставим «…». Имя влезает целиком — возвращаем как есть, без
-   «…». Первое слово само шире бюджета (напр. «Technologies/Avaya/Systimax») — режем его посимвольно,
-   иначе одно слово выдавило бы 3-ю строку. Полное имя остаётся в таблицах под схемой, поэтому потеря
-   хвоста содержимое не теряет. Работает на СЫРОЙ строке (до esc). */
+   «…». Первое слово само шире бюджета режем ПО ВНУТРЕННЕЙ ГРАНИЦЕ — после «-»/«/» (splitBreakable):
+   «Механизм-выключатель 1P 16AX серый» → «Механизм-…», дефис СОХРАНЯЕТСЯ перед «…» (владелец 27.10) —
+   так монтажник видит осмысленный корень, а не обрубок «Механизм-выключате…» посреди слова. Посимвольный
+   рез — только когда не влезает даже первый под-чанк (одно слитное слово без «-»/«/», напр.
+   «Электроустановочноеизделие»). Полное имя остаётся в таблицах под схемой, поэтому потеря хвоста
+   содержимое не теряет. Работает на СЫРОЙ строке (до esc). */
 function shortenName(name, maxW, maxLines) {
   const s = String(name == null ? "" : name).trim();
   const W = Number(maxW) > 0 ? Number(maxW) : LABEL_W;
@@ -308,7 +311,17 @@ function shortenName(name, maxW, maxLines) {
     if (cand && linesNeeded(cand + "…", W) <= L) best = cand; else break;  // строки монотонны — дальше не влезет
   }
   if (best) return best + "…";
-  let cut = "";                                   // даже первое слово с «…» не влезло — режем его посимвольно
+  /* Первое слово целиком не влезло — берём самый длинный префикс его под-чанков (граница после «-»/«/»),
+     влезающий с «…». Разделитель НЕ снимаем (владелец: «Механизм-…»), иначе обрезка потеряла бы видимую
+     границу переноса. splitBreakable оставляет «-»/«/» в левом чанке — его и сохраняем. */
+  const subs = splitBreakable(words[0]);
+  let bestSub = "";
+  for (let k = 1; k < subs.length; k++) {
+    const cand = subs.slice(0, k).join("");
+    if (linesNeeded(cand + "…", W) <= L) bestSub = cand; else break;       // строки монотонны — дальше не влезет
+  }
+  if (bestSub) return bestSub + "…";
+  let cut = "";                                   // не влезает даже первый под-чанк — режем посимвольно
   for (const ch of words[0]) {
     if (linesNeeded(cut + ch + "…", W) <= L) cut += ch; else break;
   }
@@ -381,7 +394,14 @@ function buildHtml(spec, deps) {
      соседа (Д2). Полное имя детали — в таблицах под схемой. Текст по центру — подпись «сидит» под иконкой. */
   const labels = parts.map((p, i) => {
     const kicker = p.pos ? `${p.role || ""} ${p.pos}`.trim() : (p.role || "");
-    return `<div style="position:absolute;left:${px(cx[i] - LABEL_W / 2)}%;top:${py(labTop[i])}%;width:${px(LABEL_W)}%;font-family:Arial,sans-serif;text-align:center;box-sizing:border-box">`
+    /* K11 раунд 6 (владелец 27.10). Белый фон + z-index:1 под подписью: ось-«шампур» и вертикальный
+       спайн стека проходят через Y верхней подписи и «зачёркивали» её текст (20021.B, 09001). Подпись
+       рисуется ПОСЛЕ SVG-слоя и с z-index:1 — она выше линий, а фон прячет линию ПОД текстом (линия
+       «уходит под подпись», как просил владелец). print-color-adjust:exact — чтобы белый фон печатался
+       (иначе в PDF линия снова проступит), тот же приём, что у плашек фото/иконок выше. Фон в границах
+       labW×labH (резерв подписи), а он с боксами/фото не пересекается (тест непересечения) — иконки и
+       фото соседних деталей подпись не перекрывает. */
+    return `<div style="position:absolute;left:${px(cx[i] - LABEL_W / 2)}%;top:${py(labTop[i])}%;width:${px(LABEL_W)}%;font-family:Arial,sans-serif;text-align:center;box-sizing:border-box;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;z-index:1">`
       + (kicker ? `<div style="font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:#8195a9;overflow-wrap:break-word">${esc(kicker)}</div>` : "")
       + `<div style="font-size:11px;color:#172b3f;font-weight:600;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:break-word">${esc(shortenName(p.name || "—", LABEL_W))}</div>`
       + `<div style="font-size:11px;color:#33465a;font-family:'Courier New',monospace;margin-top:1px;overflow-wrap:anywhere">${esc(p.code || "—")}</div>`
