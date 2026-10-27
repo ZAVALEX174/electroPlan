@@ -352,13 +352,25 @@ function buildHtml(data, deps) {
        В режиме «общая сборка» (showExploded=false) её не печатаем: остаётся только собранная накладка
        с клавишами выше. Решение про весь лист — showExploded, см. buildHtml. */
     const exploded = showExploded && post.explodedViewHtml
-      ? `<div class="exploded-title">Взрыв-схема поста</div><div class="post-exploded">${post.explodedViewHtml}</div>`
+      ? `<div class="post-exploded-wrap"><div class="exploded-title">Взрыв-схема поста</div><div class="post-exploded">${post.explodedViewHtml}</div></div>`
       : "";
+    /* Иллюстрация и взрыв-схема — В ОДНОМ РЯДУ (K11): раньше они шли друг под другом и съедали высоту,
+       из-за чего карточка на 3–4 механизма не влезала на страницу, а взрыв-схема уезжала переносом.
+       Когда есть ОБА блока — кладём их в flex-ряд, рядом (если влезает) или схема под иллюстрацией
+       (flex-wrap), иначе (только иллюстрация в виде «общая сборка», либо только схема) печатаем одиночным
+       блоком. САМ РЯД делим: когда схема переносится под иллюстрацию, Chrome может разорвать flex-контейнер
+       между этими двумя flex-строками — иллюстрация остаётся на прежней странице под шапкой, а схема целиком
+       уходит на следующую (решение владельца 27.10, см. CSS .post-visuals / .post-exploded-wrap). */
+    const visuals = (illus && exploded) ? `<div class="post-visuals">${illus}${exploded}</div>` : (illus + exploded);
+    /* Карточка ТЕЧЁТ целиком — шапка, мета, таблицы переносятся между страницами где угодно (решение
+       владельца 26.10: «а в чём проблема делить пост на две страницы, взрыв-схема только не раздельная»).
+       Прежде шапку+мету+визуалы держал неделимый .post-keep, и этот ~450px-блок не паковался на страницу,
+       оставляя снизу пустоту. Теперь неделима ТОЛЬКО сама взрыв-схема с её заголовком (.post-exploded-wrap) —
+       иллюстрация и всё остальное свободно разрываются. */
     return `<section class="post-card">
       <div class="post-card-head"><span class="post-badge">Пост № ${esc(post.number)}</span></div>
       <dl class="post-meta">${meta}</dl>
-      ${illus}
-      ${exploded}
+      ${visuals}
       ${germanNote}
       <table class="modules"><thead><tr><th>Модуль</th><th>Элемент</th><th>Артикул</th><th>Примечание</th></tr></thead>
         <tbody>${moduleRows}</tbody></table>
@@ -389,28 +401,72 @@ function buildHtml(data, deps) {
   const subtitle = esc(data.subtitle || (single ? "Помодульная раскладка поста" : "Помодульная раскладка постов по проекту"));
 
   return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>
-  @page{size:A4;margin:14mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px}
+  @page{size:A4;margin:14mm}body{font-family:Arial,sans-serif;color:#172b3f;font-size:12px;margin:0}
   h1{font-size:22px;color:#1675c8;margin:0 0 4px}.sub{color:#687f94;margin-bottom:16px}
   .doc-head{display:flex;flex-wrap:wrap;gap:6px 18px;padding:10px 12px;background:#edf6ff;border-radius:10px;margin-bottom:18px;color:#33465a;font-size:11px}
-  .room-heading{font-size:15px;color:#185d96;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #d8e6f2}
-  .post-card{border:1px solid #d8e6f2;border-radius:12px;padding:14px 16px;margin:0 0 14px;break-inside:avoid}
-  .post-card-head{margin-bottom:8px}
+  /* Заголовок комнаты держится со своей ПЕРВОЙ карточкой (break-after:avoid): прежде он мог остаться
+     внизу страницы, а карточки комнаты уезжали на следующую. */
+  .room-heading{font-size:15px;color:#185d96;margin:12px 0 8px;padding-bottom:6px;border-bottom:2px solid #d8e6f2;break-after:avoid;page-break-after:avoid}
+  /* Карточку НЕ держим целиком на одной странице (K11): когда она не влезает в остаток листа (например,
+     идёт сразу под планом), прежний break-inside:avoid уводил её ВСЮ на новую страницу и оставлял под
+     планом пустое место. Теперь карточка течёт — таблицы при необходимости переносятся по строкам, —
+     а неделимыми остаются только ряд иллюстрации+схемы (.post-visuals) и сама взрыв-схема (.post-exploded). */
+  /* K11 раунд 4: вертикальные отступы карточки срезаны (padding 14→10, margin 14→10, head/meta/visuals
+     по 10→6). Шрифты и горизонтальные поля не трогаем — только пустота по вертикали, которой владелец
+     насчитал «очень много». На проекте из нескольких постов эти миллиметры решают, сколько постов
+     ляжет на страницу. */
+  .post-card{border:1px solid #d8e6f2;border-radius:12px;padding:10px 16px;margin:0 0 10px}
+  .post-card-head{margin-bottom:5px}
   .post-badge{display:inline-block;background:#1675c8;color:#fff;font-weight:bold;border-radius:8px;padding:4px 12px;font-size:14px}
-  .post-meta{display:flex;flex-wrap:wrap;gap:6px 22px;margin:0 0 10px}
+  .post-meta{display:flex;flex-wrap:wrap;gap:6px 22px;margin:0 0 6px}
   .post-meta-item{margin:0}.post-meta dt{color:#687f94;font-size:10px;text-transform:uppercase;letter-spacing:.03em}.post-meta dd{margin:0;font-weight:bold}
   .german-note{background:#fff5e6;border:1px solid #f0d8ac;border-radius:8px;padding:8px 10px;margin:0 0 10px;font-size:11px;color:#7a5a17}
   table{width:100%;border-collapse:collapse;margin-top:6px}
-  th,td{padding:7px 9px;border-bottom:1px solid #e2edf6;text-align:left}
+  /* K11 раунд 4: вертикальный padding строк срезан 7→4 (горизонтальный 9 оставлен для читаемости колонок).
+     Таблицы модулей и обвязки — самая длинная часть карточки; по 6px с каждой строки на проекте с
+     десятками строк складываются в целую страницу экономии. Шрифт строк не меняем. */
+  th,td{padding:4px 9px;border-bottom:1px solid #e2edf6;text-align:left}
   th{background:#e8f4ff;color:#185d96;font-size:11px}
   td.mod{font-weight:bold;color:#185d96;white-space:nowrap;width:64px}
   tr.post-row td{background:#f0f7ff;color:#185d96;font-weight:bold;font-size:11px}
-  .post-illus{margin:0 0 10px}
-  .exploded-title{margin:6px 0 4px;font-weight:bold;color:#185d96;font-size:12px}
-  .post-exploded{margin:0 0 10px;break-inside:avoid}
+  .post-illus{margin:0 0 6px}
+  /* Ряд «иллюстрация + взрыв-схема» (K11, раунд 5). Прежде схема забирала остаток ряда и СЖИМАЛАСЬ
+     (flex:1 1 0 у иллюстрации), а на посте с 4+ клавишами схема натурально шире карточки → иллюстрация
+     схлопывалась в 0, а max-width:100% жал %-позиции схемы, но не px-боксы и текст — подписи наезжали (Д1).
+     Теперь ОБА блока держат натуральную ширину (flex:0 0 auto) и ряд может ПЕРЕНОСИТЬ (flex-wrap:wrap):
+     схема, не влезшая рядом с иллюстрацией, встаёт ПОД неё во всю ширину карточки (владелец: «иллюстрация и
+     схема рядом, схема ниже»). Иллюстрация НИКОГДА не схлопывается — у неё своя ширина (≈182px). Ширину
+     самой схемы EPExplodedView держит ≤FIT_W<654 (наращивает рядность стека), поэтому и под иллюстрацией она
+     не сжимается — рассинхрона нет. */
+  /* K11 раунд 6 (владелец 27.10). Ряд БОЛЬШЕ НЕ держим целиком (убран break-inside:avoid у .post-visuals):
+     когда схема перенеслась под иллюстрацию, неделимый ряд ~470px целиком уезжал на следующую страницу и
+     оставлял под шапкой поста пустоту до конца листа. Неделима ТОЛЬКО сама взрыв-схема вместе с её
+     заголовком (.post-exploded-wrap) — владелец: «неделима только взрыв-схема, иллюстрация может остаться
+     на предыдущей странице». Chrome рвёт flex-контейнер между flex-строками: в перенесённом ряду иллюстрация
+     и схема — две строки, разрыв проходит между ними, иллюстрация остаётся под шапкой, схема уходит целиком.
+     Заголовок схемы не осиротеет — он внутри неделимого .post-exploded-wrap, не отдельной строкой. */
+  .post-visuals{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px 16px;margin:0 0 6px}
+  /* Взрыв-схема печатается 1:1 (flex:0 0 auto — не сжимается): её бокс и текст заданы в px, а позиции в %,
+     любое сжатие рассинхронило бы их. Иллюстрация тоже flex:0 0 auto — держит натуральную ширину и не
+     схлопывается; когда рядом со схемой не помещается, перенос (wrap) уводит схему на строку ниже. */
+  .post-visuals .post-illus{flex:0 0 auto;margin:0}
+  /* Заголовок + схема одним неделимым блоком (break-inside:avoid): так схема не рвётся между страницами и
+     её подпись-заголовок не остаётся сиротой внизу страницы (владелец 27.10). */
+  .post-visuals .post-exploded-wrap{flex:0 0 auto;max-width:100%;break-inside:avoid;page-break-inside:avoid}
+  .exploded-title{margin:0 0 3px;font-weight:bold;color:#185d96;font-size:12px}
+  .post-exploded{margin:0;break-inside:avoid}
   td.code{font-family:"Courier New",monospace;color:#33465a}
   td.note{color:#687f94}td.right,th.right{text-align:right}td.empty{color:#687f94;font-style:italic}
-  .fittings-title{margin:14px 0 0;font-weight:bold;color:#185d96;font-size:12px}
-  .footer{margin-top:26px;color:#687f94;font-size:10px}
+  .fittings-title{margin:9px 0 0;font-weight:bold;color:#185d96;font-size:12px}
+  /* Блок «Группы света» держим ЦЕЛИКОМ (не рвём по последней строке): раньше его итоговая строка
+     «Механизмы подобраны расчётом …» оставалась одна на почти пустой странице. Если блок длиннее
+     страницы — движок всё равно разобьёт его, это не повиснет. */
+  .lighting-block{break-inside:avoid;page-break-inside:avoid}
+  /* Подвал держится ЗА предыдущим блоком (break-before:avoid), иначе он срывался на отдельную страницу
+     один, без содержимого (дефект K11: стр.6 из одного футера). Верхний отступ срезан 26→14: короткая
+     строка не должна тянуть за собой пустую страницу. Свод поставщику ниже всё равно уходит своей
+     страницей (его break-before:page), подвал остаётся с последним блоком монтажника. */
+  .footer{margin-top:14px;color:#687f94;font-size:10px;break-before:avoid;page-break-before:avoid}
   @media print{button{display:none}}
   </style></head><body>
   <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -420,7 +476,7 @@ function buildHtml(data, deps) {
   ${headerRows ? `<div class="doc-head">${headerRows}</div>` : ""}
   ${data.planBlockHtml || ""}
   ${body}
-  ${data.lightingHtml || ""}
+  ${data.lightingHtml ? `<div class="lighting-block">${data.lightingHtml}</div>` : ""}
   <div class="footer">Документ для монтажа. Позиции модулей указаны слева направо, как в собранной накладке.</div>
   ${data.supplierSpecHtml || ""}
   ${printScript}</body></html>`;

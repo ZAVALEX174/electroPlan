@@ -475,3 +475,35 @@ test("лист монтажника без блока групп света со
   assert.equal(buildHtml({ posts: [italianPost], lightingHtml: "" }, deps),
     buildHtml({ posts: [italianPost] }, deps));
 });
+
+/* ---- K11 раунд 6: неделим ТОЛЬКО блок взрыв-схемы (с заголовком); РЯД и карточка делятся -----------
+   Владелец 27.10: «неделима только взрыв-схема, иллюстрация может остаться на предыдущей странице». Прежде
+   неделим был весь ряд .post-visuals (~470px) — когда схема переносилась под иллюстрацию, ряд целиком уезжал
+   на следующую страницу и оставлял под шапкой поста пустоту. Теперь break-inside:avoid снят с .post-visuals и
+   стоит у .post-exploded-wrap (заголовок «Взрыв-схема поста» + сама схема) — заголовок не осиротеет, а ряд
+   Chrome рвёт между flex-строками (иллюстрация остаётся, схема уходит целиком). Тест фиксирует это в CSS. */
+test("CSS листа: неделим блок взрыв-схемы (.post-exploded-wrap), но НЕ ряд визуалов и НЕ карточка", () => {
+  const css = buildHtml({ posts: [italianPost] }, deps);
+  const ruleOf = sel => {
+    const i = css.indexOf(sel + "{");
+    assert.notEqual(i, -1, `правило ${sel} есть в CSS`);
+    return css.slice(i, css.indexOf("}", i));
+  };
+  assert.match(ruleOf(".post-exploded"), /break-inside:avoid/, "сама взрыв-схема неделима");
+  assert.match(ruleOf(".post-visuals .post-exploded-wrap"), /break-inside:avoid/,
+    "заголовок+схема одним неделимым блоком — заголовок «Взрыв-схема поста» не осиротеет");
+  assert.ok(!/break-inside:avoid/.test(ruleOf(".post-visuals")),
+    "ряд иллюстрация+схема НЕ держим целиком — иллюстрация остаётся, схема уходит отдельно (владелец 27.10)");
+  assert.ok(!/break-inside:avoid/.test(ruleOf(".post-card")), "карточку целиком НЕ держим — она течёт между страницами");
+});
+
+test("CSS листа: ряд иллюстрация+схема переносит схему вниз (flex-wrap), иллюстрация не схлопывается", () => {
+  /* Д1: при широкой схеме ряд обязан ПЕРЕНОСИТЬ её под иллюстрацию (flex-wrap:wrap), а иллюстрация —
+     держать натуральную ширину (flex:0 0 auto), а не сжиматься в ноль (прежний flex:1 1 0;min-width:0). */
+  const css = buildHtml({ posts: [italianPost] }, deps);
+  assert.ok(/\.post-visuals\{[^}]*flex-wrap:wrap/.test(css), "ряд визуалов переносит содержимое");
+  const i = css.indexOf(".post-visuals .post-illus{");
+  const illusRule = css.slice(i, css.indexOf("}", i));
+  assert.match(illusRule, /flex:0 0 auto/, "иллюстрация держит натуральную ширину, не схлопывается");
+  assert.ok(!/min-width:0/.test(illusRule), "прежнего min-width:0 (схлопывание в ноль) больше нет");
+});

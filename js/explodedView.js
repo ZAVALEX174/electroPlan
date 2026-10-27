@@ -46,71 +46,161 @@
    стека разделены полной ячейкой (бокс + подпись + чистый просвет GAP_Y), одиночные колонки (накладка,
    суппорт, коробка) центрируются по вертикали относительно самой высокой колонки — не «прилипают» к верху
    на фоне высокого стека. Ширина W зависит от числа колонок, высота H — от самой высокой колонки (стек). */
-const PAD_TOP = 14, PAD_BOT = 14, PAD_SIDE = 14;
-const ICON = 92;                  // сторона квадратной иконки-детали (было 46 — увеличено ~×2)
-const PHOTO_W = 128, PHOTO_H = 84;// бокс широкого фото накладки (накладка шире, чем высокая; ~×2 от 64×42)
-const PHOTO_SQ = 92;              // бокс квадратного фото товара (превью VIMAR — квадратные); = ICON,
+/* K11 раунд 4. Вертикальные поля сцены срезаны (с 14 до 10): взрыв-схема — единственный неделимый ряд
+   карточки (.post-visuals), её высота решает, влезет ли ряд в остаток страницы. По 4px сверху и снизу на
+   каждом посте проекта набегают в итоговую раскладку листа. Горизонтальное поле PAD_SIDE не трогаем:
+   оно работает в паре с LABEL_W, чтобы крайняя подпись не вылезла за кадр. */
+const PAD_TOP = 10, PAD_BOT = 10, PAD_SIDE = 14;
+/* K11, раунд 2. Размеры уменьшены сознательно: во взрыв-схеме бокс и подпись заданы в ФИКСИРОВАННЫХ px,
+   а позиции — в % сцены. Пока сцена не масштабируется (её натуральная ширина ≤ контейнера), px и %
+   совпадают и подписи стоят точно в своём резерве. Как только сцена едет рядом с иллюстрацией и её
+   натуральная ширина больше ячейки, max-width:100% сжимает ТОЛЬКО позиции (%), а боксы и текст остаются
+   крупными — и подпись наезжает на соседний бокс (дефект приёмки). Поэтому держим натуральную ширину
+   сцены (3–4 механизма ≈ 508px) МЕНЬШЕ ячейки схемы в ряду — тогда рендер идёт 1:1 и наложений нет. */
+const ICON = 64;                  // сторона квадратной иконки-детали. K11 раунд 3: уменьшена с 80, чтобы
+                                  //   стек механизмов (2 ряда) был ниже и карточки плотнее укладывались на
+                                  //   страницу проекта. Подпись шире бокса (LABEL_W), но её ширины хватает на
+                                  //   самое длинное слово, а соседние подписи всё равно разведены (см. LABEL_W)
+const PHOTO_W = 86, PHOTO_H = 56; // бокс широкого фото накладки (та же пропорция ~1.53, что была у 128×84)
+const PHOTO_SQ = 64;              // бокс квадратного фото товара (превью VIMAR — квадратные); = ICON,
                                   //   чтобы фото и глифы-плашки товаров держали одну высоту в ряду
-const GAP_X = 24;                 // чистый горизонтальный просвет между соседними КОЛОНКАМИ: ~26% от ICON(92)
-                                  //   / ~19% от PHOTO_W(128) — глазу нужен зазор, пропорциональный крупным
-                                  //   иконкам, иначе ряд «слипается» (гейт — в тесте, ≥20px)
-const GAP_Y = 24;                 // чистый ВЕРТИКАЛЬНЫЙ просвет между карточками внутри стека механизмов —
-                                  //   от низа резерва подписи одной карточки до верха бокса следующей. Тот же
-                                  //   принцип «явный просвет», что и по X (гейт — в тесте, ≥20px), иначе
-                                  //   визуально механизм «наезжает» на подпись соседа
-const LABEL_W = 108;              // ширина блока подписи под иконкой: ≈ ширина иконки + небольшой запас —
-                                  //   длинное наименование переносится в несколько строк внутри бокса
-const TICK_GAP = 12;             // вертикальный зазор от низа иконки до верха подписи — в нём живёт тик-линия
-const LABEL_H = 100;             // резерв высоты под подпись с переносом длинного имени (kicker + до ~5 строк
-                                  //   наименования при 12px в узком боксе + артикул). Подписи спозиционированы
-                                  //   абсолютом; резерв закладываем в высоту КАЖДОЙ ячейки стека, чтобы подпись
-                                  //   механизма гарантированно не наехала на следующий бокс даже при длинном
-                                  //   имени (текст в Node не измерить — берём консервативный worst-case)
-const ICON_PX = 52;              // сторона глифа внутри 92-плашки (было 26 в 46-плашке — та же доля 0.565)
+const GAP_X = 24;                 // чистый горизонтальный просвет между соседними КОЛОНКАМИ (гейт в тесте ≥20px)
+const GAP_Y = 20;                 // чистый ВЕРТИКАЛЬНЫЙ просвет между карточками внутри стека механизмов —
+                                  //   от низа резерва подписи одной карточки до верха бокса следующей.
+                                  //   K11 раунд 4: опущен с 24 до пола 20px (ниже гейт теста непересечения
+                                  //   не пускает) — стек механизмов становится ниже, карточки плотнее
+const LABEL_W = 80;              // ширина блока подписи ≥ самого длинного слова при 11px (≈77px, замерено в
+                                  //   Chrome) — при рендере 1:1 слово в неё помещается и НЕ рвётся. Подпись
+                                  //   шире бокса (64), но полуразнос (8px) меньше половины GAP_X, поэтому
+                                  //   соседние подписи НЕ пересекаются (гейт — тест непересечения прямоугольников)
+const TICK_GAP = 10;             // вертикальный зазор от низа иконки до верха подписи — в нём живёт тик-линия.
+                                 //   K11 раунд 4: срезан с 12 до 10 — в стеке он входит в высоту ДВАЖДЫ
+/* Сокращение наименования в подписи — по ШИРИНЕ бокса, а не по числу символов (владелец 26.10: «имя не
+   длиннее двух строк, обрезка по слову»). Прежний потолок в 22 символа двум строкам не равен: жирным 11px
+   «Шшшшшш» вдвое шире «iiiiii», и 22-символьное имя из широких букв давало 3-ю строку, а line-clamp рвал
+   её посреди слова (дефект приёмки Д3: «Адаптер Keystone…», «Коробка встраиваем…»). shortenName ниже
+   оценивает ширину слов по ИЗМЕРЕННОЙ таблице (CHAR_W, Arial 600 11px, замерено в Chrome, округлено вверх)
+   и держит столько слов, сколько влезает в NAME_LINES строк по LABEL_W. CSS-клэмп (-webkit-line-clamp:2)
+   оставлен СТРАХОВКОЙ. */
+const NAME_LINES = 2;             // имя в подписи — не длиннее двух строк (владелец 26.10)
+const LABEL_H = 76;              // резерв высоты под подпись, ЧЕСТНЫЙ worst-case (замерено в Chrome, окно 400px,
+                                  //   с переносами кикера и кода ниже): самая высокая подпись ≈71px. Разбор по
+                                  //   узлам: у суппорта кикер «СУППОРТ ×2 (ПРЕДПОЛОЖИТЕЛЬНО)» — 3 строки 9px
+                                  //   (≈30px: слово «(ПРЕДПОЛОЖИТЕЛЬНО)» ≈114px само ломается на 2 строки) + имя
+                                  //   2 строки 11px (клэмп, ≈26px) + код 1 строка (09613); у механизма кикер
+                                  //   «МОДУЛЬ … · ПОДСВЕТКА» 2 строки + имя 2 строки + код 2 строки (14-символьный
+                                  //   артикул ≈92px рвётся на 2 через overflow-wrap:anywhere) ≈71px. 76 — c запасом
+                                  //   ~5px. Переносы честные: кикер overflow-wrap:break-word, код overflow-wrap:
+                                  //   anywhere, имя line-clamp:2 — ни один текст за ширину подписи не вылезает
+const ICON_PX = 36;              // сторона глифа внутри 64-плашки (та же доля ~0.565)
 const INK = "#2f4257";           // цвет глифа — тёмно-синий чернил документа
+const MAX_STACK_ROWS = 2;        // СТАРТОВАЯ высота стека механизмов в рядах (K11). Раньше это был жёсткий
+                                 //   потолок, и лишние механизмы уходили вбок — схема росла до 826px, вылезала
+                                 //   за карточку и рассинхронивала подписи (Д1). Теперь это лишь НИЖНЯЯ граница:
+                                 //   layout наращивает рядность, пока ширина не уляжется в FIT_W (меньше колонок —
+                                 //   уже схема). На типовом посте (≤6 механизмов) двух рядов хватает и раскладка
+                                 //   прежняя; выше — стек растёт в высоту, а не вбок
+const FIT_W = 650;               // предел НАТУРАЛЬНОЙ ширины сцены, px (K11 раунд 5, Д1). Внутренняя ширина
+                                 //   карточки листа на A4 ≈654px (210мм − поля 14мм − паддинг карточки 16px −
+                                 //   рамка); держим сцену УЖЕ неё с запасом ~4px. Схема, не влезшая рядом с
+                                 //   иллюстрацией, переносится ПОД неё (installSheet .post-visuals flex-wrap) и там
+                                 //   встаёт во всю ширину карточки — но всё равно ≤FIT_W<654, поэтому max-width:100%
+                                 //   её НЕ сжимает и рассинхрона px-боксов с %-позициями не возникает
 
-function buildHtml(spec, deps) {
-  const esc = (deps && deps.esc) || (s => String(s == null ? "" : s));
-  const pickIcon = (deps && deps.pickIcon) || (() => "generic");
-  const iconSvg = deps && deps.iconSvg;
-  const parts = (spec && Array.isArray(spec.parts) ? spec.parts : []).filter(Boolean);
-  const n = parts.length;
-  if (!n) return "";   /* нет деталей (пост без наполнения) — блок не рисуем, лист не падает */
-
-  /* Размер бокса детали: настоящее фото → широкий (накладка) или квадратный (товар); нет фото → плашка глифа. */
-  const boxW = p => (p.photo && p.photo.imageUrl) ? (p.photo.wide ? PHOTO_W : PHOTO_SQ) : ICON;
-  const boxH = p => (p.photo && p.photo.imageUrl) ? (p.photo.wide ? PHOTO_H : PHOTO_SQ) : ICON;
-
-  /* Группировка плоского списка деталей в КОЛОНКИ ряда. Оркестратор (buildExplodedSpec в app.js) кладёт
-     детали в порядке накладка(и) → подряд идущие механизмы → суппорт → коробка. Механизмы (role==="Модуль")
-     сворачиваем в ОДНУ колонку (стек по Y), остальное — по колонке на деталь. Механизмы гарантированно идут
-     подряд, поэтому берём непрерывный диапазон [firstMod..lastMod]. Модулей нет (пустой пост) → каждая деталь
-     = своя колонка: раскладка вырождается в прежний горизонтальный ряд, рендер не падает. Колонка — массив
-     ИНДЕКСОВ деталей сверху вниз (индекс, а не сама деталь, чтобы cx/cy/labTop заполнять по исходному i). */
-  const columns = [];
-  const firstMod = parts.findIndex(p => p.role === "Модуль");
-  if (firstMod === -1) {
-    parts.forEach((_, i) => columns.push([i]));
-  } else {
-    let lastMod = firstMod;
-    while (lastMod + 1 < n && parts[lastMod + 1].role === "Модуль") lastMod++;
-    for (let i = 0; i < firstMod; i++) columns.push([i]);   // накладка(и) — до первого механизма
-    const stack = [];
-    for (let i = firstMod; i <= lastMod; i++) stack.push(i); // блок подряд идущих механизмов — одна колонка
-    columns.push(stack);
-    for (let i = lastMod + 1; i < n; i++) columns.push([i]); // суппорт, коробка — после последнего механизма
+/* Раскладка плоского списка деталей в КОЛОНКИ ряда — ЧИСТАЯ функция, без геометрии и DOM: её можно
+   проверить тестом отдельно. На вход либо массив деталей (нужны role и pos), либо массив ролей-строк
+   (прежний контракт тестов). Оркестратор (buildExplodedSpec в app.js) кладёт детали в порядке
+   накладка(и) → подряд идущие механизмы → суппорт → коробка.
+   Механизмы (role==="Модуль") сворачиваются в стек по Y. СНАЧАЛА группируем их в ЕДИНИЦЫ КЛАВИШ:
+   клавиша + её механизм группы света + её подсветка (docs.js ставит их подряд, у зависимых деталей в
+   pos есть разделитель « · ») — одна единица. Детали одной клавиши НЕ делятся между колонками (Д4):
+   иначе подсветка клавиши 1 оказывалась над клавишей 2. Затем единицы пакуем в колонки, добавляя их,
+   пока суммарных РЯДОВ в колонке ≤ maxRows (но хотя бы одна единица в колонке — даже если она выше).
+   maxRows по умолчанию MAX_STACK_ROWS; layout наращивает его, пока ширина сцены не уляжется в FIT_W —
+   тогда у широкой схемы становится меньше колонок (она не вылезает за карточку, Д1).
+   Контракт прежних тестов сохранён: роли-строки трактуются как самостоятельные клавиши (единица из
+   одного ряда), и при maxRows=2 один механизм даёт колонку из одной детали, два — одну колонку-стек.
+   Остальные детали (накладка, суппорт, коробка) — по колонке на деталь. Колонка — массив ИНДЕКСОВ
+   деталей сверху вниз. */
+function layoutColumns(items, maxRows) {
+  const list = Array.isArray(items) ? items : [];
+  const n = list.length;
+  const roleOf = el => (el && typeof el === "object") ? el.role : el;
+  const posOf = el => (el && typeof el === "object") ? el.pos : undefined;
+  const rows = Number(maxRows) > 0 ? Math.floor(maxRows) : MAX_STACK_ROWS;
+  const cols = [];
+  const firstMod = list.findIndex(el => roleOf(el) === "Модуль");
+  if (firstMod === -1) { for (let i = 0; i < n; i++) cols.push([i]); return cols; }
+  let lastMod = firstMod;
+  while (lastMod + 1 < n && roleOf(list[lastMod + 1]) === "Модуль") lastMod++;
+  for (let i = 0; i < firstMod; i++) cols.push([i]);            // накладка(и) — до первого механизма
+  /* Единицы клавиш: деталь с « · » в pos (механизм/подсветка) прилипает к текущей клавише, иначе
+     начинает новую. Роль-строка pos не несёт → каждая деталь своя единица (прежний контракт). */
+  const units = [];
+  for (let i = firstMod; i <= lastMod; i++) {
+    const dependent = / · /.test(String(posOf(list[i]) == null ? "" : posOf(list[i])));
+    if (!dependent || !units.length) units.push([i]); else units[units.length - 1].push(i);
   }
+  let col = [], used = 0;
+  units.forEach(u => {
+    if (col.length && used + u.length > rows) { cols.push(col); col = []; used = 0; }
+    u.forEach(i => col.push(i)); used += u.length;
+  });
+  if (col.length) cols.push(col);
+  for (let i = lastMod + 1; i < n; i++) cols.push([i]);         // суппорт, коробка — после механизмов
+  return cols;
+}
 
-  /* Ширина колонки — по самому широкому боксу в ней (в стеке механизмов все квадратные, но общий случай). */
-  const colW = columns.map(col => Math.max.apply(null, col.map(i => boxW(parts[i]))));
+/* Размер бокса детали: настоящее фото → широкий (накладка) или квадратный (товар); нет фото → плашка глифа. */
+const boxWof = p => (p && p.photo && p.photo.imageUrl) ? (p.photo.wide ? PHOTO_W : PHOTO_SQ) : ICON;
+const boxHof = p => (p && p.photo && p.photo.imageUrl) ? (p.photo.wide ? PHOTO_H : PHOTO_SQ) : ICON;
 
+/* Горизонтальная геометрия колонок — ОДНА копия (её зовёт и поиск рядности, и сама layout): ширина каждой
+   колонки (по самому широкому боксу), центры колонок накопительно (край к краю + GAP_X) и итоговая ширина
+   сцены. По краям отступ берём по большему из бокса и подписи (LABEL_W может быть шире крайнего бокса),
+   чтобы подпись не вылезла за сцену. */
+function colGeometryX(parts, columns) {
+  const colW = columns.map(col => Math.max.apply(null, col.map(i => boxWof(parts[i]))));
+  const colCenterX = [];
+  columns.forEach((col, j) => {
+    colCenterX[j] = j === 0
+      ? PAD_SIDE + Math.max(colW[0] / 2, LABEL_W / 2)
+      : colCenterX[j - 1] + colW[j - 1] / 2 + GAP_X + colW[j] / 2;
+  });
+  const last = columns.length - 1;
+  const sceneW = colCenterX[last] + Math.max(colW[last] / 2, LABEL_W / 2) + PAD_SIDE;
+  return { colW, colCenterX, sceneW };
+}
+
+/* ГЕОМЕТРИЯ взрыв-схемы — ЧИСТАЯ функция в координатах «дизайна» (px сцены), без DOM и без %: её
+   можно проверить тестом на отсутствие пересечений прямоугольников бокс/подпись. buildHtml лишь
+   переводит эти координаты в проценты и рисует. Схема печатается 1:1 (не масштабируется, см.
+   installSheet .post-visuals), поэтому НЕПЕРЕСЕЧЕНИЕ в этих координатах = непересечение на бумаге.
+   На вход parts (нужны role для колонок и photo для размера бокса), на выход sceneW/H, ось и по
+   каждой детали прямоугольники бокса и зарезервированной подписи (labW×labH).
+   Возвращает {sceneW,H,axisY,columns,colCenterX,items:[{cx,cy,bw,bh,labLeft,labTop,labW,labH}]}. */
+function layout(parts) {
+  const n = parts.length;
+  /* Рядность стека ищем снизу вверх (K11 раунд 5, Д1): при двух рядах схема иногда шире карточки
+     (много механизмов → много колонок). Пока натуральная ширина сцены > FIT_W, наращиваем maxRows —
+     единиц в колонке становится больше, колонок меньше, схема уже. maxRows ограничен числом деталей
+     (дальше сокращать нечего), так цикл заведомо конечен. Детали клавиши при этом не разрываются —
+     это обеспечивает группировка в layoutColumns. */
+  let maxRows = MAX_STACK_ROWS;
+  let columns = layoutColumns(parts, maxRows);
+  while (colGeometryX(parts, columns).sceneW > FIT_W && maxRows < n) {
+    maxRows++;
+    columns = layoutColumns(parts, maxRows);
+  }
+  const gx = colGeometryX(parts, columns);
+  const colCenterX = gx.colCenterX, sceneW = gx.sceneW;
   /* Раскладка КАЖДОЙ колонки по Y относительно её верха (relTop[0]=0). Ячейка карточки = бокс + тик + резерв
      подписи (cellH); между карточками стека — чистый просвет GAP_Y. Дальше берём вертикальный размах БОКСОВ
      (от верха первого до низа последнего) и его середину boxSpanMid: по ней центрируем колонку на общей оси
      axisY. Так одиночные колонки садятся боксом ровно на ось (как в прежнем ряду), а стек раскрывается
      симметрично вверх-вниз от оси. topExtent/botExtent — насколько колонка торчит выше/ниже своей оси
      (низ = резерв подписи последней карточки), из их максимумов и складывается высота сцены. */
-  const cellH = i => boxH(parts[i]) + TICK_GAP + LABEL_H;
+  const cellH = i => boxHof(parts[i]) + TICK_GAP + LABEL_H;
   const relTop = columns.map(col => {
     const r = [0];
     for (let k = 1; k < col.length; k++) r[k] = r[k - 1] + cellH(col[k - 1]) + GAP_Y;
@@ -118,7 +208,7 @@ function buildHtml(spec, deps) {
   });
   const boxSpanMid = columns.map((col, j) => {
     const lastK = col.length - 1;
-    return (relTop[j][0] + relTop[j][lastK] + boxH(parts[col[lastK]])) / 2;
+    return (relTop[j][0] + relTop[j][lastK] + boxHof(parts[col[lastK]])) / 2;
   });
   const topExtent = columns.map((col, j) => boxSpanMid[j] - relTop[j][0]);
   const botExtent = columns.map((col, j) => {
@@ -128,30 +218,128 @@ function buildHtml(spec, deps) {
   const maxTop = Math.max.apply(null, topExtent), maxBot = Math.max.apply(null, botExtent);
   const axisY = PAD_TOP + maxTop;                    // общая ось: центры одиночных боксов и середина стека
   const H = PAD_TOP + maxTop + maxBot + PAD_BOT;
-
-  /* Центры колонок по X — накопительно (край к краю + GAP_X). По краям учитываем, что подпись (LABEL_W)
-     может быть шире крайнего бокса — отступ берём по большему, чтобы подпись не вылезла за сцену. */
-  const colCenterX = [];
-  columns.forEach((col, j) => {
-    colCenterX[j] = j === 0
-      ? PAD_SIDE + Math.max(colW[0] / 2, LABEL_W / 2)
-      : colCenterX[j - 1] + colW[j - 1] / 2 + GAP_X + colW[j] / 2;
-  });
-  const lastCol = columns.length - 1;
-  const sceneW = colCenterX[lastCol] + Math.max(colW[lastCol] / 2, LABEL_W / 2) + PAD_SIDE;
-
-  /* Координаты каждой ДЕТАЛИ (по исходному индексу i): центр бокса cx/cy и верх её подписи labTop. Смещаем
-     колонку так, чтобы её boxSpanMid лёг на axisY; внутри колонки карточки идут по relTop. */
-  const cx = [], cy = [], labTop = [];
+  /* Прямоугольники каждой ДЕТАЛИ (по исходному индексу i): центр бокса cx/cy, верх и левый край подписи.
+     Смещаем колонку так, чтобы её boxSpanMid лёг на axisY; внутри колонки карточки идут по relTop. */
+  const items = new Array(n);
   columns.forEach((col, j) => {
     const offset = axisY - boxSpanMid[j];
     col.forEach((i, k) => {
       const cardTop = offset + relTop[j][k];
-      cx[i] = colCenterX[j];
-      cy[i] = cardTop + boxH(parts[i]) / 2;
-      labTop[i] = cardTop + boxH(parts[i]) + TICK_GAP;
+      const bw = boxWof(parts[i]), bh = boxHof(parts[i]);
+      items[i] = { cx: colCenterX[j], cy: cardTop + bh / 2, bw, bh,
+        labLeft: colCenterX[j] - LABEL_W / 2, labTop: cardTop + bh + TICK_GAP, labW: LABEL_W, labH: LABEL_H };
     });
   });
+  return { sceneW, H, axisY, columns, colCenterX, items };
+}
+
+/* Ширина символа в px для оценки переноса (Arial 600 11px — шрифт наименования в подписи). Таблица
+   ЗАМЕРЕНА в Chrome (символ ×30 / 30) и округлена ВВЕРХ до 0.5px: оценка всегда НЕ МЕНЬШЕ реальной
+   ширины, поэтому слов отбирается не больше, чем влезет, и третьей строки не возникает. Незнакомый
+   символ (в т.ч. «…») — по самому широкому «Ш» (DEFAULT_CW): редкий знак скорее переоценим, чем
+   недооценим. Буквы сгруппированы по измеренной ширине. */
+const DEFAULT_CW = 11.5, SPACE_W = 3.5;
+const CHAR_W = (() => {
+  const m = {};
+  [[3.5, "  ,ilI/.j"], [4, "-tf()"], [4.5, "r°"], [5, "г"], [5.5, "тз\""], [6, "1к"],
+   [6.5, "023456789еясчаухeasyc+эJvГkx~ё«»"], [7, "водилпбрйнLnudТoTУZgFhьцКbЗpøq"],
+   [7.5, "VEXPРSYХÉ"], [8, "СDKNBHUПAВНжДАRCЛЭЧБ"], [8.5, "мъ"], [9, "QGwO"],
+   [9.5, "ыюMМшФщ"], [10, "фm"], [10.5, "W"], [11.5, "Ш"]
+  ].forEach(([w, chars]) => { for (const c of chars) m[c] = w; });
+  return m;
+})();
+const charWidth = ch => { const w = CHAR_W[ch]; return w === undefined ? DEFAULT_CW : w; };
+const wordWidth = w => { let s = 0; for (const ch of w) s += charWidth(ch); return s; };
+
+/* Разбивка слова на под-чанки по возможностям переноса CSS — после «-» и «/» (как в «Механизм-
+   выключатель», «Technologies/Avaya/Systimax»): движок предпочитает рвать строку ИМЕННО там, и
+   не учитывать это — занизить число строк (дефект: «Механизм-выключатель…» рвётся на 3 строки, а
+   посимвольная оценка давала 2). Разделитель остаётся в левом чанке. */
+function splitBreakable(word) {
+  const subs = []; let cur = "";
+  for (const ch of word) { cur += ch; if (ch === "-" || ch === "/") { subs.push(cur); cur = ""; } }
+  if (cur) subs.push(cur);
+  return subs;
+}
+
+/* Сколько строк займёт text в боксе ширины maxW при ЖАДНОМ переносе (как CSS с overflow-wrap:break-word):
+   чанк (слово или часть слова до/после дефиса), не влезающий в остаток строки, уходит на новую; чанк
+   шире всей строки ломается посимвольно. Пробел считаем только на границе СЛОВ. Оценка консервативна —
+   ширины символов округлены вверх, поэтому реальных строк не больше оценки. */
+function linesNeeded(text, maxW) {
+  let lines = 1, cur = 0;
+  const words = String(text).split(/\s+/).filter(Boolean);
+  words.forEach((word, wi) => {
+    splitBreakable(word).forEach((sub, si) => {
+      if (!sub) return;
+      const sp = (si === 0 && wi > 0 && cur > 0) ? SPACE_W : 0;   // пробел — только перед первым чанком слова
+      const sw = wordWidth(sub);
+      if (cur + sp + sw <= maxW) { cur += sp + sw; return; }
+      if (cur > 0) { lines++; cur = 0; }
+      if (sw <= maxW) { cur = sw; return; }
+      for (const ch of sub) {                       // под-чанк шире строки — ломаем посимвольно
+        const cw = charWidth(ch);
+        if (cur + cw <= maxW) cur += cw; else { lines++; cur = cw; }
+      }
+    });
+  });
+  return lines;
+}
+
+/* Снять висячую пунктуацию/пробел перед «…» (владелец 26.10: «модуля,…» → «модуля…»). */
+const stripTail = s => s.replace(/[\s,.;:–\-·(«]+$/, "");
+
+/* Сокращение наименования для подписи схемы — ПО ШИРИНЕ, в ≤ maxLines строк по maxW (владелец 26.10:
+   «имя не длиннее двух строк, обрезка по слову»). НЕ словарь сокращений — формулировки руками не
+   придумываем: отрезаем по границе слова и ставим «…». Имя влезает целиком — возвращаем как есть, без
+   «…». Первое слово само шире бюджета режем ПО ВНУТРЕННЕЙ ГРАНИЦЕ — после «-»/«/» (splitBreakable):
+   «Механизм-выключатель 1P 16AX серый» → «Механизм-…», дефис СОХРАНЯЕТСЯ перед «…» (владелец 27.10) —
+   так монтажник видит осмысленный корень, а не обрубок «Механизм-выключате…» посреди слова. Посимвольный
+   рез — только когда не влезает даже первый под-чанк (одно слитное слово без «-»/«/», напр.
+   «Электроустановочноеизделие»). Полное имя остаётся в таблицах под схемой, поэтому потеря хвоста
+   содержимое не теряет. Работает на СЫРОЙ строке (до esc). */
+function shortenName(name, maxW, maxLines) {
+  const s = String(name == null ? "" : name).trim();
+  const W = Number(maxW) > 0 ? Number(maxW) : LABEL_W;
+  const L = Number(maxLines) > 0 ? Math.floor(maxLines) : NAME_LINES;
+  if (!s) return s;
+  if (linesNeeded(s, W) <= L) return s;           // влезает целиком — без «…»
+  const words = s.split(/\s+/);
+  let best = "";                                  // самый длинный префикс целых слов, влезающий с «…»
+  for (let k = 1; k < words.length; k++) {
+    const cand = stripTail(words.slice(0, k).join(" "));
+    if (cand && linesNeeded(cand + "…", W) <= L) best = cand; else break;  // строки монотонны — дальше не влезет
+  }
+  if (best) return best + "…";
+  /* Первое слово целиком не влезло — берём самый длинный префикс его под-чанков (граница после «-»/«/»),
+     влезающий с «…». Разделитель НЕ снимаем (владелец: «Механизм-…»), иначе обрезка потеряла бы видимую
+     границу переноса. splitBreakable оставляет «-»/«/» в левом чанке — его и сохраняем. */
+  const subs = splitBreakable(words[0]);
+  let bestSub = "";
+  for (let k = 1; k < subs.length; k++) {
+    const cand = subs.slice(0, k).join("");
+    if (linesNeeded(cand + "…", W) <= L) bestSub = cand; else break;       // строки монотонны — дальше не влезет
+  }
+  if (bestSub) return bestSub + "…";
+  let cut = "";                                   // не влезает даже первый под-чанк — режем посимвольно
+  for (const ch of words[0]) {
+    if (linesNeeded(cut + ch + "…", W) <= L) cut += ch; else break;
+  }
+  return stripTail(cut) + "…";
+}
+
+function buildHtml(spec, deps) {
+  const esc = (deps && deps.esc) || (s => String(s == null ? "" : s));
+  const pickIcon = (deps && deps.pickIcon) || (() => "generic");
+  const iconSvg = deps && deps.iconSvg;
+  const parts = (spec && Array.isArray(spec.parts) ? spec.parts : []).filter(Boolean);
+  const n = parts.length;
+  if (!n) return "";   /* нет деталей (пост без наполнения) — блок не рисуем, лист не падает */
+
+  const L = layout(parts);
+  const columns = L.columns, colCenterX = L.colCenterX, axisY = L.axisY, sceneW = L.sceneW, H = L.H;
+  const boxH = p => boxHof(p);
+  const cx = L.items.map(it => it.cx), cy = L.items.map(it => it.cy), labTop = L.items.map(it => it.labTop);
 
   const px = x => (x / sceneW * 100).toFixed(3);   // px дизайна → % ширины сцены
   const py = y => (y / H * 100).toFixed(3);        // px дизайна → % высоты сцены
@@ -196,16 +384,27 @@ function buildHtml(spec, deps) {
 
   /* Подписи — компактный блок ПОД каждой карточкой (labTop[i]), центрированный на её оси X. У стека
      механизмов подписей несколько — по одной под каждой карточкой стека, каждая на своём Y. Кикер (узел +
-     позиция модуля), наименование с переносом (white-space:normal + overflow-wrap: длинное имя разбивается
-     на строки внутри узкого бокса) и ОБЯЗАТЕЛЬНЫЙ артикул отдельной строкой моноширинным (нет кода → «—»,
-     чтобы монтажник видел пропуск, а не пустоту). Текст выровнен по центру — подпись «сидит» под своей
-     иконкой. */
+     позиция модуля) по содержанию НЕ сокращаем, но даём overflow-wrap:break-word — длинное слово
+     «(ПРЕДПОЛОЖИТЕЛЬНО)» (114px) само перенесётся, а не вылезет на соседнюю подпись (Д2). Наименование
+     сокращаем до двух строк (владелец 26.10): shortenName режет по слову с «…» ПО ШИРИНЕ, а CSS-клэмп
+     (-webkit-line-clamp:2 — движок печати Chrome его понимает, как в бирках плана) оставлен страховкой.
+     Код — отдельной строкой моноширинным БЕЗ слова «Артикул:» (владелец 26.10): кикер уже называет узел,
+     а моноширинный код и так читается как артикул; нет кода → «—», чтобы монтажник видел пропуск.
+     overflow-wrap:anywhere ломает 14-символьный артикул (≈92px>LABEL_W) на две строки, а не внахлёст на
+     соседа (Д2). Полное имя детали — в таблицах под схемой. Текст по центру — подпись «сидит» под иконкой. */
   const labels = parts.map((p, i) => {
     const kicker = p.pos ? `${p.role || ""} ${p.pos}`.trim() : (p.role || "");
-    return `<div style="position:absolute;left:${px(cx[i] - LABEL_W / 2)}%;top:${py(labTop[i])}%;width:${px(LABEL_W)}%;font-family:Arial,sans-serif;text-align:center;box-sizing:border-box">`
-      + (kicker ? `<div style="font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:#8195a9">${esc(kicker)}</div>` : "")
-      + `<div style="font-size:12px;color:#172b3f;font-weight:600;line-height:1.2;white-space:normal;overflow-wrap:break-word">${esc(p.name || "—")}</div>`
-      + `<div style="font-size:11px;color:#33465a;font-family:'Courier New',monospace;margin-top:1px">Артикул: ${esc(p.code || "—")}</div>`
+    /* K11 раунд 6 (владелец 27.10). Белый фон + z-index:1 под подписью: ось-«шампур» и вертикальный
+       спайн стека проходят через Y верхней подписи и «зачёркивали» её текст (20021.B, 09001). Подпись
+       рисуется ПОСЛЕ SVG-слоя и с z-index:1 — она выше линий, а фон прячет линию ПОД текстом (линия
+       «уходит под подпись», как просил владелец). print-color-adjust:exact — чтобы белый фон печатался
+       (иначе в PDF линия снова проступит), тот же приём, что у плашек фото/иконок выше. Фон в границах
+       labW×labH (резерв подписи), а он с боксами/фото не пересекается (тест непересечения) — иконки и
+       фото соседних деталей подпись не перекрывает. */
+    return `<div style="position:absolute;left:${px(cx[i] - LABEL_W / 2)}%;top:${py(labTop[i])}%;width:${px(LABEL_W)}%;font-family:Arial,sans-serif;text-align:center;box-sizing:border-box;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;z-index:1">`
+      + (kicker ? `<div style="font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:#8195a9;overflow-wrap:break-word">${esc(kicker)}</div>` : "")
+      + `<div style="font-size:11px;color:#172b3f;font-weight:600;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:break-word">${esc(shortenName(p.name || "—", LABEL_W))}</div>`
+      + `<div style="font-size:11px;color:#33465a;font-family:'Courier New',monospace;margin-top:1px;overflow-wrap:anywhere">${esc(p.code || "—")}</div>`
       + `</div>`;
   }).join("");
 
@@ -218,7 +417,7 @@ function buildHtml(spec, deps) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для
    автотестов (PLAN 7.1). */
-const api = { buildHtml };
+const api = { buildHtml, layoutColumns, layout, shortenName, linesNeeded };
 if (typeof window !== "undefined") window.EPExplodedView = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
