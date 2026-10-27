@@ -7,6 +7,8 @@ const assert = require("node:assert/strict");
 const { buildHtml, buildFittings, cardModuleOrder, cardFittingOrder } = require("../js/installSheet.js");
 /* Род пробела (поставка или незаполненный проект) — общий для всех документов словарь. */
 const LG = require("../js/lightingGroups.js");
+/* Модель галочек листа — для проверки «миграция = сегодняшний лист». */
+const EPInstallSheetOptions = require("../js/installSheetOptions.js");
 
 /* esc как в приложении — чтобы проверить экранирование пользовательского ввода. */
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -495,6 +497,84 @@ test("CSS листа: неделим блок взрыв-схемы (.post-explo
   assert.ok(!/break-inside:avoid/.test(ruleOf(".post-visuals")),
     "ряд иллюстрация+схема НЕ держим целиком — иллюстрация остаётся, схема уходит отдельно (владелец 27.10)");
   assert.ok(!/break-inside:avoid/.test(ruleOf(".post-card")), "карточку целиком НЕ держим — она течёт между страницами");
+});
+
+/* ── К11-3б: лист слушается галочек (data.options). Каждая галочка прячет СВОЙ блок ──────────
+   Реализованы блочные галочки: plan, number, illustration, assembled (НОВЫЙ крупный блок),
+   exploded, lighting, supplier; деньги в «Группах света» — галочка prices (проверяется в
+   docsMoneyCoverage через lightingHtml). Галочки столбцов таблиц (fill/modules/box/articles/notes)
+   в этой задаче НЕ реализованы — они всегда показаны (как сегодня); отдельного теста на их
+   скрытие тут нет намеренно. */
+const optPost = Object.assign({}, italianPost, {
+  assembledImageHtml: '<span data-m="illus">ILL</span>',
+  assembledLargeHtml: '<span data-m="large">BIG</span>',
+  explodedViewHtml: '<span data-m="exp">EXP</span>'
+});
+/* over — частичный набор галочек; resolveOptions трактует отсутствующий ключ как «включён». */
+const withOpt = over => buildHtml({ posts: [optPost],
+  planBlockHtml: '<section data-m="plan">PLAN</section>',
+  lightingHtml: '<section data-m="light">LIGHT</section>',
+  supplierSpecHtml: '<section data-m="supp">SUPP</section>',
+  options: over }, deps);
+
+test("К11-3б options: при всех включённых галочках видны все блоки (вкл. крупную «Общую сборку»)", () => {
+  const html = withOpt({});   // непустой options → все 13 флагов включены (assembled тоже)
+  assert.match(html, /data-m="plan"/, "план");
+  assert.match(html, /Пост № 3/, "бейдж номера поста");
+  assert.match(html, /data-m="illus"/, "маленькая иллюстрация");
+  assert.match(html, /class="post-assembled"[^>]*>[^<]*<span data-m="large"/, "крупная «Общая сборка» отдельным блоком");
+  assert.match(html, /Взрыв-схема поста/, "заголовок взрыв-схемы");
+  assert.match(html, /data-m="exp"/, "взрыв-схема");
+  assert.match(html, /data-m="light"/, "блок групп света");
+  assert.match(html, /data-m="supp"/, "сводная спецификация");
+});
+
+test("К11-3б options.number=false: бейджа «Пост № N» нет", () => {
+  assert.doesNotMatch(withOpt({ number: false }), /Пост № 3/, "номер поста спрятан");
+  assert.match(withOpt({ number: false }), /data-m="illus"/, "остальные блоки на месте");
+});
+
+test("К11-3б options.illustration=false: маленькой картинки нет", () => {
+  const html = withOpt({ illustration: false, assembled: false });
+  assert.doesNotMatch(html, /data-m="illus"/, "иллюстрация спрятана");
+  assert.doesNotMatch(html, /class="post-illus"/, "и её контейнер");
+});
+
+test("К11-3б options.assembled: крупный блок показывается только по галочке", () => {
+  assert.match(withOpt({ assembled: true }), /class="post-assembled"/, "по галочке блок есть");
+  assert.doesNotMatch(withOpt({ assembled: false }), /class="post-assembled"/, "без галочки блока нет");
+  assert.doesNotMatch(withOpt({ assembled: false }), /data-m="large"/, "и крупной картинки нет");
+  /* старый вызов (без options) крупную сборку НЕ печатает — иначе собранная картинка задвоилась бы */
+  assert.doesNotMatch(buildHtml({ posts: [optPost] }, deps), /class="post-assembled"/, "по умолчанию крупного блока нет");
+});
+
+test("К11-3б options.exploded=false: взрыв-схемы нет", () => {
+  const html = withOpt({ exploded: false });
+  assert.doesNotMatch(html, /data-m="exp"/, "схема спрятана");
+  assert.doesNotMatch(html, /Взрыв-схема поста/, "и её заголовок");
+});
+
+test("К11-3б options.plan/lighting/supplier=false: эти блоки прячутся", () => {
+  assert.doesNotMatch(withOpt({ plan: false }), /data-m="plan"/, "план спрятан");
+  assert.doesNotMatch(withOpt({ lighting: false }), /data-m="light"/, "группы света спрятаны");
+  assert.doesNotMatch(withOpt({ supplier: false }), /data-m="supp"/, "свод спрятан");
+  /* выключение одного блока не роняет соседние */
+  assert.match(withOpt({ lighting: false }), /data-m="supp"/, "свод остаётся, когда выключены только группы света");
+});
+
+test("К11-3б: миграция старого проекта = сегодняшний лист БАЙТ В БАЙТ (оба режима вида поста)", () => {
+  /* migrate(exploded/нет) и migrate(assembled) дают те же флаги, что и старый вызов без options
+     с соответствующим assemblyView, поэтому документы обязаны совпасть посимвольно. Это и есть
+     «при галочках из migrate() лист выглядит как сегодня». */
+  const data = { posts: [optPost], planBlockHtml: "<p>PLAN</p>", lightingHtml: "<p>LIGHT</p>", supplierSpecHtml: "<p>SUPP</p>" };
+  assert.equal(
+    buildHtml(Object.assign({}, data, { options: EPInstallSheetOptions.migrate({ assemblyView: "exploded" }) }), deps),
+    buildHtml(data, deps),
+    "exploded: миграция = сегодня");
+  assert.equal(
+    buildHtml(Object.assign({}, data, { options: EPInstallSheetOptions.migrate({ assemblyView: "assembled" }) }), deps),
+    buildHtml(Object.assign({}, data, { assemblyView: "assembled" }), deps),
+    "assembled: миграция = сегодня (только иллюстрация, без крупной сборки и схемы)");
 });
 
 test("CSS листа: ряд иллюстрация+схема переносит схему вниз (flex-wrap), иллюстрация не схлопывается", () => {

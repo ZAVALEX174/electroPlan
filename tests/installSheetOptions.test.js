@@ -5,6 +5,8 @@
    МУТАЦИИ (сломать код — тест краснеет):
      (2) в migrate убрать today.exploded = !assembled (оставить exploded по умолчанию схемы)
          → красит «миграция exploded/нет поля» и «миграция assembled» (вид поста не выставлен);
+     (2b) в migrate убрать today.assembled = false (оставить assembled по умолчанию схемы)
+         → красит обе «миграции» (у старого проекта появился бы новый блок «Общая сборка»);
      (3) в preset("client") включить articles (on.articles = true)
          → красит «Клиенту — ровно номер и картинка» (лишний артикул).
    Запуск: node --test tests/installSheetOptions.test.js */
@@ -100,9 +102,14 @@ test("К11-3а: миграция «exploded» → весь лист, взрыв-
     { ...todayFull, assembled: false, exploded: true });
 });
 
-test("К11-3а: миграция «assembled» → весь лист, общая сборка без взрыв-схемы, с ценами (мутация 2)", () => {
+test("К11-3а: миграция «assembled» → весь лист, ТОЛЬКО иллюстрация (без общей сборки и взрыв-схемы), с ценами (мутации 2, 2b)", () => {
+  /* Сегодня режим «assembled» печатает маленькую картинку без схемы. Новый блок «Общая сборка»
+     (крупная картинка) миграция НЕ включает — иначе у старого проекта появился бы блок, которого
+     он не печатал (решение владельца 27.10). illustration остаётся (она печаталась всегда). */
   assert.deepEqual(EPInstallSheetOptions.migrate({ assemblyView: "assembled" }),
-    { ...todayFull, assembled: true, exploded: false });
+    { ...todayFull, assembled: false, exploded: false });
+  assert.equal(EPInstallSheetOptions.migrate({ assemblyView: "assembled" }).illustration, true,
+    "маленькая иллюстрация в режиме общей сборки печаталась всегда — остаётся включённой");
 });
 
 test("К11-3а: миграция без поля assemblyView = как «exploded» (старый проект открывается как раньше)", () => {

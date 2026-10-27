@@ -712,6 +712,10 @@
 <script src="js/catalogSections.js?v=20261019.1"></script>
 <script src="js/builderSlots.js?v=20260914.2"></script>
 <script src="js/offerOptions.js?v=20260926.1"></script>
+<!-- Галочки листа монтажника (К11-3): чистая модель «что показывать» (fields/normalize/preset/migrate),
+     своя у листа, не общая с КП. Грузится ДО docs.js, который миграцией настройки проекта задаёт
+     галочки печати (EPInstallSheetOptions.migrate). -->
+<script src="js/installSheetOptions.js?v=20261027.1"></script>
 <script src="js/docRequisites.js?v=20261003.1"></script>
 <script src="js/estimate.js?v=20261023.2"></script>
 <!-- Единое правило «какая это картинка» (формат по сигнатуре первых байтов, MIME для data-URL).
@@ -724,7 +728,7 @@
      Декодер vendor/heic-to подключается лениво, только когда реально пришёл HEIC. -->
 <script src="js/heicImport.js?v=20261025.1"></script>
 <script src="js/offerPdf.js?v=20261023.5"></script>
-<script src="js/installSheet.js?v=20261027.1"></script>
+<script src="js/installSheet.js?v=20261027.2"></script>
 <script src="js/supplierSpec.js?v=20261024.2"></script>
 <script src="js/packRound.js?v=20261022.1"></script>
 <!-- Добор до целых упаковок (К6б): чистый модуль (ни DOM, ни state) — единая карта «артикул → упаковка»
@@ -776,7 +780,7 @@
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
-<script src="js/docs.js?v=20261026.3"></script>
+<script src="js/docs.js?v=20261027.1"></script>
 <!-- Ввод на холсте (клики, перенос объектов, панорама, зум колесом): trackDrag, makeDraggable,
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него

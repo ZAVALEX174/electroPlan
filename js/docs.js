@@ -535,6 +535,11 @@ function buildPostSheet(post,light){
      листа (light) передаём в spec, чтобы цельное изделие в картинке и взрыв-схеме показывалось
      той же заменой (09001→09005), что уже стоит в таблице модулей и в смете. */
   const spec=assembledPostSpec(post,{size:"md"},light);
+  /* Крупная собранная картинка (size lg) для блока «Общая сборка» (К11-3б): ТА ЖЕ накладка, что
+     «Иллюстрация», но во всю ширину карточки (решение владельца 27.10). Отдельный spec того же
+     assembledPostSpec — расчёт групп света тот же (light), поэтому цельное изделие и здесь показано
+     заменой 09001→09005, как в маленькой картинке, таблице и смете. */
+  const largeSpec=assembledPostSpec(post,{size:"lg"},light);
   return {
     number:post.number,
     room:room?room.name:"",
@@ -548,6 +553,8 @@ function buildPostSheet(post,light){
     /* Единое изображение собранного поста (та же EPPostImage) — инлайн-стили, поэтому
        одинаково рисуется в окне печати листа монтажника. */
     assembledImageHtml:EPPostImage.buildHtml(spec,{esc}),
+    /* Крупная собранная картинка для блока «Общая сборка» (opt.assembled) — size lg, та же EPPostImage. */
+    assembledLargeHtml:EPPostImage.buildHtml(largeSpec,{esc}),
     /* Взрыв-схема ДОПОЛНЯЕТ собранную картинку: деталь → выносная линия → артикул. Глиф детали —
        из каталожной системы иконок (pickIcon/iconSvg EPPostImage), фото накладки — из того же spec. */
     explodedViewHtml:EPExplodedView.buildHtml(
@@ -562,12 +569,15 @@ function openInstallSheet(data){
   const win=window.open("","_blank");
   if(!win){toast("Разрешите всплывающие окна для листа монтажника");return}
   const h=docHeader();
-  /* Вид поста — отдельная настройка проекта (EP_DATA.settings.assemblyView), берём её в ОДНОМ месте:
-     так его получают оба пути листа — и кнопка «Лист монтажника» на проект, и лист из конструктора
-     поста (§7.1). Наборы столбцов КП вид не задают, поэтому читаем НЕ из offerOptions. */
+  /* Галочки листа (К11-3б) — ЧТО в нём показать. Источник до окна выбора (К11-3в) — миграция старой
+     настройки проекта (assemblyView) в полный набор 13 флагов (EPInstallSheetOptions.migrate): лист
+     печатается как сегодня. Берём их в ОДНОМ месте, чтобы оба пути листа — кнопка «на проект» и лист
+     из конструктора поста — слушались одних галочек (§7.1). Путь «на проект» кладёт options в data
+     сам (ими же он гасит суммы в «Группах света»), поэтому его набор уважаем; у листа одного поста
+     options в data нет — считаем здесь. */
+  const options=(data&&data.options)||EPInstallSheetOptions.migrate(EP_DATA.settings);
   win.document.write(EPInstallSheet.buildHtml(
-    Object.assign({header:{project:h.project,developer:h.developer,date:h.date},
-      assemblyView:EPOfferOptions.assemblyView(EP_DATA.settings.assemblyView)},data),
+    Object.assign({header:{project:h.project,developer:h.developer,date:h.date},options},data),
     {esc,logo:companyLogo()}));
   win.document.close();
 }
@@ -582,10 +592,16 @@ function installSheetForProject(){
     return ra-rb||(Number(a.number)||0)-(Number(b.number)||0);
   });
   const light=projectLighting();
+  /* Галочки листа (К11-3б): до окна выбора (К11-3в) берём их миграцией старой настройки проекта —
+     лист печатается как сегодня. Считаем ЗДЕСЬ, чтобы теми же галочками погасить деньги в блоке
+     «Группы света»: галочка «Цены» (options.prices) идёт в lightingHtml, а не печатается всегда
+     (прежде блок печатал суммы при любых настройках — дефект, docs/К11-разведка.md). */
+  const options=EPInstallSheetOptions.migrate(EP_DATA.settings);
   openInstallSheet({posts:ordered.map(p=>buildPostSheet(p,light)),subtitle:"Помодульная раскладка постов по проекту",
+    options,
     /* Свод по группам света — после карточек постов: какие механизмы подставил расчёт,
-       сколько нужно импульсных реле и что осталось незаполненным. */
-    lightingHtml:lightingHtml(light,"Группы света"),
+       сколько нужно импульсных реле и что осталось незаполненным. Суммы — по галочке «Цены». */
+    lightingHtml:lightingHtml(light,"Группы света",options),
     /* План с бирками — только в листе НА ВЕСЬ ПРОЕКТ: в листе одного поста из конструктора
        (installSheetForBuilder) чертёж со всеми чужими номерами только мешает. Поля листа
        монтажника 14 мм (см. @page в installSheet.js). */

@@ -8,6 +8,7 @@ const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
 const EPInstallSheet = require("../js/installSheet.js");
 const EPOfferOptions = require("../js/offerOptions.js");
+const EPInstallSheetOptions = require("../js/installSheetOptions.js");
 const EPPosts = require("../js/posts.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
 
@@ -76,7 +77,7 @@ function openInstallSheetHtml(assemblyView) {
     window: { open: () => win },
     toast: () => {},
     docHeader: () => ({ project: "П", developer: "Р", date: "Д" }),
-    EPInstallSheet, EPOfferOptions,
+    EPInstallSheet, EPOfferOptions, EPInstallSheetOptions,
     EP_DATA: { settings: { assemblyView } },
     esc,
     companyLogo: () => ""
