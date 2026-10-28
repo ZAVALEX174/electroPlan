@@ -500,11 +500,13 @@ test("CSS листа: неделим блок взрыв-схемы (.post-explo
 });
 
 /* ── К11-3б: лист слушается галочек (data.options). Каждая галочка прячет СВОЙ блок ──────────
-   Реализованы блочные галочки: plan, number, illustration, assembled (НОВЫЙ крупный блок),
-   exploded, lighting, supplier; деньги в «Группах света» — галочка prices (проверяется в
-   docsMoneyCoverage через lightingHtml). Галочки столбцов таблиц (fill/modules/box/articles/notes)
-   в этой задаче НЕ реализованы — они всегда показаны (как сегодня); отдельного теста на их
-   скрытие тут нет намеренно. */
+   Блочные галочки: plan, number, illustration, assembled (крупный блок), exploded, lighting, supplier.
+   Столбцы/строки таблиц: fill (столбец «Элемент» + строки обвязки кроме коробки), modules (столбец
+   «Модуль» + « · до X мод.»), box (строка коробки в обвязке), articles (столбцы «Артикул» + коды из
+   имён + «[код]» в мете), notes (столбец «Примечание»). Деньги: prices → «Стоимость блока» в мете
+   (суммы в «Группах света» — через lightingHtml, docsMoneyCoverage). Пустая таблица без столбцов/строк
+   не печатается (п.7). Ниже — тест на каждую галочку (красит мутацию «убрать её гейт») и на набор
+   «Клиенту». */
 const optPost = Object.assign({}, italianPost, {
   assembledImageHtml: '<span data-m="illus">ILL</span>',
   assembledLargeHtml: '<span data-m="large">BIG</span>',
@@ -575,6 +577,92 @@ test("К11-3б: миграция старого проекта = сегодня�
     buildHtml(Object.assign({}, data, { options: EPInstallSheetOptions.migrate({ assemblyView: "assembled" }) }), deps),
     buildHtml(Object.assign({}, data, { assemblyView: "assembled" }), deps),
     "assembled: миграция = сегодня (только иллюстрация, без крупной сборки и схемы)");
+});
+
+/* Границы блока обвязки: имя накладки/коробки встречается и в мете карточки, поэтому строки обвязки
+   проверяем ВНУТРИ секции «Обвязка поста», а не по всему документу. */
+const fittingsBlock = html => {
+  const at = html.indexOf("Обвязка поста");
+  return at < 0 ? "" : html.slice(at);
+};
+
+test("К11-3б fill=false: столбца «Элемент» нет, строки обвязки (кроме коробки) не печатаются", () => {
+  const html = withOpt({ fill: false });           // box по умолчанию включён → строка коробки остаётся
+  assert.doesNotMatch(html, /<th>Элемент<\/th>/, "столбец «Элемент» таблицы модулей скрыт");
+  const fit = fittingsBlock(html);
+  assert.match(fit, /Коробка 3М/, "строка коробки остаётся (она по box, не по fill)");
+  assert.doesNotMatch(fit, /Суппорт Neve Up 3М/, "суппорт — строка обвязки по fill — скрыт");
+  /* при включённом fill «Элемент» на месте — иначе гейт ничего не значит */
+  assert.match(withOpt({}), /<th>Элемент<\/th>/, "при fill на столбец есть");
+});
+
+test("К11-3б modules=false: столбца «Модуль» и « · до X мод.» нет", () => {
+  const multi = Object.assign({}, optPost, { moduleGroups: [
+    { post: 1, capacity: 2, modules: [{ label: "1", name: "Выключатель", code: "20001", note: "" }] },
+    { post: 2, capacity: 2, modules: [{ label: "1", name: "Розетка", code: "20208", note: "" }] }
+  ] });
+  const html = buildHtml({ posts: [multi], options: { modules: false } }, deps);
+  assert.doesNotMatch(html, /<th>Модуль<\/th>/, "столбец «Модуль» скрыт");
+  assert.doesNotMatch(html, /class="mod"/, "и его ячейки-позиции");
+  assert.doesNotMatch(html, /до 2 мод\./, "суффикс модульности в подзаголовке «Пост N» скрыт");
+  assert.match(html, /Пост 1/, "сам подзаголовок поста (физическая коробка) остаётся");
+  /* при modules на — столбец и суффикс есть */
+  assert.match(buildHtml({ posts: [multi], options: {} }, deps), /до 2 мод\./, "при modules суффикс есть");
+});
+
+test("К11-3б box=false: строки монтажной коробки в обвязке нет, прочие строки на месте", () => {
+  const html = withOpt({ box: false });             // fill включён → суппорт/накладка остаются
+  assert.doesNotMatch(html, /Коробка 3М/, "строка коробки скрыта (единственное место в листе — обвязка)");
+  assert.match(fittingsBlock(html), /Суппорт Neve Up 3М/, "строки по fill остаются");
+  assert.match(withOpt({}), /Коробка 3М/, "при box строка коробки есть");
+});
+
+test("К11-3б articles=false: столбцы «Артикул» скрыты, коды пропадают из имён и из меты «Накладка»", () => {
+  const coded = Object.assign({}, optPost, {
+    frameName: "Накладка Neve Up 3М", frameCode: "09663",
+    modules: [{ label: "1", name: "Выключатель 1П (арт. 20001)", code: "20001", note: "" }],
+    fittings: [{ role: "Монтажная коробка", name: "Коробка 3М (арт. V71303)", code: "V71303", count: 1 }]
+  });
+  const html = buildHtml({ posts: [coded], options: { articles: false } }, deps);
+  assert.doesNotMatch(html, /<th>Артикул<\/th>/, "столбцы артикула обеих таблиц скрыты");
+  assert.doesNotMatch(html, /class="code"/, "ячеек с кодом нет");
+  assert.doesNotMatch(html, /20001/, "код не остался в имени механизма (itemText)");
+  assert.doesNotMatch(html, /V71303/, "код не остался в имени коробки");
+  assert.doesNotMatch(html, /\[09663\]/, "«[код]» у меты «Накладка» убран");
+  assert.doesNotMatch(html, /\(арт\./, "вкраплённый «(арт. …)» вычищен из имён");
+  assert.match(html, /Накладка Neve Up 3М/, "само имя накладки в мете осталось");
+  /* при articles на — коды и столбцы на месте */
+  const on = buildHtml({ posts: [coded], options: {} }, deps);
+  assert.match(on, /<th>Артикул<\/th>/);
+  assert.match(on, /\[09663\]/, "при articles мета «Накладка» снова с «[код]»");
+});
+
+test("К11-3б notes=false: столбца «Примечание» нет", () => {
+  const html = withOpt({ notes: false });
+  assert.doesNotMatch(html, /<th>Примечание<\/th>/, "столбец «Примечание» скрыт");
+  assert.doesNotMatch(html, /class="note"/, "и его ячейки");
+  assert.doesNotMatch(html, /занимает 2 модуля/, "текст примечания из данных не печатается");
+  assert.match(withOpt({}), /занимает 2 модуля/, "при notes примечание есть");
+});
+
+test("К11-3б prices: «Стоимость блока» печатается в мете по галочке, тем же форматом, что КП", () => {
+  const priced = Object.assign({}, italianPost, { priceText: "123,45 €" });
+  const on = buildHtml({ posts: [priced], options: {} }, deps);          // prices по умолчанию вкл
+  assert.match(on, /Стоимость блока/, "подпись пункта меты");
+  assert.match(on, /123,45 €/, "готовая строка цены (moneyShown) напечатана как есть");
+  const off = buildHtml({ posts: [priced], options: { prices: false } }, deps);
+  assert.doesNotMatch(off, /Стоимость блока/, "без галочки «Цены» стоимости нет");
+  assert.doesNotMatch(off, /123,45 €/, "и самой цены нет");
+});
+
+test("К11-3б набор «Клиенту»: карточка без пустых таблиц и заголовков (п.7)", () => {
+  const html = buildHtml({ posts: [optPost],
+    options: EPInstallSheetOptions.preset("client") }, deps);
+  assert.match(html, /Пост № 3/, "номер поста остаётся");
+  assert.match(html, /data-m="illus"/, "иллюстрация остаётся");
+  assert.doesNotMatch(html, /<table class="modules"/, "пустой таблицы модулей нет");
+  assert.doesNotMatch(html, /<table class="fittings"/, "пустой таблицы обвязки нет");
+  assert.doesNotMatch(html, /Обвязка поста/, "и её заголовка нет");
 });
 
 test("CSS листа: ряд иллюстрация+схема переносит схему вниз (flex-wrap), иллюстрация не схлопывается", () => {

@@ -179,6 +179,8 @@ function buildSheet(info) {
     keySlotKind: () => false,
     EPInstallSheet,
     state: { rooms: [] },
+    /* К11-3б: buildPostSheet кладёт priceText = moneyShown(postTotalCost(...)); цену здесь не смотрим — заглушки. */
+    postTotalCost: () => 0, moneyShown: n => String(n),
     assembledPostSpec: () => ({ size: "md", frame: null, rows: [] }),
     EPPostImage: { buildHtml: () => "", photoReady: () => false },
     EPExplodedView: { buildHtml: spec => JSON.stringify(spec) },

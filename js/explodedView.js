@@ -30,7 +30,9 @@
                                               //   (накладка), иначе квадратный (товар). Нет фото → глиф
      } ]
    }
-   deps = { esc(s), pickIcon(iconInput)→тип, iconSvg(тип, px, ink)→SVG }.
+   deps = { esc(s), pickIcon(iconInput)→тип, iconSvg(тип, px, ink)→SVG, articles=true, itemText=name→name }.
+     articles — печатать ли строку артикула под подписью (К11-3б, п.4); false убирает её и чистит код из имени.
+     itemText(name, code) — как чистить имя от вкраплённого кода (тот же EPOfferOptions.itemText, что в КП).
    Интерфейс приложению — window.EPExplodedView.buildHtml(spec, deps). */
 (() => {
 "use strict";
@@ -332,6 +334,12 @@ function buildHtml(spec, deps) {
   const esc = (deps && deps.esc) || (s => String(s == null ? "" : s));
   const pickIcon = (deps && deps.pickIcon) || (() => "generic");
   const iconSvg = deps && deps.iconSvg;
+  /* Артикулы в подписях (К11-3б, п.4). articles !== false → строка кода под именем печатается и имя
+     остаётся как есть (старый вызов, лист байт-в-байт). articles === false → строку кода НЕ рисуем вовсе
+     (не «—»), а из имени вычищаем вкраплённый код переданным itemText (тот же EPOfferOptions.itemText,
+     что в КП и остальном листе; оркестратор передаёт его как (name,code)=>…). Нет itemText → имя как есть. */
+  const showArticles = !deps || deps.articles !== false;
+  const itemText = (deps && deps.itemText) || ((name) => name);
   const parts = (spec && Array.isArray(spec.parts) ? spec.parts : []).filter(Boolean);
   const n = parts.length;
   if (!n) return "";   /* нет деталей (пост без наполнения) — блок не рисуем, лист не падает */
@@ -401,10 +409,14 @@ function buildHtml(spec, deps) {
        (иначе в PDF линия снова проступит), тот же приём, что у плашек фото/иконок выше. Фон в границах
        labW×labH (резерв подписи), а он с боксами/фото не пересекается (тест непересечения) — иконки и
        фото соседних деталей подпись не перекрывает. */
+    /* Имя: при выключенных артикулах чистим вкраплённый код (itemText) ДО сокращения по ширине —
+       иначе «…» могло бы отрезать как раз непочищенный хвост-артикул. */
+    const rawName = showArticles ? (p.name || "—") : (itemText(p.name || "", p.code) || "—");
     return `<div style="position:absolute;left:${px(cx[i] - LABEL_W / 2)}%;top:${py(labTop[i])}%;width:${px(LABEL_W)}%;font-family:Arial,sans-serif;text-align:center;box-sizing:border-box;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;z-index:1">`
       + (kicker ? `<div style="font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:#8195a9;overflow-wrap:break-word">${esc(kicker)}</div>` : "")
-      + `<div style="font-size:11px;color:#172b3f;font-weight:600;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:break-word">${esc(shortenName(p.name || "—", LABEL_W))}</div>`
-      + `<div style="font-size:11px;color:#33465a;font-family:'Courier New',monospace;margin-top:1px;overflow-wrap:anywhere">${esc(p.code || "—")}</div>`
+      + `<div style="font-size:11px;color:#172b3f;font-weight:600;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:break-word">${esc(shortenName(rawName, LABEL_W))}</div>`
+      /* Строка кода — ТОЛЬКО с артикулами (п.4): без них прячем её целиком, а не «—». */
+      + (showArticles ? `<div style="font-size:11px;color:#33465a;font-family:'Courier New',monospace;margin-top:1px;overflow-wrap:anywhere">${esc(p.code || "—")}</div>` : "")
       + `</div>`;
   }).join("");
 

@@ -430,8 +430,17 @@ function buildExplodedSpec(comp,box,layout,frameSpec,lightRows,moduleLabelOf){
 
 /* Данные одного поста для листа монтажника: таблица модулей (позиция «2» / «2–3»,
    элемент, артикул) и обвязка в порядке сборки суппорт → коробка → накладка. Высота и
-   назначение подхватятся, когда появятся у поста (PLAN 6). */
-function buildPostSheet(post,light){
+   назначение подхватятся, когда появятся у поста (PLAN 6).
+   options — галочки листа (К11-3б): отсюда берём ТОЛЬКО то, что влияет на ГОТОВУЮ разметку поста,
+   собранную здесь (картинки и взрыв-схема не гейтятся в installSheet.buildHtml как строки): артикулы
+   (из имён деталей картинок и из подписей взрыв-схемы). Остальные галочки гасят блоки в самой
+   installSheet.buildHtml. Нет options (лист одного поста из конструктора до К11-3в) → артикулы
+   включены, как сегодня. */
+function buildPostSheet(post,light,options){
+  /* Артикулы: нет набора → включены (сегодняшнее поведение). Строку чистки имени берём ОДНУ — ту же
+     EPOfferOptions.itemText, что лист и КП (§7.1), и только когда артикулы выключены. */
+  const articles=options?options.articles!==false:true;
+  const itemText=(name,code)=>articles?name:EPOfferOptions.itemText(name,false,code);
   const comp=postComposition(post);
   const frame=comp.frame;
   const frameInfo=comp.frameAvailability;
@@ -534,12 +543,12 @@ function buildPostSheet(post,light){
      (assembledPostHtml — это та же EPPostImage.buildHtml над тем же spec). Расчёт групп света
      листа (light) передаём в spec, чтобы цельное изделие в картинке и взрыв-схеме показывалось
      той же заменой (09001→09005), что уже стоит в таблице модулей и в смете. */
-  const spec=assembledPostSpec(post,{size:"md"},light);
+  const spec=assembledPostSpec(post,{size:"md",articles},light);
   /* Крупная собранная картинка (size lg) для блока «Общая сборка» (К11-3б): ТА ЖЕ накладка, что
      «Иллюстрация», но во всю ширину карточки (решение владельца 27.10). Отдельный spec того же
      assembledPostSpec — расчёт групп света тот же (light), поэтому цельное изделие и здесь показано
      заменой 09001→09005, как в маленькой картинке, таблице и смете. */
-  const largeSpec=assembledPostSpec(post,{size:"lg"},light);
+  const largeSpec=assembledPostSpec(post,{size:"lg",articles},light);
   return {
     number:post.number,
     room:room?room.name:"",
@@ -556,13 +565,20 @@ function buildPostSheet(post,light){
     /* Крупная собранная картинка для блока «Общая сборка» (opt.assembled) — size lg, та же EPPostImage. */
     assembledLargeHtml:EPPostImage.buildHtml(largeSpec,{esc}),
     /* Взрыв-схема ДОПОЛНЯЕТ собранную картинку: деталь → выносная линия → артикул. Глиф детали —
-       из каталожной системы иконок (pickIcon/iconSvg EPPostImage), фото накладки — из того же spec. */
+       из каталожной системы иконок (pickIcon/iconSvg EPPostImage), фото накладки — из того же spec.
+       articles/itemText (К11-3б, п.4): при выключенных артикулах схема прячет строку кода и чистит
+       код из имён деталей — тем же правилом, что таблицы листа. */
     explodedViewHtml:EPExplodedView.buildHtml(
       buildExplodedSpec(comp,box,explodedLayout,spec.frame,lightRows,moduleLabelOf),
-      {esc,pickIcon:EPPostImage.pickIcon,iconSvg:EPPostImage.iconSvg}),
+      {esc,pickIcon:EPPostImage.pickIcon,iconSvg:EPPostImage.iconSvg,articles,itemText}),
     /* немецко-французский: коробок и суппортов несколько (пост = 2 модуля) + импосты —
        важно монтажнику: по прежнему примечанию он вёз одну планку на всю сборку */
-    german:(comp.model==="post"&&comp.postCount>1)?{postCount:comp.postCount,supportCount:comp.supportCount}:null
+    german:(comp.model==="post"&&comp.postCount>1)?{postCount:comp.postCount,supportCount:comp.supportCount}:null,
+    /* «Стоимость блока» (К11-3б, п.6): полная цена ЭТОГО поста — ТА ЖЕ, что одноимённый столбец КП
+       (postTotalCost → EPEstimate.postPriceShown, в валюте показа; формат moneyShown без повторного
+       ×курс, §7.1 — одна точка правила). Строку кладём всегда; печатать ли её, решает галочка «Цены»
+       в installSheet.buildHtml (opt.prices). */
+    priceText:moneyShown(postTotalCost(post,light))
   };
 }
 function openInstallSheet(data){
@@ -597,7 +613,7 @@ function installSheetForProject(){
      «Группы света»: галочка «Цены» (options.prices) идёт в lightingHtml, а не печатается всегда
      (прежде блок печатал суммы при любых настройках — дефект, docs/К11-разведка.md). */
   const options=EPInstallSheetOptions.migrate(EP_DATA.settings);
-  openInstallSheet({posts:ordered.map(p=>buildPostSheet(p,light)),subtitle:"Помодульная раскладка постов по проекту",
+  openInstallSheet({posts:ordered.map(p=>buildPostSheet(p,light,options)),subtitle:"Помодульная раскладка постов по проекту",
     options,
     /* Свод по группам света — после карточек постов: какие механизмы подставил расчёт,
        сколько нужно импульсных реле и что осталось незаполненным. Суммы — по галочке «Цены». */
@@ -619,9 +635,11 @@ function installSheetForProject(){
     planBlockHtml:planBlockHtml({maxWidthMm:182,maxHeightMm:200,flowNext:true,
       note:"Номер на бирке — номер поста в карточках ниже."}),
     /* Свод по артикулам — тоже только в листе НА ВЕСЬ ПРОЕКТ: в листе одного поста из
-       конструктора заказывать по проекту нечего, а состав этого поста уже есть в обвязке. */
+       конструктора заказывать по проекту нечего, а состав этого поста уже есть в обвязке.
+       options (К11-3б, п.4): при выключенных артикулах свод прячет столбец «Артикул» и чистит коды из
+       имён — тем же showArticles/itemText, что в КП (packMultiple листу не передаём — свод «по факту»). */
     supplierSpecHtml:supplierSpecHtml({
-      note:"Все одинаковые позиции проекта сведены по артикулам — этот лист отправляется поставщику."},light)});
+      note:"Все одинаковые позиции проекта сведены по артикулам — этот лист отправляется поставщику."},light,options)});
 }
 
 /* Оркестратор КП: считаем ту же смету, что и панель справа (единый buildEstimate —

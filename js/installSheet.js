@@ -30,6 +30,16 @@ function docLogoApi() {
   return { imgHtml: () => "" };
 }
 
+/* Очистка наименования от вкраплённого артикула при выключенных «Артикулах» (К11-3б, п.4): ПРАВИЛО
+   ОДНО с КП — EPOfferOptions.itemText (§7.1, переиспользуем, не копируем). Резолвим так же, как логотип:
+   в браузере namespace уже загружен, в Node — через require; без модуля отдаём имя как есть (деградация,
+   а не падение). Вызывается ТОЛЬКО когда артикулы выключены — при включённых лист печатает имя байт-в-байт. */
+function offerTextApi() {
+  if (typeof window !== "undefined" && window.EPOfferOptions) return window.EPOfferOptions.itemText;
+  if (typeof require !== "undefined") return require("./offerOptions.js").itemText;
+  return (v) => v;
+}
+
 /* Автопечать окна листа монтажника: печатаем НЕ по таймеру, а когда догрузятся картинки
    (иллюстрации собранных постов тянутся с vimar.ru и за прежние 400 мс могли не успеть — сборка
    уезжала в PDF недогруженной). Все <img> уже complete → печать сразу; иначе ждём load/error
@@ -241,6 +251,8 @@ function resolveOptions(data) {
        frameName?, frameCode?, color?, height?, purpose?,
        modules: [ { label, name, code, note? } ],       // строки таблицы модулей (плоские)
        moduleGroups?: [ { post, capacity, modules:[…] } ],  // нумерация ПО ПОСТАМ (если >1 поста)
+       priceText?: string,                              // «Стоимость блока» готовой строкой (moneyShown,
+                                                        // валюта показа) — печатается в мете по opt.prices
        assembledImageHtml?: string,                     // готовая картинка собранного поста (EPPostImage)
        explodedViewHtml?: string,                       // взрыв-схема поста (EPExplodedView) — деталь → выносная линия → артикул
        fittings: [ { role, name, code, count, keyIndex? } ]  // обвязка: механизмы групп света →
@@ -298,6 +310,32 @@ function buildHtml(data, deps) {
      (opt.assembled) — ТА ЖЕ картинка КРУПНО, во всю ширину карточки, отдельным блоком; «Взрыв-схема»
      (opt.exploded) — разложенная по деталям схема. Все три независимы. */
   const opt = resolveOptions(data);
+  /* Артикулы (opt.articles, п.4). Выключены → коды пропадают ВЕЗДЕ в листе: из столбцов «Артикул»
+     обеих таблиц (их просто не добавляем ниже), из меты «Накладка [код]» и из самих НАИМЕНОВАНИЙ
+     (вкраплённый код чистим тем же EPOfferOptions.itemText, что в КП). itemText резолвим ОДИН раз и
+     только при выключенных артикулах — при включённых cleanName отдаёт имя как есть, лист байт-в-байт. */
+  const itemText = opt.articles ? null : offerTextApi();
+  const cleanName = (name, code) => itemText ? itemText(name, false, code) : name;
+  /* СТОЛБЦЫ ТАБЛИЦЫ МОДУЛЕЙ — по галочкам (К11-3б): «Модуль» (позиция) → modules, «Элемент» → fill,
+     «Артикул» → articles, «Примечание» → notes. Каждый столбец — пара [th, рендер ячейки]. Таблица без
+     единого столбца не печатается вовсе (решение владельца, п.7). При всех включённых набор столбцов тот
+     же, что был жёстко в разметке, — лист остаётся сегодняшним. */
+  const moduleCols = [];
+  if (opt.modules) moduleCols.push(["<th>Модуль</th>", m => `<td class="mod">${esc(m.label)}</td>`]);
+  if (opt.fill) moduleCols.push(["<th>Элемент</th>", m => `<td>${esc(cleanName(m.name, m.code))}</td>`]);
+  if (opt.articles) moduleCols.push(["<th>Артикул</th>", m => `<td class="code">${esc(m.code || "—")}</td>`]);
+  if (opt.notes) moduleCols.push(["<th>Примечание</th>", m => `<td class="note">${esc(m.note || "")}</td>`]);
+  /* СТОЛБЦЫ ОБВЯЗКИ: «Узел» и «Наименование» всегда (если таблица печатается), «Артикул» → articles,
+     «Кол.» всегда. Пометку «(предположительно)» несёт ячейка артикула — вместе с ним и исчезает при
+     выключенных артикулах. Сами СТРОКИ обвязки фильтруются по fill/box в renderPost (см. ниже). */
+  const fittingCols = [
+    ["<th>Узел</th>", f => `<td>${esc(f.role)}</td>`],
+    ["<th>Наименование</th>", f => `<td>${esc(cleanName(f.name, f.code))}</td>`]
+  ];
+  if (opt.articles) fittingCols.push(["<th>Артикул</th>",
+    f => `<td class="code">${esc(f.code || "—")}${f.assumed ? " (предположительно)" : ""}</td>`]);
+  fittingCols.push(['<th class="right">Кол.</th>',
+    f => `<td class="right">${Number(f.count) > 0 ? Number(f.count) : "—"}</td>`]);
   /* Логотип компании над заголовком листа (deps.logo — тот же data-URL, что в КП). Пусто →
      imgHtml вернёт "" и блок заголовка останется байт-в-байт как раньше. */
   const logoImg = docLogoApi().imgHtml(deps.logo, esc);
@@ -315,18 +353,29 @@ function buildHtml(data, deps) {
   const renderPost = (post) => {
     /* Строки шапки поста — тоже только заполненные (высота/назначение/цвет появятся
        у поста в PLAN 6, здесь они уже подхватятся, когда будут). */
+    /* «Накладка» в мете: с артикулами — «[код] имя», без — только имя, очищенное от вкраплённого
+       кода (cleanName). При включённых артикулах строка та же, что была. */
+    const frameMeta = opt.articles
+      ? (post.frameCode ? `[${post.frameCode}] ${post.frameName || ""}`.trim() : post.frameName)
+      : cleanName(post.frameName, post.frameCode);
     const meta = [
       ["Помещение", post.room],
       ["Высота установки", post.height],
       ["Назначение", post.purpose],
-      ["Накладка", post.frameCode ? `[${post.frameCode}] ${post.frameName || ""}`.trim() : post.frameName],
+      ["Накладка", frameMeta],
       ["Цвет", post.color],
-      ["Стандарт", post.standardLabel]
+      ["Стандарт", post.standardLabel],
+      /* «Стоимость блока» (opt.prices, п.6) — та же цена и формат, что одноимённый столбец КП: готовую
+         строку (в валюте показа, moneyShown) кладёт оркестратор в post.priceText, печатать ли её — решает
+         галочка «Цены». Старый вызов без цены (priceText нет) отфильтруется как пустой пункт меты. */
+      ["Стоимость блока", opt.prices ? post.priceText : ""]
     ].filter(([, v]) => v != null && String(v).trim() !== "")
      .map(([k, v]) => `<div class="post-meta-item"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
 
-    const moduleTr = m =>
-      `<tr><td class="mod">${esc(m.label)}</td><td>${esc(m.name)}</td><td class="code">${esc(m.code || "—")}</td><td class="note">${esc(m.note || "")}</td></tr>`;
+    /* Строка модуля — только из включённых столбцов (moduleCols). Пустой список столбцов обрабатываем
+       на уровне всей таблицы (ncols ниже), сюда он не попадёт. */
+    const ncols = moduleCols.length;
+    const moduleTr = m => `<tr>${moduleCols.map(([, td]) => td(m)).join("")}</tr>`;
     /* Раскладка модулей ПО ПОСТАМ: когда постов больше одного (немецкий стандарт,
        двухрядные), модули идут группами под подзаголовком «Пост N» — монтажнику важно, что
        это отдельные коробки. Один пост (итальянская сплошная накладка) или нет moduleGroups
@@ -336,12 +385,15 @@ function buildHtml(data, deps) {
        взрыв-схеме, монтажник читает их рядом. Пока таблица нумеровала модули заново в каждом
        посте, а обвязка — сквозняком, одна клавиша имела в одной карточке два номера. */
     const groups = post.moduleGroups;
+    /* colspan строк-подзаголовков/«пусто» = числу ВКЛЮЧЁННЫХ столбцов. « · до X мод.» в подзаголовке
+       «Пост N» — это модульность (opt.modules): выключена → суффикс пропадает (п.2), сам подзаголовок
+       (физическая коробка) остаётся. */
     const moduleRows = byPosts(groups)
       ? groups.map(g => {
-          const rows = (g.modules || []).map(moduleTr).join("") || `<tr><td colspan="4" class="empty">Пост без механизмов</td></tr>`;
-          return `<tr class="post-row"><td colspan="4">Пост ${esc(g.post)}${g.capacity ? ` · до ${esc(g.capacity)} мод.` : ""}</td></tr>${rows}`;
+          const rows = (g.modules || []).map(moduleTr).join("") || `<tr><td colspan="${ncols}" class="empty">Пост без механизмов</td></tr>`;
+          return `<tr class="post-row"><td colspan="${ncols}">Пост ${esc(g.post)}${opt.modules && g.capacity ? ` · до ${esc(g.capacity)} мод.` : ""}</td></tr>${rows}`;
         }).join("")
-      : (post.modules || []).map(moduleTr).join("") || `<tr><td colspan="4" class="empty">Пост без механизмов</td></tr>`;
+      : (post.modules || []).map(moduleTr).join("") || `<tr><td colspan="${ncols}" class="empty">Пост без механизмов</td></tr>`;
 
     /* Кол. без количества — прочерк, а не «0»: так печатается узел, которого в поставке
        нет по устройству изделия (суппорт «не требуется» у крышек IP55). Ноль монтажник
@@ -354,9 +406,13 @@ function buildHtml(data, deps) {
        cardModuleOrder): механизмы групп света адресуются модулями клавиш, и печатать их
        порядком набора, пока таблица идёт по постам, значило бы дать монтажнику третий,
        несогласованный список адресов. */
-    const fittingRows = cardFittingOrder(post.fittings, groups, post.modules).map(f =>
-      `<tr><td>${esc(f.role)}</td><td>${esc(f.name)}</td><td class="code">${esc(f.code || "—")}${f.assumed ? " (предположительно)" : ""}</td><td class="right">${Number(f.count) > 0 ? Number(f.count) : "—"}</td></tr>`
-    ).join("");
+    /* СТРОКИ обвязки по галочкам (п.1, п.3): строка монтажной коробки живёт по box, ВСЕ остальные
+       (механизмы групп света, подсветка, суппорт, накладка, термодатчик) — по fill. Коробка от fill
+       не зависит: fill выкл + box вкл → обвязка из одной строки коробки. Порядок карточки
+       (cardFittingOrder) считаем ДО фильтра — он не должен зависеть от набора галочек. */
+    const fittingRows = cardFittingOrder(post.fittings, groups, post.modules)
+      .filter(f => f.role === "Монтажная коробка" ? opt.box : opt.fill)
+      .map(f => `<tr>${fittingCols.map(([, td]) => td(f)).join("")}</tr>`).join("");
 
     /* Для немецко-французского стандарта монтажнику важно, что коробок НЕСКОЛЬКО
        (пост = 2 модуля), а между постами — импосты; иначе он поставит одну коробку.
@@ -402,17 +458,27 @@ function buildHtml(data, deps) {
     /* Бейдж «Пост № N» — галочка «№ поста» (opt.number). Выключена → шапки-бейджа нет; бирки с
        номерами на плане остаются (план без номеров бессмыслен), они живут в planBlockHtml. */
     const head = opt.number ? `<div class="post-card-head"><span class="post-badge">Пост № ${esc(post.number)}</span></div>` : "";
+    /* Таблица модулей — только если остался хоть один столбец (п.7): без «Модуль/Элемент/Артикул/
+       Примечание» печатать нечего, таблица уходит целиком. При всех включённых шапка та же, что была. */
+    const modulesTable = ncols
+      ? `<table class="modules"><thead><tr>${moduleCols.map(([th]) => th).join("")}</tr></thead>
+        <tbody>${moduleRows}</tbody></table>`
+      : "";
+    /* Обвязка — заголовок «Обвязка поста» и таблица печатаются, только если осталась хоть одна строка
+       (п.7: пустая таблица не печатается вместе с заголовком — это уже было для пустой обвязки). */
+    const fittingsTable = fittingRows
+      ? `<div class="fittings-title">Обвязка поста</div>
+      <table class="fittings"><thead><tr>${fittingCols.map(([th]) => th).join("")}</tr></thead>
+        <tbody>${fittingRows}</tbody></table>`
+      : "";
     return `<section class="post-card">
       ${head}
       <dl class="post-meta">${meta}</dl>
       ${assembled}
       ${visuals}
       ${germanNote}
-      <table class="modules"><thead><tr><th>Модуль</th><th>Элемент</th><th>Артикул</th><th>Примечание</th></tr></thead>
-        <tbody>${moduleRows}</tbody></table>
-      ${fittingRows ? `<div class="fittings-title">Обвязка поста</div>
-      <table class="fittings"><thead><tr><th>Узел</th><th>Наименование</th><th>Артикул</th><th class="right">Кол.</th></tr></thead>
-        <tbody>${fittingRows}</tbody></table>` : ""}
+      ${modulesTable}
+      ${fittingsTable}
     </section>`;
   };
 
