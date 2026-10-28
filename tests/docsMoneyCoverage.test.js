@@ -203,6 +203,7 @@ function projectSheetHtml(lightingPlan) {
     planBlockHtml: () => "", supplierSpecHtml: () => "",
     docHeader: () => ({ project: "П", developer: "Р", date: "Д" }),
     companyLogo: () => "", esc,
+    installSheetOptions: () => EPInstallSheetOptions.migrate({}),   /* К11-3в: галочки листа accessor'ом */
     EPInstallSheet, EPOfferOptions, EPInstallSheetOptions, EP_DATA: { settings: {} }
   };
   stand.run(["openInstallSheet", "installSheetForProject"], ctx)();
@@ -242,6 +243,8 @@ test("К11-3б: лист монтажника на проект отдаёт г�
     planBlockHtml: () => "", supplierSpecHtml: () => "",
     docHeader: () => ({ project: "П", developer: "Р", date: "Д" }),
     companyLogo: () => "", esc,
+    /* К11-3в: галочки листа теперь приходят accessor'ом installSheetOptions() (поле проекта → migrate без поля). */
+    installSheetOptions: () => EPInstallSheetOptions.migrate({ assemblyView: "exploded" }),
     EPInstallSheet, EPOfferOptions, EPInstallSheetOptions, EP_DATA: { settings: { assemblyView: "exploded" } }
   };
   stand.run(["openInstallSheet", "installSheetForProject"], ctx)();

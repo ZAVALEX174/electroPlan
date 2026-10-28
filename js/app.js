@@ -3277,7 +3277,7 @@ function setInstallSheetOptions(o){EP_DATA.settings.installSheetOptions=EPInstal
    трогает DOM окна в create, а app.js в тестах грузится в vm без этих узлов. */
 let _installSheetWin=null;
 function installSheetWin(){return _installSheetWin||(_installSheetWin=EPInstallSheetWindow.create(
-  {$,esc,EPPrefs,readOptions:installSheetOptions,writeOptions:setInstallSheetOptions}));}
+  {$,esc,EPPrefs,EPInstallSheetOptions,readOptions:installSheetOptions,writeOptions:setInstallSheetOptions}));}
 function openInstallSheetWindow(cfg){return installSheetWin().open(cfg);}
 
 /* Раскладка постов и разбивка цены для КП (postPricedItems, buildPostLayout) вынесены в js/docs.js

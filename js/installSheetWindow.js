@@ -25,7 +25,9 @@ function create(deps) {
   const $ = deps.$;
   const esc = deps.esc;
   const EPPrefs = deps.EPPrefs;
-  const O = (typeof window !== "undefined" && window.EPInstallSheetOptions) || null;
+  /* Чистую модель галочек берём зависимостью (как всё в фабрике) с фолбэком на глобал — в браузере его
+     кладёт installSheetOptions.js, в тестах приходит аргументом. */
+  const O = deps.EPInstallSheetOptions || (typeof window !== "undefined" && window.EPInstallSheetOptions) || null;
   /* Куда и что печатать решает открывший окно (шапка → проект, окно поста → один пост). Печать
      запускает «Открыть лист», а не сам клик по кнопке «Лист монтажника» (владелец 28.10). */
   let target = "project";
