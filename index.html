@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261025.1">
+  <link rel="stylesheet" href="css/styles.css?v=20261028.1">
 </head>
 <body>
 <div class="app">
@@ -596,14 +596,7 @@
         <label><input type="checkbox" id="offer-articles" data-offer-key="articles">Печатать артикулы во всех разделах КП</label>
         <label><input type="checkbox" id="offer-prices" data-offer-key="prices">Печатать цены и итоги</label>
         <div id="offerOptionsFields"></div>
-        <small class="hint-line">Сохраняется в проекте. Выбранные столбцы и разделы лист монтажника не меняют — на него влияет только «Вид поста» ниже. Наименование в спецификации остаётся всегда; раскладка без выбранных столбцов не печатается. Коды на исходном плане, фотографиях и в тексте, введённом вручную, не редактируются.</small>
-        <label class="offer-assembly">Вид поста в листе монтажника
-          <select id="offer-assemblyView" data-offer-key="assemblyView">
-            <option value="exploded">Взрыв-схема</option>
-            <option value="assembled">Общая сборка</option>
-          </select>
-        </label>
-        <small class="hint-line">«Взрыв-схема» — пост разложен по деталям с артикулами (по умолчанию). «Общая сборка» — собранная накладка с клавишами, как в раскладке КП.</small>
+        <small class="hint-line">Сохраняется в проекте. Выбранные столбцы и разделы лист монтажника не меняют — лист монтажника настраивается в своём окне. Наименование в спецификации остаётся всегда; раскладка без выбранных столбцов не печатается. Коды на исходном плане, фотографиях и в тексте, введённом вручную, не редактируются.</small>
       </details>
     </div>
     <div class="modal-footer">
@@ -645,6 +638,33 @@
     <div class="modal-footer">
       <button class="btn ghost" id="wallScopeAll" type="button">Во всех однотипных</button>
       <button class="btn primary" id="wallScopeSelf" type="button">Только в этом посте</button>
+    </div>
+  </div>
+</div>
+
+<!-- Окно выбора состава листа монтажника (К11-3в): галочки «что показать» + готовые наборы
+     «Строителю»/«Клиенту» и три своих слота (как в КП). Открывается кнопкой «Лист монтажника» в шапке
+     и той же кнопкой в окне поста; «Открыть лист» печатает проект или один пост ровно по этим галочкам.
+     Слоты, чекбоксы и подсветку активного набора наполняет EPInstallSheetWindow; свои слоты живут в
+     ep_prefs (привычка человека, общая для проектов). Разметка — та же конвенция, что у #kpSetupModal. -->
+<div class="modal-backdrop" id="installSheetWindowModal" role="dialog" aria-modal="true" aria-labelledby="installSheetWindowTitle">
+  <div class="modal kp-setup-modal">
+    <div class="modal-header">
+      <div><span class="eyebrow">Лист монтажника</span><h2 id="installSheetWindowTitle">Что показать в листе</h2></div>
+      <button class="modal-close" id="installSheetWindowClose" type="button" aria-label="Закрыть">×</button>
+    </div>
+    <div class="offer-options">
+      <div class="offer-presets">
+        <button class="btn ghost small" type="button" data-sheet-preset="builder">Строителю</button>
+        <button class="btn ghost small" type="button" data-sheet-preset="client">Клиенту</button>
+      </div>
+      <div class="offer-presets offer-presets-custom" id="installSheetCustomPresets"></div>
+      <small class="hint-line">Свои наборы (до 3) сохраняются в браузере и доступны в любом проекте. Кнопка «↻» перезаписывает набор текущими галочками. Активный набор подсвечен.</small>
+      <div id="installSheetOptionsFields"></div>
+      <small class="hint-line" id="installSheetPlanHint" hidden>«План с номерами» и «Сводная спецификация» — только в листе на весь проект; для листа одного поста из окна они недоступны.</small>
+    </div>
+    <div class="modal-footer">
+      <button class="btn primary" id="installSheetWindowOpen" type="button">Открыть лист</button>
     </div>
   </div>
 </div>
@@ -712,6 +732,14 @@
 <script src="js/catalogSections.js?v=20261019.1"></script>
 <script src="js/builderSlots.js?v=20260914.2"></script>
 <script src="js/offerOptions.js?v=20260926.1"></script>
+<!-- Галочки листа монтажника (К11-3): чистая модель «что показывать» (fields/normalize/preset/migrate),
+     своя у листа, не общая с КП. Грузится ДО docs.js, который миграцией настройки проекта задаёт
+     галочки печати (EPInstallSheetOptions.migrate). -->
+<script src="js/installSheetOptions.js?v=20261028.1"></script>
+<!-- Окно выбора состава листа монтажника (К11-3в): модалка #installSheetWindowModal — галочки, готовые
+     наборы и свои слоты. Своя у листа, не общая с КП. Грузится ДО app.js, который поднимает её
+     EPInstallSheetWindow.create(...) и даёт открывалку кнопкам «Лист монтажника» (шапка и окно поста). -->
+<script src="js/installSheetWindow.js?v=20261028.2"></script>
 <script src="js/docRequisites.js?v=20261003.1"></script>
 <script src="js/estimate.js?v=20261023.2"></script>
 <!-- Единое правило «какая это картинка» (формат по сигнатуре первых байтов, MIME для data-URL).
@@ -724,7 +752,7 @@
      Декодер vendor/heic-to подключается лениво, только когда реально пришёл HEIC. -->
 <script src="js/heicImport.js?v=20261025.1"></script>
 <script src="js/offerPdf.js?v=20261023.5"></script>
-<script src="js/installSheet.js?v=20261027.1"></script>
+<script src="js/installSheet.js?v=20261028.2"></script>
 <script src="js/supplierSpec.js?v=20261024.2"></script>
 <script src="js/packRound.js?v=20261022.1"></script>
 <!-- Добор до целых упаковок (К6б): чистый модуль (ни DOM, ни state) — единая карта «артикул → упаковка»
@@ -733,7 +761,7 @@
 <script src="js/packTopUp.js?v=20261023.5"></script>
 <script src="js/specExcel.js?v=20261023.5"></script>
 <script src="js/postImage.js?v=20260920.1"></script>
-<script src="js/explodedView.js?v=20261027.1"></script>
+<script src="js/explodedView.js?v=20261028.1"></script>
 <script src="js/planRotate.js?v=20261004.2"></script>
 <script src="js/planLabels.js?v=20261026.1"></script>
 <script src="js/rates.js?v=20261015.1"></script>
@@ -771,12 +799,12 @@
      «висящего» промиса и провязка кнопок. Вынесена из app.js (И1). Грузится ДО app.js, который
      подключает её через EPWallScope.create({$, WALL_STEP_LABEL}). -->
 <script src="js/wallScope.js?v=20260927.1"></script>
-<script src="js/postBuilder.js?v=20261024.5"></script>
+<script src="js/postBuilder.js?v=20261028.1"></script>
 <script src="js/rooms.js?v=20261006.1"></script>
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
-<script src="js/docs.js?v=20261026.3"></script>
+<script src="js/docs.js?v=20261028.3"></script>
 <!-- Ввод на холсте (клики, перенос объектов, панорама, зум колесом): trackDrag, makeDraggable,
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него
@@ -797,7 +825,7 @@
      EPPostCopyUi.attach(ctx) ПОСЛЕ EPCanvasInput.attach (оттуда приходит canvasPointer). -->
 <script src="js/notices.js?v=20261018.1"></script>
 <script src="js/postCopyUi.js?v=20261018.1"></script>
-<script src="js/projectFile.js?v=20261019.1"></script>
+<script src="js/projectFile.js?v=20261028.1"></script>
 <!-- Окно «Данные проекта и КП» (#kpSetupModal): открыть/закрыть, авто-открытие на чистом старте
      (решение владельца 20.10). Чистая функция shouldOpenOnLoad + тонкий attach. До app.js. -->
 <script src="js/projectSetup.js?v=20261020.1"></script>

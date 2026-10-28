@@ -8,6 +8,7 @@ const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
 const EPInstallSheet = require("../js/installSheet.js");
 const EPOfferOptions = require("../js/offerOptions.js");
+const EPInstallSheetOptions = require("../js/installSheetOptions.js");
 const EPPosts = require("../js/posts.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
 
@@ -76,7 +77,7 @@ function openInstallSheetHtml(assemblyView) {
     window: { open: () => win },
     toast: () => {},
     docHeader: () => ({ project: "П", developer: "Р", date: "Д" }),
-    EPInstallSheet, EPOfferOptions,
+    EPInstallSheet, EPOfferOptions, EPInstallSheetOptions,
     EP_DATA: { settings: { assemblyView } },
     esc,
     companyLogo: () => ""
@@ -94,23 +95,10 @@ test("Б2 связка openInstallSheet: настройка проекта до�
   assert.match(openInstallSheetHtml(undefined), /MARK-EXP/, "старый снимок проекта печатает лист как раньше");
 });
 
-test("Б2 связка applyOfferOption: выбор вида пишется в настройку проекта, не в набор столбцов", () => {
-  let saved = 0;
-  const ctx = {
-    Object, Array, Number, String,
-    EPOfferOptions,
-    EP_DATA: { settings: { offerOptions: {}, assemblyView: "exploded" } },
-    syncOfferOptions: () => {},
-    scheduleSave: () => { saved++; }
-  };
-  const applyOfferOption = stand.run("applyOfferOption", ctx);
-  applyOfferOption({ dataset: { offerKey: "assemblyView" }, value: "assembled" });
-  assert.equal(ctx.EP_DATA.settings.assemblyView, "assembled", "вид записан в settings.assemblyView");
-  assert.ok(!("assemblyView" in ctx.EP_DATA.settings.offerOptions), "в набор столбцов вид не попал");
-  assert.equal(saved, 1, "изменение помечено к сохранению");
-  applyOfferOption({ dataset: { offerKey: "assemblyView" }, value: "exploded" });
-  assert.equal(ctx.EP_DATA.settings.assemblyView, "exploded", "обратно на взрыв-схему");
-});
+/* К11-3в (п.6): выпадающий список «Вид поста» убран из окна КП — вид листа (assembled/exploded) переехал
+   галочками в своё окно (EPInstallSheetWindow). Поэтому прежние связки applyOfferOption(assemblyView) и
+   syncOfferOptions→select здесь удалены: писать/читать assemblyView через КП больше нечему. Поле проекта
+   settings.assemblyView сохранено и проверяется ниже (снимок/восстановление, миграция старых проектов). */
 
 test("Б2 связка applyOfferPreset: готовый набор столбцов НЕ сбрасывает выбранный вид", () => {
   const ctx = {
@@ -143,20 +131,6 @@ test("Б2 связка applyCustomOfferPreset: свой набор НЕ пере
   assert.equal(ctx.EP_DATA.settings.offerOptions.articles, false, "столбцы своего набора применились");
 });
 
-test("Б2 связка syncOfferOptions: select вида выставляется из настройки проекта при открытии", () => {
-  const dom = stand.makeDom({ selects: ["offer-assemblyView"] });
-  /* select должен знать свои опции — иначе шим makeSelect отклонит присвоение value */
-  dom.$("offer-assemblyView").innerHTML = '<option value="exploded"></option><option value="assembled"></option>';
-  const ctx = {
-    Object,
-    EPOfferOptions,
-    EP_DATA: { settings: { offerOptions: {}, assemblyView: "assembled" } },
-    $: dom.$,
-    highlightActiveOfferPreset: () => {}
-  };
-  stand.run("syncOfferOptions", ctx)();
-  assert.equal(dom.els["offer-assemblyView"].value, "assembled", "экран отражает вид, сохранённый в проекте");
-});
 
 /* --- ПЕРЕЖИВАНИЕ СОХРАНЕНИЯ: настоящие projectSnapshot и restoreProject из app.js -------------
    Вид поста — поле проекта, значит обязан пережить круг «сохранить → открыть». Структурный тест
@@ -172,24 +146,23 @@ function realSnapshot(assemblyView) {
     orthoMode: true, snapGrid: true, gridStep: 10, pxPerMeter: 100, scaleSegment: null, planLabel: "" };
   const ctx = { state, $: dom.$,
     EP_DATA: { settings: { docHeader: {}, offerOptions: {}, assemblyView } },
-    EPOfferOptions, EPEstimate: require("../js/estimate.js"), Date };
+    EPOfferOptions, EPInstallSheetOptions, EPEstimate: require("../js/estimate.js"), Date };
   return JSON.parse(JSON.stringify(stand.run("projectSnapshot", ctx)()));
 }
 
 /* Настоящий restoreProject над переданным проектом. realSync=true — исполнить и настоящий
-   syncOfferOptions, чтобы наблюдать выставленный select (иначе select не нужен и стаб). Возвращает
-   {settings, select}. Посты пустые — миграция групп света (dropOrphanKeyGroups) не срабатывает,
-   каталог/подбор не нужны. */
+   syncOfferOptions (К11-3в: select вида из КП убран, но sync по-прежнему синхронит галочки КП — проверяем,
+   что restore его зовёт без ошибок). Возвращает {settings}. Посты пустые — миграция групп света
+   (dropOrphanKeyGroups) не срабатывает, каталог/подбор не нужны. */
 async function realRestore(project, opts) {
   const realSync = !!(opts && opts.realSync);
-  const dom = stand.makeDom({ selects: ["offer-assemblyView"] });
-  dom.$("offer-assemblyView").innerHTML = '<option value="exploded"></option><option value="assembled"></option>';
+  const dom = stand.makeDom();
   const ctx = {
     ProjectStore: { load: () => project },
     state: {}, EPPosts, EPBuilderSlots, product: () => null,
     EPConfig: { gridSteps: [10], gridDefault: 10, viewMinScale: 0.1, viewMaxScale: 10 },
     EPViewport: { clampScale: s => s }, EPPlanRotate: require("../js/planRotate.js"),
-    EPOfferOptions,
+    EPOfferOptions, EPInstallSheetOptions,
     EP_DATA: { settings: {} },
     $: dom.$,
     fillDocHeaderInputs() {}, markCanvasUsed() {}, highlightActiveOfferPreset() {}, syncPackMultiple() {},
@@ -200,16 +173,15 @@ async function realRestore(project, opts) {
   if (realSync) names.push("syncOfferOptions"); else ctx.syncOfferOptions = () => {};
   names.push("relabelContourRooms", "restoreProject");
   await stand.runNamed(names, ctx)();
-  return { settings: ctx.EP_DATA.settings, select: dom.els["offer-assemblyView"].value };
+  return { settings: ctx.EP_DATA.settings };
 }
 
-test("Б2 круг сохранить→открыть: «Общая сборка» доживает до настройки проекта и до select", async () => {
+test("Б2 круг сохранить→открыть: «Общая сборка» доживает до настройки проекта", async () => {
   const snap = realSnapshot("assembled");
   assert.equal(snap.assemblyView, "assembled", "projectSnapshot записал вид отдельным полем проекта");
   /* значение из настоящего снимка отдаём настоящему restoreProject — та же дорога, что через ProjectStore */
   const out = await realRestore({ posts: [], assemblyView: snap.assemblyView }, { realSync: true });
   assert.equal(out.settings.assemblyView, "assembled", "restoreProject поднял вид из проекта");
-  assert.equal(out.select, "assembled", "select показал восстановленный вид (экран сошёлся с документом)");
 });
 
 test("Б2 restoreProject: миграция из раннего черновика (вид лежал внутри offerOptions)", async () => {

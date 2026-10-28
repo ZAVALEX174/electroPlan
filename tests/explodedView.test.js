@@ -420,3 +420,34 @@ test("подпись на белом фоне и выше линий по z-по
 test("детерминизм: одинаковый вход — одинаковый выход", () => {
   assert.equal(buildHtml(post, deps), buildHtml(post, deps), "чистая функция без побочных эффектов");
 });
+
+/* ── К11-3б (п.4): галочка «Артикулы» в подписях взрыв-схемы ────────────────────────────────
+   articles=false → строку кода под именем НЕ печатаем (не «—»), а вкраплённый код чистим из имени
+   переданным itemText (тот же EPOfferOptions.itemText, что в листе и КП). Поведение по умолчанию
+   (articles не передан) — код печатается, имя как есть: лист байт-в-байт как сегодня. */
+const EPOfferOptions = require("../js/offerOptions.js");
+const codedPost = {
+  parts: [
+    { role: "Накладка", name: "Накладка Neve (арт. 09663)", code: "09663",
+      icon: { categoryId: 100, icon: "□", name: "Накладка" } },
+    { role: "Модуль", pos: "1", name: "Выключатель 1П", code: "20001",
+      icon: { categoryId: 500, icon: "⌁", name: "Выключатель" } }
+  ]
+};
+
+test("взрыв-схема articles=false: строки кода нет, код вычищен из имени", () => {
+  const html = buildHtml(codedPost, Object.assign({}, deps, {
+    articles: false, itemText: (name, code) => EPOfferOptions.itemText(name, false, code) }));
+  assert.doesNotMatch(html, /09663/, "код накладки не напечатан нигде (ни строкой, ни в имени)");
+  assert.doesNotMatch(html, /20001/, "код механизма не напечатан");
+  assert.doesNotMatch(html, /\(арт\./, "вкраплённый «(арт. …)» вычищен из имени");
+  assert.match(html, /Накладка Neve/, "само имя накладки осталось");
+  assert.doesNotMatch(html, /Courier New/, "моноширинной строки кода (её единственное место) больше нет");
+});
+
+test("взрыв-схема по умолчанию (articles не передан): код печатается, имя как есть", () => {
+  const html = buildHtml(codedPost, deps);
+  assert.match(html, /09663/, "код накладки печатается строкой под именем");
+  assert.match(html, /20001/, "код механизма печатается");
+  /* мутация п.4: если спрятать строку кода без флага — этот тест покраснеет */
+});

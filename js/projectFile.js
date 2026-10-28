@@ -29,8 +29,11 @@ const FORMAT = "electroplan-project";
 const VERSION = 1;
 
 /* Ключи бланка человека (EPPrefs), которые едут в файл проекта (решение владельца 19.10, п.1).
-   offerCounters и ep_eur_rate сюда НЕ входят намеренно — см. шапку. */
-const PREF_KEYS = ["myRequisites", "companyLogo", "companySignature", "companyStamp", "companyTerms", "offerPresets"];
+   offerCounters и ep_eur_rate сюда НЕ входят намеренно — см. шапку.
+   installSheetPresets — свои наборы галочек листа монтажника (ключ ep_prefs из installSheetWindow.js,
+   владелец 28.10: «плюс три своих, как в КП»): едут и сливаются ровно как offerPresets (общий isBlank
+   и mergePrefs), второй копии правила нет. */
+const PREF_KEYS = ["myRequisites", "companyLogo", "companySignature", "companyStamp", "companyTerms", "offerPresets", "installSheetPresets"];
 
 /* «Пусто» для бланка: null/""/пустой объект/пустой массив. Объект myRequisites по умолчанию {} — это
    «своего нет», значит при открытии его замещает бланк из файла; непустой объект — своё, не трогаем. */

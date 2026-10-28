@@ -27,7 +27,7 @@ function freshDefaults() {
 /* НАСТРОЙКИ сделки/документа — не часть плана (отмена поста не трогает курс/скидку/реквизиты).
    packMultiple (галка «рассчитать кратно упаковке», К6) — настройка проекта, как assemblyView:
    не отменяется (отмена поста её не трогает), переживает перезагрузку и файл проекта. */
-const SETTINGS_FIELDS = ["terms", "docHeader", "offerOptions", "assemblyView", "packMultiple"];
+const SETTINGS_FIELDS = ["terms", "docHeader", "offerOptions", "assemblyView", "packMultiple", "installSheetOptions"];
 /* ВИД холста, режимы разметки и метаданные снимка — не отменяются. planVisibility («показана/бледная/
    скрыта») тоже здесь: переключение видимости отдельным шагом не является (решение владельца), поэтому
    она НЕ в PLAN_FIELDS и не в ключе сравнения; её значение восстанавливается только вместе со сменой

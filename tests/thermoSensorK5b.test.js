@@ -384,7 +384,8 @@ function captureSheetPost(thermoSensor) {
     frameProduct: prodById, builderWallType: () => "solid",
     lightingFor: () => ({}), projectPostsWithBuilder: () => [],
     buildPostSheet: post => { captured = post; return {}; },
-    openInstallSheet: () => {}, lightingHtml: () => "", toast: () => {}
+    openInstallSheet: () => {}, lightingHtml: () => "", toast: () => {},
+    installSheetOptions: () => ({})   // К11-3в: галочки листа; здесь важен только состав поста
   };
   stand.run("installSheetForBuilder", ctx)();
   return captured;

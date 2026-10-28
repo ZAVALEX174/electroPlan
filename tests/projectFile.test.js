@@ -14,7 +14,8 @@
      fileName: убрать replace запрещённых символов → краснеет «имя без запрещённых символов»;
      mergePrefs: снять `if(!isBlank(local))return` (брать из файла всегда) → краснеет «своё главнее»;
      mergePrefs: писать и пустые из файла → краснеет «пустое из файла не навязываем»;
-     mergeTemplates: вернуть file при непустых local → краснеет «свои шаблоны главнее».
+     mergeTemplates: вернуть file при непустых local → краснеет «свои шаблоны главнее»;
+     PREF_KEYS: убрать "installSheetPresets" → краснеет «наборы листа едут в файл так же, как offerPresets» (F).
    Запуск: node --test tests/projectFile.test.js */
 "use strict";
 const test = require("node:test");
@@ -130,4 +131,31 @@ test("mergeTemplates: свои шаблоны есть — оставляем с
   assert.equal(EPProjectFile.mergeTemplates([{ id: "f1" }], [{ id: "my1" }]), null, "свои есть — писать нечего");
   assert.deepEqual(EPProjectFile.mergeTemplates([{ id: "f1" }], []), [{ id: "f1" }], "своих нет — берём из файла");
   assert.equal(EPProjectFile.mergeTemplates([], []), null, "ни своих, ни в файле — писать нечего");
+});
+
+/* F (К11-3в, владелец 28.10 «плюс три своих, как в КП»): свои наборы галочек листа (ключ ep_prefs
+   installSheetPresets) едут в файл и сливаются ТЕМ ЖЕ механизмом, что наборы столбцов КП (offerPresets).
+   Второй копии правила нет — обе проходят через PREF_KEYS/isBlank/mergePrefs, поэтому проверяем, что
+   ключ листа в списке и ведёт себя идентично offerPresets. */
+test("F: наборы листа installSheetPresets едут в файл и сливаются как offerPresets", () => {
+  /* pickPrefs отдаёт ОБА ключа: заполненный слот (массив с непустым {name}) — не «пусто». */
+  const store = { offerPresets: [{ name: "КП-набор" }, null, null],
+    installSheetPresets: [{ name: "Лист-набор" }, null, null] };
+  const picked = EPProjectFile.pickPrefs(k => store[k]);
+  assert.ok("offerPresets" in picked, "наборы КП в файле (как раньше) — тест не бессмыслен");
+  assert.deepEqual(picked.installSheetPresets, [{ name: "Лист-набор" }, null, null],
+    "наборы листа тоже в файле (мутация «убрать installSheetPresets из PREF_KEYS» краснит здесь)");
+  /* Своих наборов листа на этом компьютере нет (ключа нет) → берём из файла. */
+  const filled = Object.fromEntries(EPProjectFile.mergePrefs(
+    { installSheetPresets: [{ name: "Из файла" }, null, null] }, {}));
+  assert.deepEqual(filled.installSheetPresets, [{ name: "Из файла" }, null, null],
+    "пустой ключ листа заполняется из файла (как offerPresets)");
+  /* Свой непустой набор листа главнее — из файла не навязываем (симметрично offerPresets). */
+  const kept = Object.fromEntries(EPProjectFile.mergePrefs(
+    { installSheetPresets: [{ name: "Из файла" }, null, null] },
+    { installSheetPresets: [{ name: "Моё" }, null, null] }));
+  assert.ok(!("installSheetPresets" in kept), "свой непустой набор листа не затирается файлом");
+  /* Пустой МАССИВ ключа — «пусто» (как [] у offerPresets): в файл не идёт, своё не замещает. */
+  assert.ok(!("installSheetPresets" in EPProjectFile.pickPrefs(k => ({ installSheetPresets: [] }[k]))),
+    "пустой массив наборов листа в файл не попадает — как offerPresets []");
 });

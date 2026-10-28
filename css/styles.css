@@ -256,6 +256,12 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .scheme-field--check{flex-direction:row;align-items:center;gap:6px}
 .scheme-field--check input{margin:0}
 .hint-line{display:block;margin-top:4px;color:var(--muted);font-size:9px}
+/* Атрибут hidden обязан прятать подсказку: UA-стиль [hidden]{display:none} проигрывает авторскому
+   .hint-line{display:block} при равной специфичности (оба 0,1,0, авторское позже) — и подсказка
+   #installSheetPlanHint висела бы и в окне на весь проект. Узкий .hint-line[hidden] (0,2,0 — строго
+   выше .hint-line) возвращает скрытие ровно скрытым подсказкам, не трогая глобальный [hidden] и
+   остальные .hint-line (ровно приём .price-card[hidden] ниже). */
+.hint-line[hidden]{display:none}
 .detect-box{fill-opacity:.10;stroke-width:2}
 /* наложения-подсказки внутри #canvas (легенда/пустой холст/прогресс/карточка наведения) — НЕ мировые
    узлы: их нельзя «класть боком» при повороте всего плана (Б3, ч.2а). Контр-вращаем тем же --world-rot. */

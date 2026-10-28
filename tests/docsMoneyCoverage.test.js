@@ -26,6 +26,7 @@ const EPOfferPdf = require("../js/offerPdf.js");
 const EPPlanLabels = require("../js/planLabels.js");
 const EPInstallSheet = require("../js/installSheet.js");
 const EPOfferOptions = require("../js/offerOptions.js");
+const EPInstallSheetOptions = require("../js/installSheetOptions.js");
 const EPLightingGroups = require("../js/lightingGroups.js");
 const EPLightingByRoom = require("../js/lightingByRoom.js");
 const { polygonCentroid, roomLabelPoint, roomNamePoint } = require("../js/geometry.js");
@@ -202,7 +203,8 @@ function projectSheetHtml(lightingPlan) {
     planBlockHtml: () => "", supplierSpecHtml: () => "",
     docHeader: () => ({ project: "П", developer: "Р", date: "Д" }),
     companyLogo: () => "", esc,
-    EPInstallSheet, EPOfferOptions, EP_DATA: { settings: {} }
+    installSheetOptions: () => EPInstallSheetOptions.migrate({}),   /* К11-3в: галочки листа accessor'ом */
+    EPInstallSheet, EPOfferOptions, EPInstallSheetOptions, EP_DATA: { settings: {} }
   };
   stand.run(["openInstallSheet", "installSheetForProject"], ctx)();
   return written;
@@ -219,4 +221,36 @@ test("лист монтажника на проект: блока света Н�
      ловит M6 тест выше — с группами. */
   const html = projectSheetHtml({ groups: [], gaps: [], relays: [] });
   assert.doesNotMatch(html, /mark-lighting/, "пустой проект групп света не печатает лишний блок");
+});
+
+/* ─────────── 5. К11-3б: галочка «Цены» — суммы в «Группах света» гейтятся, а не печатаются всегда ───────────
+   Прежде installSheetForProject звал lightingHtml БЕЗ набора галочек — и блок «Группы света» печатал суммы
+   денег при любых настройках (дефект, docs/К11-разведка.md). Теперь лист передаёт туда галочки (миграция
+   настройки проекта), и суммами управляет options.prices. Проверяем ИМЕННО передачу галочек: без неё
+   (мутация — убрать 3-й аргумент lightingHtml) gotOptions станет undefined и тест покраснеет. */
+test("К11-3б: лист монтажника на проект отдаёт галочки (с «Ценами») в lightingHtml", () => {
+  let gotOptions;
+  const ctx = {
+    Object, Array, Number, String, RegExp, JSON, Map, Infinity,
+    window: { open: () => ({ document: { write() {}, close() {} } }) },
+    state: { posts: [{ id: "p1", number: 1, roomId: null }], rooms: [] },
+    toast: () => {},
+    projectLighting: () => ({ plan: { groups: [{ label: "Кухня" }], gaps: [], relays: [] } }),
+    lightingHtml: (light, title, options) => { gotOptions = options; return ""; },
+    buildPostSheet: p => ({ number: p.number, room: "", standardLabel: "", frameName: "", frameCode: "",
+      color: "", height: "", purpose: "", modules: [], moduleGroups: null, fittings: [],
+      assembledImageHtml: "", assembledLargeHtml: "", explodedViewHtml: "", german: null }),
+    planBlockHtml: () => "", supplierSpecHtml: () => "",
+    docHeader: () => ({ project: "П", developer: "Р", date: "Д" }),
+    companyLogo: () => "", esc,
+    /* К11-3в: галочки листа теперь приходят accessor'ом installSheetOptions() (поле проекта → migrate без поля). */
+    installSheetOptions: () => EPInstallSheetOptions.migrate({ assemblyView: "exploded" }),
+    EPInstallSheet, EPOfferOptions, EPInstallSheetOptions, EP_DATA: { settings: { assemblyView: "exploded" } }
+  };
+  stand.run(["openInstallSheet", "installSheetForProject"], ctx)();
+  assert.ok(gotOptions && typeof gotOptions === "object",
+    "галочки переданы в lightingHtml — иначе суммы печатались бы при любых настройках");
+  assert.equal(typeof gotOptions.prices, "boolean", "есть флаг «Цены», которым гейтятся суммы");
+  assert.deepEqual(gotOptions, EPInstallSheetOptions.migrate({ assemblyView: "exploded" }),
+    "галочки листа = миграция настройки проекта");
 });
