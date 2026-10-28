@@ -17,7 +17,10 @@
      · B: убрать в restoreProject строку чтения p.installSheetOptions → краснеет «выбор переживает перезагрузку»;
      · B: записать в снимке installSheetOptions всегда (не только при наличии поля) → краснеет
           «старый проект поля не несёт» (байт-в-байт печать сломалась бы — появился бы навязанный набор);
+     · B: в restoreProject сделать присваивание УСЛОВНЫМ (`if(p.installSheetOptions)…`) → краснеет
+          «загрузка проекта без поля стирает выбор прошлого» (чужие галочки A остались бы у B);
      · C: writeOptions без scheduleSave → краснеет «галочка сохраняет»; без записи — «галочка меняет выбор»;
+     · C-real: убрать scheduleSave из настоящей setInstallSheetOptions (app.js) → краснеет «C-real: … зовёт scheduleSave»;
      · G: в sync() убрать `|| key==="supplier"` → краснеет «режим поста гасит и Сводную спецификацию»;
      · A: см. installSheetOptions.test.js (нормализация слотов, saveCustomPreset).
    Запуск: node --test tests/installSheetWindow.test.js */
@@ -136,6 +139,23 @@ test("B: старый проект без поля открывается как
     "accessor отдаёт migrate — лист как сегодня");
 });
 
+test("B: загрузка проекта БЕЗ поля в той же вкладке стирает выбор прошлого проекта (не остаётся «Клиенту»)", async () => {
+  /* Проект A выбрал «Клиенту» — поле уже лежит в настройках ЭТОЙ вкладки. Открываем проект B, где окно
+     листа ни разу не трогали (поля нет). restoreProject обязан ОБНУЛИТЬ поле безусловно, иначе лист B
+     печатался бы по чужим галочкам A. Мутация `if(p.installSheetOptions)…` (app.js:2969) оставила бы
+     «Клиенту» — здесь и краснеет. Важно: resetDefaults НЕ зовём, иначе край не воспроизводится. */
+  const s = makeSession();
+  s.ctx.EP_DATA.settings.installSheetOptions = EPInstallSheetOptions.preset("client");   // проект A
+  s.store({ terms: {} });                       // проект B — поля нет
+  await s.restore();
+  assert.equal(s.ctx.EP_DATA.settings.installSheetOptions, undefined,
+    "поле проекта A стёрто при загрузке B без поля (мутация «if(p.installSheetOptions)…» краснит здесь)");
+  assert.deepEqual(s.options(), EPInstallSheetOptions.migrate(s.ctx.EP_DATA.settings),
+    "лист B печатается по migrate настроек B");
+  assert.notDeepEqual(s.options(), EPInstallSheetOptions.preset("client"),
+    "а именно НЕ по «Клиенту» прошлого проекта");
+});
+
 /* ---------- C. Модуль окна на DOM-шиме ---------- */
 
 /* Шим classList поверх Set (та же семантика toggle, что у appStand). */
@@ -238,4 +258,22 @@ test("G: режим одного поста гасит и «План», и «С�
   w.win.open({ target: "project", print: () => {} });
   assert.equal(w.inputs.plan.disabled, false, "в режиме проекта «План» активна");
   assert.equal(w.inputs.supplier.disabled, false, "в режиме проекта «Сводная спецификация» активна");
+});
+
+/* ---------- C-real. НАСТОЯЩАЯ setInstallSheetOptions (app.js), а не заглушка окна ---------- */
+
+/* Тесты окна выше проверяют writeOptions-ЗАГЛУШКУ makeWindow, поэтому мутация «убрать scheduleSave из
+   настоящей setInstallSheetOptions» (app.js:3275) в них выживает. Здесь исполняем ИСХОДНЫЙ ТЕКСТ
+   setInstallSheetOptions из app.js в vm (стенд) и проверяем, что она и пишет поле (normalize), и
+   отмечает проект к сохранению (scheduleSave) — ровно writeOptions, который окно передаёт в create. */
+test("C-real: setInstallSheetOptions пишет поле проекта (normalize) и зовёт scheduleSave", () => {
+  let saved = 0;
+  const settings = {};
+  const fn = stand.run("setInstallSheetOptions", {
+    EP_DATA: { settings }, EPInstallSheetOptions, scheduleSave: () => { saved++; }
+  });
+  fn({ prices: true, junk: 1 });
+  assert.deepEqual(settings.installSheetOptions, EPInstallSheetOptions.normalize({ prices: true }),
+    "выбор записан в проект через normalize (чужой ключ отброшен)");
+  assert.equal(saved, 1, "scheduleSave вызван (мутация «убрать scheduleSave» краснит здесь)");
 });
