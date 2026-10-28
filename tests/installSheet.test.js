@@ -665,6 +665,37 @@ test("К11-3б набор «Клиенту»: карточка без пусты
   assert.doesNotMatch(html, /Обвязка поста/, "и её заголовка нет");
 });
 
+/* ── К11-3б: «Описание поста» (opt.description) — мета карточки (кроме стоимости) и подвал ──── */
+test("К11-3б набор «Клиенту»: нет меты поста и нет подвала «Документ для монтажа» (мутации а, б)", () => {
+  const html = buildHtml({ posts: [optPost],
+    options: EPInstallSheetOptions.preset("client") }, deps);
+  /* Заказчик 15.10: клиенту «номер и картинка», не то, «чем я её шпигую». */
+  assert.doesNotMatch(html, /Помещение/, "мета «Помещение» убрана");
+  assert.doesNotMatch(html, /Накладка/, "мета «Накладка» убрана");
+  assert.doesNotMatch(html, /Стандарт/, "мета «Стандарт» убрана");
+  assert.doesNotMatch(html, /Документ для монтажа/, "подвал убран");
+  assert.doesNotMatch(html, /<dl class="post-meta">/, "пустой dl меты не печатается");
+});
+
+test("К11-3б «Клиенту»+prices: «Стоимость блока» печатается даже без описания (мутация в)", () => {
+  /* «Стоимость блока» зависит ТОЛЬКО от opt.prices, не от описания: её прячет своя галочка «Цены». */
+  const priced = Object.assign({}, optPost, { priceText: "123,45 €" });
+  const opts = Object.assign(EPInstallSheetOptions.preset("client"), { prices: true });
+  const html = buildHtml({ posts: [priced], options: opts }, deps);
+  assert.match(html, /Стоимость блока/, "стоимость блока печатается при prices, хотя описание выключено");
+  assert.match(html, /123,45 €/, "и сама цена");
+  assert.match(html, /<dl class="post-meta">/, "dl меты есть — в нём только стоимость блока");
+  assert.doesNotMatch(html, /Помещение/, "прочая мета по-прежнему скрыта (описание выключено)");
+});
+
+test("К11-3б набор «Строителю»: мета поста и подвал на месте (мутация г — умолчание description)", () => {
+  const html = buildHtml({ posts: [optPost],
+    options: EPInstallSheetOptions.preset("builder") }, deps);
+  assert.match(html, /Помещение/, "мета «Помещение» печатается");
+  assert.match(html, /Стандарт/, "мета «Стандарт» печатается");
+  assert.match(html, /Документ для монтажа/, "подвал печатается");
+});
+
 test("CSS листа: ряд иллюстрация+схема переносит схему вниз (flex-wrap), иллюстрация не схлопывается", () => {
   /* Д1: при широкой схеме ряд обязан ПЕРЕНОСИТЬ её под иллюстрацию (flex-wrap:wrap), а иллюстрация —
      держать натуральную ширину (flex:0 0 auto), а не сжиматься в ноль (прежний flex:1 1 0;min-width:0). */

@@ -226,7 +226,7 @@ function cardFittingOrder(fittings, moduleGroups, modules) {
    Отсутствующий ключ в переданном наборе читаем как «включён» (!==false): полупустой объект не
    должен внезапно опустошить лист — это тот же принцип «умолчание = сегодняшнее поведение». */
 const OPTION_KEYS = ["plan", "number", "illustration", "assembled", "exploded", "fill", "modules",
-  "box", "articles", "notes", "prices", "lighting", "supplier"];
+  "box", "articles", "notes", "description", "prices", "lighting", "supplier"];
 function resolveOptions(data) {
   const src = data && data.options;
   const out = {};
@@ -358,18 +358,24 @@ function buildHtml(data, deps) {
     const frameMeta = opt.articles
       ? (post.frameCode ? `[${post.frameCode}] ${post.frameName || ""}`.trim() : post.frameName)
       : cleanName(post.frameName, post.frameCode);
-    const meta = [
+    /* «Описание поста» (opt.description, К11-3б): вся мета карточки, КРОМЕ стоимости блока. Заказчик
+       15.10 — клиенту нужны «номер и картинка», а не то, «чем я её шпигую»: выключенное описание гасит
+       эти пункты разом. «Стоимость блока» сюда НЕ входит — она по своей галочке «Цены» (может печататься
+       и при description:false). При включённом описании набор меты тот же, что был жёстко в разметке. */
+    const descMeta = opt.description ? [
       ["Помещение", post.room],
       ["Высота установки", post.height],
       ["Назначение", post.purpose],
       ["Накладка", frameMeta],
       ["Цвет", post.color],
-      ["Стандарт", post.standardLabel],
+      ["Стандарт", post.standardLabel]
+    ] : [];
+    const meta = descMeta.concat([
       /* «Стоимость блока» (opt.prices, п.6) — та же цена и формат, что одноимённый столбец КП: готовую
          строку (в валюте показа, moneyShown) кладёт оркестратор в post.priceText, печатать ли её — решает
-         галочка «Цены». Старый вызов без цены (priceText нет) отфильтруется как пустой пункт меты. */
+         галочка «Цены» (НЕ «Описание»). Старый вызов без цены (priceText нет) отфильтруется как пустой пункт. */
       ["Стоимость блока", opt.prices ? post.priceText : ""]
-    ].filter(([, v]) => v != null && String(v).trim() !== "")
+    ]).filter(([, v]) => v != null && String(v).trim() !== "")
      .map(([k, v]) => `<div class="post-meta-item"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
 
     /* Строка модуля — только из включённых столбцов (moduleCols). Пустой список столбцов обрабатываем
@@ -471,9 +477,12 @@ function buildHtml(data, deps) {
       <table class="fittings"><thead><tr>${fittingCols.map(([th]) => th).join("")}</tr></thead>
         <tbody>${fittingRows}</tbody></table>`
       : "";
+    /* Пустой <dl class="post-meta"> не печатаем: при выключенном описании и без цены (набор «Клиенту»)
+       внутри не осталось бы ни одного пункта, а пустой dl даёт лишний отступ в карточке. */
+    const metaBlock = meta ? `<dl class="post-meta">${meta}</dl>` : "";
     return `<section class="post-card">
       ${head}
-      <dl class="post-meta">${meta}</dl>
+      ${metaBlock}
       ${assembled}
       ${visuals}
       ${germanNote}
@@ -584,7 +593,7 @@ function buildHtml(data, deps) {
   ${opt.plan ? (data.planBlockHtml || "") : ""}
   ${body}
   ${opt.lighting && data.lightingHtml ? `<div class="lighting-block">${data.lightingHtml}</div>` : ""}
-  <div class="footer">Документ для монтажа. Позиции модулей указаны слева направо, как в собранной накладке.</div>
+  ${opt.description ? `<div class="footer">Документ для монтажа. Позиции модулей указаны слева направо, как в собранной накладке.</div>` : ""}
   ${opt.supplier ? (data.supplierSpecHtml || "") : ""}
   ${printScript}</body></html>`;
 }

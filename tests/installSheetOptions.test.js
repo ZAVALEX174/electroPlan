@@ -18,9 +18,9 @@ const EPOfferOptions = require("../js/offerOptions.js");
 
 /* Утверждённая таблица наборов — единственный источник ожиданий (1 = галочка стоит). */
 const TABLE = {
-  //            plan number illustration assembled exploded fill modules box articles notes prices lighting supplier
-  builder: { plan:1, number:1, illustration:1, assembled:1, exploded:1, fill:1, modules:1, box:1, articles:1, notes:1, prices:0, lighting:1, supplier:1 },
-  client:  { plan:1, number:1, illustration:1, assembled:0, exploded:0, fill:0, modules:0, box:0, articles:0, notes:0, prices:0, lighting:0, supplier:0 }
+  //            plan number illustration assembled exploded fill modules box articles notes description prices lighting supplier
+  builder: { plan:1, number:1, illustration:1, assembled:1, exploded:1, fill:1, modules:1, box:1, articles:1, notes:1, description:1, prices:0, lighting:1, supplier:1 },
+  client:  { plan:1, number:1, illustration:1, assembled:0, exploded:0, fill:0, modules:0, box:0, articles:0, notes:0, description:0, prices:0, lighting:0, supplier:0 }
 };
 const asBool = row => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, !!v]));
 
@@ -34,6 +34,17 @@ test("К11-3а: набор «Клиенту» — ровно номер и ка�
   assert.equal(c.articles, false, "у клиента артикулов нет");
   assert.equal(c.fill, false); assert.equal(c.prices, false);
   assert.equal(c.lighting, false); assert.equal(c.supplier, false);
+  /* «Описание поста» у клиента выключено: заказчик видит номер и картинку, а не мету/подвал
+     (К11-3б, заказчик 15.10). preset строит из on={plan,number,illustration} — description туда
+     не добавлен, значит false. Мутация «добавить description в on» покраснит это. */
+  assert.equal(c.description, false, "описания поста у клиента нет");
+});
+
+test("К11-3б: миграция старого проекта включает описание поста (мета и подвал печатаются как сегодня)", () => {
+  /* Старый проект печатал мету карточки и подвал «Документ для монтажа…» всегда — migrate обязан
+     отдать description:true, иначе у сохранённого проекта лист молча потерял бы описание. */
+  assert.equal(EPInstallSheetOptions.migrate({}).description, true);
+  assert.equal(EPInstallSheetOptions.migrate({ assemblyView: "assembled" }).description, true);
 });
 
 test("К11-3а: все ключи таблицы совпадают с ключами схемы (ни одного лишнего/пропущенного)", () => {
@@ -95,7 +106,7 @@ test("К11-3а: saveCustomPreset возвращает новый список, �
 
 /* ---- Миграция старых проектов = сегодняшний лист (три случая) ---- */
 const todayFull = { plan:true, number:true, illustration:true, fill:true, modules:true,
-  box:true, articles:true, notes:true, prices:true, lighting:true, supplier:true };
+  box:true, articles:true, notes:true, description:true, prices:true, lighting:true, supplier:true };
 
 test("К11-3а: миграция «exploded» → весь лист, взрыв-схема, без общей сборки, с ценами (мутация 2)", () => {
   assert.deepEqual(EPInstallSheetOptions.migrate({ assemblyView: "exploded" }),
