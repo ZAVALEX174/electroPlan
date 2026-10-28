@@ -38,9 +38,9 @@ const {
   backlightCatalogOptions,backlightRowSummary,bindProductPictureFallbacks,buildPostSheet,byKind,canvas,
   compatibleMechanisms,defaultPostName,enhancePicker,esc,findByExactCode,frameFacingEmptyText,
   frameFacingHintText,frameFacingLabels,frameFacingList,frameFacingSelectionLabels,frameOptions,frameProduct,
-  frameSlotCount,frameSlotOptions,innardsEmptyText,isBareMechanism,isControlPlaceItem,keySlotKind,
+  frameSlotCount,frameSlotOptions,innardsEmptyText,installSheetOptions,isBareMechanism,isControlPlaceItem,keySlotKind,
   lightingFor,lightingHtml,lightingRowSummary,lightingRowsFor,mechanismModulesTotal,mechanismSpan,
-  moduleWord,money,moneyShown,openInstallSheet,postComposition,postTotalCost,preferOwnFrame,
+  moduleWord,money,moneyShown,openInstallSheet,openInstallSheetWindow,postComposition,postTotalCost,preferOwnFrame,
   product,productMoney,productPicture,productSeries,renderAll,renderLightingSchemeSelect,
   renderProperties,renderSummary,renderTemplates,roomCatalogFilter,socketBox,state,
   toast,uid,updateStatus
@@ -1512,8 +1512,13 @@ function installSheetForBuilder(){
      мест группы во всём проекте, и лист монтажника обязан показать ту же роль, что видно в
      конструкторе и в смете. */
   const light=lightingFor(projectPostsWithBuilder(selectedFrameInfo.frame));
-  openInstallSheet({posts:[buildPostSheet(post,light)],subtitle:"Помодульная раскладка поста",
-    lightingHtml:lightingHtml(light,"Группы света в проекте")});
+  /* Галочки листа (К11-3в) — те же, что у листа на проект: один accessor installSheetOptions() (§7.1).
+     Передаём их и в buildPostSheet (гасит артикулы), и в openInstallSheet/lightingHtml (гасит цены),
+     чтобы лист одного поста слушался окна ровно так же, как лист проекта. «План с номерами» у листа
+     одного поста нет (planBlockHtml не передаём), поэтому галочка plan здесь ни на что не влияет. */
+  const options=installSheetOptions();
+  openInstallSheet({posts:[buildPostSheet(post,light,options)],subtitle:"Помодульная раскладка поста",
+    options,lightingHtml:lightingHtml(light,"Группы света в проекте",options)});
 }
 $("newPostBtn").onclick=()=>openPostBuilder();
 $("closePostModal").onclick=$("cancelPost").onclick=closePostBuilder;
@@ -1581,7 +1586,10 @@ document.querySelectorAll("#postThermoMode .wall-type-option").forEach(b=>b.oncl
 /* Клик мимо окна — такое же СЛУЧАЙНОЕ закрытие, как Esc: с несохранёнными правками просит
    повтора (см. requestClosePostBuilder), а не выбрасывает собранный пост молча. */
 $("postModal").onclick=e=>{if(e.target===$("postModal"))requestClosePostBuilder()};
-$("builderInstallSheet").onclick=installSheetForBuilder;
+/* «Лист монтажника» в окне поста (К11-3в) ОТКРЫВАЕТ то же окно выбора галочек, что кнопка в шапке;
+   печатает — «Открыть лист» в окне (здесь — один этот пост). Кнопка в состоянии disabled (накладка не
+   разрешилась, п.7) onclick не шлёт — окно не откроется. */
+$("builderInstallSheet").onclick=()=>openInstallSheetWindow({target:"post",print:installSheetForBuilder});
 
 /* builderRoomFilter возвращаем не для прямого вызова из app.js, а потому что общий frameFacingHintText
    остался в app.js (его зовёт и «Подобрать накладку», см. раздел про общий код выше) и обращается к

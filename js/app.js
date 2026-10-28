@@ -2647,6 +2647,10 @@ function projectSnapshot(){
     offerOptions:EPOfferOptions.normalize(EP_DATA.settings.offerOptions),
     /* вид поста в листе монтажника — отдельное поле проекта (не внутри offerOptions, см. Б2) */
     assemblyView:EPOfferOptions.assemblyView(EP_DATA.settings.assemblyView),
+    /* галочки листа монтажника (К11-3в) — поле проекта, рядом с offerOptions. Пишем ТОЛЬКО если человек
+       уже выбирал их в окне: нет поля → при загрузке migrate (лист байт-в-байт как сегодня), поэтому
+       undefined JSON отбросит, а не запишет полный набор задним числом. */
+    installSheetOptions:EP_DATA.settings.installSheetOptions?EPInstallSheetOptions.normalize(EP_DATA.settings.installSheetOptions):undefined,
     /* галка «рассчитать кратно упаковке» (К6) — свойство проекта, как assemblyView: отдельное
        поле снимка, переживает перезагрузку и файл проекта. По умолчанию снята (старый проект поля
        не несёт → восстановится в false). */
@@ -2959,6 +2963,10 @@ async function restoreProject(){
      Старый проект без обоих полей открывается со взрыв-схемой (assemblyView сведёт undefined к ней). */
   EP_DATA.settings.assemblyView=EPOfferOptions.assemblyView(
     p.assemblyView!==undefined?p.assemblyView:(p.offerOptions&&p.offerOptions.assemblyView));
+  /* Галочки листа монтажника (К11-3в): поле несёт только проект, где их уже выбирали. Старый проект без
+     поля → undefined, и installSheetOptions() сам отдаст migrate (лист как сегодня) — задним числом ничего
+     не навязываем, печать остаётся байт-в-байт. */
+  EP_DATA.settings.installSheetOptions=p.installSheetOptions?EPInstallSheetOptions.normalize(p.installSheetOptions):undefined;
   /* Галка «кратно упаковке» (К6): старый проект поля не несёт → false (не округляем задним числом).
      Отражаем в самой галке, чтобы экран не разошёлся с проектом. */
   EP_DATA.settings.packMultiple=!!p.packMultiple;
@@ -3187,9 +3195,8 @@ function renderOfferOptions(){
 function syncOfferOptions(){
   const o=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
   ["articles","prices"].forEach(key=>{$("offer-"+key).checked=o[key]});
-  /* Вид поста — отдельная настройка проекта, не часть набора столбцов: восстанавливаем select из
-     settings.assemblyView, чтобы экран не разошёлся с документом (Б2). */
-  $("offer-assemblyView").value=EPOfferOptions.assemblyView(EP_DATA.settings.assemblyView);
+  /* Вид поста листа монтажника (assembled/exploded) переехал в своё окно (К11-3в, п.6): селектора в
+     окне КП больше нет. Поле settings.assemblyView остаётся — по нему migrate открывает старые проекты. */
   Object.entries(EPOfferOptions.fields).forEach(([group,fields])=>fields.forEach(([key])=>{
     const input=$("offer-"+group+"-"+key);
     input.checked=o[group][key];
@@ -3247,11 +3254,6 @@ function saveCustomOfferPreset(index){
 }
 function applyOfferOption(input){
   const {offerGroup:group,offerKey:key}=input.dataset;
-  /* Вид поста в листе монтажника — ОТДЕЛЬНАЯ настройка проекта, а не набор столбцов: пишем в
-     settings.assemblyView, а не в offerOptions, иначе смена набора столбцов сбрасывала бы вид, а
-     подсветка активного набора гасла бы из-за него. Подсветку наборов при этом трогать не нужно
-     (вид в сравнение не входит), поэтому выходим сразу. */
-  if(key==="assemblyView"){EP_DATA.settings.assemblyView=EPOfferOptions.assemblyView(input.value);scheduleSave();return}
   const o=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
   if(group&&EPOfferOptions.fields[group]?.some(([k])=>k===key))o[group][key]=input.checked;
   else if(key==="articles"||key==="prices")o[key]=input.checked;
@@ -3263,6 +3265,20 @@ function applyOfferPreset(name){
   EP_DATA.settings.offerOptions=EPOfferOptions.preset(name);
   syncOfferOptions();scheduleSave();
 }
+
+/* --- Галочки листа монтажника (К11-3в): свойство проекта, окно выбора — отдельный модуль --- */
+/* ОДНА точка чтения галочек листа: поле проекта installSheetOptions, а нет его → migrate (лист как
+   сегодня, байт-в-байт). Её зовут и окно выбора, и обе печати листа (docs/postBuilder) — §7.1. */
+function installSheetOptions(){const o=EP_DATA.settings.installSheetOptions;
+  return o?EPInstallSheetOptions.normalize(o):EPInstallSheetOptions.migrate(EP_DATA.settings);}
+/* Запись галочек в проект + отметка к сохранению (scheduleSave), как у КП (applyOfferOption). */
+function setInstallSheetOptions(o){EP_DATA.settings.installSheetOptions=EPInstallSheetOptions.normalize(o);scheduleSave();}
+/* Окно выбора (EPInstallSheetWindow) создаём ЛЕНИВО при первом открытии — как EPWallScope: модуль
+   трогает DOM окна в create, а app.js в тестах грузится в vm без этих узлов. */
+let _installSheetWin=null;
+function installSheetWin(){return _installSheetWin||(_installSheetWin=EPInstallSheetWindow.create(
+  {$,esc,EPPrefs,readOptions:installSheetOptions,writeOptions:setInstallSheetOptions}));}
+function openInstallSheetWindow(cfg){return installSheetWin().open(cfg);}
 
 /* Раскладка постов и разбивка цены для КП (postPricedItems, buildPostLayout) вынесены в js/docs.js
    (EPDocs.attach) вместе со сборкой КП и листа монтажника — раздел И docs/ОСТАТОК-РАБОТ (И1, кусок 3). */
@@ -3972,7 +3988,7 @@ document.onkeydown=e=>{
   /* Отмена/возврат плана (Б4, ч.А). Решение по нажатию — чистый EPHistory.hotkeyAction: он сам
      пропускает текстовые поля (там Ctrl+Z — браузерная отмена ввода), разбирает Ctrl/⌘+Z/Y/Shift+Z и
      молчит при открытой модалке. Модалки, при которых не работаем, — те же пять окон, что и везде. */
-  const anyModalOpen=["postModal","framePickerModal","scaleModal","pdfPageModal","wallScopeModal","projectConfirmModal","kpSetupModal","priceCheckModal"]
+  const anyModalOpen=["postModal","framePickerModal","scaleModal","pdfPageModal","wallScopeModal","projectConfirmModal","kpSetupModal","priceCheckModal","installSheetWindowModal"]
     .some(id=>{const m=$(id);return m&&m.classList.contains("open")});
   const histAction=EPHistory.hotkeyAction(e,{modalOpen:anyModalOpen});
   if(histAction){e.preventDefault();histAction==="undo"?undoPlan():redoPlan();return}
@@ -4013,6 +4029,9 @@ document.onkeydown=e=>{
     /* Окно «Прайс по шаблону» (EPPriceCheckUi) — самостоятельное: Esc = «Закрыть», просто скрываем.
        Отчёт — только показ, промисов за кнопками нет; const инициализирован к моменту нажатия клавиши. */
     if($("priceCheckModal").classList.contains("open")){closePriceCheck();return}
+    /* Окно состава листа монтажника (EPInstallSheetWindow, К11-3в) — самостоятельное: Esc закрывает
+       без печати. Галочки уже записаны по ходу (writeOptions→scheduleSave), промисов за кнопками нет. */
+    if($("installSheetWindowModal").classList.contains("open")){installSheetWin().close();return}
     if($("pdfPageModal").classList.contains("open")){finishPdfPageSelection(null);return}
     /* Вопрос об охвате правки типа стены висит ПОВЕРХ конструктора, поэтому разбирается
        раньше конструктора: иначе Esc закрыл бы окно поста из-под неразрешённого промиса. */
@@ -4091,9 +4110,9 @@ window.addEventListener("unhandledrejection",e=>reportFailure("Необрабо�
    (EPOfferPdf/EPInstallSheet/EPPlanLabels/EPSupplierSpec/EPExplodedView) — сюда приходят готовыми. */
 const {buildPostSheet,openInstallSheet}=EPDocs.attach({
   $,STANDARD_LABEL,assembledPostHtml,assembledPostSpec,buildEstimate,canvas,companyLogo,companySignature,
-  companyStamp,companyTerms,displayCurrency,displayRate,docHeader,esc,frameProduct,keySlotKind,lightingHtml,
-  lightingRowsFor,mechanismSpan,money,moneyShown,postComposition,postCost,postTotalCost,postsForGroupLinks,product,
-  productImage,projectLighting,roomNamePoint,scheduleSave,state,toast
+  companyStamp,companyTerms,displayCurrency,displayRate,docHeader,esc,frameProduct,installSheetOptions,
+  keySlotKind,lightingHtml,lightingRowsFor,mechanismSpan,money,moneyShown,openInstallSheetWindow,postComposition,
+  postCost,postTotalCost,postsForGroupLinks,product,productImage,projectLighting,roomNamePoint,scheduleSave,state,toast
 });
 
 /* Окно поста (конструктор) вынесено в js/postBuilder.js (И1, шаг 3). Поднимаем его ОДИН раз здесь, на
@@ -4109,9 +4128,9 @@ const {openPostBuilder,renderPostSlotCountSelect,requestClosePostBuilder,builder
   backlightCatalogOptions,backlightRowSummary,bindProductPictureFallbacks,buildPostSheet,byKind,canvas,
   compatibleMechanisms,defaultPostName,enhancePicker,esc,findByExactCode,frameFacingEmptyText,
   frameFacingHintText,frameFacingLabels,frameFacingList,frameFacingSelectionLabels,frameOptions,frameProduct,
-  frameSlotCount,frameSlotOptions,innardsEmptyText,isBareMechanism,isControlPlaceItem,keySlotKind,
+  frameSlotCount,frameSlotOptions,innardsEmptyText,installSheetOptions,isBareMechanism,isControlPlaceItem,keySlotKind,
   lightingFor,lightingHtml,lightingRowSummary,lightingRowsFor,mechanismModulesTotal,mechanismSpan,
-  moduleWord,money,moneyShown,openInstallSheet,postComposition,postTotalCost,preferOwnFrame,
+  moduleWord,money,moneyShown,openInstallSheet,openInstallSheetWindow,postComposition,postTotalCost,preferOwnFrame,
   product,productMoney,productPicture,productSeries,renderAll,renderLightingSchemeSelect,
   renderProperties,renderSummary,renderTemplates,roomCatalogFilter,socketBox,state,
   toast,uid,updateStatus

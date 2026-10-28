@@ -35,9 +35,9 @@
 function attach(ctx){
 const {
   $,STANDARD_LABEL,assembledPostHtml,assembledPostSpec,buildEstimate,canvas,companyLogo,companySignature,
-  companyStamp,companyTerms,displayCurrency,displayRate,docHeader,esc,frameProduct,keySlotKind,lightingHtml,
-  lightingRowsFor,mechanismSpan,money,moneyShown,postComposition,postCost,postTotalCost,postsForGroupLinks,product,
-  productImage,projectLighting,roomNamePoint,scheduleSave,state,toast
+  companyStamp,companyTerms,displayCurrency,displayRate,docHeader,esc,frameProduct,installSheetOptions,
+  keySlotKind,lightingHtml,lightingRowsFor,mechanismSpan,money,moneyShown,openInstallSheetWindow,postComposition,
+  postCost,postTotalCost,postsForGroupLinks,product,productImage,projectLighting,roomNamePoint,scheduleSave,state,toast
 }=ctx;
 
 /* Состав ОДНОГО поста С ЦЕНАМИ для столбца «Стоимость артикулов» раскладки КП. Считаем ТЕМ ЖЕ
@@ -608,11 +608,11 @@ function installSheetForProject(){
     return ra-rb||(Number(a.number)||0)-(Number(b.number)||0);
   });
   const light=projectLighting();
-  /* Галочки листа (К11-3б): до окна выбора (К11-3в) берём их миграцией старой настройки проекта —
-     лист печатается как сегодня. Считаем ЗДЕСЬ, чтобы теми же галочками погасить деньги в блоке
-     «Группы света»: галочка «Цены» (options.prices) идёт в lightingHtml, а не печатается всегда
-     (прежде блок печатал суммы при любых настройках — дефект, docs/К11-разведка.md). */
-  const options=EPInstallSheetOptions.migrate(EP_DATA.settings);
+  /* Галочки листа (К11-3в): берём их ИЗ ОКНА ВЫБОРА через общий accessor installSheetOptions() —
+     свойство проекта, нет поля → migrate (лист как сегодня). Считаем ЗДЕСЬ, чтобы теми же галочками
+     погасить деньги в блоке «Группы света»: галочка «Цены» (options.prices) идёт в lightingHtml, а не
+     печатается всегда (прежде блок печатал суммы при любых настройках — дефект, docs/К11-разведка.md). */
+  const options=installSheetOptions();
   openInstallSheet({posts:ordered.map(p=>buildPostSheet(p,light,options)),subtitle:"Помодульная раскладка постов по проекту",
     options,
     /* Свод по группам света — после карточек постов: какие механизмы подставил расчёт,
@@ -751,7 +751,9 @@ function exportSpecExcel(){
 /* Провязка кнопок документов на проект — здесь же, где postBuilder провязывает своё окно: кнопка
    «Лист монтажника на проект» и «Сформировать КП». Кнопку «Лист монтажника» в самом конструкторе поста
    вешает EPPostBuilder.attach (у него свой installSheetForBuilder, зовущий наши buildPostSheet/openInstallSheet). */
-$("installSheetBtn").onclick=installSheetForProject;
+/* «Лист монтажника» в шапке (К11-3в): кнопка ОТКРЫВАЕТ окно выбора галочек, печатает — «Открыть лист» в
+   окне (installSheetForProject передаётся печатью проекта). То же окно открывает кнопка в окне поста. */
+$("installSheetBtn").onclick=()=>openInstallSheetWindow({target:"project",print:installSheetForProject});
 $("pdfBtn").onclick=generateCommercialOffer;
 $("xlsxBtn").onclick=exportSpecExcel;
 
