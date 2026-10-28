@@ -617,6 +617,23 @@ test("К11-3б box=false: строки монтажной коробки в об
   assert.match(withOpt({}), /Коробка 3М/, "при box строка коробки есть");
 });
 
+test("К11-3б box=false: жёлтой плашки немецко-французского стандарта нет (владелец 28.10 «убери»)", () => {
+  /* Плашка «Немецко-французский стандарт…» живёт по той же галочке «Монтажная коробка»: это
+     разъяснение про коробки/импосты. Утверждённая фраза: в «Клиенту» плашки нет, в «Строителю»
+     она остаётся, в своих наборах — только при включённой «Монтажной коробке». */
+  const dePost = Object.assign({}, optPost, { number: 5, german: { postCount: 2, supportCount: 2 } });
+  const de = over => buildHtml({ posts: [dePost], options: over }, deps);
+  /* box выключен (в т.ч. набор «Клиенту») → плашки нет */
+  assert.doesNotMatch(de({ box: false }), /class="german-note"/, "при box:false плашки нет");
+  assert.doesNotMatch(buildHtml({ posts: [dePost], options: EPInstallSheetOptions.preset("client") }, deps),
+    /class="german-note"/, "в наборе «Клиенту» плашки нет");
+  /* box включён → плашка на месте (свой набор с коробкой, «Строителю», старый вызов) */
+  assert.match(de({ box: true }), /class="german-note"/, "при box:true плашка есть");
+  assert.match(buildHtml({ posts: [dePost], options: EPInstallSheetOptions.preset("builder") }, deps),
+    /class="german-note"/, "в наборе «Строителю» плашка остаётся");
+  assert.match(buildHtml({ posts: [dePost] }, deps), /class="german-note"/, "старый вызов без options — плашка на месте");
+});
+
 test("К11-3б articles=false: столбцы «Артикул» скрыты, коды пропадают из имён и из меты «Накладка»", () => {
   const coded = Object.assign({}, optPost, {
     frameName: "Накладка Neve Up 3М", frameCode: "09663",

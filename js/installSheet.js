@@ -429,7 +429,11 @@ function buildHtml(data, deps) {
     const germanSupports = post.german && Number(post.german.supportCount) > 1
       ? ` и <b>${Number(post.german.supportCount)}</b> суппорта (по одному в каждую коробку)`
       : "";
-    const germanNote = post.german && post.german.postCount > 1
+    /* Плашка живёт по той же галочке «Монтажная коробка» (opt.box), что и строка коробки
+       в обвязке: это разъяснение про коробки/импосты и адресовано монтажнику. В наборе
+       «Клиенту» (box:false) её нет, в «Строителю»/миграции/старых вызовах (box:true) — на
+       месте байт-в-байт. Решение владельца 28.10: «убери» плашку из листа «Клиенту». */
+    const germanNote = opt.box && post.german && post.german.postCount > 1
       ? `<div class="german-note">Немецко-французский стандарт: сборка разбита на <b>${Number(post.german.postCount)}</b> поста по 2 модуля — <b>${Number(post.german.postCount)}</b> монтажные коробки${germanSupports}, между постами устанавливаются импосты.</div>`
       : "";
 
