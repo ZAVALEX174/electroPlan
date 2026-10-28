@@ -52,16 +52,17 @@ function create(deps) {
     highlight();
   }
 
-  /* Синхронизировать чекбоксы с текущим состоянием галочек проекта. «План с номерами» в режиме одного
-     поста — видна, но неактивна (серая): плана у листа одного поста нет (п.5). Состояние checked
-     показываем честно даже у выключенного чекбокса. */
+  /* Синхронизировать чекбоксы с текущим состоянием галочек проекта. «План с номерами» и «Сводная
+     спецификация» в режиме одного поста — видны, но неактивны (серые): у листа ОДНОГО поста нет ни
+     плана со всеми номерами, ни свода по проекту (п.5, владелец 28.10). Состояние checked показываем
+     честно даже у выключенного чекбокса. */
   function sync() {
     const o = deps.readOptions();
     O.fields.forEach(([key]) => {
       const input = $("installSheetOptionsFields").querySelector(`[data-sheet-key="${key}"]`);
       if (!input) return;
       input.checked = !!o[key];
-      input.disabled = key === "plan" && target === "post";
+      input.disabled = (key === "plan" || key === "supplier") && target === "post";
     });
     highlight();
   }
@@ -114,7 +115,7 @@ function create(deps) {
   function open(cfg) {
     target = cfg && cfg.target === "post" ? "post" : "project";
     printFn = (cfg && cfg.print) || null;
-    /* Подсказка про недоступный план — только в режиме одного поста. */
+    /* Подсказка про недоступные план и свод — только в режиме одного поста. */
     const hint = $("installSheetPlanHint"); if (hint) hint.hidden = target !== "post";
     renderCustom(); sync();
     $("installSheetWindowModal").classList.add("open");

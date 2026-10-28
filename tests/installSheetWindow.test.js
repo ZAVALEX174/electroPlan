@@ -18,6 +18,7 @@
      · B: записать в снимке installSheetOptions всегда (не только при наличии поля) → краснеет
           «старый проект поля не несёт» (байт-в-байт печать сломалась бы — появился бы навязанный набор);
      · C: writeOptions без scheduleSave → краснеет «галочка сохраняет»; без записи — «галочка меняет выбор»;
+     · G: в sync() убрать `|| key==="supplier"` → краснеет «режим поста гасит и Сводную спецификацию»;
      · A: см. installSheetOptions.test.js (нормализация слотов, saveCustomPreset).
    Запуск: node --test tests/installSheetWindow.test.js */
 "use strict";
@@ -222,4 +223,19 @@ test("C: режим одного поста гасит «План с номер�
   w.win.open({ target: "project", print: () => {} });
   assert.equal(w.inputs.plan.disabled, false, "в режиме проекта «План» снова активна");
   assert.equal(w.nodes.installSheetPlanHint.hidden, true, "подсказка скрыта");
+});
+
+/* G (владелец 28.10): у листа ОДНОГО поста нет не только плана со всеми номерами, но и свода по
+   проекту — «Сводная спецификация» (supplier) обязана быть серой так же, как «План с номерами».
+   Мутация «вернуть input.disabled = key==="plan" && target==="post"» (убрать || supplier) краснит здесь. */
+test("G: режим одного поста гасит и «План», и «Сводную спецификацию»; режим проекта — обе активны", () => {
+  const w = makeWindow(EPInstallSheetOptions.preset("builder"));
+  w.win.open({ target: "post", print: () => {} });
+  assert.equal(w.inputs.plan.disabled, true, "в режиме поста «План» неактивна");
+  assert.equal(w.inputs.supplier.disabled, true, "в режиме поста «Сводная спецификация» тоже неактивна");
+  /* Прочие галочки режим поста НЕ гасит — серыми становятся ровно два проектных пункта. */
+  assert.equal(w.inputs.articles.disabled, false, "обычная галочка в режиме поста активна");
+  w.win.open({ target: "project", print: () => {} });
+  assert.equal(w.inputs.plan.disabled, false, "в режиме проекта «План» активна");
+  assert.equal(w.inputs.supplier.disabled, false, "в режиме проекта «Сводная спецификация» активна");
 });

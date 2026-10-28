@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261025.1">
+  <link rel="stylesheet" href="css/styles.css?v=20261028.1">
 </head>
 <body>
 <div class="app">
@@ -661,7 +661,7 @@
       <div class="offer-presets offer-presets-custom" id="installSheetCustomPresets"></div>
       <small class="hint-line">Свои наборы (до 3) сохраняются в браузере и доступны в любом проекте. Кнопка «↻» перезаписывает набор текущими галочками. Активный набор подсвечен.</small>
       <div id="installSheetOptionsFields"></div>
-      <small class="hint-line" id="installSheetPlanHint" hidden>«План с номерами» — только в листе на весь проект; для листа одного поста из окна он недоступен.</small>
+      <small class="hint-line" id="installSheetPlanHint" hidden>«План с номерами» и «Сводная спецификация» — только в листе на весь проект; для листа одного поста из окна они недоступны.</small>
     </div>
     <div class="modal-footer">
       <button class="btn primary" id="installSheetWindowOpen" type="button">Открыть лист</button>
@@ -739,7 +739,7 @@
 <!-- Окно выбора состава листа монтажника (К11-3в): модалка #installSheetWindowModal — галочки, готовые
      наборы и свои слоты. Своя у листа, не общая с КП. Грузится ДО app.js, который поднимает её
      EPInstallSheetWindow.create(...) и даёт открывалку кнопкам «Лист монтажника» (шапка и окно поста). -->
-<script src="js/installSheetWindow.js?v=20261028.1"></script>
+<script src="js/installSheetWindow.js?v=20261028.2"></script>
 <script src="js/docRequisites.js?v=20261003.1"></script>
 <script src="js/estimate.js?v=20261023.2"></script>
 <!-- Единое правило «какая это картинка» (формат по сигнатуре первых байтов, MIME для data-URL).
@@ -804,7 +804,7 @@
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
-<script src="js/docs.js?v=20261028.2"></script>
+<script src="js/docs.js?v=20261028.3"></script>
 <!-- Ввод на холсте (клики, перенос объектов, панорама, зум колесом): trackDrag, makeDraggable,
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него
@@ -825,7 +825,7 @@
      EPPostCopyUi.attach(ctx) ПОСЛЕ EPCanvasInput.attach (оттуда приходит canvasPointer). -->
 <script src="js/notices.js?v=20261018.1"></script>
 <script src="js/postCopyUi.js?v=20261018.1"></script>
-<script src="js/projectFile.js?v=20261019.1"></script>
+<script src="js/projectFile.js?v=20261028.1"></script>
 <!-- Окно «Данные проекта и КП» (#kpSetupModal): открыть/закрыть, авто-открытие на чистом старте
      (решение владельца 20.10). Чистая функция shouldOpenOnLoad + тонкий attach. До app.js. -->
 <script src="js/projectSetup.js?v=20261020.1"></script>
