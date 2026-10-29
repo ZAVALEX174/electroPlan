@@ -30,6 +30,9 @@ svg.i{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-
 .tb-icon:hover{background:rgba(255,255,255,.1)}
 .tb-icon[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:40px;left:50%;transform:translateX(-50%);white-space:nowrap;background:#0b1622;color:#fff;font-size:var(--fs-s);padding:5px 8px;border-radius:5px;z-index:20}
 .tb-icon[data-tip]:last-child:hover::after{left:auto;right:0;transform:none}
+/* Кнопка #rpToggle (выдвинуть правую панель) нужна только на узких экранах, где панель выезжает поверх
+   холста; на широких панель всегда в сетке — кнопка скрыта. Показ — в @media(max-width:1100px) ниже. */
+.only-narrow{display:none!important}
 .tb-btn{height:34px;display:inline-flex;align-items:center;gap:7px;padding:0 12px;border-radius:var(--r-s);border:1px solid var(--topbar-btn-line);background:var(--topbar-btn);color:var(--topbar-fg);font-weight:700;font-size:var(--fs-m);white-space:nowrap}
 .tb-btn.primary{background:#fff;color:var(--navy);border-color:#fff}
 .tb-btn .i-chev{width:14px;height:14px}
@@ -71,7 +74,11 @@ svg.i{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-
 /* Необратимое подтверждение (сброс подложки): цвет опасности, чтобы кнопку не спутать с
    соседними и клик по ней был осознанным. */
 .btn.danger{border-color:transparent;color:#fff;background:var(--danger)}
-.workspace{min-height:0;display:grid;grid-template-columns:292px 1fr 310px;gap:12px;padding:12px}
+/* Ширины колонок по макету (Редизайн 2): левые инструменты — холст — правая панель. На ноутбуках
+   ≤1280 панели сужаются, холсту остаётся больше места. Выезд правой панели и 2-колоночная раскладка —
+   в @media(max-width:1100px) ниже. */
+.workspace{min-height:0;display:grid;grid-template-columns:264px 1fr 300px;gap:12px;padding:12px}
+@media(max-width:1280px){.workspace{grid-template-columns:240px 1fr 270px}}
 .sidebar,.main-panel{min-height:0;border:1px solid rgba(217,232,247,.92);border-radius:10px;background:#fff;box-shadow:var(--shadow)}
 .sidebar{padding:16px;overflow:auto}.sidebar section+section{margin-top:22px}
 /* «Одиночные элементы» убраны (заказчик 24.08 — элементы только внутри постов): левую
@@ -207,7 +214,9 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
    («в правом верхнем углу блока»). Правила адресуют классы блока, не голый label, поэтому
    .builder-form label{display:block} (другой контейнер) их не касается. */
 .room-facing-block{margin-top:12px;padding:10px;border:1px solid #d5e4f0;border-radius:10px;background:#f7fbfe}
-.room-facing-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+/* flex-wrap: при узкой панели переключатель «Списком / С картинками» переносится под заголовок, а не
+   обрезается правым краем (Редизайн 2 — панель уже, заголовок с именем комнаты длинный). */
+.room-facing-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
 .room-facing-title{color:var(--muted);font-size:10px;font-weight:800}
 .room-facing-view{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
 .room-facing-view-btn{padding:4px 8px;border:0;background:#fff;color:var(--blue-dark);font-size:9px;font-weight:800;cursor:pointer}
@@ -362,7 +371,53 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .hover-card{display:none;position:absolute;z-index:50;width:265px;padding:12px;transform:rotate(var(--world-rot,0deg));transform-origin:top left;border:1px solid var(--line-strong);border-radius:14px;background:rgba(255,255,255,.97);box-shadow:0 18px 45px rgba(20,77,128,.22);pointer-events:none}.hover-card.show{display:block}.hover-card h4{margin:0 0 7px;font-size:13px}.hover-card dl{display:grid;grid-template-columns:1fr auto;gap:5px;margin:0;font-size:10px}.hover-card dt{color:var(--muted)}.hover-card dd{margin:0;text-align:right;font-weight:800}.hover-composition{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}.hover-chip{padding:4px 6px;border-radius:7px;background:var(--blue-soft);font-size:9px;font-weight:800;color:var(--blue-dark)}
 .empty-properties{padding:14px;border:1px dashed var(--line-strong);border-radius:12px;color:var(--muted);font-size:11px;text-align:center}
 .property-actions{display:flex;gap:7px;margin-top:10px}.property-actions button{flex:1}
-.price-card{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:11px}.price-card span{color:var(--muted)}.price-card strong{font-size:12px}.grand-total{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:13px;border-radius:12px;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue-dark))}.grand-total strong{font-size:18px}
+/* ---------- Правая панель (Редизайн 2): флекс-колонка со скроллом + прибитый к низу «Итого» ----------
+   .sidebar задаёт padding:16px/overflow:auto — для правой панели переопределяем: сама панель ничего не
+   скроллит и без внутренних отступов (их несут .pane-body), прокрутка живёт в .right-scroll, а тёмный
+   «Итого» стоит ПОСЛЕ неё и виден при любой прокрутке. */
+.right-panel{display:flex;flex-direction:column;padding:0;overflow:hidden}
+.right-scroll{flex:1 1 auto;min-height:0;overflow:auto}
+/* Сворачиваемая секция (<details class="pane">): заголовок-стрелка слева, серо-синий краткий статус
+   справа (margin-left:auto). Треугольник рисуем из бордеров и поворачиваем на [open] — свой маркер
+   вместо браузерного. */
+.pane{border-bottom:1px solid var(--line)}
+.pane>summary{list-style:none;display:flex;align-items:center;gap:8px;padding:12px 16px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#52616f}
+.pane>summary::-webkit-details-marker{display:none}
+.pane>summary::before{content:"";width:6px;height:6px;flex:0 0 auto;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(-45deg);transition:transform .15s}
+.pane[open]>summary::before{transform:rotate(45deg)}
+.pane-status{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:700;color:var(--blue-dark)}
+.pane-status b{font-weight:800}
+.pane-body{padding:0 16px 16px}
+/* P2-4: свойства сеткой «подпись → значение». renderProperties НЕ меняется — поле лежит ВНУТРИ label
+   (<label>текст<input>/<select></label>), поэтому гридим сам label: его текст (анонимный элемент) уходит
+   в колонку подписи (серым, справа), поле — в колонку значения, одной высоты 28px. Сложные блоки
+   (кнопки .property-actions, подсказки .prop-hint/.hint-line, группы .post-groups, короб
+   .room-equipment-box) — не label, остаются во всю ширину. Пустое состояние (.empty-properties) — свой
+   центрированный бокс, флекс-колонку на него не навешиваем. */
+#properties:not(.empty-properties){display:flex;flex-direction:column;gap:8px}
+#properties label{display:grid;grid-template-columns:96px 1fr;align-items:center;gap:4px 10px;margin:0;color:var(--muted);font-size:11px;font-weight:700;text-align:right}
+#properties label>input:not([type="checkbox"]):not([type="radio"]),#properties label>select,#properties label>textarea{width:100%;height:28px;min-height:28px;padding:0 8px;border-radius:8px;text-align:left;font-weight:600}
+#properties label>textarea{height:auto;min-height:56px;padding:6px 8px}
+/* Галочки/радио (например «Стены комнаты») в сетку НЕ кладём — иначе квадратик уезжает в колонку
+   подписи, а текст далеко вправо. Оставляем строкой: галка слева, текст сразу за ней (:has — как у
+   .offer-options label:has(input:disabled) и в макете). */
+#properties label.room-walls-opt{display:flex;align-items:center;gap:7px;text-align:left}
+#properties label:has(input[type="checkbox"]),#properties label:has(input[type="radio"]){display:flex;align-items:center;gap:7px;text-align:left}
+/* Подсказка под парой «подпись→поле» идёт ОТДЕЛЬНОЙ строкой во всю ширину. Базовый .prop-hint тянет
+   себя вверх на -4px (расчёт на старую раскладку «поле под подписью») — в сетке это наезжало на
+   двухстрочную подпись; гасим отрицательный отступ именно в свойствах. */
+#properties .prop-hint,#properties .hint-line{margin-top:0}
+.price-card{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:11px}.price-card span{color:var(--muted)}.price-card strong{font-size:12px}
+/* Тёмный «Итого по проекту» — вне прокрутки, прибит к низу панели (margin со всех сторон, т.к. у
+   .right-panel padding:0). Слева подпись + мелкая строка «КП № …» (#grandTotalKp, display:block),
+   справа сумма. */
+.grand-total{flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;margin:12px;padding:13px;border-radius:12px;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue-dark))}.grand-total strong{font-size:18px}
+.grand-total small,.grand-total-kp{display:block}
+.grand-total small{font-size:11px;opacity:.8}
+.grand-total-kp{margin-top:2px;font-size:11px;font-weight:700;opacity:.85}.grand-total-kp:empty{display:none}
+/* Строки под тёмным «Итого» (режим «Выделить» и предупреждение о позициях без цены) — тоже вне
+   прокрутки; у .right-panel padding:0, поэтому задаём им боковые отступы отдельно. */
+.right-panel>.price-card,.right-panel>.price-note{margin:0 12px 12px}
 /* Атрибут hidden обязан прятать строку итога. UA-стиль [hidden]{display:none} проигрывает
    авторскому .price-card{display:flex} (равная специфичность, но авторский слой важнее UA),
    поэтому #discountRow/#vatRow/#vatIncludedRow оставались видимыми при hidden=true (пустые
@@ -635,7 +690,13 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 /* width:auto перебивает глобальное `label input{width:100%}` — иначе чекбокс растягивается на всю
    ширину панели и толкает подпись «Бетон…» за край (обрезка «Бе/ки/сп/ст»). */
 .room-walls-opt input{flex:none;width:auto;margin:0}
-@media(max-width:1100px){.workspace{grid-template-columns:270px 1fr}.right-panel{display:none}
+@media(max-width:1100px){.workspace{grid-template-columns:240px 1fr}
+/* Правая панель НЕ исчезает (раньше display:none уносил и «Итого»), а выезжает справа поверх холста
+   по кнопке #rpToggle (класс .open). Ниже модалок (z-index 100) и тостов (150) — они остаются поверх.
+   top ≈ высота шапки 52px + отступ; за край уводим на свою ширину + зазор. */
+.only-narrow{display:grid!important}
+.right-panel{position:fixed;top:62px;right:12px;bottom:12px;width:min(320px,calc(100vw - 24px));z-index:90;transform:translateX(calc(100% + 24px));transition:transform .2s;box-shadow:0 18px 45px rgba(16,42,67,.3)}
+.right-panel.open{transform:none}
 /* На узких ноутбуках 560px сборки + каталог карточками рядом не помещаются — складываем
    в одну колонку со сквозным скроллом тела окна (сборка сверху, каталог под ней).
    Сборку страхует резиновая сцена (.assembled-post). */

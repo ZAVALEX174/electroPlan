@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261029.2">
+  <link rel="stylesheet" href="css/styles.css?v=20261029.6">
 </head>
 <body>
 <!-- Контурные иконки шапки (P1-1). Один спрайт <symbol>: иконки используют stroke:currentColor и
@@ -22,6 +22,8 @@
   <symbol id="i-xls" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 4v16"/></symbol>
   <symbol id="i-price" viewBox="0 0 24 24"><path d="M3 12l9-9h8v8l-9 9z"/><circle cx="16" cy="8" r="1.4"/></symbol>
   <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M9 14h2a1.5 1.5 0 0 0 0-3H9v6"/></symbol>
+  <!-- Иконка «панель» для кнопки #rpToggle (Редизайн 2): выдвигает правую панель на узких экранах. -->
+  <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></symbol>
 </svg>
 <div class="app">
   <!-- ШАПКА (P1-1): файл — иконками 34×34, «Данные проекта и КП» — кнопкой, справа строка проекта,
@@ -76,6 +78,9 @@
         </div>
       </div>
       <button class="tb-btn primary" id="pdfBtn" type="button"><svg class="i"><use href="#i-pdf"/></svg>КП в PDF</button>
+      <!-- Выдвинуть правую панель (свойства и стоимость) на узких экранах ≤1100: кнопка видна только там
+           (.only-narrow). Логику выезда/закрытия ведёт EPRightPanel.attach (js/rightPanel.js). -->
+      <button class="tb-icon only-narrow" id="rpToggle" type="button" title="Свойства и стоимость" aria-label="Свойства и стоимость" data-tip="Свойства и стоимость"><svg class="i"><use href="#i-panel"/></svg></button>
     </div>
   </header>
 
@@ -275,95 +280,116 @@
       </div>
     </section>
 
-    <aside class="sidebar right-panel">
-      <section>
-        <div class="section-head"><h3>Свойства</h3></div>
-        <div id="properties" class="empty-properties">Выберите объект на плане</div>
-      </section>
-
-      <!-- Реквизиты КП, мои реквизиты, картинки бланка, условия сделки и состав КП переехали в окно
-           «Данные проекта и КП» (#kpSetupModal, кнопка «Данные КП» в шапке). На рабочем экране их
-           больше нет — вводятся на первом этапе создания проекта (решение владельца 20.10). -->
-
-      <section>
-        <div class="section-head"><h3>Стоимость проекта</h3></div>
-        <div class="price-card">
-          <span>Оборудование</span><strong id="equipmentTotal">0 ₽</strong>
-        </div>
-        <div class="price-card">
-          <span>Монтажные материалы</span><strong id="materialsTotal">0 ₽</strong>
-        </div>
-        <div class="price-card">
-          <span>Работы</span><strong id="workTotal">0 ₽</strong>
-        </div>
-        <div class="price-card" id="discountRow" hidden>
-          <span id="discountLabel">Скидка</span><strong id="discountTotal">0</strong>
-        </div>
-        <div class="price-card" id="vatRow" hidden>
-          <span id="vatRowLabel">НДС</span><strong id="vatTotal">0</strong>
-        </div>
-        <div class="grand-total">
-          <span>Итого</span><strong id="grandTotal">0 ₽</strong>
-        </div>
-        <!-- «в т.ч. НДС» — режим «Выделить в стоимости»: НДС уже сидит в «Итого», поэтому строка
-             стоит ПОД ним, а не в столбце слагаемых (там видимая сумма не сошлась бы). -->
-        <div class="price-card" id="vatIncludedRow" hidden>
-          <span id="vatIncludedLabel">в т.ч. НДС</span><strong id="vatIncludedTotal">0</strong>
-        </div>
-        <!-- Итог обязан ОГОВОРИТЬ позиции без цены (артикул пропал из прайса), а не молча
-             просуммировать остальное: иначе КП уходит заказчику заниженным и без предупреждения. -->
-        <div class="price-note" id="pricelessStatus" role="status" aria-live="polite" hidden></div>
-        <!-- Условия сметы (работы/материалы/скидка/надбавка/НДС/режим НДС) переехали в окно «Данные
-             проекта и КП» (#kpSetupModal). Валюта и курс остаются здесь: ими правят по ходу работы,
-             это не данные КП (решение владельца 20.10, список полей в задаче). -->
-        <div class="terms-row">
-          <label>Валюта
-            <select id="currencySelect">
-              <option value="EUR">Евро (прайс)</option>
-              <option value="RUB">Рубли</option>
-            </select>
-          </label>
-          <label>Курс, ₽ за €<input id="rateInput" type="number" min="0" step="0.0001"></label>
-          <div class="rate-box" id="rateBox" hidden>
-            <small class="hint-line" id="rateInfo">Курс не загружен</small>
-            <button class="btn ghost small" id="rateRefreshBtn" type="button">Курс ЦБ</button>
+    <!-- ПРАВАЯ ПАНЕЛЬ (Редизайн 2 по макету дизайнера): сворачиваемые секции <details class="pane"> со
+         статусом справа в заголовке; их состояние «открыто/закрыто» запоминается у человека (EPPrefs,
+         EPRightPanel.attach) — это привычка, чужой проект её не меняет. Содержимое прокручивается внутри
+         .right-scroll, а тёмный блок «Итого по проекту» прибит к НИЗУ панели ВНЕ прокрутки — итог виден
+         при любой прокрутке. На узких экранах (≤1100) панель выезжает справа поверх холста по кнопке
+         #rpToggle в шапке (position:fixed, ниже модалок z-index 100). Класс строкой именно
+         "sidebar right-panel" и после </section> холста — на это завязаны structural-тесты. -->
+    <aside class="sidebar right-panel" id="rightPanel">
+      <div class="right-scroll">
+        <details class="pane" id="paneProps" open>
+          <summary>Свойства <span class="pane-status" id="propsStatus"></span></summary>
+          <div class="pane-body">
+            <!-- #properties рисует renderProperties динамически (сетку подпись→поле даёт CSS, логика
+                 свойств не меняется). Реквизиты КП и условия сделки переехали в окно «Данные проекта
+                 и КП» (#kpSetupModal), на рабочем экране их нет (решение владельца 20.10). -->
+            <div id="properties" class="empty-properties">Выберите объект на плане</div>
           </div>
-        </div>
-      </section>
+        </details>
 
-      <section>
-        <div class="section-head"><h3>Спецификация</h3><span class="count-pill" id="objectCount">0</span></div>
-        <div class="spec-list" id="specList"></div>
-        <!-- ⚠️ НАСТРОЙКИ ПРОЕКТА ПРАВЯТСЯ ТОЛЬКО ЗДЕСЬ. Схема электрики лежит в EP_DATA.settings и
-             едет в terms проекта — это свойство всего объекта, а не поста. Раньше её орган стоял
-             ВНУТРИ модалки конструктора поста: человек открывал ОДИН пост, переключал схему — и
-             менялся весь проект. Теперь схема живёт здесь, в панели проекта, а в окне поста она
-             показана ТОЛЬКО ДЛЯ ЧТЕНИЯ. Тип стены — свойство отдельного ПОСТА (post.wallType);
-             общей настройки стены проекта тут больше нет (К4б). -->
-        <label class="scheme-field">Схема электрики проекта
-          <select id="lightingSchemeSelect" aria-describedby="lightingSchemeHint"></select>
-        </label>
-        <small class="hint-line" id="lightingSchemeHint"></small>
-        <!-- Подсветка клавиш — настройка ПРОЕКТА (решение владельца 09.09): галочка «считать»
-             плюс цвет и напряжение. Селекторы имеют смысл только при включённой галочке —
-             их доступность ведёт ОДНА функция синхронизации (renderProjectBacklight), а не
-             копии условия по обработчикам. Варианты цвета и напряжения JS строит ИЗ КАТАЛОГА
-             (матчинг строгий: «Зелёная» с ё — иначе подсветка молча не подберётся). -->
-        <label class="scheme-field scheme-field--check">
-          <input type="checkbox" id="backlightEnabled" aria-describedby="backlightHint">
-          Считать подсветку клавиш
-        </label>
-        <label class="scheme-field">Цвет подсветки
-          <select id="backlightColorSelect" aria-describedby="backlightHint"></select>
-        </label>
-        <label class="scheme-field">Напряжение подсветки
-          <select id="backlightVoltageSelect" aria-describedby="backlightHint"></select>
-        </label>
-        <small class="hint-line" id="backlightHint">Аксессуар-LED добавляется к каждому механизму, который принимает подсветку; несовместимым (нет цвета/напряжения) — честный пробел, в цену он не идёт.</small>
-        <!-- Группы света: тот же блок, что печатается в КП и листе монтажника
-             (EPLightingPlan.buildHtml) — чтобы экран и документы не могли разойтись. -->
-        <div id="lightingSummary"></div>
-      </section>
+        <details class="pane" id="paneCost" open>
+          <summary>Стоимость проекта</summary>
+          <div class="pane-body">
+            <div class="price-card"><span>Оборудование</span><strong id="equipmentTotal">0 ₽</strong></div>
+            <div class="price-card"><span>Монтажные материалы</span><strong id="materialsTotal">0 ₽</strong></div>
+            <div class="price-card"><span>Работы</span><strong id="workTotal">0 ₽</strong></div>
+            <div class="price-card" id="discountRow" hidden>
+              <span id="discountLabel">Скидка</span><strong id="discountTotal">0</strong>
+            </div>
+            <!-- «Начислить сверху»: НДС — слагаемое, стоит ДО «Итого» (столбец сходится в сумму).
+                 Порядок #vatRow → .grand-total → #vatIncludedRow сторожит vatModeWiring.test.js. -->
+            <div class="price-card" id="vatRow" hidden>
+              <span id="vatRowLabel">НДС</span><strong id="vatTotal">0</strong>
+            </div>
+            <!-- Валюта и курс правятся по ходу работы (не данные КП, решение владельца 20.10) — поэтому
+                 остаются в панели, а не в окне «Данные проекта и КП». -->
+            <div class="terms-row">
+              <label>Валюта
+                <select id="currencySelect">
+                  <option value="EUR">Евро (прайс)</option>
+                  <option value="RUB">Рубли</option>
+                </select>
+              </label>
+              <label>Курс, ₽ за €<input id="rateInput" type="number" min="0" step="0.0001"></label>
+              <div class="rate-box" id="rateBox" hidden>
+                <small class="hint-line" id="rateInfo">Курс не загружен</small>
+                <button class="btn ghost small" id="rateRefreshBtn" type="button">Курс ЦБ</button>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <!-- Схема и подсветка — настройки ПРОЕКТА, которые формируют спецификацию. Вынесены в свою
+             секцию (а не внутрь «Спецификации»), чтобы «Спецификация» осталась чистым списком-итогом,
+             а настройки имели отдельный сворачиваемый дом (на усмотрение, см. отчёт). -->
+        <details class="pane" id="paneScheme" open>
+          <summary>Схема и подсветка</summary>
+          <div class="pane-body">
+            <!-- ⚠️ ОРГАН УПРАВЛЕНИЯ СХЕМОЙ РОВНО ОДИН — здесь, в панели проекта. Схема электрики лежит
+                 в EP_DATA.settings и едет в terms проекта: это свойство всего объекта, а не поста. В
+                 окне конструктора поста схема показана ТОЛЬКО ДЛЯ ЧТЕНИЯ — её смена пересобирает группы
+                 света во всех постах, из окна одного поста менять весь проект нельзя (К4б). -->
+            <label class="scheme-field">Схема электрики проекта
+              <select id="lightingSchemeSelect" aria-describedby="lightingSchemeHint"></select>
+            </label>
+            <small class="hint-line" id="lightingSchemeHint"></small>
+            <!-- Подсветка клавиш — настройка ПРОЕКТА (решение владельца 09.09): галочка «считать» плюс
+                 цвет и напряжение. Доступность селекторов ведёт ОДНА функция (renderProjectBacklight),
+                 варианты цвета/напряжения строятся ИЗ КАТАЛОГА (матчинг строгий, «Зелёная» с ё). -->
+            <label class="scheme-field scheme-field--check">
+              <input type="checkbox" id="backlightEnabled" aria-describedby="backlightHint">
+              Считать подсветку клавиш
+            </label>
+            <label class="scheme-field">Цвет подсветки
+              <select id="backlightColorSelect" aria-describedby="backlightHint"></select>
+            </label>
+            <label class="scheme-field">Напряжение подсветки
+              <select id="backlightVoltageSelect" aria-describedby="backlightHint"></select>
+            </label>
+            <small class="hint-line" id="backlightHint">Аксессуар-LED добавляется к каждому механизму, который принимает подсветку; несовместимым (нет цвета/напряжения) — честный пробел, в цену он не идёт.</small>
+          </div>
+        </details>
+
+        <details class="pane" id="paneSpec" open>
+          <summary>Спецификация <span class="pane-status">Позиций: <b id="objectCount">0</b></span></summary>
+          <div class="pane-body">
+            <div class="spec-list" id="specList"></div>
+            <!-- Группы света: тот же блок, что печатается в КП и листе монтажника
+                 (EPLightingPlan.buildHtml) — чтобы экран и документы не могли разойтись. -->
+            <div id="lightingSummary"></div>
+          </div>
+        </details>
+      </div>
+
+      <!-- Низ панели, ВНЕ прокрутки: тёмный «Итого по проекту» виден всегда. Сумма — тот же #grandTotal,
+           что пишет renderSummary (второго расчёта нет). «КП № …» (#grandTotalKp) — из docHeader().number
+           через EPRightPanel.syncKpNumber; нет номера → строки нет. -->
+      <div class="grand-total">
+        <div><small>Итого по проекту</small><span class="grand-total-kp" id="grandTotalKp"></span></div>
+        <strong id="grandTotal">0 ₽</strong>
+      </div>
+      <!-- «в т.ч. НДС» (режим «Выделить в стоимости»): НДС уже внутри «Итого», поэтому строка стоит ПОД
+           ним (в столбце слагаемых видимая сумма не сошлась бы). После .grand-total — требование
+           vatModeWiring.test.js. -->
+      <div class="price-card" id="vatIncludedRow" hidden>
+        <span id="vatIncludedLabel">в т.ч. НДС</span><strong id="vatIncludedTotal">0</strong>
+      </div>
+      <!-- Итог обязан ОГОВОРИТЬ позиции без цены (артикул пропал из прайса), а не молча просуммировать
+           остальное: иначе КП уходит заказчику заниженным и без предупреждения. Строка под итогом, а не
+           тост (тост гаснет, человек пропустит). -->
+      <div class="price-note" id="pricelessStatus" role="status" aria-live="polite" hidden></div>
     </aside>
   </main>
 </div>
@@ -885,6 +911,7 @@
 <script src="js/priceCheckUi.js?v=20261025.2"></script>
 <script src="js/planDrop.js?v=20261025.2"></script>
 <script src="js/topbar.js?v=20261029.2"></script>
-<script src="js/app.js?v=20261029.1"></script>
+<script src="js/rightPanel.js?v=20261029.1"></script>
+<script src="js/app.js?v=20261029.2"></script>
 </body>
 </html>

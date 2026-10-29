@@ -1340,6 +1340,10 @@ function renderProperties(){
   if(state.selected&&state.selected.kind==="posts")
     state.selected=EPSelection.normalize(state.selected.ids,state.posts.map(p=>p.id));
   updateSelectionCount();
+  /* Краткий статус секции «Свойства» (Редизайн 2): что выбрано. По умолчанию пусто — ветки ниже
+     ставят подпись выбранного (№ поста / имя комнаты / имя элемента / «Стена» / «Постов: N»). Это
+     ОТРАЖЕНИЕ выделения, логику свойств не трогает. */
+  $("propsStatus").textContent="";
   if(state.selected&&state.selected.kind==="posts"){
     applySelectionClasses();   /* подсветить членов группы точечно, без пересоздания сцены */
     /* Карточка группы: заголовок «Выделено постов: N» и СУММАРНАЯ стоимость = Σ напечатанных цен постов
@@ -1347,6 +1351,7 @@ function renderProperties(){
        (правка нескольких постов разом смысла не имеет). «Удалить выделенные (N)» (Б5 ч.2) зовёт ту же
        removePosts, что и клавиша Delete, — одно правило удаления набора и один шаг истории. */
     const ids=state.selected.ids.slice();   /* фиксируем состав ДО возможной перерисовки — для обработчика кнопки */
+    $("propsStatus").textContent="Постов: "+ids.length;
     const light=projectLighting();
     const total=ids.reduce((s,id)=>{const p=state.posts.find(x=>x.id===id);return p?s+postTotalCost(p,light):s},0);
     props.className="";
@@ -1370,6 +1375,7 @@ function renderProperties(){
   props.className="";
   if(kind==="device"){
     const d=entity,p=product(d.productId);
+    $("propsStatus").textContent=p.name;
     const room=state.rooms.find(r=>r.id===d.roomId);
     props.innerHTML=`<label>Элемент<input value="${esc(p.name)}" disabled></label>
     <label>Комната<input value="${esc(room?.name||"Не назначена")}" disabled></label>
@@ -1388,6 +1394,7 @@ function renderProperties(){
     $("removeSelected").onclick=()=>removeEntity(kind,id);
   }else if(kind==="post"){
     const p=entity;
+    $("propsStatus").textContent=postNumberLabel(p);
     const room=state.rooms.find(r=>r.id===p.roomId);
     /* ⚠️ КАРТОЧКА ОБЯЗАНА БЫТЬ СОГЛАСОВАНА САМА С СОБОЙ. «Механизмов / коробок» считает состав
        ПОСТА (post.mechanismIds — то, что занимает модули рамки), а «Стоимость» — полная цена
@@ -1452,6 +1459,7 @@ function renderProperties(){
     };
   }else if(kind==="wall"){
     const wobj=entity;
+    $("propsStatus").textContent="Стена";
     const len=wobj?Math.round(Math.hypot(wobj.b.x-wobj.a.x,wobj.b.y-wobj.a.y)):0;
     props.innerHTML=`<label>Тип<input value="${wobj?.auto?"Стена (автообрисовка)":"Стена (вручную)"}" disabled></label>
     <label>Длина на холсте<input value="${len} px" disabled></label>
@@ -1459,6 +1467,7 @@ function renderProperties(){
     $("removeSelected").onclick=()=>removeWall(id);
   }else{
     const r=entity;
+    $("propsStatus").textContent=r.name||"Комната";
     const roomObjects=getObjectsInRoom(r.id);
     const isPoly=r.polygon&&r.polygon.length>2;
     const autoArea=roomAutoAreaText(r);
@@ -3016,6 +3025,7 @@ function applyDocHeader(){
   const dh=EP_DATA.settings.docHeader=EP_DATA.settings.docHeader||{};
   Object.entries(DOC_FIELDS).forEach(([id,key])=>{dh[key]=$(id).value});
   topbar.syncProjectName();   /* правка «Проект»/«Номер» видна в строке шапки сразу (один источник, §7.1) */
+  rightPanel.syncKpNumber();  /* «КП № …» в нижнем блоке «Итого» — тот же источник docHeader (§7.1) */
   scheduleSave();
 }
 function fillDocHeaderInputs(){
@@ -3036,6 +3046,7 @@ function fillDocHeaderInputs(){
      все они зовут fillDocHeaderInputs и МЕНЯЮТ project/number БЕЗ события input, поэтому строку шапки
      перечитываем здесь тем же единственным syncProjectName (§7.1). */
   topbar.syncProjectName();
+  rightPanel.syncKpNumber();  /* и «КП № …» в нижнем блоке «Итого» — из того же docHeader (§7.1) */
 }
 
 /* Панель «Реквизиты КП», блоки «Мои реквизиты» (бланк человека, EPPrefs) и «Реквизиты заказчика»
@@ -4062,6 +4073,10 @@ document.onkeydown=e=>{
       }
       e.preventDefault();requestClosePostBuilder();return;
     }
+    /* Выезжающая правая панель (узкие экраны, EPRightPanel) — лёгкая выдвижная палитра: Esc закрывает
+       её ПОСЛЕ всех модалок и конструктора (они перекрывают панель и разобраны выше), но ДО снятия
+       инструмента. isOpen сам гейтит по ширине, на широком экране не срабатывает. */
+    if(rightPanel.isOpen()){rightPanel.close();return}
     setTool("select");
   }
   /* ПОКА ОТКРЫТО ЛЮБОЕ МОДАЛЬНОЕ ОКНО — КЛАВИШИ ХОЛСТА НИЖЕ НЕ СРАБАТЫВАЮТ (одним условием в одном
@@ -4124,6 +4139,13 @@ window.addEventListener("unhandledrejection",e=>reportFailure("Необрабо�
 const topbar=EPTopbar.attach({$,docHeader});
 topbar.syncProjectName();   /* показать строку сразу на загрузке, до первой правки полей */
 
+/* Правая панель (Редизайн 2, EPRightPanel.attach): память «открыто/закрыто» секций (EPPrefs), строка
+   «КП № …» в нижнем блоке «Итого» (syncKpNumber — из того же docHeader, что строка шапки, §7.1) и выезд
+   панели на узких экранах (кнопка #rpToggle, Esc/клик вне — закрытие). Зависимости ($/docHeader/EPPrefs)
+   к этому моменту объявлены (docHeader — hoisted, EPPrefs — глобальный namespace), TDZ нет. */
+const rightPanel=EPRightPanel.attach({$,docHeader,EPPrefs});
+rightPanel.syncKpNumber();   /* показать «КП № …» сразу на загрузке, тем же путём, что и строку шапки */
+
 const {buildPostSheet,openInstallSheet}=EPDocs.attach({
   $,STANDARD_LABEL,assembledPostHtml,assembledPostSpec,buildEstimate,canvas,companyLogo,companySignature,
   companyStamp,companyTerms,displayCurrency,displayRate,docHeader,esc,frameProduct,installSheetOptions,
@@ -4135,7 +4157,7 @@ const {buildPostSheet,openInstallSheet}=EPDocs.attach({
    освежаем строку проекта в шапке тем же единственным syncProjectName (§7.1), оборачивая обработчик
    #pdfBtn и НЕ трогая сам генератор КП. Вызов идемпотентен: при ручном/непустом номере строка не меняется. */
 const _generateOffer=$("pdfBtn").onclick;
-$("pdfBtn").onclick=function(e){if(_generateOffer)_generateOffer.call(this,e);topbar.syncProjectName();};
+$("pdfBtn").onclick=function(e){if(_generateOffer)_generateOffer.call(this,e);topbar.syncProjectName();rightPanel.syncKpNumber();};
 
 /* Окно поста (конструктор) вынесено в js/postBuilder.js (И1, шаг 3). Поднимаем его ОДИН раз здесь, на
    самом низу файла, — к этому моменту определены все зависимости, которые окно берёт из app.js (нет TDZ),
