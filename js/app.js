@@ -3015,6 +3015,7 @@ function docHeader(){
 function applyDocHeader(){
   const dh=EP_DATA.settings.docHeader=EP_DATA.settings.docHeader||{};
   Object.entries(DOC_FIELDS).forEach(([id,key])=>{dh[key]=$(id).value});
+  topbar.syncProjectName();   /* правка «Проект»/«Номер» видна в строке шапки сразу (один источник, §7.1) */
   scheduleSave();
 }
 function fillDocHeaderInputs(){
@@ -3031,6 +3032,10 @@ function fillDocHeaderInputs(){
   /* дата по умолчанию — сегодня (ISO для input[type=date]); значение можно изменить */
   $("docDate").value=d.date||new Date().toISOString().slice(0,10);
   fillRequisitesInputs();   /* галочка «Разработчик» и оба блока реквизитов */
+  /* Этот путь — загрузка (init), восстановление (restoreProject) и открытие из файла (loadProjectIntoUi):
+     все они зовут fillDocHeaderInputs и МЕНЯЮТ project/number БЕЗ события input, поэтому строку шапки
+     перечитываем здесь тем же единственным syncProjectName (§7.1). */
+  topbar.syncProjectName();
 }
 
 /* Панель «Реквизиты КП», блоки «Мои реквизиты» (бланк человека, EPPrefs) и «Реквизиты заказчика»
@@ -4017,6 +4022,10 @@ document.onkeydown=e=>{
        EPConfirmRepeat страхует то же самое со стороны логики (человек может и постучать по
        клавише), но здесь дефект снимается в источнике. */
     if(e.repeat)return;
+    /* Меню «Документы» в шапке (EPTopbar) — лёгкая выпадашка, не модальное окно: Esc просто закрывает
+       её и дальше не идёт (иначе снялся бы инструмент/другое окно). Разбираем ПЕРВЫМ — оно живёт в
+       шапке, поверх всего, модалки с ним одновременно не открываются. */
+    if(topbar.isDocsMenuOpen()){topbar.closeDocsMenu();return}
     /* Мастер отделки — самостоятельная модалка (открыт из свойств комнаты, не поверх конструктора):
        Esc закрывает её, отбрасывая черновик, как у остальных простых окон. */
     if($("framePickerModal").classList.contains("open")){closeFramePicker();return}
@@ -4108,12 +4117,25 @@ window.addEventListener("unhandledrejection",e=>reportFailure("Необрабо�
    (EPPostBuilder.attach ниже), поэтому docs.attach ОБЯЗАН стоять ПЕРЕД ним, иначе чтение этих const до
    инициализации дало бы ReferenceError (TDZ) при загрузке страницы. Чистые построители HTML уже в модулях
    (EPOfferPdf/EPInstallSheet/EPPlanLabels/EPSupplierSpec/EPExplodedView) — сюда приходят готовыми. */
+/* Шапка (P1-1, EPTopbar.attach): строит строку «проект · № КП» справа (syncProjectName — ОДНО место
+   правила текста, зовут его applyDocHeader/fillDocHeaderInputs) и ведёт меню «Документы» (открытие,
+   клик вне, стрелки, aria). Поднимаем ДО EPDocs.attach и обёртки #pdfBtn ниже: обе пользуются topbar.
+   Зависимости ($ и docHeader) к этому моменту объявлены (docHeader — hoisted-функция), TDZ нет. */
+const topbar=EPTopbar.attach({$,docHeader});
+topbar.syncProjectName();   /* показать строку сразу на загрузке, до первой правки полей */
+
 const {buildPostSheet,openInstallSheet}=EPDocs.attach({
   $,STANDARD_LABEL,assembledPostHtml,assembledPostSpec,buildEstimate,canvas,companyLogo,companySignature,
   companyStamp,companyTerms,displayCurrency,displayRate,docHeader,esc,frameProduct,installSheetOptions,
   keySlotKind,lightingHtml,lightingRowsFor,mechanismSpan,money,moneyShown,openInstallSheetWindow,postComposition,
   postCost,postTotalCost,postsForGroupLinks,product,productImage,projectLighting,roomNamePoint,scheduleSave,state,toast
 });
+/* Автономер КП выдаётся ВНУТРИ generateCommercialOffer (docs.js) при первой печати пустого номера —
+   это ещё один путь, которым меняется docHeader.number (пишется в поле программно, без события). Следом
+   освежаем строку проекта в шапке тем же единственным syncProjectName (§7.1), оборачивая обработчик
+   #pdfBtn и НЕ трогая сам генератор КП. Вызов идемпотентен: при ручном/непустом номере строка не меняется. */
+const _generateOffer=$("pdfBtn").onclick;
+$("pdfBtn").onclick=function(e){if(_generateOffer)_generateOffer.call(this,e);topbar.syncProjectName();};
 
 /* Окно поста (конструктор) вынесено в js/postBuilder.js (И1, шаг 3). Поднимаем его ОДИН раз здесь, на
    самом низу файла, — к этому моменту определены все зависимости, которые окно берёт из app.js (нет TDZ),

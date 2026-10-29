@@ -4,39 +4,78 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261028.1">
+  <link rel="stylesheet" href="css/styles.css?v=20261029.2">
 </head>
 <body>
+<!-- Контурные иконки шапки (P1-1). Один спрайт <symbol>: иконки используют stroke:currentColor и
+     наследуют цвет текста кнопки. Иконки инструментов/тулбара (i-select и т.п.) — отдельная задача
+     (P2-1), здесь только иконки шапки. -->
+<svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+  <symbol id="i-new" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M12 11v6M9 14h6"/></symbol>
+  <symbol id="i-open" viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v10H3z"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v6h8V3M8 21v-7h8v7"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M9 12h6M9 16h6"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14 6a4 4 0 0 0 5 5l-8 8a2 2 0 0 1-3-3l8-8a4 4 0 0 1-2-2z"/></symbol>
+  <symbol id="i-xls" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 4v16"/></symbol>
+  <symbol id="i-price" viewBox="0 0 24 24"><path d="M3 12l9-9h8v8l-9 9z"/><circle cx="16" cy="8" r="1.4"/></symbol>
+  <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M9 14h2a1.5 1.5 0 0 0 0-3H9v6"/></symbol>
+</svg>
 <div class="app">
+  <!-- ШАПКА (P1-1): файл — иконками 34×34, «Данные проекта и КП» — кнопкой, справа строка проекта,
+       редкие выгрузки — в одном меню «Документы», главное действие — белая «КП в PDF». ID кнопок НЕ
+       менялись — обработчики в app.js/projectFile.js/docs.js продолжают работать по id. -->
   <header class="topbar">
-    <div class="brand">
-      <div class="brand-mark"><span>EP</span></div>
-      <div><strong>ElectroPlan Pro</strong><span>инженерная система проектирования</span></div>
-    </div>
-    <div class="top-actions">
-      <button class="btn ghost" id="saveProjectBtn">Сохранить проект</button>
-      <!-- Проект в файл: скачать на компьютер / открыть любой такой файл / начать чистый проект
-           (EPProjectFile). #saveProjectBtn (автосейв в браузере) оставлен как есть. -->
-      <button class="btn ghost" id="downloadProjectBtn">Скачать проект</button>
-      <button class="btn ghost" id="openProjectBtn">Открыть проект</button>
+    <div class="brand"><div class="brand-mark">EP</div><strong>ElectroPlan Pro</strong></div>
+
+    <!-- Файл проекта: частые действия иконками с подсказкой. data-tip — стилизованная всплывашка из
+         макета; title/aria-label дублируют текст для ОС и скринридера. Подсказку клавиши НЕ пишем —
+         Ctrl+S в программе не реализован. Скрытый #openProjectInput остаётся в DOM рядом со своей
+         кнопкой (его открывает «Открыть проект» из EPProjectFile). -->
+    <div class="tb-group" aria-label="Файл проекта">
+      <button class="tb-icon" id="newProjectBtn" type="button" title="Новый проект" aria-label="Новый проект" data-tip="Новый проект"><svg class="i"><use href="#i-new"/></svg></button>
+      <button class="tb-icon" id="openProjectBtn" type="button" title="Открыть проект" aria-label="Открыть проект" data-tip="Открыть проект"><svg class="i"><use href="#i-open"/></svg></button>
       <input id="openProjectInput" type="file" accept=".json,.electroplan.json,application/json" hidden>
-      <button class="btn ghost" id="newProjectBtn">Новый проект</button>
-      <!-- Данные проекта и КП (EPProjectSetup): объект/адрес, заказчик, мои реквизиты, условия сметы.
-           На чистом старте окно открывается само; эта кнопка открывает его для правки (решение
-           владельца 20.10). Поля живут в окне #kpSetupModal — у значения один источник. -->
-      <button class="btn ghost" id="kpDataBtn">Данные КП</button>
-      <button class="btn ghost" id="installSheetBtn">Лист монтажника</button>
-      <button class="btn primary" id="pdfBtn">Коммерческое предложение PDF</button>
-      <button class="btn ghost" id="xlsxBtn">Спецификация Excel</button>
-      <!-- Прайс по шаблону (К9, решение владельца 24.10): окно «Скачать шаблон» / «Проверить файл».
-           Разметку окна и логику строит EPPriceCheckUi (js/priceCheckUi.js) — здесь только кнопка. -->
-      <button class="btn ghost" id="priceTemplateBtn">Прайс по шаблону</button>
-      <!-- Кол-во в упаковке (К6): галка рядом с выгрузкой Excel. По умолчанию снята; хранится в
-           проекте (переживает перезагрузку и файл проекта). Включённая считает лист «По артикулам»
-           кратно упаковке — округляет количество каждого артикула вверх до целых упаковок. -->
-      <label class="pack-multiple" id="packMultipleLabel" title="Количество каждого артикула в листе «По артикулам» округляется вверх до целых упаковок">
-        <input type="checkbox" id="packMultipleCheck"> рассчитать кратно упаковке
-      </label>
+      <button class="tb-icon" id="saveProjectBtn" type="button" title="Сохранить проект" aria-label="Сохранить проект" data-tip="Сохранить проект"><svg class="i"><use href="#i-save"/></svg></button>
+      <button class="tb-icon" id="downloadProjectBtn" type="button" title="Скачать проект" aria-label="Скачать проект" data-tip="Скачать проект"><svg class="i"><use href="#i-download"/></svg></button>
+    </div>
+
+    <!-- Данные проекта и КП (EPProjectSetup): объект/адрес, заказчик, мои реквизиты, условия сметы.
+         На чистом старте окно открывается само; эта кнопка открывает его для правки (решение
+         владельца 20.10). Поля живут в окне #kpSetupModal — у значения один источник. На узком экране
+         подпись (.tb-label) скрывается, остаётся иконка — title/aria-label дублируют смысл. -->
+    <div class="tb-group">
+      <button class="tb-btn" id="kpDataBtn" type="button" title="Данные проекта и КП" aria-label="Данные проекта и КП"><svg class="i"><use href="#i-info"/></svg><span class="tb-label">Данные <span class="lbl-long">проекта и </span>КП</span></button>
+    </div>
+
+    <!-- Имя проекта и № КП: серый текст справа. Текст строит EPTopbar.syncProjectName из docHeader
+         (один источник): имя проекта (.pn-project) обрезается «…» при нехватке места, «· КП № …»
+         (.pn-number) остаётся видимым; полный текст лежит в title. Элемент занимает свободное место
+         шапки (flex) и служит распоркой — прижимает меню/«КП в PDF» вправо. -->
+    <span class="project-name" id="headerProjectName"></span>
+
+    <div class="tb-group" style="border:0">
+      <!-- Документы: редкие выгрузки в одном меню (EPTopbar). Пункты — ПРЕЖНИЕ кнопки по id. Галка
+           «кратно упаковке» (К6) переехала под «Спецификацию Excel» — тот же label/input, смысл не
+           менялся; клик по ней меню не закрывает. На узком экране подпись и стрелка скрываются —
+           остаётся иконка (title/aria-label дублируют смысл). -->
+      <div class="dd" id="docsDd">
+        <button class="tb-btn" id="docsBtn" type="button" title="Документы" aria-label="Документы"><svg class="i"><use href="#i-doc"/></svg><span class="tb-label">Документы</span><svg class="i i-chev"><use href="#i-chev"/></svg></button>
+        <div class="dd-menu" role="menu">
+          <button class="dd-item" id="installSheetBtn" type="button" role="menuitem"><svg class="i"><use href="#i-wrench"/></svg><span>Лист монтажника<small>PDF для бригады</small></span></button>
+          <button class="dd-item" id="xlsxBtn" type="button" role="menuitem"><svg class="i"><use href="#i-xls"/></svg><span>Спецификация Excel<small>по артикулам и по помещениям</small></span></button>
+          <!-- Кол-во в упаковке (К6): по умолчанию снята; хранится в проекте (переживает перезагрузку и
+               файл проекта). Включённая считает лист «По артикулам» кратно упаковке. -->
+          <label class="dd-check" id="packMultipleLabel" title="Количество каждого артикула в листе «По артикулам» округляется вверх до целых упаковок"><input type="checkbox" id="packMultipleCheck"> рассчитать кратно упаковке</label>
+          <div class="dd-sep"></div>
+          <!-- Прайс по шаблону (К9, решение владельца 24.10): окно «Скачать шаблон» / «Проверить файл».
+               Разметку окна и логику строит EPPriceCheckUi (js/priceCheckUi.js) — здесь только кнопка. -->
+          <button class="dd-item" id="priceTemplateBtn" type="button" role="menuitem"><svg class="i"><use href="#i-price"/></svg><span>Прайс по шаблону<small>скачать шаблон / проверить файл</small></span></button>
+        </div>
+      </div>
+      <button class="tb-btn primary" id="pdfBtn" type="button"><svg class="i"><use href="#i-pdf"/></svg>КП в PDF</button>
     </div>
   </header>
 
@@ -845,6 +884,7 @@
 <script src="js/priceTemplateFile.js?v=20261025.1"></script>
 <script src="js/priceCheckUi.js?v=20261025.2"></script>
 <script src="js/planDrop.js?v=20261025.2"></script>
-<script src="js/app.js?v=20261025.5"></script>
+<script src="js/topbar.js?v=20261029.2"></script>
+<script src="js/app.js?v=20261029.1"></script>
 </body>
 </html>

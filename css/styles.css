@@ -4,24 +4,67 @@
   --text:#17212b;--muted:#6e7c89;--navy:#102a43;--navy-2:#183b56;--blue:#1769aa;
   --blue-dark:#0f4f82;--blue-soft:#e7f0f7;--cyan:#2d8fbd;--danger:#bf3f4e;
   --shadow:0 10px 30px rgba(19,41,61,.09);
+  /* Токены новой шапки (P1-1): цвета кнопок на тёмной полосе, радиусы и размеры шрифта. Заведены под
+     эту задачу; полная чистка хардкодов в переменные — отдельная задача (P3-1). */
+  --topbar-fg:#e9f0f5;--topbar-btn:#183b56;--topbar-btn-line:#31546f;
+  --fs-xs:11px;--fs-s:12px;--fs-m:13px;--r-s:6px;--r-m:10px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);background:#e9edf2}
 button,input,select{font:inherit}
 button{cursor:pointer}
-.app{height:100vh;display:grid;grid-template-rows:68px 1fr}
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 20px;background:var(--navy);border-bottom:1px solid #27445d;color:#fff}
-.brand{display:flex;align-items:center;gap:11px}
-.brand-mark{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;color:#fff;font-weight:900;background:#fff;color:var(--navy);border:1px solid rgba(255,255,255,.35);box-shadow:none}
-.brand strong,.brand span{display:block}.brand strong{font-size:17px;letter-spacing:.01em}.brand span{font-size:10px;color:#aebfcd;margin-top:2px}.brand-mark span{font-size:13px}
-.top-actions{display:flex;gap:8px}.topbar .btn.ghost{background:#183b56;border-color:#31546f;color:#e9f0f5}.topbar .btn.primary{background:#fff;color:var(--navy);box-shadow:none}
-/* Галка «рассчитать кратно упаковке» (К6) в шапке рядом с выгрузкой Excel: светлый текст на тёмной
-   полосе, как у .topbar .btn.ghost; выравниваем по центру с кнопками, флажок не сжимаем (flex-shrink:0).
-   Раскладку шапки не трогаем — это обычный flex-элемент того же ряда, что и кнопки. */
-.pack-multiple{display:inline-flex;align-items:center;gap:6px;color:#e9f0f5;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
-/* Чекбокс натурального размера: общее правило `label input{width:100%;padding:9px 10px}` (строка выше)
-   иначе растягивает флажок на всю ширину и выталкивает подпись за край шапки. Гасим width/padding/border. */
-.pack-multiple input{flex:0 0 auto;width:auto;margin:0;padding:0;border:0;cursor:pointer}
+.app{height:100vh;display:grid;grid-template-rows:52px 1fr}
+svg.i{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+/* ---------- Шапка (P1-1): три группы вместо девяти равных кнопок ---------- */
+.topbar{display:flex;align-items:center;gap:16px;padding:0 14px;background:var(--navy);color:var(--topbar-fg);border-bottom:1px solid #27445d}
+.brand{display:flex;align-items:center;gap:9px;margin-right:6px;flex-shrink:0}
+.brand-mark{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:#fff;color:var(--navy);font-weight:900;font-size:12px}
+.brand strong{font-size:15px;white-space:nowrap}
+/* Группа шапки: иконки/кнопки с тонким разделителем слева. flex-shrink:0 — группы не сжимаются, всё
+   свободное место и всю усадку берёт на себя строка проекта (.project-name), а не кнопки. */
+.tb-group{display:flex;align-items:center;gap:2px;padding-left:12px;border-left:1px solid rgba(255,255,255,.12);flex-shrink:0}
+/* Иконка файла 34×34: подсказка — стилизованной всплывашкой из data-tip (title/aria-label дублируют
+   текст для ОС и скринридера). У последней в ряду всплывашку выравниваем по правому краю, иначе она
+   уходила бы за экран. */
+.tb-icon{width:34px;height:34px;display:grid;place-items:center;border:0;border-radius:var(--r-s);background:transparent;color:var(--topbar-fg);position:relative}
+.tb-icon:hover{background:rgba(255,255,255,.1)}
+.tb-icon[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:40px;left:50%;transform:translateX(-50%);white-space:nowrap;background:#0b1622;color:#fff;font-size:var(--fs-s);padding:5px 8px;border-radius:5px;z-index:20}
+.tb-icon[data-tip]:last-child:hover::after{left:auto;right:0;transform:none}
+.tb-btn{height:34px;display:inline-flex;align-items:center;gap:7px;padding:0 12px;border-radius:var(--r-s);border:1px solid var(--topbar-btn-line);background:var(--topbar-btn);color:var(--topbar-fg);font-weight:700;font-size:var(--fs-m);white-space:nowrap}
+.tb-btn.primary{background:#fff;color:var(--navy);border-color:#fff}
+.tb-btn .i-chev{width:14px;height:14px}
+/* Строка проекта справа. flex:1 — занимает ВСЁ свободное место шапки (без фиксированного max-width) и
+   служит распоркой, прижимая меню/«КП в PDF» вправо; min-width:0 позволяет усадку ниже содержимого.
+   justify-content:flex-end — текст у правого края, рядом с меню. Усадка бьёт по имени проекта
+   (.pn-project — overflow+ellipsis), а «· КП № …» (.pn-number) не сжимается и остаётся видимым. */
+.project-name{flex:1 1 auto;min-width:0;display:flex;align-items:center;justify-content:flex-end;overflow:hidden;font-size:var(--fs-s);color:#aebfcd}
+.pn-project{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.pn-number{white-space:nowrap;flex:0 0 auto}
+/* Меню «Документы» (EPTopbar): выпадает под кнопкой, закрывается кликом вне/Esc/выбором пункта. */
+.dd{position:relative}
+.dd-menu{position:absolute;right:0;top:40px;min-width:280px;padding:6px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:var(--r-m);box-shadow:0 14px 34px rgba(0,0,0,.18);z-index:30;display:none}
+.dd.open .dd-menu{display:block}
+.dd-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border:0;border-radius:var(--r-s);background:none;color:var(--text);text-align:left;font-weight:700;cursor:pointer}
+.dd-item:hover{background:var(--blue-soft)}
+.dd-item small{display:block;color:var(--muted);font-size:var(--fs-xs);font-weight:500}
+.dd-sep{height:1px;background:var(--line);margin:6px 4px}
+/* Галка «кратно упаковке» (К6) переехала в меню под «Спецификацию Excel». width:auto гасит глобальное
+   `label input{width:100%}` — иначе флажок растянулся бы на всю ширину меню (тот же приём, что раньше
+   был у .pack-multiple в прежней шапке). */
+.dd-check{display:flex;gap:8px;align-items:center;padding:6px 10px 8px 38px;font-size:var(--fs-s);color:var(--muted);cursor:pointer}
+.dd-check input{flex:0 0 auto;width:auto;margin:0;padding:0;border:0;cursor:pointer}
+/* Адаптив ТОЛЬКО шапки (P1-1), чтобы она оставалась в одну строку без горизонтальной прокрутки.
+   Колонок .workspace, выезжающей правой панели и статус-строки это НЕ касается — отдельные задачи. */
+@media(max-width:1280px){.tb-btn .lbl-long{display:none}}
+/* ≤1100: строку проекта прячем (её содержимое), но сам элемент остаётся распоркой (flex:1), иначе
+   меню/«КП в PDF» перестали бы прижиматься вправо и на пустом проекте тоже. */
+@media(max-width:1100px){.project-name>*{display:none}}
+/* Сворачивание шапки, чтобы «КП в PDF» не вылезала за край (была горизонтальная прокрутка: на 760 px
+   контент шапки с подписями ≈806 px). Полные подписи физически не помещаются ниже ~806 px, поэтому
+   сворачиваем до того, как они перестают влезать — порог 860 (806<861, выше порога подписи помещаются
+   с запасом, на 760/640 — уже свёрнуто). Бренд — только знак EP (текст скрыт), «Данные проекта и КП» и
+   «Документы» — иконками (title/aria-label остаются). Главное действие «КП в PDF» сохраняет подпись. */
+@media(max-width:860px){.brand strong{display:none}.tb-btn .tb-label,.tb-btn .i-chev{display:none}}
 .btn{border:1px solid var(--line);border-radius:11px;padding:9px 13px;background:#fff;color:var(--text);font-weight:750;transition:.18s}
 .btn:hover{transform:translateY(-1px);border-color:#9ac7ef}.btn.primary{border-color:transparent;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue-dark));box-shadow:0 8px 20px rgba(37,136,237,.24)}
 .btn.ghost{background:var(--panel-soft)}.btn.small{padding:7px 10px;font-size:12px}
@@ -599,7 +642,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .builder-layout{grid-template-columns:minmax(0,1fr);grid-auto-rows:min-content;overflow-y:auto}
 .builder-side{overflow:visible;padding-right:0}
 .builder-catalog{min-height:60vh}}
-@media(max-width:760px){.workspace{grid-template-columns:1fr}.left-panel{display:none}.builder-layout{grid-template-columns:1fr}.top-actions .ghost{display:none}
+@media(max-width:760px){.workspace{grid-template-columns:1fr}.left-panel{display:none}.builder-layout{grid-template-columns:1fr}
 .catalog-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
 
 /* Professional plan controls */
