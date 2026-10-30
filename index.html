@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261030.2">
+  <link rel="stylesheet" href="css/styles.css?v=20261030.3">
 </head>
 <body>
 <!-- Контурные иконки шапки (P1-1). Один спрайт <symbol>: иконки используют stroke:currentColor и
@@ -289,7 +289,6 @@
           <div class="canvas-empty" id="canvasEmpty">
             <div class="empty-icon">⌁</div>
             <strong>Добавьте план помещения</strong>
-            <span>или откройте демонстрационный проект</span>
           </div>
           <div class="hover-card" id="hoverCard"></div>
           <canvas id="analysisCanvas" hidden></canvas>
@@ -728,6 +727,10 @@
       </details>
     </div>
     <div class="modal-footer">
+      <!-- «Заполню позже» (P3-2): закрывает окно тем же путём, что крестик (close в projectSetup.js),
+           ничего не сохраняя сверх того, что уже записано по ходу ввода. Слева, чтобы не конкурировать
+           с главным «Готово». -->
+      <button class="btn ghost" id="kpSetupLater" type="button" style="margin-right:auto">Заполню позже</button>
       <button class="btn primary" id="kpSetupDone" type="button">Готово</button>
     </div>
   </div>
@@ -956,7 +959,7 @@
 <script src="js/projectFile.js?v=20261028.1"></script>
 <!-- Окно «Данные проекта и КП» (#kpSetupModal): открыть/закрыть, авто-открытие на чистом старте
      (решение владельца 20.10). Чистая функция shouldOpenOnLoad + тонкий attach. До app.js. -->
-<script src="js/projectSetup.js?v=20261020.1"></script>
+<script src="js/projectSetup.js?v=20261030.1"></script>
 <!-- Галка «рассчитать кратно упаковке» (К6): связка галки шапки с настройкой проекта
      (EP_DATA.settings.packMultiple) и сохранением. До app.js, который зовёт EPPackMultiple.attach(ctx)
      и передаёт возвращённую syncPackMultiple в restoreProject. -->

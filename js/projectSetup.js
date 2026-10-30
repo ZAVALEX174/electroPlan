@@ -44,6 +44,8 @@ function attach(ctx) {
     $("kpDataBtn").onclick = open;                 // «Данные КП» в шапке — открыть для правки
     $("kpSetupDone").onclick = close;              // «Готово» — скрыть окно, значения уже записаны по ходу ввода
     $("kpSetupClose").onclick = close;             // крестик
+    const later = $("kpSetupLater");               // «Заполню позже» — тот же путь, что крестик: только закрыть
+    if (later) later.onclick = close;
     modal.onclick = e => { if (e.target === modal) close(); };   // клик мимо — закрыть, как у прочих окон
   }
 

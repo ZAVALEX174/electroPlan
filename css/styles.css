@@ -8,6 +8,9 @@
      эту задачу; полная чистка хардкодов в переменные — отдельная задача (P3-1). */
   --topbar-fg:#e9f0f5;--topbar-btn:#183b56;--topbar-btn-line:#31546f;
   --fs-xs:11px;--fs-s:12px;--fs-m:13px;--r-s:6px;--r-m:10px;
+  /* Кольцо выбранного поста на холсте (P3-2): оранжевое, как у поста №2 в макете, чтобы
+     отличалось от синих иконок постов. Прочие .selected (комнаты, списки) цвет не меняют. */
+  --sel:#f0a23a;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text);background:#e9edf2}
@@ -100,7 +103,7 @@ svg.i{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-
 .left-panel>.library-section[open]{flex:1 1 auto;min-height:clamp(220px,36vh,420px);display:flex;flex-direction:column;overflow:hidden}
 .left-panel>.library-section[open]>.pane-body{flex:1 1 auto;min-height:0;overflow:auto}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}.section-head h3{margin:0;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#52616f}
-.count-pill{min-width:24px;padding:4px 7px;border-radius:999px;text-align:center;font-size:10px;font-weight:900;color:var(--blue-dark);background:var(--blue-soft)}
+.count-pill{min-width:24px;padding:4px 7px;border-radius:999px;text-align:center;font-size:var(--fs-xs);font-weight:900;color:var(--blue-dark);background:var(--blue-soft)}
 .upload-btn{display:block;text-align:center;padding:11px;border:1px dashed #8fc2ef;border-radius:12px;color:var(--blue-dark);font-weight:800;background:#f4faff;cursor:pointer}
 /* Инструменты (Редизайн, ч.4): сетка 3 в ряд, SVG-иконка сверху, подпись снизу, буква клавиши в углу
    (<kbd>, absolute). Иконки — stroke:currentColor, цвет ведём через color (синий / красный у «Удалить»). */
@@ -111,7 +114,7 @@ svg.i{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-
 .tool:hover{border-color:var(--line-strong)}
 .tool.active{color:var(--blue-dark);border-color:#91c5f1;background:var(--blue-soft)}.tool.active svg.i{color:var(--blue-dark)}
 .tool.danger{color:var(--danger)}.tool.danger svg.i{color:var(--danger)}
-.tool kbd{position:absolute;top:3px;right:5px;font-family:inherit;font-size:9px;font-weight:700;line-height:1;color:var(--muted);opacity:.75}
+.tool kbd{position:absolute;top:3px;right:5px;font-family:inherit;font-size:var(--fs-xs);font-weight:700;line-height:1;color:var(--muted);opacity:.75}
 /* Переключатели Орто/Сетка/шаг переехали в строку под холстом (их стили — рядом с .canvas-statusbar,
    .toggle/.toggle-step). .markup-step остаётся: его используют органы поворота плана в левой панели
    («Поворот», «Угол, °»). */
@@ -121,7 +124,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .product-picture{position:relative;display:grid;width:100%;height:100%;place-items:center;overflow:hidden;color:var(--blue-dark)}
 .product-picture img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:contain;background:#fff}
 .product-picture-fallback{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:100%;height:100%;padding:2px;text-align:center;line-height:1.05;overflow:hidden}
-.product-picture-nophoto{font-size:10px;font-weight:700;color:var(--muted)}
+.product-picture-nophoto{font-size:var(--fs-xs);font-weight:700;color:var(--muted)}
 /* Крупная карточка каталога — место есть: значок покрупнее, подпись читаемая. */
 .product-card .product-picture-glyph{font-size:26px;line-height:1}
 .product-card .product-picture-nophoto{font-size:11px}
@@ -133,9 +136,9 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .link-btn{border:0;background:transparent;color:var(--blue-dark);font-weight:900;font-size:11px}
 .post-library{display:flex;flex-direction:column;gap:8px}.library-empty{font-size:11px;color:var(--muted)}
 .library-card{padding:10px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(180deg,#fff,#f6fbff)}
-.library-title{display:flex;justify-content:space-between;gap:8px}.library-title strong{font-size:12px}.library-title span{font-size:9px;color:var(--muted)}
+.library-title{display:flex;justify-content:space-between;gap:8px}.library-title strong{font-size:12px}.library-title span{font-size:var(--fs-xs);color:var(--muted)}
 .library-icons{display:flex;gap:3px;margin:8px 0}.library-icons i{width:28px;height:28px;border:1px solid #a8cae8;border-radius:6px;display:grid;place-items:center;overflow:hidden;background:#fff;font-style:normal;font-size:8px;font-weight:900}.library-icons .product-picture,.library-icons img{border-radius:5px}
-.library-actions{display:grid;grid-template-columns:1fr auto auto;gap:5px}.library-actions button{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:10px;font-weight:800}.library-actions .place{color:#fff;border-color:transparent;background:var(--blue)}
+.library-actions{display:grid;grid-template-columns:1fr auto auto;gap:5px}.library-actions button{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:var(--fs-xs);font-weight:800}.library-actions .place{color:#fff;border-color:transparent;background:var(--blue)}
 /* minmax(0,1fr) прибивает внутреннюю колонку к ширине самой панели: иначе тулбар и строка под холстом
    (flex без переноса) раздували бы колонку по max-content, и на узких экранах переключатели Орто/Сетка
    уезжали бы за правый край в область клипа. С ограничением .status сжимается с многоточием, а режимы
@@ -236,7 +239,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .scale-row{display:grid;gap:4px;padding-top:9px;border-top:1px solid var(--line)}
 .scale-row .hint-line.is-set{color:#14713b;font-weight:800}
 .canvas.measuring{cursor:crosshair}
-.prop-hint{display:block;margin:-4px 0 8px;color:var(--muted);font-size:9px;line-height:1.45}
+.prop-hint{display:block;margin:-4px 0 8px;color:var(--muted);font-size:var(--fs-xs);line-height:1.45}
 /* Источник типа стены поста: «унаследован от проекта» — приглушённо (обычный prop-hint),
    «свой» — выделено цветом акцента, чтобы два состояния нельзя было спутать глазом. */
 .prop-wall-source.own{color:var(--blue-dark);font-weight:700}
@@ -261,59 +264,59 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 /* flex-wrap: при узкой панели переключатель «Списком / С картинками» переносится под заголовок, а не
    обрезается правым краем (Редизайн 2 — панель уже, заголовок с именем комнаты длинный). */
 .room-facing-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
-.room-facing-title{color:var(--muted);font-size:10px;font-weight:800}
+.room-facing-title{color:var(--muted);font-size:var(--fs-xs);font-weight:800}
 .room-facing-view{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
-.room-facing-view-btn{padding:4px 8px;border:0;background:#fff;color:var(--blue-dark);font-size:9px;font-weight:800;cursor:pointer}
+.room-facing-view-btn{padding:4px 8px;border:0;background:#fff;color:var(--blue-dark);font-size:var(--fs-xs);font-weight:800;cursor:pointer}
 .room-facing-view-btn.active{background:var(--blue-soft);color:var(--blue-dark);box-shadow:inset 0 0 0 1px var(--blue)}
 .room-facing-block .room-standard-field,.room-facing-block .room-collection-field,.room-facing-block .room-facing-field{margin-top:10px}
 /* Вкладки вариантов отделки комнаты (К8а): «Отделка: [Вариант 1] … [+ вариант]». Кнопки в стиле
    переключателя вида (.room-facing-view-btn): активная подсвечена, «+ вариант» — пунктирная. */
 .room-variants-tabs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:8px}
-.room-variants-label{color:var(--muted);font-size:10px;font-weight:800}
+.room-variants-label{color:var(--muted);font-size:var(--fs-xs);font-weight:800}
 .room-variants-list{display:inline-flex;flex-wrap:wrap;gap:4px}
-.room-variant-tab{padding:4px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--blue-dark);font-size:9px;font-weight:800;cursor:pointer}
+.room-variant-tab{padding:4px 9px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--blue-dark);font-size:var(--fs-xs);font-weight:800;cursor:pointer}
 .room-variant-tab.active{background:var(--blue-soft);box-shadow:inset 0 0 0 1px var(--blue)}
-.room-variant-add{padding:4px 9px;border:1px dashed var(--blue);border-radius:8px;background:#fff;color:var(--blue-dark);font-size:9px;font-weight:800;cursor:pointer}
+.room-variant-add{padding:4px 9px;border:1px dashed var(--blue);border-radius:8px;background:#fff;color:var(--blue-dark);font-size:var(--fs-xs);font-weight:800;cursor:pointer}
 .room-variant-remove-row{margin-top:10px}
 .room-variant-remove{width:100%}
 /* Сводка выбранного в виде «С картинками» — чтобы «что выбрано в одном виде, видно в другом» без
    открытия мастера. .own — отделка задана (акцент, как «своя схема»); пусто — приглушённо. */
-.room-facing-summary{margin:2px 0 8px;color:var(--muted);font-size:10px;line-height:1.4}
+.room-facing-summary{margin:2px 0 8px;color:var(--muted);font-size:var(--fs-xs);line-height:1.4}
 .room-facing-summary.own{color:var(--blue-dark);font-weight:700}
 .room-facing-pick-btn{width:100%}
-.prop-hint-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;color:var(--muted);font-size:9px}
+.prop-hint-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;color:var(--muted);font-size:var(--fs-xs)}
 .prop-hint-row b{color:var(--text)}
 /* Группы света поста в панели свойств: перечень клавиш с их группами. Клавишу без группы метим
    акцентом (как «своя схема»), чтобы пробел «механизм не подберётся» было видно глазом до печати. */
 .post-groups{margin:2px 0 8px;border:1px solid var(--line);border-radius:6px;overflow:hidden}
-.post-groups-head{padding:6px 9px;background:var(--panel,#f6f7f9);font-weight:700;font-size:9px}
-.post-group-row{display:flex;justify-content:space-between;gap:8px;padding:6px 9px;border-top:1px solid var(--line);font-size:9px}
+.post-groups-head{padding:6px 9px;background:var(--panel,#f6f7f9);font-weight:700;font-size:var(--fs-xs)}
+.post-group-row{display:flex;justify-content:space-between;gap:8px;padding:6px 9px;border-top:1px solid var(--line);font-size:var(--fs-xs)}
 .post-group-row span{color:var(--muted)}
 .post-group-row.has-group b{color:var(--text);font-weight:700}
 .post-group-row.no-group em{color:var(--blue-dark);font-weight:700;font-style:normal}
 .post-groups .prop-hint{margin:6px 9px}
 .terms-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
-.terms-row label{color:var(--muted);font-size:9px;font-weight:800}
+.terms-row label{color:var(--muted);font-size:var(--fs-xs);font-weight:800}
 .terms-row input[type=number]{margin-top:3px;padding:6px 7px}
 .doc-header-form{display:grid;grid-template-columns:1fr 1fr;gap:7px}
-.doc-header-form label{color:var(--muted);font-size:9px;font-weight:800;display:flex;flex-direction:column}
+.doc-header-form label{color:var(--muted);font-size:var(--fs-xs);font-weight:800;display:flex;flex-direction:column}
 .doc-header-form label:nth-child(1),.doc-header-form label:nth-child(3){grid-column:1/-1}
 .doc-header-form input{margin-top:3px;padding:6px 7px}
 .doc-logo-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
 .doc-logo-preview{flex-basis:100%;margin-top:4px}
 .doc-logo-preview img{max-height:48px;max-width:100%;object-fit:contain;border:1px solid var(--line);border-radius:6px;padding:4px;background:#fff}
-.doc-terms-field{display:flex;flex-direction:column;margin-top:8px;color:var(--muted);font-size:9px;font-weight:800}
+.doc-terms-field{display:flex;flex-direction:column;margin-top:8px;color:var(--muted);font-size:var(--fs-xs);font-weight:800}
 .doc-terms-field textarea{margin-top:3px;padding:7px 9px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text);font:inherit;font-weight:400;line-height:1.4;resize:vertical;min-height:64px}
 /* Реквизиты (A5): два блока с галочками «показывать в КП». Поле — подпись над полем ввода, галочка
    справа в том же ряду. Обязательные поля (ФИО, контакты) — галочка disabled checked (серая). */
 .doc-header-form .doc-req-check{grid-column:1/-1;flex-direction:row;align-items:center;gap:6px;font-weight:700}
 .doc-requisites{margin-top:12px}
-.doc-req-head{font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin:10px 0 5px}
+.doc-req-head{font-size:var(--fs-xs);font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin:10px 0 5px}
 .doc-req-head small{font-weight:600;text-transform:none;letter-spacing:0;opacity:.85}
 .doc-req-fields{display:grid;grid-template-columns:1fr auto;gap:6px 10px;align-items:center}
-.doc-req-field{display:flex;flex-direction:column;color:var(--muted);font-size:9px;font-weight:800}
+.doc-req-field{display:flex;flex-direction:column;color:var(--muted);font-size:var(--fs-xs);font-weight:800}
 .doc-req-field input{margin-top:3px;padding:6px 7px}
-.doc-req-check{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:9px;font-weight:700;white-space:nowrap}
+.doc-req-check{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:var(--fs-xs);font-weight:700;white-space:nowrap}
 .offer-options{margin-top:12px;font-size:11px}
 .offer-options summary{cursor:pointer;font-weight:800;color:var(--text);padding:7px 0}
 .offer-options label{display:flex;align-items:flex-start;gap:6px;margin:7px 0;line-height:1.4}
@@ -331,11 +334,11 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .rate-box{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .rate-box .hint-line{margin:0}
 .rate-box .hint-line.is-set{color:#14713b;font-weight:800}
-.rate-box button{flex:none;padding:5px 9px;font-size:9px}
+.rate-box button{flex:none;padding:5px 9px;font-size:var(--fs-xs)}
 .terms-check input{width:auto!important;margin:0}
 .scale-modal{width:min(420px,100%)}
 .scale-modal-copy{margin:14px 0 0;color:var(--muted);font-size:11px;overflow-wrap:anywhere}
-.scale-modal-form{display:block;margin-top:14px;color:var(--muted);font-size:10px;font-weight:800}.scale-modal-form input{margin-top:6px}
+.scale-modal-form{display:block;margin-top:14px;color:var(--muted);font-size:var(--fs-xs);font-weight:800}.scale-modal-form input{margin-top:6px}
 /* Окно «Данные проекта и КП» (#kpSetupModal): те же блоки, что раньше были в правой панели, поэтому
    их собственные стили (.doc-header-form/.doc-requisites/.terms-row/.offer-options) работают как есть —
    тут только ширина окна поуже и вертикальный ритм тела. */
@@ -345,13 +348,13 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 /* Схема электрики проекта в панели «Спецификация»: подпись как у полей условий сделки
    (.terms-row label), поле на всю ширину — рядом стоит блок «Группы света», который она
    и определяет. */
-.scheme-field{display:flex;flex-direction:column;margin-top:9px;padding-top:9px;border-top:1px solid var(--line);color:var(--muted);font-size:9px;font-weight:800}
+.scheme-field{display:flex;flex-direction:column;margin-top:9px;padding-top:9px;border-top:1px solid var(--line);color:var(--muted);font-size:var(--fs-xs);font-weight:800}
 .scheme-field select{margin-top:3px;padding:6px 7px}
 /* Галочка «считать подсветку» — тот же блок настройки проекта, но строкой: чекбокс рядом
    с подписью, а не над ней (базовый .scheme-field — колонка). */
 .scheme-field--check{flex-direction:row;align-items:center;gap:6px}
 .scheme-field--check input{margin:0}
-.hint-line{display:block;margin-top:4px;color:var(--muted);font-size:9px}
+.hint-line{display:block;margin-top:4px;color:var(--muted);font-size:var(--fs-xs);line-height:1.4}
 /* Атрибут hidden обязан прятать подсказку: UA-стиль [hidden]{display:none} проигрывает авторскому
    .hint-line{display:block} при равной специфичности (оба 0,1,0, авторское позже) — и подсказка
    #installSheetPlanHint висела бы и в окне на весь проект. Узкий .hint-line[hidden] (0,2,0 — строго
@@ -361,7 +364,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .detect-box{fill-opacity:.10;stroke-width:2}
 /* наложения-подсказки внутри #canvas (легенда/пустой холст/прогресс/карточка наведения) — НЕ мировые
    узлы: их нельзя «класть боком» при повороте всего плана (Б3, ч.2а). Контр-вращаем тем же --world-rot. */
-.detect-legend{position:absolute;left:12px;bottom:12px;z-index:5;transform:rotate(var(--world-rot,0deg));display:flex;flex-wrap:wrap;gap:6px 12px;max-width:60%;padding:9px 11px;border:1px solid #d3dce6;border-radius:9px;background:rgba(255,255,255,.94);box-shadow:0 8px 22px rgba(16,42,67,.14);font-size:10px}
+.detect-legend{position:absolute;left:12px;bottom:12px;z-index:5;transform:rotate(var(--world-rot,0deg));display:flex;flex-wrap:wrap;gap:6px 12px;max-width:60%;padding:9px 11px;border:1px solid #d3dce6;border-radius:9px;background:rgba(255,255,255,.94);box-shadow:0 8px 22px rgba(16,42,67,.14);font-size:var(--fs-xs)}
 .detect-legend .lg-item{display:flex;align-items:center;gap:5px;color:var(--text)}
 .detect-legend .lg-swatch{width:11px;height:11px;border-radius:3px;border:1px solid rgba(0,0,0,.15)}
 .detect-legend .lg-count{color:var(--muted)}
@@ -372,7 +375,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 /* --world-rot — контр-угол поворота всего плана (Б3, ч.2а): выставляется в applyView на #canvas и
    наследуется. Подпись комнаты и значок поста крутят себя обратно вокруг своего центра — остаются
    ПРЯМЫМИ на экране (не боком/вверх ногами), хотя весь холст повёрнут. При угле 0 — rotate(0deg), no-op. */
-.room-label{position:absolute;z-index:3;min-width:110px;padding:7px 10px;border:1px solid #b7d7f3;border-radius:9px;text-align:center;font-size:11px;font-weight:900;background:rgba(255,255,255,.9);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transform:rotate(var(--world-rot,0deg))}.room-label small{display:block;margin-top:2px;color:var(--muted);font-size:9px}
+.room-label{position:absolute;z-index:3;min-width:110px;padding:7px 10px;border:1px solid #b7d7f3;border-radius:9px;text-align:center;font-size:11px;font-weight:900;background:rgba(255,255,255,.9);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transform:rotate(var(--world-rot,0deg))}.room-label small{display:block;margin-top:2px;color:var(--muted);font-size:var(--fs-xs)}
 .plan-icon{position:absolute;z-index:6;width:24px;height:24px;border:2px solid #fff;border-radius:7px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue-dark));box-shadow:0 5px 12px rgba(30,104,171,.35);font-size:7px;font-weight:900;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transform:rotate(var(--world-rot,0deg))}
 /* прозрачная зона попадания вокруг мелкой иконки (сама иконка 24px, кликаемая область
    ~42px) — палец/курсор попадают легче, визуально иконка не растёт (PLAN 2) */
@@ -409,10 +412,17 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .room-label.drop-target{border-color:#2588ed;background:var(--blue-soft)}
 /* выделение: заметное сплошное кольцо со смещением — отличимо от подсветки наведения */
 .selected{outline:3px solid var(--blue)!important;outline-offset:2px}
+/* Пост на холсте (в т.ч. в групповом выделении) — оранжевое кольцо (P3-2): отличается от синих
+   иконок постов. Выше по специфичности, чем общий .selected, поэтому меняется только цвет кольца;
+   комнаты (.room-poly.selected) и иконки других объектов остаются как были. */
+.plan-icon.post.selected{outline-color:var(--sel)!important}
 /* Рамка группового выделения (Б5): рисуется position:fixed в клиентских координатах ПОВЕРХ плана,
    не внутри вращающегося #canvas; событий не перехватывает (отбор идёт по координатам, не по DOM). */
 .selection-rect{position:fixed;z-index:50;border:1px solid var(--blue);background:rgba(30,104,171,.12);pointer-events:none}
-.hover-card{display:none;position:absolute;z-index:50;width:265px;padding:12px;transform:rotate(var(--world-rot,0deg));transform-origin:top left;border:1px solid var(--line-strong);border-radius:14px;background:rgba(255,255,255,.97);box-shadow:0 18px 45px rgba(20,77,128,.22);pointer-events:none}.hover-card.show{display:block}.hover-card h4{margin:0 0 7px;font-size:13px}.hover-card dl{display:grid;grid-template-columns:1fr auto;gap:5px;margin:0;font-size:10px}.hover-card dt{color:var(--muted)}.hover-card dd{margin:0;text-align:right;font-weight:800}.hover-composition{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}.hover-chip{padding:4px 6px;border-radius:7px;background:var(--blue-soft);font-size:9px;font-weight:800;color:var(--blue-dark)}
+/* Карточка наведения (часть 5): ярлык dt — колонка max-content + nowrap, чтобы короткая подпись
+   («Стоимость поста») не ломалась на 2 строки после подъёма шрифта до 11 px; ширина 265→285 px,
+   чтобы длинное значение накладки при этом тоже осталось в одну строку. */
+.hover-card{display:none;position:absolute;z-index:50;width:285px;padding:12px;transform:rotate(var(--world-rot,0deg));transform-origin:top left;border:1px solid var(--line-strong);border-radius:14px;background:rgba(255,255,255,.97);box-shadow:0 18px 45px rgba(20,77,128,.22);pointer-events:none}.hover-card.show{display:block}.hover-card h4{margin:0 0 7px;font-size:13px}.hover-card dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:5px;margin:0;font-size:var(--fs-xs)}.hover-card dt{color:var(--muted);white-space:nowrap}.hover-card dd{margin:0;text-align:right;font-weight:800}.hover-composition{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}.hover-chip{padding:4px 6px;border-radius:7px;background:var(--blue-soft);font-size:var(--fs-xs);font-weight:800;color:var(--blue-dark)}
 .empty-properties{padding:14px;border:1px dashed var(--line-strong);border-radius:12px;color:var(--muted);font-size:11px;text-align:center}
 .property-actions{display:flex;gap:7px;margin-top:10px}.property-actions button{flex:1}
 /* ---------- Правая панель (Редизайн 2): флекс-колонка со скроллом + прибитый к низу «Итого» ----------
@@ -468,7 +478,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
    «0,00 €» и дубль «в т.ч. НДС»). Узкий селектор .price-card[hidden] (специфичность строго выше
    .price-card) возвращает скрытие ровно этим строкам, не трогая глобальный [hidden]. */
 .price-card[hidden]{display:none}
-.spec-list{display:flex;flex-direction:column;gap:6px}.spec-item{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:5px;padding:8px;border-radius:10px;background:var(--panel-soft);font-size:10px}.spec-item strong{font-size:11px}.spec-item span{color:var(--muted)}
+.spec-list{display:flex;flex-direction:column;gap:6px}.spec-item{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:5px;padding:8px;border-radius:10px;background:var(--panel-soft);font-size:var(--fs-xs)}.spec-item strong{font-size:11px}.spec-item span{color:var(--muted)}
 /* Колонка имени (1fr) по умолчанию имеет min-width:auto и НЕ сжимается ниже самого длинного слова:
    длинное имя позиции раздувало карточку шире правой панели, и поле «скидка, %» со знаком «%»
    уезжало за правый край (срезалось). min-width:0 разрешает колонке сжиматься, а overflow-wrap
@@ -476,7 +486,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .spec-item>div{min-width:0}.spec-item strong{overflow-wrap:anywhere}
 /* Своё поле «скидка, %» позиции (А2): узкий инпут справа от суммы. Пусто — действует общая скидка.
    Колонки суммы и поля — auto (по содержимому) и ужиматься не должны, иначе «%» снова срежется. */
-.spec-disc{display:flex;align-items:center;gap:2px;color:var(--muted);font-size:10px}.spec-disc input{width:38px;flex:none;font-size:10px;padding:2px 3px;text-align:right}
+.spec-disc{display:flex;align-items:center;gap:2px;color:var(--muted);font-size:var(--fs-xs)}.spec-disc input{width:38px;flex:none;font-size:var(--fs-xs);padding:2px 3px;text-align:right}
 /* Раздел «Добор до целых упаковок» (К6б): заголовок и строки под обычной спецификацией. У строк
    добора поля «скидка, %» нет (личной скидки у добора нет) — вторая колонка auto пустует, сумма
    остаётся у правого края как у обычных строк. */
@@ -490,7 +500,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
    футер; overflow:hidden у самой модалки. */
 .modal-backdrop.fullscreen{padding:0}
 .post-builder-modal{display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:14px;width:100vw;max-width:100vw;height:100vh;max-height:100vh;padding:16px 20px;border:0;border-radius:0;overflow:hidden}
-.modal-header{display:flex;justify-content:space-between}.modal-header h2{margin:3px 0 0;font-size:21px}.eyebrow{font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--blue)}.modal-close{width:37px;height:37px;border:0;border-radius:11px;color:var(--blue-dark);background:var(--blue-soft);font-size:23px}
+.modal-header{display:flex;justify-content:space-between}.modal-header h2{margin:3px 0 0;font-size:21px}.eyebrow{font-size:var(--fs-xs);font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--blue)}.modal-close{width:37px;height:37px;border:0;border-radius:11px;color:var(--blue-dark);background:var(--blue-soft);font-size:23px}
 /* Колонка превью фиксированная под самую широкую сборку lg: 8 модулей = 488px
    (W=120+46×8) + 2×20px padding .post-preview-large = 528px → округляем до 540px.
    Форма забирает остаток (minmax(0,1fr)), сборка на нормальном экране не сжимается. */
@@ -508,20 +518,20 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .assembled-post{max-width:100%;min-width:0}
 .library-thumb,.hover-thumb{display:flex;justify-content:center;margin:8px 0}
 .builder-error{display:flex;flex-direction:column;gap:4px;padding:10px 12px;margin-bottom:10px;border:1px solid #f0c2c2;border-radius:10px;background:#fdf0f0;color:#8f2f2f}
-.builder-error strong{font-size:11px}.builder-error span{font-size:10px;line-height:1.35}
+.builder-error strong{font-size:11px}.builder-error span{font-size:var(--fs-xs);line-height:1.35}
 /* Пометка «снята с производства» — не ошибка (сохранять разрешено), поэтому янтарная, а не
    красная как .builder-error: сообщает, а не блокирует. */
 .builder-notice{display:flex;flex-direction:column;gap:4px;padding:10px 12px;margin-bottom:10px;border:1px solid #e6cfa0;border-radius:10px;background:#fdf6e8;color:#7a5a12}
-.builder-notice strong{font-size:11px}.builder-notice span{font-size:10px;line-height:1.35}
+.builder-notice strong{font-size:11px}.builder-notice span{font-size:var(--fs-xs);line-height:1.35}
 /* Оговорка «есть позиции без цены» под «Итого» — янтарная пометка (сумма неполна, но это не
    ошибка ввода): та же палитра, что у .builder-notice/.canvas-orphan-status. */
 .price-note{margin-top:8px;padding:7px 9px;border-radius:8px;font-size:11px;line-height:1.4;color:#7a5a12;background:#fdf6e8;border:1px solid #e6cfa0}
-.builder-note{display:flex;flex-direction:column;padding:12px;border-radius:12px;background:var(--blue-soft)}.builder-note strong{font-size:11px}.builder-note span{margin-top:3px;color:var(--muted);font-size:10px}
-.builder-form{min-width:0}.builder-form label{display:block;min-width:0;color:var(--muted);font-size:10px;font-weight:800}.builder-form label input,.builder-form label select{margin-top:5px}.builder-form select{width:100%;min-width:0;max-width:100%;text-overflow:ellipsis}.form-row{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;margin-top:10px}.form-row>*{min-width:0}
-.builder-capacity{margin-top:12px;padding:10px;border:1px solid #d5e4f0;border-radius:10px;background:#f7fbfe}.builder-capacity-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px}.builder-capacity-head span{color:var(--muted);text-align:right}.module-meter{display:grid;grid-template-columns:repeat(var(--module-count),minmax(0,1fr));gap:4px;margin-top:7px}.module-meter span{height:6px;border-radius:999px;background:#dbe7f0}.module-meter span.occupied{background:var(--blue)}
+.builder-note{display:flex;flex-direction:column;padding:12px;border-radius:12px;background:var(--blue-soft)}.builder-note strong{font-size:11px}.builder-note span{margin-top:3px;color:var(--muted);font-size:var(--fs-xs)}
+.builder-form{min-width:0}.builder-form label{display:block;min-width:0;color:var(--muted);font-size:var(--fs-xs);font-weight:800}.builder-form label input,.builder-form label select{margin-top:5px}.builder-form select{width:100%;min-width:0;max-width:100%;text-overflow:ellipsis}.form-row{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;margin-top:10px}.form-row>*{min-width:0}
+.builder-capacity{margin-top:12px;padding:10px;border:1px solid #d5e4f0;border-radius:10px;background:#f7fbfe}.builder-capacity-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:var(--fs-xs)}.builder-capacity-head span{color:var(--muted);text-align:right}.module-meter{display:grid;grid-template-columns:repeat(var(--module-count),minmax(0,1fr));gap:4px;margin-top:7px}.module-meter span{height:6px;border-radius:999px;background:#dbe7f0}.module-meter span.occupied{background:var(--blue)}
 /* Хинт отделки накладки (E14): «показано N из M · сузили…» приглушённо; пустое сочетание —
    янтарным (как .price-note), пустой текст скрываем целиком. */
-.builder-frame-facing-hint{display:block;margin:8px 0 0;color:var(--muted);font-size:10px;line-height:1.4}
+.builder-frame-facing-hint{display:block;margin:8px 0 0;color:var(--muted);font-size:var(--fs-xs);line-height:1.4}
 .builder-frame-facing-hint:empty{display:none}
 .builder-frame-facing-hint.is-empty{color:#7a5a12;font-weight:700}
 /* Выбранные модули поста. Раньше здесь стоял <select> на слот; теперь товар выбирается
@@ -531,39 +541,39 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .builder-slot{display:grid;min-width:0;grid-template-columns:36px minmax(0,1fr);gap:8px;align-items:start;padding:7px;border:1px solid var(--line);border-radius:10px;background:#fff}
 .builder-slot.is-target{border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue);background:var(--blue-soft)}
 .builder-slot.is-empty{border-style:dashed;background:#f7fbfe}
-.slot-number{width:36px;height:28px;border-radius:8px;display:grid;place-items:center;color:var(--blue-dark);background:var(--blue-soft);font-size:10px;font-weight:900}
+.slot-number{width:36px;height:28px;border-radius:8px;display:grid;place-items:center;color:var(--blue-dark);background:var(--blue-soft);font-size:var(--fs-xs);font-weight:900}
 .slot-body{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:8px;align-items:center;min-width:0}
 .slot-body .product-picture{width:34px;height:34px;border-radius:7px}
 .slot-text{min-width:0}
-.slot-code{display:block;font-size:9px;font-weight:800;color:var(--blue-dark)}
+.slot-code{display:block;font-size:var(--fs-xs);font-weight:800;color:var(--blue-dark)}
 .slot-name{display:block;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.slot-meta{display:block;font-size:9px;color:var(--muted)}
+.slot-meta{display:block;font-size:var(--fs-xs);color:var(--muted)}
 .slot-actions{display:flex;gap:4px}
-.slot-actions button{padding:5px 7px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--blue-dark);font-size:10px;font-weight:800;cursor:pointer}
+.slot-actions button{padding:5px 7px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--blue-dark);font-size:var(--fs-xs);font-weight:800;cursor:pointer}
 .slot-actions button:hover{border-color:#9ac7ef;background:var(--blue-soft)}
-.slot-hint{grid-column:2;color:var(--muted);font-size:10px}
+.slot-hint{grid-column:2;color:var(--muted);font-size:var(--fs-xs)}
 /* Поля КЛАВИШИ — группа света / № проходной / выбор механизма — одним рядом во второй колонке
    слота, теми же токенами, что и прежнее одиночное поле группы. Подписи в одну строку каждая
    (white-space:nowrap), поля выровнены по низу (align-items:flex-end — базовая линия у input и
    select одна); на узкой панели ряд переносит поля целиком (flex-wrap), а не рвёт подписи. */
 .slot-keyfields{grid-column:2;margin-top:6px;display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px 10px}
-.builder-form .slot-group,.builder-form .slot-cross,.builder-form .slot-mech{display:flex;flex-direction:column;color:var(--muted);font-size:10px;font-weight:800;white-space:nowrap}
+.builder-form .slot-group,.builder-form .slot-cross,.builder-form .slot-mech{display:flex;flex-direction:column;color:var(--muted);font-size:var(--fs-xs);font-weight:800;white-space:nowrap}
 .slot-group{flex:1 1 130px;min-width:0}          /* имя тянется и сжимается — оно длиннее всех */
 .slot-cross,.slot-mech{flex:0 0 auto}             /* номеру и списку хватает своей ширины */
 .slot-group input,.slot-cross input,.slot-mech select{margin-top:4px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-size:11px;font-weight:600}
 .slot-group input{width:100%}
 .slot-cross input{width:72px}                     /* номеру достаточно узкого поля */
 .slot-mech select{background:#fff}
-.slot-light{grid-column:2;margin-top:5px;padding:5px 7px;border-radius:7px;background:#f2f8ff;color:var(--blue-dark);font-size:10px}
+.slot-light{grid-column:2;margin-top:5px;padding:5px 7px;border-radius:7px;background:#f2f8ff;color:var(--blue-dark);font-size:var(--fs-xs)}
 .slot-light.is-missing{background:#fdf0f0;color:#9a4a2f}
-.slot-bare{grid-column:2;margin-top:5px;color:#9a4a2f;font-size:10px}
+.slot-bare{grid-column:2;margin-top:5px;color:#9a4a2f;font-size:var(--fs-xs)}
 /* Пометка «снят с производства» у механизма слота — та же янтарная палитра, что и .builder-notice
    у накладки: сообщает, а не блокирует (сохранять разрешено). */
-.slot-off{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:#fdf6e8;border:1px solid #e6cfa0;color:#7a5a12;font-size:9px;font-weight:800;vertical-align:middle}
+.slot-off{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:#fdf6e8;border:1px solid #e6cfa0;color:#7a5a12;font-size:var(--fs-xs);font-weight:800;vertical-align:middle}
 /* Пометка «нет в каталоге» у слота, чей артикул ПРОПАЛ из прайса — отличается от .slot-off (снят
    с производства): там товар есть, здесь его нет и цена неизвестна. Приглушённый серый пунктир —
    читается как пробел-заглушка, а не как активная позиция. */
-.slot-gap{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:#f4f4f5;border:1px dashed #b8b8bf;color:#6b6b73;font-size:9px;font-weight:800;vertical-align:middle}
+.slot-gap{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;background:#f4f4f5;border:1px dashed #b8b8bf;color:#6b6b73;font-size:var(--fs-xs);font-weight:800;vertical-align:middle}
 /* Постоянное место под строку расчёта групп света. Ввод группы обновляет ТОЛЬКО содержимое
    этого контейнера, не перерисовывая слот целиком, — иначе карточка каталога, по которой
    человек кликает, исчезает между нажатием и отпусканием кнопки и первый клик пропадает.
@@ -571,14 +581,14 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
    .slot-light внутри встаёт во вторую колонку своим собственным правилом. */
 .builder-slot>[data-light-host]{display:contents}
 /* Пояснение вместо поля группы у ШАБЛОНА: группа — свойство поста на плане. */
-.slot-group-note{grid-column:2;margin-top:6px;color:var(--muted);font-size:10px;line-height:1.35}
+.slot-group-note{grid-column:2;margin-top:6px;color:var(--muted);font-size:var(--fs-xs);line-height:1.35}
 
 /* Каталог товаров крупными карточками: правая колонка полноэкранного окна.
    Шапка (что делает выбор + поиск) закреплена, скроллится только список разделов. */
 .builder-catalog{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:0;padding:12px;border:1px solid #d5e4f0;border-radius:14px;background:#f7fbfe}
 .catalog-head{display:flex;flex-direction:column;gap:8px}
 .catalog-target{color:var(--blue-dark);font-size:11px;font-weight:800}
-.catalog-target small{display:block;color:var(--muted);font-size:10px;font-weight:600}
+.catalog-target small{display:block;color:var(--muted);font-size:var(--fs-xs);font-weight:600}
 /* Галочка «ограничить цветом накладки» (ОТДЕЛКА-ПОРЯДОК, решение владельца 16.09). Живёт в
    .catalog-head (не в .builder-form), поэтому правило .builder-form label{display:block} на неё не
    действует — держим её inline-flex с чекбоксом слева от подписи. */
@@ -599,20 +609,20 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .catalog-section-head:hover{background:var(--blue-soft)}
 .catalog-section-head[aria-expanded="true"]{background:var(--blue-soft);color:var(--blue-dark)}
 .catalog-section-head .caret{margin-right:8px;color:var(--blue);font-size:11px}
-.catalog-section-count{color:var(--muted);font-size:10px;font-weight:700;white-space:nowrap}
+.catalog-section-count{color:var(--muted);font-size:var(--fs-xs);font-weight:700;white-space:nowrap}
 .catalog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:10px;padding:10px 13px 13px}
-.catalog-note{padding:0 13px 12px;color:var(--muted);font-size:10px}
+.catalog-note{padding:0 13px 12px;color:var(--muted);font-size:var(--fs-xs)}
 /* Карточка товара: крупное фото сверху, артикул, название, модульность и цена.
    Фото есть не у всех (у механизмов 296 из 435) — у карточки без фото рисуется тот же
    фолбэк-значок, что и в каталоге слева, и высота бокса задана жёстко, чтобы сетка не рвалась. */
 .product-card{display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--text);text-align:left;cursor:pointer}
 .product-card:hover{border-color:var(--blue);box-shadow:0 8px 22px rgba(20,77,128,.14)}
 .product-card .product-picture{width:100%;height:104px;border-radius:9px;background:#f1f7fc}
-.product-card-code{font-size:10px;font-weight:900;color:var(--blue-dark)}
+.product-card-code{font-size:var(--fs-xs);font-weight:900;color:var(--blue-dark)}
 .product-card-name{font-size:11px;line-height:1.3;min-height:29px}
-.product-card-meta{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:10px}
+.product-card-meta{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:var(--fs-xs)}
 .product-card-meta b{color:var(--text);font-size:11px}
-.product-card-badge{align-self:flex-start;padding:2px 6px;border-radius:6px;background:#fdf0f0;color:#9a4a2f;font-size:9px;font-weight:800}
+.product-card-badge{align-self:flex-start;padding:2px 6px;border-radius:6px;background:#fdf0f0;color:#9a4a2f;font-size:var(--fs-xs);font-weight:800}
 .catalog-empty{padding:18px;border:1px dashed var(--line-strong);border-radius:12px;color:var(--muted);font-size:11px;text-align:center}
 /* EPPicker — кастомный выпадающий список с миниатюрами (js/picker.js). Нативный <select>
    скрыт, но остаётся в DOM носителем значения — не убираем display:none-элемент из потока. */
@@ -632,7 +642,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .epk-search-wrap{padding:8px;border-bottom:1px solid var(--line);background:#f7fbfe}
 .epk-search{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font-size:12px}
 .epk-list{min-height:0;overflow-y:auto;overflow-x:hidden;padding:4px}
-.epk-group{padding:8px 8px 3px;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+.epk-group{padding:8px 8px 3px;color:var(--muted);font-size:var(--fs-xs);font-weight:900;letter-spacing:.06em;text-transform:uppercase}
 .epk-group[hidden]{display:none}
 /* content-visibility — дешёвая «виртуализация»: строки вне вьюпорта списка не считают
    раскладку/не красятся; intrinsic-size держит корректную высоту скролла на 340 строках */
@@ -640,11 +650,11 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .epk-option[hidden]{display:none}
 .epk-option .epk-thumb{width:34px;height:34px}
 .epk-otext{min-width:0}
-.epk-ocode{display:block;font-size:9px;font-weight:800;color:var(--blue-dark)}
+.epk-ocode{display:block;font-size:var(--fs-xs);font-weight:800;color:var(--blue-dark)}
 .epk-oname{display:block;font-size:11px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .epk-ometa{text-align:right;white-space:nowrap}
 .epk-oprice{display:block;font-size:11px;font-weight:800}
-.epk-omod{display:block;font-size:9px;color:var(--muted)}
+.epk-omod{display:block;font-size:var(--fs-xs);color:var(--muted)}
 .epk-option.active,.epk-option:hover{background:var(--blue-soft)}
 .epk-option[aria-selected="true"]{box-shadow:inset 0 0 0 1px var(--blue)}
 .epk-option.is-empty{grid-template-columns:minmax(0,1fr);color:var(--blue-dark);font-weight:700}
@@ -652,12 +662,12 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .epk-empty-base{text-align:center}
 /* подсказка про отсеянный фильтром артикул: товар, причина и (для накладки) действие */
 .epk-empty-found{margin-top:10px;padding:10px;border:1px solid #cfe0ef;border-radius:10px;background:#f7fbfe;text-align:left;color:var(--text)}
-.epk-empty-lead{color:var(--muted);font-size:10px;margin-bottom:5px}
+.epk-empty-lead{color:var(--muted);font-size:var(--fs-xs);margin-bottom:5px}
 .epk-empty-item{font-size:11px;font-weight:800;color:var(--blue-dark)}
-.epk-empty-reason{margin-top:5px;color:var(--muted);font-size:10px;line-height:1.35}
+.epk-empty-reason{margin-top:5px;color:var(--muted);font-size:var(--fs-xs);line-height:1.35}
 .epk-empty-action{margin-top:9px;width:100%;padding:8px 10px;border:1px solid transparent;border-radius:9px;color:#fff;font-weight:800;font-size:11px;background:linear-gradient(135deg,var(--blue),var(--blue-dark))}
 .epk-empty-action:hover{filter:brightness(1.05)}
-.wall-type-step{margin:0 0 12px;padding:10px;border:1px solid #d5e4f0;border-radius:10px;background:#f7fbfe}.wall-type-step legend{padding:0 5px;color:var(--muted);font-size:10px;font-weight:800}.wall-type-options{display:grid;grid-template-columns:1fr 1fr;gap:7px}.wall-type-options.is-triple{grid-template-columns:repeat(3,minmax(0,1fr))}.backlight-post-custom{margin-top:7px}.wall-type-option{padding:9px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font-size:11px;font-weight:700;cursor:pointer;text-align:center}.wall-type-option.active{border-color:var(--blue);background:var(--blue-soft);color:var(--blue-dark);box-shadow:inset 0 0 0 1px var(--blue)}.wall-type-hint{display:block;margin-top:6px;color:var(--muted);font-size:10px}
+.wall-type-step{margin:0 0 12px;padding:10px;border:1px solid #d5e4f0;border-radius:10px;background:#f7fbfe}.wall-type-step legend{padding:0 5px;color:var(--muted);font-size:var(--fs-xs);font-weight:800}.wall-type-options{display:grid;grid-template-columns:1fr 1fr;gap:7px}.wall-type-options.is-triple{grid-template-columns:repeat(3,minmax(0,1fr))}.backlight-post-custom{margin-top:7px}.wall-type-option{padding:9px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);font-size:11px;font-weight:700;cursor:pointer;text-align:center}.wall-type-option.active{border-color:var(--blue);background:var(--blue-soft);color:var(--blue-dark);box-shadow:inset 0 0 0 1px var(--blue)}.wall-type-hint{display:block;margin-top:6px;color:var(--muted);font-size:var(--fs-xs)}
 /* Выключенные кнопки типа стены — у ШАБЛОНА и нового поста своего типа стены нет, показан тип
    стены проекта (менять его можно только в панели проекта). Активная кнопка при этом остаётся
    подсвеченной: она сообщает значение, а не приглашает нажать. */
@@ -666,7 +676,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
    строка того же размера, что и кнопки рядом. */
 .scheme-readonly{padding:9px;border:1px dashed var(--line);border-radius:9px;background:#fff;color:var(--text);font-size:11px;font-weight:700;text-align:center}
 .builder-name{margin-top:12px}
-.builder-composition{margin-top:12px;padding:10px;border:1px solid #d5e4f0;border-radius:10px;background:#fff}.composition-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px;margin-bottom:6px}.composition-head span{color:var(--muted);text-align:right}.composition-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px dashed #e2ecf4;font-size:11px}.composition-row span{color:var(--muted)}.composition-row b{text-align:right}.composition-row.is-missing b{color:#c0492f}.composition-row.total b{color:var(--blue-dark);font-size:13px}.composition-note{margin-top:6px;color:#c0492f;font-size:10px}
+.builder-composition{margin-top:12px;padding:10px;border:1px solid #d5e4f0;border-radius:10px;background:#fff}.composition-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:var(--fs-xs);margin-bottom:6px}.composition-head span{color:var(--muted);text-align:right}.composition-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px dashed #e2ecf4;font-size:11px}.composition-row span{color:var(--muted)}.composition-row b{text-align:right}.composition-row.is-missing b{color:#c0492f}.composition-row.total b{color:var(--blue-dark);font-size:13px}.composition-note{margin-top:6px;color:#c0492f;font-size:var(--fs-xs)}
 .modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
 .modal-footer button:disabled{cursor:not-allowed;opacity:.45;transform:none;box-shadow:none}
 /* Окно «Прайс по шаблону» (К9 ч.3, EPPriceCheckUi). Два действия в ряд, ниже — отчёт проверки:
@@ -699,7 +709,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .frame-picker-crumb{flex:1 1 120px;display:flex;flex-direction:column;gap:2px;padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;text-align:left;cursor:pointer}
 .frame-picker-crumb:hover{border-color:#9ac7ef;background:var(--blue-soft)}
 .frame-picker-crumb.active{border-color:var(--blue);background:var(--blue-soft);box-shadow:inset 0 0 0 1px var(--blue)}
-.frame-picker-crumb-title{color:var(--muted);font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+.frame-picker-crumb-title{color:var(--muted);font-size:var(--fs-xs);font-weight:800;letter-spacing:.04em;text-transform:uppercase}
 .frame-picker-crumb-value{font-size:11px;font-weight:700;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .frame-picker-crumb.is-set .frame-picker-crumb-value{color:var(--blue-dark)}
 .frame-picker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
@@ -708,11 +718,11 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .frame-pick-tile.active{border-color:var(--blue);background:var(--blue-soft);box-shadow:inset 0 0 0 1px var(--blue)}
 .frame-pick-thumb{width:100%;height:96px;border-radius:9px;background:#f1f7fc}
 /* Фолбэк «без фото» у ~40% накладок — не пустая дыра, а приглушённая подпись по центру плитки. */
-.frame-pick-thumb .product-picture-fallback{color:var(--muted);font-size:10px;font-weight:700}
+.frame-pick-thumb .product-picture-fallback{color:var(--muted);font-size:var(--fs-xs);font-weight:700}
 .frame-pick-name{font-size:11px;line-height:1.3;font-weight:700}
-.frame-pick-count{color:var(--muted);font-size:10px}
+.frame-pick-count{color:var(--muted);font-size:var(--fs-xs)}
 .frame-picker-empty{margin:8px 0 4px;padding:12px;border:1px solid #e6cfa0;border-radius:10px;background:#fdf6e8;color:#7a5a12;font-size:11px;line-height:1.4}
-.frame-picker-empty-hint{margin:0;color:var(--muted);font-size:10px}
+.frame-picker-empty-hint{margin:0;color:var(--muted);font-size:var(--fs-xs)}
 .toast{position:fixed;right:20px;bottom:20px;z-index:150;display:none;padding:11px 14px;border-radius:11px;color:#fff;background:#123f69;box-shadow:var(--shadow);font-size:11px}.toast.show{display:block}
 /* Сообщения с крестиком (Б9/2б): тот же угол и фон, что toast, но не гаснут. Контейнер стоит ВЫШЕ toast
    (bottom больше его высоты) и складывает сообщения колонкой — одно над другим, не перекрывая друг друга
@@ -724,7 +734,7 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .notice__close:hover{background:rgba(255,255,255,.18)}
 .notice__close:focus-visible{outline:2px solid #fff;outline-offset:1px}
 /* Кнопка действия в сообщении (К4в): «Перевести пост(ы) на бетон/ГКЛ» — заметная, но не ярче крестика. */
-.notice__action{flex:none;align-self:center;appearance:none;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);color:#fff;font-size:10px;font-weight:700;line-height:1.2;padding:5px 9px;border-radius:7px;cursor:pointer;white-space:nowrap}
+.notice__action{flex:none;align-self:center;appearance:none;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.12);color:#fff;font-size:var(--fs-xs);font-weight:700;line-height:1.2;padding:5px 9px;border-radius:7px;cursor:pointer;white-space:nowrap}
 .notice__action:hover{background:rgba(255,255,255,.22)}
 .notice__action:focus-visible{outline:2px solid #fff;outline-offset:1px}
 /* Отметки стен комнаты (К4в) в панели свойств: заголовок и два чекбокса столбиком. */
@@ -763,31 +773,31 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 /* Правый отступ подписи РОВНО под кнопку «?» (абсолютная, right:10px + 24px = 34px): без него длинная
    подпись «…фото из мессенджеров» затекала под «?» и переносилась лишней строкой. Отступ только у подписи,
    а не у всей кнопки, — заголовок «Загрузить план» короткий, до «?» не достаёт, поле остаётся симметричным. */
-.upload-btn small{margin-top:2px;padding-right:34px;color:var(--muted);font-size:9px}
+.upload-btn small{margin-top:2px;padding-right:34px;color:var(--muted);font-size:var(--fs-xs)}
 .upload-help-btn{position:absolute;right:10px;top:50%;z-index:2;width:24px;height:24px;padding:0;transform:translateY(-50%);border:1px solid #b9cce0;border-radius:50%;color:var(--blue-dark);background:#fff;font-size:12px;font-weight:900;cursor:pointer;box-shadow:0 3px 9px rgba(16,42,67,.08)}
 .upload-help-btn:hover,.upload-help-btn[aria-expanded="true"]{color:#fff;border-color:var(--blue);background:var(--blue)}
 .upload-popover{position:absolute;left:0;right:0;top:calc(100% + 8px);z-index:30;padding:12px;border:1px solid #b8d4ed;border-radius:10px;color:var(--text);background:#fff;box-shadow:0 16px 35px rgba(16,42,67,.2)}
 .upload-popover:before{content:"";position:absolute;right:14px;top:-6px;width:10px;height:10px;transform:rotate(45deg);border-left:1px solid #b8d4ed;border-top:1px solid #b8d4ed;background:#fff}
 .upload-popover-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.upload-popover-head strong{font-size:12px}.upload-popover-head button{position:relative;z-index:1;width:24px;height:24px;padding:0;border:0;border-radius:6px;color:var(--muted);background:#edf4fb;font-size:16px;cursor:pointer}
-.upload-format-row{display:flex;align-items:center;justify-content:space-between;margin-top:9px;padding:8px;border-radius:8px;color:#44647f;background:#edf7ff;font-size:9px}.upload-format-row b{color:var(--blue-dark);font-size:10px}
-.upload-popover ul{margin:9px 0 0;padding-left:17px;color:#45627c;font-size:9px;line-height:1.45}.upload-popover li+li{margin-top:4px}
-.upload-popover p{margin:9px 0 0;padding-top:9px;border-top:1px solid var(--line);color:var(--muted);font-size:8px;line-height:1.45}
+.upload-format-row{display:flex;align-items:center;justify-content:space-between;margin-top:9px;padding:8px;border-radius:8px;color:#44647f;background:#edf7ff;font-size:var(--fs-xs)}.upload-format-row b{color:var(--blue-dark);font-size:var(--fs-xs)}
+.upload-popover ul{margin:9px 0 0;padding-left:17px;color:#45627c;font-size:var(--fs-xs);line-height:1.45}.upload-popover li+li{margin-top:4px}
+.upload-popover p{margin:9px 0 0;padding-top:9px;border-top:1px solid var(--line);color:var(--muted);font-size:var(--fs-xs);line-height:1.45}
 .pdf-import-modal{width:min(460px,100%)}
 .pdf-page-copy{margin:14px 0 0;color:var(--muted);font-size:11px;overflow-wrap:anywhere}
-.pdf-page-form{display:block;margin-top:14px;color:var(--muted);font-size:10px;font-weight:800}.pdf-page-form select{margin-top:6px}
+.pdf-page-form{display:block;margin-top:14px;color:var(--muted);font-size:var(--fs-xs);font-weight:800}.pdf-page-form select{margin-top:6px}
 .trace-panel{display:grid;gap:9px;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:8px;background:#f7f9fb}
 .full{width:100%}
-.range-label{display:grid!important;grid-template-columns:1fr auto;gap:6px;margin:0!important;color:var(--muted);font-size:9px}
+.range-label{display:grid!important;grid-template-columns:1fr auto;gap:6px;margin:0!important;color:var(--muted);font-size:var(--fs-xs)}
 .range-label input{grid-column:1/-1;padding:0;border:0;accent-color:var(--blue)}
 .range-label b{color:var(--text)}
-.text-action{padding:0;border:0;background:transparent;color:var(--blue-dark);text-align:left;font-size:9px;font-weight:800}
+.text-action{padding:0;border:0;background:transparent;color:var(--blue-dark);text-align:left;font-size:var(--fs-xs);font-weight:800}
 .text-action:hover{text-decoration:underline}
 .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
 .trace-progress{position:absolute;inset:0;z-index:80;display:grid;place-items:center;background:rgba(255,255,255,.82);backdrop-filter:blur(3px);transform:rotate(var(--world-rot,0deg))}
 .trace-progress-box{padding:18px 22px;border:1px solid var(--line);border-radius:8px;background:#fff;box-shadow:var(--shadow);text-align:center}
-.trace-progress-box strong,.trace-progress-box span{display:block}.trace-progress-box span{margin-top:5px;color:var(--muted);font-size:10px}
+.trace-progress-box strong,.trace-progress-box span{display:block}.trace-progress-box span{margin-top:5px;color:var(--muted);font-size:var(--fs-xs)}
 .auto-wall{stroke:#1872ad!important;stroke-dasharray:2 1}
-.property-save-state{margin-top:7px;color:#377554;font-size:9px;font-weight:800}
+.property-save-state{margin-top:7px;color:#377554;font-size:var(--fs-xs);font-weight:800}
 .room-label{border-radius:5px;background:#fff;border-color:#91a4b6;box-shadow:0 2px 8px rgba(16,42,67,.12)}
 .plan-icon{border-radius:4px;background:var(--navy);box-shadow:0 3px 8px rgba(16,42,67,.26)}
 .plan-icon.post{background:var(--blue-dark)}
@@ -796,10 +806,10 @@ label input,label select{width:100%;border:1px solid var(--line);border-radius:1
 .modal{border-radius:10px}
 .library-card,.price-card,.spec-item{border-radius:6px}
 
-.room-object-count{display:block;margin-top:4px;padding-top:4px;border-top:1px solid #d9e0e7;color:#1769aa;font-size:8px;font-weight:800}
+.room-object-count{display:block;margin-top:4px;padding-top:4px;border-top:1px solid #d9e0e7;color:#1769aa;font-size:var(--fs-xs);font-weight:800}
 .room-equipment-box{margin-top:12px;border:1px solid var(--line);border-radius:6px;overflow:hidden}
-.room-equipment-head{display:flex;justify-content:space-between;padding:8px 9px;background:#f2f5f7;font-size:10px;font-weight:800}
+.room-equipment-head{display:flex;justify-content:space-between;padding:8px 9px;background:#f2f5f7;font-size:var(--fs-xs);font-weight:800}
 .room-equipment-head b{color:var(--blue)}
-.room-equipment-row{display:flex;justify-content:space-between;gap:8px;padding:7px 9px;border-top:1px solid var(--line);font-size:9px}
+.room-equipment-row{display:flex;justify-content:space-between;gap:8px;padding:7px 9px;border-top:1px solid var(--line);font-size:var(--fs-xs)}
 .room-equipment-row span{font-weight:700}.room-equipment-row small{color:var(--muted)}
-.room-equipment-empty{padding:10px;color:var(--muted);font-size:9px}
+.room-equipment-empty{padding:10px;color:var(--muted);font-size:var(--fs-xs)}
