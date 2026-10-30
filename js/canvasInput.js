@@ -426,6 +426,17 @@ canvasScroll.onclick=e=>{
     setTool("vertex");
   }
   else if(state.tool==="room"){
+    /* щелчок внутри уже существующей комнаты с контуром НЕ создаёт вторую табличку поверх (владелец 30.10):
+       ТЕСНЕЙШАЯ накрывающая (EPGeom.tightestRoomAtPoint) — то же правило, что привязка и выбор (§7.1),
+       таблички без контура (без polygon) она не накрывает. Нашлась — выбираем её как при обычном клике
+       (свойства в правой панели), глушим инструмент в «Выбор» и возвращаемся, не записав шаг истории */
+    const inside=tightestRoomAtPoint(x,y,state.rooms);
+    if(inside){
+      selectEntity("room",inside.id);
+      setTool("select");
+      toast("Здесь уже есть комната «"+inside.name+"»");
+      return;
+    }
     markCanvasUsed();
     const room={id:uid("room_"),x:x-55,y:y-18,seedX:x,seedY:y,name:"Новая комната",area:""};
     state.rooms.push(room);state.selected={kind:"room",id:room.id};
