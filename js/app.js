@@ -366,7 +366,19 @@ function setTool(tool){
    старых проектах одиночные элементы остаются в смете — тогда счётчик показываем, чтобы их было
    видно. Чистая функция от чисел: без state/DOM, тестируется без шима. */
 const statusCountsText=(devices,posts,rooms)=>`${devices>0?`Элементов: ${devices} · `:""}Постов: ${posts} · Комнат: ${rooms}`;
-function updateStatus(text){$("status").textContent=text||statusCountsText(state.devices.length,state.posts.length,state.rooms.length)}
+/* Подсказка по умолчанию для #status, когда инструмент ничего своего не пишет (Редизайн, ч.3): прежние
+   две строки из футера, теперь живут одним каналом. */
+const DEFAULT_STATUS_HINT="Объекты отображаются компактными пиктограммами · наведите курсор, чтобы увидеть полный состав";
+/* Строка под холстом разведена на ТРИ узла (Редизайн, ч.3): #status — подсказка инструмента (или
+   подсказка по умолчанию), #statusCounts — счётчики «Постов · Комнат» (раньше делили один узел со
+   статусом), #footerTotal — зеркало тёмного «Итого» #grandTotal для узких экранов (CSS показывает его
+   только <1100px, где правая панель уезжает). Счётчик и «Итого» пишем ОТСЮДА на каждый updateStatus —
+   их значения уже посчитаны (statusCountsText / renderSummary), второго расчёта нет. */
+function updateStatus(text){
+  $("status").textContent=text||DEFAULT_STATUS_HINT;
+  const counts=$("statusCounts");if(counts)counts.textContent=statusCountsText(state.devices.length,state.posts.length,state.rooms.length);
+  const gt=$("grandTotal"),ft=$("footerTotal");if(gt&&ft)ft.textContent=gt.textContent;
+}
 /* Надпись «Выделено: N» над планом (Б5, ч.1). ОТДЕЛЬНЫЙ узел, НЕ через updateStatus: строку статуса
    перетирают десятки вызовов (renderSummary всегда зовёт updateStatus()), и счётчик выделения в ней
    не удержался бы. Канал — как у #outsideRoomsStatus: свой узел, скрыт когда пусто. Текст и порог N≥2
@@ -2470,6 +2482,10 @@ function applyPlanVisibility(){
   img.style.opacity=mode==="hide"?"0":mode==="dim"?String(EPConfig.planDimOpacity):"";
   const btn=$("planVisibilityBtn");
   if(btn){btn.textContent=PLAN_VIS_LABEL[mode];btn.title=PLAN_VIS_NEXT[mode];btn.disabled=!state.planLoaded}
+  /* Иконка подложки в тулбаре холста (Редизайн, ч.3): подпись-подсказка из того же PLAN_VIS_LABEL/NEXT,
+     активность — от наличия плана, класс .active подсвечивает нестандартный режим (бледная/скрыта). */
+  const tbtn=$("planVisibilityToolBtn");
+  if(tbtn){tbtn.title=PLAN_VIS_LABEL[mode]+". "+PLAN_VIS_NEXT[mode]+" (B)";tbtn.disabled=!state.planLoaded;tbtn.classList.toggle("active",mode!=="show")}
 }
 /* ---- Поворот подложки (Б3, ч.1): вращается ТОЛЬКО #planImage; стены/комнаты/посты живут в
    мировых координатах и не трогаются. Готовую CSS-трансформацию (rotate+вписывающий scale) считает
@@ -2514,6 +2530,7 @@ function updatePlanUi(){
      сменил, так что даже уцелей armed, подтверждение дало бы cancel, а не удаление. */
   const clearConfirm=$("clearPlanConfirmBtn");if(clearConfirm&&!loaded)clearConfirm.hidden=true;
   const vis=$("planVisibilityBtn");if(vis)vis.disabled=!loaded;
+  const visTool=$("planVisibilityToolBtn");if(visTool)visTool.disabled=!loaded;   /* иконка подложки в тулбаре — тот же гейт «есть план» */
   /* Органы поворота (Б3, ч.2а — гейт в ОДНОМ месте, §7.1 п.2). В режиме «весь план» вращать есть что
      всегда (сам холст с нарисованным) — живут и без подложки. В режиме «только чертёж» — как в части 1:
      без фона вращать нечего. Переключатель режима активен ВСЕГДА (иначе из «только чертёж» без плана
@@ -3575,6 +3592,9 @@ $("gridStepSelect").onchange=e=>{
   applyGridStyle();persistProject();   /* фоновая сетка должна сразу перерисоваться под новый шаг */
 };
 $("planVisibilityBtn").onclick=cyclePlanVisibility;
+/* Кнопка подложки в тулбаре холста (Редизайн, ч.3) — та же команда, что клавиша B и кнопка в левой
+   панели (одна логика, не дублируется). Активность/подпись синхронизируют updatePlanUi/applyPlanVisibility. */
+{const t=$("planVisibilityToolBtn");if(t)t.onclick=cyclePlanVisibility;}
 /* ПОВОРОТ ПОДЛОЖКИ (Б3, ч.1). ↺/↻ — шаг ±90° от текущего угла (EPPlanRotate.step нормализует).
    Поле «угол» принимает любое число (в т.ч. «3,5» с запятой); мусор — откатываем к текущему углу,
    а не сбрасываем в 0 (потеря работы). Каждое изменение угла — настройка проекта, сохраняем сразу,
@@ -4103,6 +4123,12 @@ document.onkeydown=e=>{
   if(e.key==="Backspace"&&state.tool==="roomline"&&!typing&&!inBuilder&&state.roomLinePoints.length){e.preventDefault();removeLastRoomLinePoint()}
   /* B — переключение видимости подложки (независимо от раскладки, по физической клавише) */
   if(e.code==="KeyB"&&!typing&&!inBuilder&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();cyclePlanVisibility()}
+  /* F8/F9 — режимы черчения Орто/Сетка (Редизайн, ч.3). Переключают те же чекбоксы в строке под холстом
+     через EPCanvasBar (одна логика, край не размножается). Те же гейты, что у B: не в поле ввода и не
+     при открытой модалке (anyModalOpen уже отсеян return'ом выше — здесь страхуемся !typing&&!inBuilder,
+     как соседние клавиши). preventDefault — у F8/F9 нет полезного браузерного действия, гасим. */
+  if(e.key==="F8"&&!typing&&!inBuilder){e.preventDefault();canvasBar.toggleOrtho()}
+  if(e.key==="F9"&&!typing&&!inBuilder){e.preventDefault();canvasBar.toggleGrid()}
   /* Пробел — режим «рука» для панорамы (курсор-подсказка). preventDefault, чтобы
      пробел не прокручивал страницу и не «нажимал» сфокусированную кнопку. */
   if(e.code==="Space"&&!typing&&!inBuilder){e.preventDefault();onSpaceKeydown()}   /* режим «рука» держит js/canvasInput.js — spaceDown и все его писатели/читатели там */
@@ -4145,6 +4171,12 @@ topbar.syncProjectName();   /* показать строку сразу на з�
    к этому моменту объявлены (docHeader — hoisted, EPPrefs — глобальный namespace), TDZ нет. */
 const rightPanel=EPRightPanel.attach({$,docHeader,EPPrefs});
 rightPanel.syncKpNumber();   /* показать «КП № …» сразу на загрузке, тем же путём, что и строку шапки */
+
+/* Строка под холстом (Редизайн, ч.3, EPCanvasBar.attach): горячие клавиши F8/F9 переключают ТЕ ЖЕ
+   чекбоксы режимов черчения (#orthoToggle/#snapGridToggle) и шлют 'change', чтобы сработал уже
+   навешенный onchange (state + сохранение). Гейты «не в поле/не в модалке» остаются в keydown ниже —
+   модуль их не дублирует. Зависит только от $, TDZ нет. */
+const canvasBar=EPCanvasBar.attach({$});
 
 const {buildPostSheet,openInstallSheet}=EPDocs.attach({
   $,STANDARD_LABEL,assembledPostHtml,assembledPostSpec,buildEstimate,canvas,companyLogo,companySignature,

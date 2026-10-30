@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261029.6">
+  <link rel="stylesheet" href="css/styles.css?v=20261030.1">
 </head>
 <body>
 <!-- Контурные иконки шапки (P1-1). Один спрайт <symbol>: иконки используют stroke:currentColor и
@@ -24,6 +24,16 @@
   <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M9 14h2a1.5 1.5 0 0 0 0-3H9v6"/></symbol>
   <!-- Иконка «панель» для кнопки #rpToggle (Редизайн 2): выдвигает правую панель на узких экранах. -->
   <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></symbol>
+  <!-- Иконки тулбара холста и строки под ним (Редизайн, часть 3): отмена/возврат, зум, вписать,
+       подложка, режимы черчения. Те же символы, что в макете дизайнера. -->
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 7L4 12l5 5"/><path d="M4 12h11a5 5 0 0 1 0 10h-2"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="M15 7l5 5-5 5"/><path d="M20 12H9a5 5 0 0 0 0 10h2"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  <symbol id="i-layer" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
+  <symbol id="i-ortho" viewBox="0 0 24 24"><path d="M5 4v15h15"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M4 15h16M10 4v16M15 4v16"/></symbol>
 </svg>
 <div class="app">
   <!-- ШАПКА (P1-1): файл — иконками 34×34, «Данные проекта и КП» — кнопкой, справа строка проекта,
@@ -189,22 +199,10 @@
           <button class="tool" data-tool="vertex">◇<span>Правка комнат</span></button>
           <button class="tool danger" data-tool="delete">×<span>Удалить</span></button>
         </div>
-        <div class="markup-controls">
-          <label class="markup-check" title="Рисовать линии строго горизонтально/вертикально. Удержание Shift временно инвертирует режим">
-            <input type="checkbox" id="orthoToggle" checked>Ортогонально
-          </label>
-          <label class="markup-check" title="Привязывать точки к узлам сетки. Магниты к концам и пересечениям линий работают всегда, независимо от этой галочки">
-            <input type="checkbox" id="snapGridToggle" checked>Привязка к сетке
-          </label>
-          <label class="markup-step" title="Шаг сетки в пикселях — влияет и на привязку, и на фоновую сетку холста">Шаг
-            <select id="gridStepSelect">
-              <option value="5">5 px</option>
-              <option value="10">10 px</option>
-              <option value="25">25 px</option>
-              <option value="50">50 px</option>
-            </select>
-          </label>
-        </div>
+        <!-- Режимы черчения «Ортогонально / Привязка к сетке / Шаг» переехали в строку под холстом
+             (.canvas-statusbar) — Редизайн, часть 3: там они всегда на виду и не прокручиваются вместе
+             с левой панелью. Сами элементы (#orthoToggle/#snapGridToggle/#gridStepSelect) теперь живут
+             в футере, здесь их больше нет. -->
         <button class="btn full" id="roomsFromLinesBtn" style="margin-top:7px">Определить помещения по линиям</button>
         <small class="hint-line">Строит помещения по замкнутым контурам разметки (без загрузки чертежа)</small>
         <button class="text-action" id="clearRoomLinesBtn" style="margin-top:7px">Очистить разметку помещений</button>
@@ -217,18 +215,26 @@
     </aside>
 
     <section class="main-panel">
+      <!-- ТУЛБАР ХОЛСТА (Редизайн, часть 3 по макету дизайнера): частые действия — иконки 30×30 с
+           подсказкой (title), разбиты разделителями .vsep на группы «отмена/возврат», «зум», «подложка».
+           ID кнопок НЕ менялись — обработчики в app.js работают по id. Текст подсказки клавиши пишем ТОЛЬКО
+           где клавиша реально работает: Ctrl+Z/Y и B — есть; клавиши «вписать в экран» в коде нет, поэтому
+           у #zoomFit её в подсказке нет. #status и счётчик переехали в строку ПОД холстом (.canvas-footer). -->
       <div class="canvas-toolbar">
-        <div class="zoom-controls">
-          <button class="icon-btn" id="zoomOut">−</button>
-          <button class="zoom-value" id="zoomReset" title="Сбросить масштаб к 100%"></button>
-          <button class="icon-btn" id="zoomIn">+</button>
-          <button class="btn ghost small" id="zoomFit" title="Показать весь план: пробел + перетаскивание или средняя кнопка — панорама, колесо — зум">Вписать в экран</button>
-        </div>
-        <!-- Отмена/возврат изменений плана (Б4, ч.А). Рядом с зумом; классы как у соседних кнопок.
-             disabled, когда отменять/возвращать нечего (syncHistoryUi). -->
-        <button class="btn ghost small" id="undoBtn" title="Отменить последнее изменение плана (Ctrl+Z)" disabled>↶ Отменить</button>
-        <button class="btn ghost small" id="redoBtn" title="Вернуть отменённое изменение (Ctrl+Y)" disabled>↷ Вернуть</button>
-        <div class="status" id="status">Выберите инструмент или элемент</div>
+        <!-- Отмена/возврат изменений плана (Б4, ч.А). disabled, когда отменять/возвращать нечего (syncHistoryUi). -->
+        <button class="icon-btn" id="undoBtn" type="button" title="Отменить последнее изменение плана (Ctrl+Z)" aria-label="Отменить" disabled><svg class="i"><use href="#i-undo"/></svg></button>
+        <button class="icon-btn" id="redoBtn" type="button" title="Вернуть отменённое изменение (Ctrl+Y)" aria-label="Вернуть" disabled><svg class="i"><use href="#i-redo"/></svg></button>
+        <span class="vsep"></span>
+        <button class="icon-btn" id="zoomOut" type="button" title="Уменьшить" aria-label="Уменьшить"><svg class="i"><use href="#i-minus"/></svg></button>
+        <button class="zoom-value" id="zoomReset" type="button" title="Сбросить масштаб к 100%"></button>
+        <button class="icon-btn" id="zoomIn" type="button" title="Увеличить" aria-label="Увеличить"><svg class="i"><use href="#i-plus"/></svg></button>
+        <button class="icon-btn" id="zoomFit" type="button" title="Вписать в экран: пробел + перетаскивание или средняя кнопка — панорама, колесо — зум" aria-label="Вписать в экран"><svg class="i"><use href="#i-fit"/></svg></button>
+        <span class="vsep"></span>
+        <!-- Переключатель подложки (iconка i-layer): показана → бледная → скрыта. Делает ТО ЖЕ, что
+             клавиша B и кнопка «Подложка» в левой панели, — зовёт cyclePlanVisibility (одна логика, не
+             дублируется). Подпись/активность синхронизирует applyPlanVisibility/updatePlanUi. -->
+        <button class="icon-btn" id="planVisibilityToolBtn" type="button" title="Подложка: показать / бледная / скрыть (B)" aria-label="Переключить подложку" disabled><svg class="i"><use href="#i-layer"/></svg></button>
+        <span class="spacer"></span>
         <!-- Групповое выделение постов (Б5): «Выделено: N» над планом. Отдельный канал (не #status,
              его перетирает updateStatus); скрыт при N<2 — пишет updateSelectionCount. -->
         <div class="selection-count" id="selectionCount" role="status" aria-live="polite" hidden></div>
@@ -269,10 +275,42 @@
         <div class="canvas-dropzone" id="canvasDropzone" aria-hidden="true"><span>Отпустите, чтобы загрузить план</span></div>
       </div>
 
+      <!-- СТРОКА ПОД ХОЛСТОМ (Редизайн, часть 3 по макету дизайнера), слева направо: подсказка инструмента
+           (#status) · «Итого» (зеркалит #grandTotal, видно только на узких экранах <1100px) · счётчик
+           «Постов · Комнат» (#statusCounts) · режимы черчения Орто/Сетка/шаг. Режимы переехали СЮДА из
+           левой панели (сами элементы, не копии) — чекбоксы оставлены чекбоксами (на них висит onchange
+           app.js), а вид кнопки-переключателя даёт CSS .toggle:has(input:checked). «масштаб 1:50» не
+           показываем (решение владельца). Литерал `<div class="canvas-footer">` и #outsideRoomsStatus
+           внутри него до .right-panel стережёт renderSummaryOrphanWiring — не менять. -->
       <div class="canvas-footer">
-        <div class="canvas-footer-hints">
-          <span>Объекты отображаются компактными пиктограммами</span>
-          <span>Наведите курсор, чтобы увидеть полный состав</span>
+        <div class="canvas-statusbar">
+          <!-- Подсказка инструмента: updateStatus пишет сюда текст текущего инструмента, а когда своего
+               текста нет — подсказку по умолчанию «Объекты отображаются… / Наведите курсор…». -->
+          <span class="status" id="status">Выберите инструмент или элемент</span>
+          <!-- «Итого» для узких экранов: текст зеркалит #grandTotal (тот же расчёт, второго нет), пишет
+               updateStatus; CSS показывает чип только <1100px, где правая панель с «Итого» уезжает. -->
+          <span class="total-chip" id="footerTotal" aria-hidden="true"></span>
+          <!-- Счётчик «Постов: N · Комнат: N» (и «Элементов: N» для старых проектов) — отдельный узел,
+               пишет updateStatus через statusCountsText. Переехал сюда из тулбара/строки статуса. -->
+          <span class="status-counts" id="statusCounts"></span>
+          <span class="vsep"></span>
+          <!-- Режимы черчения переехали из .markup-controls левой панели. Чекбоксы те же (#orthoToggle,
+               #snapGridToggle, #gridStepSelect) — их читает/пишет app.js, F8/F9 переключают их же
+               (EPCanvasBar). Вид включённого состояния — CSS .toggle:has(input:checked). -->
+          <label class="toggle" title="Рисовать линии строго горизонтально/вертикально. Удержание Shift временно инвертирует режим (F8)">
+            <input type="checkbox" id="orthoToggle" checked><svg class="i"><use href="#i-ortho"/></svg><span>Орто</span>
+          </label>
+          <label class="toggle" title="Привязывать точки к узлам сетки. Магниты к концам и пересечениям линий работают всегда, независимо от этой галочки (F9)">
+            <input type="checkbox" id="snapGridToggle" checked><svg class="i"><use href="#i-grid"/></svg><span>Сетка</span>
+          </label>
+          <label class="toggle-step" title="Шаг сетки в пикселях — влияет и на привязку, и на фоновую сетку холста">
+            <select id="gridStepSelect">
+              <option value="5">5 px</option>
+              <option value="10">10 px</option>
+              <option value="25">25 px</option>
+              <option value="50">50 px</option>
+            </select>
+          </label>
         </div>
         <!-- Отдельный канал статуса: updateStatus продолжает писать подсказки инструментов в
              #status, а предупреждение о привязке не может затереть их и само не исчезает с ними. -->
@@ -912,6 +950,9 @@
 <script src="js/planDrop.js?v=20261025.2"></script>
 <script src="js/topbar.js?v=20261029.2"></script>
 <script src="js/rightPanel.js?v=20261029.1"></script>
-<script src="js/app.js?v=20261029.2"></script>
+<!-- Строка под холстом (Редизайн, часть 3): горячие клавиши F8/F9 переключают те же чекбоксы режимов
+     черчения. До app.js, который зовёт EPCanvasBar.attach(ctx) и дёргает toggleOrtho/toggleGrid из keydown. -->
+<script src="js/canvasBar.js?v=20261030.1"></script>
+<script src="js/app.js?v=20261030.1"></script>
 </body>
 </html>
