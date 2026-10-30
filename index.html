@@ -904,7 +904,7 @@
 <!-- Наложение помещений: пересечение и ОБРЕЗКА контуров. Чистый модуль (ни DOM, ни state) — считает
      через планарный аппарат EPRoomsFromLines, поэтому грузится ПОСЛЕ него и ДО roomDetect.js, который
      при «Определить помещения по линиям» обрезает свежие грани по уже размещённым комнатам (ч.1). -->
-<script src="js/roomOverlap.js?v=20261030.1"></script>
+<script src="js/roomOverlap.js?v=20261030.2"></script>
 <script src="js/roomDraft.js?v=20260828.2"></script>
 <script src="js/room.js?v=20260915.1"></script>
 <!-- Варианты отделки комнаты (К8а): до пяти наборов {стандарт/серия/материал/форма/цвет} на
@@ -935,7 +935,7 @@
      подключает её через EPWallScope.create({$, WALL_STEP_LABEL}). -->
 <script src="js/wallScope.js?v=20260927.1"></script>
 <script src="js/postBuilder.js?v=20261028.1"></script>
-<script src="js/rooms.js?v=20261006.1"></script>
+<script src="js/rooms.js?v=20261030.1"></script>
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->

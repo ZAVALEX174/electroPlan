@@ -164,8 +164,94 @@ function clipRoomsAgainst(faceRooms, existingPolys, opts) {
   return out;
 }
 
+/* ---- Часть 2 блока: защита РУЧНОЙ правки контура от заезда в соседнюю комнату ------------------
+   Правило в ОДНОМ месте (§7.1): и перетаскивание вершины, и её удаление спрашивают одну функцию
+   «не выросло ли наложение с соседями». Перетаскивание, упираясь в стену соседа, останавливает
+   вершину на границе (бисекция по отрезку «последняя принятая позиция → под курсором»); удаление,
+   если делает контур заходящим в соседа, отклоняется вызывающим. Меряем РОСТ наложения относительно
+   снимка на начало действия (base): у открытого проекта комнаты могут быть уже налезшими — уменьшать
+   и не менять наложение разрешаем, запрещаем только увеличивать (решение владельца 30.10). */
+
+/* Общие зависимости для наложения: модули геометрии/граней и допуск склейки (как у overlapArea). */
+function overlapDeps(opts) {
+  return { geom: defaultGeom(opts.geom), faces: defaultFaces(opts.faces), tol: opts.tol > 0 ? opts.tol : DEFAULT_TOL };
+}
+
+/* Габаритный прямоугольник контура [minX,minY,maxX,maxY] — дешёвый префильтр перед тяжёлым
+   планарным пересечением: далёкий сосед, чей bbox не пересекает bbox контура, перекрыться не может. */
+function bboxOf(poly) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of poly) { if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y; }
+  return [x0, y0, x1, y1];
+}
+function bboxHit(a, b) { return a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3]; }
+
+/* Контур с вершиной index, передвинутой в точку p (прочие вершины на месте) — новый массив. */
+function withVertex(poly, index, p) {
+  const out = poly.map(q => ({ x: q.x, y: q.y }));
+  if (index >= 0 && index < out.length) { out[index].x = p.x; out[index].y = p.y; }
+  return out;
+}
+
+/* Снимок наложения контура с КАЖДЫМ соседом, px² (bbox-префильтр: далёкий сосед → 0 без тяжёлого
+   счёта). Берётся на начало жеста — им же меряется, выросло ли наложение. Длина = числу соседей. */
+function overlapEach(poly, neighbors, opts) {
+  opts = opts || {};
+  const deps = overlapDeps(opts);
+  const list = neighbors || [];
+  const out = [];
+  if (!ok(poly)) { for (let i = 0; i < list.length; i++) out.push(0); return out; }
+  const pb = bboxOf(poly);
+  for (const M of list) out.push(ok(M) && bboxHit(pb, bboxOf(M)) ? overlapArea(poly, M, deps) : 0);
+  return out;
+}
+
+/* Индекс ПЕРВОГО соседа, с которым наложение контура poly выросло больше touchArea сверх base[i],
+   иначе −1. base — снимок overlapEach в начале действия (нет base → нули: запрет любого наложения
+   сверх касания). bbox-префильтр: сосед без пересечения габаритов пропускается (его наложение 0,
+   вырасти не могло). Это и есть «проверка только против соседей, у которых bbox пересекается». */
+function overlapGrew(poly, neighbors, base, opts) {
+  opts = opts || {};
+  const deps = overlapDeps(opts);
+  const touch = opts.touchArea >= 0 ? opts.touchArea : TOUCH_AREA;
+  const list = neighbors || [];
+  if (!ok(poly)) return -1;
+  const pb = bboxOf(poly);
+  for (let i = 0; i < list.length; i++) {
+    const M = list[i];
+    if (!ok(M) || !bboxHit(pb, bboxOf(M))) continue;
+    const b0 = base && base[i] > 0 ? base[i] : 0;
+    if (overlapArea(poly, M, deps) > b0 + touch) return i;
+  }
+  return -1;
+}
+
+/* Ближайшая к желаемой to допустимая позиция двигаемой вершины index: от её ТЕКУЩЕЙ (уже принятой)
+   позиции poly[index] к to бисекцией по отрезку, пока контур не начинает увеличивать наложение сверх
+   base. Возвращает {x,y,clamped}. to и так допустима → отдаём to (вершина следует за курсором);
+   иначе — самую дальнюю допустимую точку на отрезке (вершина «упирается» в границу соседа плавно,
+   без дёрганья: при дальнейшем нажатии от уже принятой граничной точки она остаётся на месте).
+   Инвариант бисекции: t=0 (from) допустима по построению вызова (её наложение = base), t=1 — нет. */
+function clampVertexMove(poly, index, to, neighbors, base, opts) {
+  opts = opts || {};
+  if (!ok(poly) || index < 0 || index >= poly.length) return { x: to.x, y: to.y, clamped: false };
+  if (overlapGrew(withVertex(poly, index, to), neighbors, base, opts) < 0)
+    return { x: to.x, y: to.y, clamped: false };
+  const from = poly[index];
+  const dx = to.x - from.x, dy = to.y - from.y;
+  const dist = Math.hypot(dx, dy);
+  const iters = Math.min(30, Math.max(12, Math.ceil(Math.log2((dist / 0.1) || 2))));   /* сходимость < 0.1 px */
+  let lo = 0, hi = 1;   /* lo всегда допустима, hi — нет */
+  for (let k = 0; k < iters; k++) {
+    const mid = (lo + hi) / 2;
+    const p = { x: from.x + dx * mid, y: from.y + dy * mid };
+    if (overlapGrew(withVertex(poly, index, p), neighbors, base, opts) < 0) lo = mid; else hi = mid;
+  }
+  return { x: from.x + dx * lo, y: from.y + dy * lo, clamped: true };
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
-const api = { overlapArea, difference, clipAgainst, clipRoomsAgainst };
+const api = { overlapArea, difference, clipAgainst, clipRoomsAgainst, overlapEach, overlapGrew, clampVertexMove, withVertex };
 if (typeof window !== "undefined") window.EPRoomOverlap = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

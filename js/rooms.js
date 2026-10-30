@@ -95,6 +95,21 @@ function updateRoomLabelText(room){
 }
 
 /* ---- Ручная правка полигонов комнат (инструмент «Правка комнат») ---- */
+/* Ч.2 блока «комнаты не налезают друг на друга»: защита РУЧНОЙ правки контура от заезда в соседнюю
+   комнату. Снимок соседей (контурных комнат, кроме правимой) и наложения с ними берём на НАЧАЛО
+   действия: запрещаем только РОСТ наложения, уменьшение/неизменность разрешаем (у открытого проекта
+   комнаты могут быть уже налезшими — правка не должна блокироваться намертво, решение владельца 30.10).
+   Вся геометрия — в EPRoomOverlap (одно место правила, §7.1); здесь лишь сбор соседей и имя для тоста.
+   EPRoomOverlap/EPConfig — window-глобалы (сборщика нет, PLAN 2.2), берём через typeof-страховку: нет
+   модуля или соседей → null, и правка ведёт себя как прежде (без зажима). */
+function overlapGuardFor(room){
+  const neighbors=state.rooms.filter(r=>r!==room&&r.id!==room.id&&r.polygon&&r.polygon.length>2);
+  if(!neighbors.length||typeof EPRoomOverlap==="undefined")return null;
+  const polys=neighbors.map(r=>r.polygon);
+  const opts={tol:(typeof EPConfig!=="undefined"?EPConfig.roomWeldTol:undefined)};
+  const base=EPRoomOverlap.overlapEach(room.polygon,polys,opts);   /* снимок наложения на начало действия */
+  return {neighbors,polys,opts,base};
+}
 function svgTitle(node,text){const t=document.createElementNS(SVG_NS,"title");t.textContent=text;node.appendChild(t)}
 /* правка делает комнату «ручной»: она переживает повторное авто-определение */
 function markRoomEdited(room){room.autoPolygon=false;room.edited=true}
@@ -149,6 +164,13 @@ function renderVertexHandles(svg,room){
       e.preventDefault();e.stopPropagation();
       if(e.altKey){
         if(poly.length<=3){toast("В полигоне должно остаться не менее трёх вершин");return}
+        /* ч.2: если контур без этой вершины заедет в соседнюю комнату (наложение вырастет) —
+           удаление не выполняем (его нельзя сделать без наложения), короткий тост с именем соседа */
+        const g=overlapGuardFor(room);
+        if(g){
+          const bad=EPRoomOverlap.overlapGrew(poly.filter((_,k)=>k!==i),g.polys,g.base,g.opts);
+          if(bad>=0){toast(`Нельзя удалить: контур заедет в «${g.neighbors[bad].name}»`);return}
+        }
         poly.splice(i,1);markRoomEdited(room);refreshRoomAfterEdit(room);
         updateStatus(`Вершина удалена · осталось ${poly.length}`);
         return;
@@ -163,13 +185,16 @@ function dragVertex(room,index,startEvent){
   const pg=svg.querySelector(`polygon[data-room-id="${room.id}"]`);
   const handle=svg.querySelectorAll(".vertex-handle")[index];
   const point=room.polygon[index];
+  const guard=overlapGuardFor(room);   /* ч.2: снимок соседей/наложения на начало жеста — для зажима */
   const move=e=>{
-    /* без зажима по краям блока: поле бесконечное, вершину можно тащить куда угодно. Координаты —
-       через единое clientToWorld (учитывает масштаб И угол мира, Б3 ч.2а): при повороте холста
-       вершина садится под курсор, а не мимо (прежняя формула по canvas.rect при повороте врала). */
+    /* Поле бесконечное: по краям блока не зажимаем. Координаты — через единое clientToWorld (учитывает
+       масштаб И угол мира, Б3 ч.2а): при повороте холста вершина садится под курсор, а не мимо.
+       Ч.2: если желаемая точка заводит контур в соседнюю комнату — вершина упирается в её границу
+       (ближайшая допустимая позиция от уже принятой точки, бисекцией), наложение не растёт. */
     const w=clientToWorld(e.clientX,e.clientY);
-    point.x=w.x;
-    point.y=w.y;
+    const pos=guard?EPRoomOverlap.clampVertexMove(room.polygon,index,w,guard.polys,guard.base,guard.opts):w;
+    point.x=pos.x;
+    point.y=pos.y;
     if(pg)pg.setAttribute("points",room.polygon.map(p=>p.x+","+p.y).join(" "));
     if(handle){handle.setAttribute("cx",point.x);handle.setAttribute("cy",point.y)}
   };

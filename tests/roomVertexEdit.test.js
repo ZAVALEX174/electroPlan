@@ -132,6 +132,7 @@ function buildRooms(state) {
   };
   const code = [
     stand.functionSource("renderRooms"),
+    stand.functionSource("overlapGuardFor"),   /* ч.2: защита от наложения; без соседей — возвращает null (no-op) */
     stand.functionSource("svgTitle"),
     stand.functionSource("markRoomEdited"),
     stand.functionSource("refreshRoomAfterEdit"),
