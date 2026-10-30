@@ -214,6 +214,7 @@ test("D10: init создаёт поля до восстановления — п
     }
   };
   ctx.maybeOpenKpSetup = () => {};   /* окно «Данные проекта и КП» (EPProjectSetup) — зависимость init, здесь шпион-пустышка */
+  ctx.leftPanel = { syncPlanSection() {}, primePlanSection() {} };   /* левая панель (Редизайн, ч.4): loadProjectIntoUi зовёт primePlanSection — заглушка */
   for (const name of ["loadCachedRate", "renderRequisitesInputs", "fillDocHeaderInputs", "renderDocImage", "renderCompanyTerms", "renderTemplates", "renderAll", "renderSummary",
     "updateScaleUi", "updateRateUi", "applyPlanVisibility", "applyPlanRotation", "renderLightingSchemeSelect", "renderProjectWallTypeSelect",
     "renderProjectBacklight",

@@ -416,6 +416,11 @@ async function loadProjectIntoUi(){
      из файла»: после подмены проекта стек обнуляется этим снимком, иначе Ctrl+Z откатил бы в прошлый
      проект (разведка). */
   _history.reset(projectSnapshot());syncHistoryUi();
+  /* Базовая точка автосворачивания «Исходного плана» (Редизайн, ч.4): фиксируем состояние уже
+     восстановленного проекта как исходное и взводим слежение. На самом открытии секцию не трогаем —
+     сохранённое человеком состояние уважаем; свернётся она только на последующем переходе в «загружен ·
+     масштаб задан» (новый план + масштаб). */
+  leftPanel.primePlanSection();
   return restored;
 }
 
@@ -732,6 +737,7 @@ function updateScaleUi(){
     hint.classList.remove("is-set");btn.textContent="Задать масштаб";clear.hidden=true;
   }
   renderScaleRuler();
+  leftPanel.syncPlanSection();   /* масштаб задали/сбросили — статус секции «Исходный план» + возможное автосворачивание (Редизайн, ч.4) */
 }
 let scaleResolve=null;
 function askScaleLength(pixels){
@@ -2537,6 +2543,7 @@ function updatePlanUi(){
      не выбраться в «весь план»). */
   const rotEnabled=state.rotateTarget==="world"||loaded;
   ["planRotateLeftBtn","planRotateRightBtn","planRotateInput"].forEach(id=>{const e=$(id);if(e)e.disabled=!rotEnabled});
+  leftPanel.syncPlanSection();   /* статус секции «Исходный план» + автосворачивание при загрузке/сбросе плана (Редизайн, ч.4) */
 }
 /* ЕДИНЫЙ предикат «подложка та же, что была в начале операции». Копий условия по коду
    быть не должно (HANDOFF §7.1 п.2). Меняет поколение только bumpPlanToken. */
@@ -4129,6 +4136,18 @@ document.onkeydown=e=>{
      как соседние клавиши). preventDefault — у F8/F9 нет полезного браузерного действия, гасим. */
   if(e.key==="F8"&&!typing&&!inBuilder){e.preventDefault();canvasBar.toggleOrtho()}
   if(e.key==="F9"&&!typing&&!inBuilder){e.preventDefault();canvasBar.toggleGrid()}
+  /* Горячие клавиши инструментов V/W/L/R/E (Редизайн, ч.4): выбирают инструмент ТЕМ ЖЕ путём, что клик по
+     кнопке (setTool(data-tool) — одно правило, §7.1). По физической клавише (e.code), чтобы работало и в
+     русской раскладке, как B. Те же гейты, что у B: не в поле ввода, не в конструкторе (модалки отсеяны
+     return'ом выше), без Ctrl/Alt/Meta — иначе перехватывали бы Ctrl+V (вставка постов) и т.п. */
+  const toolKey=!typing&&!inBuilder&&!e.ctrlKey&&!e.metaKey&&!e.altKey?leftPanel.toolForCode(e.code):"";
+  if(toolKey){e.preventDefault();setTool(toolKey);return}
+  /* F — вписать в экран (тот же fitToScreen, что кнопка #zoomFit). Гейты как у клавиш инструментов. */
+  if(e.code==="KeyF"&&!typing&&!inBuilder&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();fitToScreen();return}
+  /* Ctrl+S / Cmd+S — сохранить проект (тот же saveProject, что иконка в шапке). preventDefault гасит
+     браузерное «Сохранить страницу». Работает и в полях ввода (глобальное сохранение); при открытой
+     модалке не срабатывает — anyModalOpen отсёк выше. Shift/Alt не наши — отдаём браузеру. */
+  if(e.code==="KeyS"&&(e.ctrlKey||e.metaKey)&&!e.altKey&&!e.shiftKey){e.preventDefault();saveProject();return}
   /* Пробел — режим «рука» для панорамы (курсор-подсказка). preventDefault, чтобы
      пробел не прокручивал страницу и не «нажимал» сфокусированную кнопку. */
   if(e.code==="Space"&&!typing&&!inBuilder){e.preventDefault();onSpaceKeydown()}   /* режим «рука» держит js/canvasInput.js — spaceDown и все его писатели/читатели там */
@@ -4177,6 +4196,13 @@ rightPanel.syncKpNumber();   /* показать «КП № …» сразу н�
    навешенный onchange (state + сохранение). Гейты «не в поле/не в модалке» остаются в keydown ниже —
    модуль их не дублирует. Зависит только от $, TDZ нет. */
 const canvasBar=EPCanvasBar.attach({$});
+
+/* Левая панель (Редизайн, ч.4, EPLeftPanel.attach): память «открыто/закрыто» секций (EPPrefs), статус
+   «Исходного плана» справа в заголовке и его автосворачивание при «загружен · масштаб задан» (planState
+   отдаёт текущее loaded/scaled/token из state). Горячие клавиши инструментов V/W/L/R/E разбирает keydown
+   ниже через leftPanel.toolForCode. Зависит от $/EPPrefs/state — к этому моменту объявлены, TDZ нет. */
+const leftPanel=EPLeftPanel.attach({$,EPPrefs,
+  planState:()=>({loaded:!!state.planLoaded,scaled:!!state.pxPerMeter,token:state.planToken||0})});
 
 const {buildPostSheet,openInstallSheet}=EPDocs.attach({
   $,STANDARD_LABEL,assembledPostHtml,assembledPostSpec,buildEstimate,canvas,companyLogo,companySignature,

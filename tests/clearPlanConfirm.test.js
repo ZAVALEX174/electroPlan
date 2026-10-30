@@ -33,7 +33,9 @@ function wire(state, overrides) {
     _clearPlanHideTimer: null,
     JSON,
     toast: t => { calls.toast.push(t); },
-    clearPlan: () => { calls.clearPlan++; }
+    clearPlan: () => { calls.clearPlan++; },
+    /* Левая панель (Редизайн, ч.4): updatePlanUi зовёт её для статуса/автосворачивания — заглушка. */
+    leftPanel: { syncPlanSection() {}, primePlanSection() {} }
   }, overrides);
   /* clearPlanSubject НЕ перечисляем: срез showClearPlanConfirm тянется до следующей function-
      декларации, а const clearPlanSubject лежит между ними — он уже попадает в этот срез. */

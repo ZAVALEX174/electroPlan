@@ -26,7 +26,10 @@ function makeCtx(state, extra) {
     toast: t => calls.toast.push(t),
     showTraceProgress: (...a) => calls.showTraceProgress.push(a),
     setTimeout: (fn, ms) => setTimeout(fn, ms), // vm-контекст не наследует таймеры node
-    console: { error() {} }
+    console: { error() {} },
+    /* Левая панель (Редизайн, ч.4): updatePlanUi зовёт её для статуса/автосворачивания секции —
+       поведение секции тут не предмет, заглушка-пустышка (как applyPlanVisibility в соседних стендах). */
+    leftPanel: { syncPlanSection() {}, primePlanSection() {} }
   }, extra);
   return { ctx, dom, img, calls };
 }

@@ -86,19 +86,32 @@ svg.i{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-
    прокручивались внутри себя при большом числе постов, а не оставляли пустоту. Верхние
    секции держат свою высоту; панель наружу не растёт (overflow:auto — общий предохранитель
    на низких экранах). Селектор .library-section специфичнее, чем .left-panel>section. */
-.left-panel{display:flex;flex-direction:column}
-.left-panel>section{flex:0 0 auto}
+/* Левая панель (Редизайн, ч.4): секции стали <details class="pane"> — как правая. Отступы несут
+   .pane-body, поэтому у самой панели padding:0 (переопределяем .sidebar{padding:16px}); overflow:auto —
+   общий предохранитель на низких экранах. Разделители секций — border-bottom у .pane. */
+.left-panel{display:flex;flex-direction:column;padding:0}
+.left-panel>.pane{flex:0 0 auto}
+.left-panel>.pane>summary .link-btn{margin-left:auto}
 /* min-height — гарантированный пол секции, когда верхние инструменты съели всю высоту и панель
    уходит в скролл (flex:1 1 auto тогда сжимается до этого пола). Прежние 140px давали ~одну
    карточку — секция «схлопывалась» и была бесполезна. clamp даёт ~три карточки на нормальном
    экране (верхний предел) и пропорционально ужимается на низких (36vh), не отбирая пол-панели
    жёстким пикселем; нижний предел 220px держит минимум пару карточек даже на совсем низких. */
-.left-panel>.library-section{flex:1 1 auto;min-height:clamp(220px,36vh,420px);display:flex;flex-direction:column}
-.left-panel>.library-section .post-library{flex:1 1 auto;min-height:0;overflow:auto}
+.left-panel>.library-section[open]{flex:1 1 auto;min-height:clamp(220px,36vh,420px);display:flex;flex-direction:column;overflow:hidden}
+.left-panel>.library-section[open]>.pane-body{flex:1 1 auto;min-height:0;overflow:auto}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}.section-head h3{margin:0;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#52616f}
 .count-pill{min-width:24px;padding:4px 7px;border-radius:999px;text-align:center;font-size:10px;font-weight:900;color:var(--blue-dark);background:var(--blue-soft)}
 .upload-btn{display:block;text-align:center;padding:11px;border:1px dashed #8fc2ef;border-radius:12px;color:var(--blue-dark);font-weight:800;background:#f4faff;cursor:pointer}
-.tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.tool{display:flex;align-items:center;gap:8px;padding:9px;border:1px solid var(--line);border-radius:11px;background:#fff;color:#42627f;font-size:15px}.tool span{font-size:11px;font-weight:800}.tool.active{color:var(--blue-dark);border-color:#91c5f1;background:var(--blue-soft)}.tool.danger{color:var(--danger)}
+/* Инструменты (Редизайн, ч.4): сетка 3 в ряд, SVG-иконка сверху, подпись снизу, буква клавиши в углу
+   (<kbd>, absolute). Иконки — stroke:currentColor, цвет ведём через color (синий / красный у «Удалить»). */
+.tool-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.tool{display:flex;flex-direction:column;align-items:center;gap:5px;padding:9px 4px 7px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--muted);position:relative}
+.tool svg.i{width:22px;height:22px;color:var(--blue)}
+.tool span{font-size:11px;font-weight:700;text-align:center;line-height:1.15}
+.tool:hover{border-color:var(--line-strong)}
+.tool.active{color:var(--blue-dark);border-color:#91c5f1;background:var(--blue-soft)}.tool.active svg.i{color:var(--blue-dark)}
+.tool.danger{color:var(--danger)}.tool.danger svg.i{color:var(--danger)}
+.tool kbd{position:absolute;top:3px;right:5px;font-family:inherit;font-size:9px;font-weight:700;line-height:1;color:var(--muted);opacity:.75}
 /* Переключатели Орто/Сетка/шаг переехали в строку под холстом (их стили — рядом с .canvas-statusbar,
    .toggle/.toggle-step). .markup-step остаётся: его используют органы поворота плана в левой панели
    («Поворот», «Угол, °»). */

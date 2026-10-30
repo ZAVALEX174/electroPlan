@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261030.1">
+  <link rel="stylesheet" href="css/styles.css?v=20261030.2">
 </head>
 <body>
 <!-- Контурные иконки шапки (P1-1). Один спрайт <symbol>: иконки используют stroke:currentColor и
@@ -34,6 +34,14 @@
   <symbol id="i-layer" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></symbol>
   <symbol id="i-ortho" viewBox="0 0 24 24"><path d="M5 4v15h15"/></symbol>
   <symbol id="i-grid" viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M4 15h16M10 4v16M15 4v16"/></symbol>
+  <!-- Иконки инструментов левой панели (Редизайн, часть 4): выбор, стены, разметка, комната, правка
+       контура, удаление. Те же символы, что в макете дизайнера; заменяют юникод-глифы (↖ ╱ ╬ T ◇ ×). -->
+  <symbol id="i-select" viewBox="0 0 24 24"><path d="M6 3l12 9-6 1 3 6-2 1-3-6-4 4z"/></symbol>
+  <symbol id="i-wall" viewBox="0 0 24 24"><path d="M3 17L17 3l4 4L7 21z"/></symbol>
+  <symbol id="i-markup" viewBox="0 0 24 24"><path d="M3 8h18M3 16h18M8 3v18M16 3v18" stroke-dasharray="3 2"/></symbol>
+  <symbol id="i-room" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M9 9h6M12 9v7"/></symbol>
+  <symbol id="i-vertex" viewBox="0 0 24 24"><path d="M5 7l12-2 2 12-10 2z"/><rect x="3.5" y="5.5" width="3" height="3" fill="currentColor"/><rect x="15.5" y="3.5" width="3" height="3" fill="currentColor"/><rect x="17.5" y="15.5" width="3" height="3" fill="currentColor"/><rect x="7.5" y="17.5" width="3" height="3" fill="currentColor"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14"/></symbol>
 </svg>
 <div class="app">
   <!-- ШАПКА (P1-1): файл — иконками 34×34, «Данные проекта и КП» — кнопкой, справа строка проекта,
@@ -50,7 +58,7 @@
       <button class="tb-icon" id="newProjectBtn" type="button" title="Новый проект" aria-label="Новый проект" data-tip="Новый проект"><svg class="i"><use href="#i-new"/></svg></button>
       <button class="tb-icon" id="openProjectBtn" type="button" title="Открыть проект" aria-label="Открыть проект" data-tip="Открыть проект"><svg class="i"><use href="#i-open"/></svg></button>
       <input id="openProjectInput" type="file" accept=".json,.electroplan.json,application/json" hidden>
-      <button class="tb-icon" id="saveProjectBtn" type="button" title="Сохранить проект" aria-label="Сохранить проект" data-tip="Сохранить проект"><svg class="i"><use href="#i-save"/></svg></button>
+      <button class="tb-icon" id="saveProjectBtn" type="button" title="Сохранить проект (Ctrl+S)" aria-label="Сохранить проект (Ctrl+S)" data-tip="Сохранить проект (Ctrl+S)"><svg class="i"><use href="#i-save"/></svg></button>
       <button class="tb-icon" id="downloadProjectBtn" type="button" title="Скачать проект" aria-label="Скачать проект" data-tip="Скачать проект"><svg class="i"><use href="#i-download"/></svg></button>
     </div>
 
@@ -95,9 +103,16 @@
   </header>
 
   <main class="workspace">
+    <!-- ЛЕВАЯ ПАНЕЛЬ (Редизайн, часть 4 по макету дизайнера): три секции стали сворачиваемыми
+         <details class="pane"> со статусом справа — тем же приёмом, что правая панель (ч.2). Состояние
+         «открыто/закрыто» запоминается у человека (EPPrefs, EPLeftPanel.attach) — это привычка, чужой
+         проект её не меняет. «Исходный план» сворачивается сам, когда план загружен И масштаб задан
+         (один раз на переход). «Готовые посты» забирают оставшуюся высоту и прокручиваются внутри себя.
+         ID органов внутри секций НЕ менялись — обработчики в app.js работают по id/data-tool. -->
     <aside class="sidebar left-panel">
-      <section class="plan-section">
-        <div class="section-head"><h3>Исходный план</h3><span class="status-dot" id="planStatusDot"></span></div>
+      <details class="pane" id="panePlan" open>
+        <summary>Исходный план <span class="pane-status" id="planStatus"></span><span class="status-dot" id="planStatusDot" hidden></span></summary>
+        <div class="pane-body">
         <div class="upload-control">
           <label class="upload-btn">
             <input id="planUpload" type="file" accept=".png,.jpg,.jpeg,.jfif,.jpe,.pjpeg,.pjp,.webp,.gif,.bmp,.avif,.svg,.heic,.heif,.pdf,.dxf,.dwg,image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif,image/svg+xml,image/heic,application/pdf,application/dxf,application/acad,application/x-autocad,image/vnd.dwg,image/vnd.dxf" hidden>
@@ -187,17 +202,22 @@
             <small class="hint-line" id="rotateModeHint">Поворачивается только чертёж-фон. Стены, комнаты и посты остаются на месте</small>
           </div>
         </div>
-      </section>
+        </div>
+      </details>
 
-      <section>
-        <div class="section-head"><h3>Инструменты</h3></div>
+      <details class="pane" id="paneTools" open>
+        <summary>Инструменты</summary>
+        <div class="pane-body">
+        <!-- Инструменты: SVG-иконки (Редизайн, ч.4) вместо юникод-глифов, сетка 3 в ряд, иконка сверху,
+             подпись снизу, буква горячей клавиши в углу (<kbd>). data-tool НЕ менялся — клик по кнопке
+             по-прежнему зовёт setTool(data-tool); те же клавиши работают в keydown (EPLeftPanel.toolForCode). -->
         <div class="tool-grid">
-          <button class="tool active" data-tool="select">↖<span>Выбор</span></button>
-          <button class="tool" data-tool="wall">╱<span>Стены</span></button>
-          <button class="tool" data-tool="roomline">╬<span>Разметка</span></button>
-          <button class="tool" data-tool="room">T<span>Комната</span></button>
-          <button class="tool" data-tool="vertex">◇<span>Правка комнат</span></button>
-          <button class="tool danger" data-tool="delete">×<span>Удалить</span></button>
+          <button class="tool active" data-tool="select" title="Выбор (V)"><kbd>V</kbd><svg class="i"><use href="#i-select"/></svg><span>Выбор</span></button>
+          <button class="tool" data-tool="wall" title="Стены (W)"><kbd>W</kbd><svg class="i"><use href="#i-wall"/></svg><span>Стены</span></button>
+          <button class="tool" data-tool="roomline" title="Разметка (L)"><kbd>L</kbd><svg class="i"><use href="#i-markup"/></svg><span>Разметка</span></button>
+          <button class="tool" data-tool="room" title="Комната (R)"><kbd>R</kbd><svg class="i"><use href="#i-room"/></svg><span>Комната</span></button>
+          <button class="tool" data-tool="vertex" title="Правка комнат (E)"><kbd>E</kbd><svg class="i"><use href="#i-vertex"/></svg><span>Правка комнат</span></button>
+          <button class="tool danger" data-tool="delete" title="Удалить (Del)"><kbd>Del</kbd><svg class="i"><use href="#i-trash"/></svg><span>Удалить</span></button>
         </div>
         <!-- Режимы черчения «Ортогонально / Привязка к сетке / Шаг» переехали в строку под холстом
              (.canvas-statusbar) — Редизайн, часть 3: там они всегда на виду и не прокручиваются вместе
@@ -206,12 +226,17 @@
         <button class="btn full" id="roomsFromLinesBtn" style="margin-top:7px">Определить помещения по линиям</button>
         <small class="hint-line">Строит помещения по замкнутым контурам разметки (без загрузки чертежа)</small>
         <button class="text-action" id="clearRoomLinesBtn" style="margin-top:7px">Очистить разметку помещений</button>
-      </section>
+        </div>
+      </details>
 
-      <section class="library-section">
-        <div class="section-head"><h3>Готовые посты</h3><button class="link-btn" id="newPostBtn">+ Создать</button></div>
-        <div class="post-library" id="postLibrary"></div>
-      </section>
+      <details class="pane library-section" id="paneLibrary" open>
+        <!-- «+ Создать» остаётся в заголовке: клик по нему не сворачивает секцию (EPLeftPanel гасит
+             штатное переключение details, собственный openPostBuilder отрабатывает). -->
+        <summary>Готовые посты <button class="link-btn" id="newPostBtn">+ Создать</button></summary>
+        <div class="pane-body">
+          <div class="post-library" id="postLibrary"></div>
+        </div>
+      </details>
     </aside>
 
     <section class="main-panel">
@@ -228,7 +253,7 @@
         <button class="icon-btn" id="zoomOut" type="button" title="Уменьшить" aria-label="Уменьшить"><svg class="i"><use href="#i-minus"/></svg></button>
         <button class="zoom-value" id="zoomReset" type="button" title="Сбросить масштаб к 100%"></button>
         <button class="icon-btn" id="zoomIn" type="button" title="Увеличить" aria-label="Увеличить"><svg class="i"><use href="#i-plus"/></svg></button>
-        <button class="icon-btn" id="zoomFit" type="button" title="Вписать в экран: пробел + перетаскивание или средняя кнопка — панорама, колесо — зум" aria-label="Вписать в экран"><svg class="i"><use href="#i-fit"/></svg></button>
+        <button class="icon-btn" id="zoomFit" type="button" title="Вписать в экран (F): пробел + перетаскивание или средняя кнопка — панорама, колесо — зум" aria-label="Вписать в экран (F)"><svg class="i"><use href="#i-fit"/></svg></button>
         <span class="vsep"></span>
         <!-- Переключатель подложки (iconка i-layer): показана → бледная → скрыта. Делает ТО ЖЕ, что
              клавиша B и кнопка «Подложка» в левой панели, — зовёт cyclePlanVisibility (одна логика, не
@@ -953,6 +978,9 @@
 <!-- Строка под холстом (Редизайн, часть 3): горячие клавиши F8/F9 переключают те же чекбоксы режимов
      черчения. До app.js, который зовёт EPCanvasBar.attach(ctx) и дёргает toggleOrtho/toggleGrid из keydown. -->
 <script src="js/canvasBar.js?v=20261030.1"></script>
-<script src="js/app.js?v=20261030.1"></script>
+<!-- Левая панель (Редизайн, часть 4): сворачиваемые секции (память в EPPrefs), статус/автосворачивание
+     «Исходного плана», горячие клавиши инструментов V/W/L/R/E. До app.js, который зовёт EPLeftPanel.attach(ctx). -->
+<script src="js/leftPanel.js?v=20261030.2"></script>
+<script src="js/app.js?v=20261030.2"></script>
 </body>
 </html>

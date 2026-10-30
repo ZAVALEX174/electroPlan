@@ -13,7 +13,7 @@ const stand = require("./helpers/appStand.js");
 test("updatePlanUi: в режиме «весь план» ↺/↻/поле живут БЕЗ подложки", () => {
   const dom = stand.makeDom();
   const state = { planLoaded: false, rotateTarget: "world" };
-  stand.run("updatePlanUi", { $: dom.$, state })();
+  stand.run("updatePlanUi", { $: dom.$, state, leftPanel: { syncPlanSection() {}, primePlanSection() {} } })();
   assert.equal(dom.els.planRotateLeftBtn.disabled, false, "↺ активна без плана в режиме «весь план»");
   assert.equal(dom.els.planRotateRightBtn.disabled, false, "↻ активна без плана в режиме «весь план»");
   assert.equal(dom.els.planRotateInput.disabled, false, "поле угла активно без плана в режиме «весь план»");
@@ -22,7 +22,7 @@ test("updatePlanUi: в режиме «весь план» ↺/↻/поле жи�
 test("updatePlanUi: в режиме «только чертёж» без подложки органы поворота ЗАБЛОКИРОВАНЫ (как часть 1)", () => {
   const dom = stand.makeDom();
   const state = { planLoaded: false, rotateTarget: "image" };
-  stand.run("updatePlanUi", { $: dom.$, state })();
+  stand.run("updatePlanUi", { $: dom.$, state, leftPanel: { syncPlanSection() {}, primePlanSection() {} } })();
   assert.equal(dom.els.planRotateLeftBtn.disabled, true, "↺ заблокирована без подложки в «только чертёж»");
   assert.equal(dom.els.planRotateInput.disabled, true, "поле заблокировано без подложки в «только чертёж»");
 });

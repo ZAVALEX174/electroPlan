@@ -29,7 +29,9 @@ function makeSpies() {
     applyPlanRotation: () => { calls.applyPlanRotation++; },
     persistProject: () => { calls.persistProject++; },
     updateStatus: t => { calls.updateStatus.push(t); },
-    toast: t => { calls.toast.push(t); }
+    toast: t => { calls.toast.push(t); },
+    /* Левая панель (Редизайн, ч.4): updatePlanUi зовёт её для статуса/автосворачивания секции — заглушка. */
+    leftPanel: { syncPlanSection() {}, primePlanSection() {} }
   };
 }
 
@@ -92,7 +94,7 @@ test("clearPlan не трогает нарисованное и масштаб �
 test("updatePlanUi на загрузке включает ровно те же органы (одно правило, оба места)", () => {
   const dom = makeDom();
   const state = { planLoaded: true };
-  stand.run(["updatePlanUi"], { state, $: dom.$ })();
+  stand.run(["updatePlanUi"], { state, $: dom.$, leftPanel: { syncPlanSection() {}, primePlanSection() {} } })();
 
   PLAN_BTNS.forEach(id => assert.equal(dom.$(id).disabled, false, id + " включён при загруженном плане"));
   assert.equal(dom.$("planStatusDot").classList.contains("ready"), true, "статус-точка зажжена");
