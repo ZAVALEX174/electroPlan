@@ -132,6 +132,11 @@ function buildRooms(state) {
   };
   const code = [
     stand.functionSource("renderRooms"),
+    stand.functionSource("computeOverlaps"),    /* ч.4: показ наложений; без EPRoomOverlap в ctx — пустой отчёт (no-op) */
+    stand.functionSource("overlapOpts"),
+    stand.functionSource("joinRoomNames"),
+    stand.functionSource("overlapNoteText"),
+    stand.functionSource("overlapHatchDefs"),
     stand.functionSource("overlapGuardFor"),   /* ч.2: защита от наложения; без соседей — возвращает null (no-op) */
     stand.functionSource("svgTitle"),
     stand.functionSource("markRoomEdited"),

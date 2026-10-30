@@ -112,6 +112,23 @@ function difference(a, b, deps) {
   return out;
 }
 
+/* Пересечение A∩B как список контуров: грани аранжемента, чья внутренняя точка лежит И в A, И в B.
+   Тот же планарный аппарат, что difference (вторую геометрию не заводим, §7.1) — здесь лишь обратный
+   предикат. Касание по стене/вершине → пустой список (нет грани внутри обоих). Нужно части 4 блока:
+   закрасить на холсте область, где две комнаты реально перекрываются по площади. */
+function intersection(a, b, deps) {
+  deps = deps || {};
+  const geom = defaultGeom(deps.geom), faces = defaultFaces(deps.faces);
+  if (!geom || !faces || !ok(a) || !ok(b)) return [];
+  const tol = deps.tol > 0 ? deps.tol : DEFAULT_TOL;
+  const out = [];
+  for (const f of arrangementFaces(a, b, geom, faces, tol)) {
+    const mp = geom.roomMatchPoint(f.polygon);
+    if (geom.pointInPolygon(mp.x, mp.y, a) && geom.pointInPolygon(mp.x, mp.y, b)) out.push(f.polygon);
+  }
+  return out;
+}
+
 /* Обрезка контура poly по уже существующим контурам others. Для каждого существующего M:
      • пересечение ≤ TOUCH_AREA — касание/непересечение, кусок не трогаем;
      • poly ПОЛНОСТЬЮ внутри M (пересечение ≈ площади poly) — это НЕ клин, а «комната в комнате»
@@ -250,8 +267,62 @@ function clampVertexMove(poly, index, to, neighbors, base, opts) {
   return { x: from.x + dx * lo, y: from.y + dy * lo, clamped: true };
 }
 
+/* ---- Часть 4 блока: ПОКАЗ уже существующих наложений (старые проекты, сохранённые до ч.1–3) --------
+   Одно место правила (§7.1): и закраска области на холсте, и красная строка под именем комнаты берут
+   наложения из ОДНОГО расчёта. Вход — список комнат в нейтральной форме (ни state, ни DOM):
+     { id, name, polygon } — контурная комната (polygon ≥3 вершин);
+     { id, name, point:{x,y} } — комната БЕЗ контура (инструмент «T»): точка привязки подписи.
+   Выход: { regions:[polygon…], notes:{ [id]:{ overlaps:[имена], inside:[имена] } } }.
+     regions — контуры областей пересечения (их закрашивает холст);
+     notes[id].overlaps — имена контурных соседей, с кем комната перекрывается по ПЛОЩАДИ (клин);
+     notes[id].inside — имена контурных комнат, ВНУТРЬ которых попала точка бесконтурной таблички.
+
+   Что НЕ считаем наложением (те же правила, что clipAgainst, чтобы показ и обрезка судили одинаково):
+     • касание по общей стене — площадь пересечения ≤ touchArea, грани нет;
+     • «комната в комнате» — контур ПОЛНОСТЬЮ внутри другого (санузел/чулан посреди зала,
+       поправленная руками вложенная комната): это законная вложенность, а не «заехала», её не метим.
+   bbox-префильтр (как overlapEach): пары считаем только у комнат с пересекающимися габаритами. */
+function overlaps(rooms, opts) {
+  opts = opts || {};
+  const geom = defaultGeom(opts.geom), faces = defaultFaces(opts.faces);
+  const deps = { geom, faces, tol: opts.tol > 0 ? opts.tol : DEFAULT_TOL };
+  const touch = opts.touchArea >= 0 ? opts.touchArea : TOUCH_AREA;
+  const list = Array.isArray(rooms) ? rooms : [];
+  const regions = [], notes = {};
+  const note = id => notes[id] || (notes[id] = { overlaps: [], inside: [] });
+  if (!geom || !faces) return { regions, notes };
+  const areaPx = geom.polygonAreaPx;
+
+  /* Контурные комнаты с кэшем bbox/площади — префильтр и порог вложенности считаем один раз. */
+  const polys = [];
+  for (const r of list) if (r && ok(r.polygon)) polys.push({ r, bbox: bboxOf(r.polygon), area: areaPx(r.polygon) });
+
+  /* Пара контурных комнат: площадь пересечения между касанием и полной вложенностью — это клин. */
+  for (let i = 0; i < polys.length; i++) {
+    for (let j = i + 1; j < polys.length; j++) {
+      const A = polys[i], B = polys[j];
+      if (!bboxHit(A.bbox, B.bbox)) continue;
+      const inter = intersection(A.r.polygon, B.r.polygon, deps);
+      if (!inter.length) continue;
+      let ia = 0; for (const p of inter) ia += areaPx(p);
+      if (ia <= touch) continue;                                    /* касание по стене — не наложение */
+      if (ia >= A.area - touch || ia >= B.area - touch) continue;   /* один внутри другого — вложенность, не «заехала» */
+      for (const p of inter) regions.push(p);
+      note(A.r.id).overlaps.push(B.r.name);
+      note(B.r.id).overlaps.push(A.r.name);
+    }
+  }
+  /* Бесконтурная табличка, чья точка лежит внутри контурной комнаты (случай владельца: «Новая комната»
+     поверх «Помещения 2»). Площади нет — закраски не даёт, только красная строка «внутри «…»». */
+  for (const r of list) {
+    if (!r || ok(r.polygon) || !r.point) continue;
+    for (const A of polys) if (geom.pointInPolygon(r.point.x, r.point.y, A.r.polygon)) note(r.id).inside.push(A.r.name);
+  }
+  return { regions, notes };
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
-const api = { overlapArea, difference, clipAgainst, clipRoomsAgainst, overlapEach, overlapGrew, clampVertexMove, withVertex };
+const api = { overlapArea, intersection, difference, clipAgainst, clipRoomsAgainst, overlapEach, overlapGrew, clampVertexMove, withVertex, overlaps };
 if (typeof window !== "undefined") window.EPRoomOverlap = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -234,6 +234,11 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;margin:0;padding:0;b
 .snap-segment{stroke:#d6336c;stroke-dasharray:2.5 2.5}
 .canvas.drawing{cursor:crosshair}
 .room-poly{fill:none;stroke:#102a43;stroke-width:3;stroke-linejoin:miter}
+/* Ч.4 блока «комнаты не налезают»: закраска области, где контуры реально перекрываются (штриховка —
+   в defs #roomOverlapHatch, задаётся в rooms.js). pointer-events:none — иначе перехватит клики по комнатам. */
+.room-overlap{stroke:#bf3f4e;stroke-width:1.5;pointer-events:none}
+/* Красная строка под именем комнаты: «пересекается с «…»» / «внутри «…»». Одна строка, не растягивает табличку. */
+.room-overlap-note{display:block;color:#bf3f4e;font-size:var(--fs-xs);font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .room-poly.selected{stroke:#bf3f4e;stroke-width:4}
 .room-poly.editing{stroke:#1872ad;stroke-width:4;stroke-dasharray:none}
 .vertex-handle{fill:#fff;stroke:#bf3f4e;stroke-width:2;cursor:grab;pointer-events:all}

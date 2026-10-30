@@ -152,7 +152,9 @@ function renderLabels() {
   const appended = [];
   const canvas = { querySelectorAll: () => [], appendChild: el => appended.push(el) };
   const spies = { place: [], sel: [], rm: [] };
-  const render = stand.run("renderRooms", {
+  /* ч.4: renderRooms зовёт computeOverlaps/overlapNoteText — режем их вместе (renderRooms последним,
+     его и возвращает stand.run); EPRoomOverlap в ctx нет → computeOverlaps даёт пустой отчёт (no-op). */
+  const render = stand.run(["computeOverlaps", "overlapOpts", "joinRoomNames", "overlapNoteText", "overlapHatchDefs", "renderRooms"], {
     state, canvas,
     $: () => null,                                   // roomsSvg отсутствует → svg-ветку контура пропускаем
     document: { createElement: () => stand.makeElement() },

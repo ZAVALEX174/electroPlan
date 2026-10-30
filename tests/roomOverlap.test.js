@@ -113,3 +113,80 @@ test("clipRoomsAgainst обрезает список граней и сохра�
   const p3 = out.find(r => G.polygonCentroid(r.polygon).y > 400);
   assert.ok(O.overlapArea(p3.polygon, P1) <= 1, "обрезанная П3 не налезает на П1");
 });
+
+/* --- intersection: контуры области пересечения (ч.4 — закраска на холсте) ------------------------
+   МУТАЦИОННАЯ ТАБЛИЦА (прогнано руками):
+     • intersection берёт «в A ИЛИ в B» вместо «в A И в B»: краснеет «касание → пусто» (появится грань).
+     • overlaps НЕ исключает полную вложенность (убрать `ia>=area-touch`): краснеет «санузел внутри зала
+       → без закраски» (появятся регион и строки).
+     • overlaps сравнивает с 0 вместо touch: краснеет «касание по стене → ни закраски, ни строк». */
+
+test("intersection: частичное наложение даёт контур площадью общей зоны", () => {
+  const a = rect(0, 0, 200, 200), b = rect(100, 100, 300, 300);   // общий квадрат 100×100
+  const polys = O.intersection(a, b);
+  assert.equal(polys.length, 1, "одна область пересечения");
+  assert.equal(Math.round(area(polys[0])), 10000, "площадь контура пересечения = общая зона");
+});
+
+test("intersection: касание по общей стене → пустой список (не наложение)", () => {
+  assert.deepEqual(O.intersection(rect(0, 0, 100, 100), rect(100, 0, 200, 100)), [], "смежные по стене не дают области");
+});
+
+test("intersection: вложенный контур → область = сам вложенный", () => {
+  const polys = O.intersection(rect(0, 0, 400, 400), rect(100, 100, 200, 200));
+  assert.equal(polys.length, 1);
+  assert.equal(Math.round(area(polys[0])), 10000, "область пересечения = площадь вложенного");
+});
+
+/* --- overlaps: отчёт о наложениях для показа (ч.4) ----------------------------------------------- */
+
+test("overlaps: клин двух контурных комнат — одна область и взаимные строки «пересекается с»", () => {
+  const P1 = [{ x: 217, y: 925 }, { x: 250, y: 400 }, { x: 850, y: 400 }, { x: 955, y: 890 }, { x: 550, y: 867 }];
+  const P3old = rect(100, 400, 250, 650);   // старый П3 ДО обрезки — клин в П1
+  const rep = O.overlaps([{ id: "p1", name: "Помещение 1", polygon: P1 }, { id: "p3", name: "Помещение 3", polygon: P3old }]);
+  assert.equal(rep.regions.length, 1, "закрашиваемая область одна");
+  assert.deepEqual(rep.notes.p1.overlaps, ["Помещение 3"], "у П1 строка называет П3");
+  assert.deepEqual(rep.notes.p3.overlaps, ["Помещение 1"], "у П3 строка называет П1");
+});
+
+test("overlaps: вложенная комната (санузел в зале) НЕ помечается наложением", () => {
+  const rep = O.overlaps([{ id: "z", name: "Зал", polygon: rect(0, 0, 300, 300) }, { id: "s", name: "Санузел", polygon: rect(100, 100, 200, 200) }]);
+  assert.equal(rep.regions.length, 0, "законная вложенность не красится");
+  assert.deepEqual(rep.notes, {}, "и строк «пересекается» нет");
+});
+
+test("overlaps: касание по стене — ни области, ни строк", () => {
+  const rep = O.overlaps([{ id: "a", name: "A", polygon: rect(0, 0, 100, 100) }, { id: "b", name: "B", polygon: rect(100, 0, 200, 100) }]);
+  assert.equal(rep.regions.length, 0);
+  assert.deepEqual(rep.notes, {});
+});
+
+test("overlaps: бесконтурная табличка внутри контурной → строка «внутри», без области", () => {
+  const P2 = [{ x: 250, y: 400 }, { x: 300, y: 100 }, { x: 850, y: 100 }, { x: 850, y: 400 }];
+  const rep = O.overlaps([
+    { id: "p2", name: "Помещение 2", polygon: P2 },
+    { id: "nw", name: "Новая комната", point: { x: 475, y: 280 } }   // seed внутри П2
+  ]);
+  assert.equal(rep.regions.length, 0, "у бесконтурной таблички площади нет — закраски нет");
+  assert.deepEqual(rep.notes.nw.inside, ["Помещение 2"], "строка «внутри «Помещения 2»»");
+});
+
+test("overlaps: несколько соседей — все имена в списке (усечение решает показ)", () => {
+  const C = rect(0, 0, 100, 100);
+  const rep = O.overlaps([
+    { id: "c", name: "C", polygon: C },
+    { id: "d", name: "D", polygon: rect(50, 50, 150, 150) },
+    { id: "e", name: "E", polygon: rect(-50, -50, 50, 50) }
+  ]);
+  assert.deepEqual(rep.notes.c.overlaps.sort(), ["D", "E"], "у C оба соседа");
+});
+
+test("overlaps: проект без наложений → пустой отчёт (ни области, ни строк)", () => {
+  const rep = O.overlaps([
+    { id: "a", name: "A", polygon: rect(0, 0, 100, 100) },
+    { id: "b", name: "B", polygon: rect(300, 300, 400, 400) },
+    { id: "g", name: "Без контура", point: { x: 700, y: 700 } }
+  ]);
+  assert.equal(rep.regions.length, 0, "лишних элементов подсветки нет");
+  assert.deepEqual(rep.notes, {}, "строк наложения нет");
+});

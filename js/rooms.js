@@ -41,6 +41,9 @@ const {
 function renderRooms(){
   canvas.querySelectorAll(".room-label").forEach(e=>e.remove());
   const svg=$("roomsSvg");if(svg)svg.innerHTML="";
+  /* Ч.4 блока: уже существующие наложения (старые проекты) считаем ОДИН раз на всю сцену — отсюда и
+     красные строки под именами, и закраска областей ниже (одно место правила, §7.1). */
+  const report=computeOverlaps();
   state.rooms.forEach(r=>{
     const isPoly=r.polygon&&r.polygon.length>2;
     const sel=state.selected?.kind==="room"&&state.selected.id===r.id;
@@ -55,11 +58,12 @@ function renderRooms(){
     }
     const count=getObjectsInRoom(r.id).length;
     const areaText=roomDisplayArea(r);
+    const noteText=overlapNoteText(report.notes[r.id]);   /* «пересекается с «…»» / «внутри «…»» или "" */
     const el=document.createElement("div");
     el.className="room-label "+(sel?"selected":"");
     el.style.left=r.x+"px";el.style.top=r.y+"px";
     el.dataset.kind="room";el.dataset.id=r.id;   /* для точечного выделения и подсветки drop-цели */
-    el.innerHTML=`<span class="room-title">${esc(r.name)}</span>${areaText?`<small>${esc(areaText)}</small>`:""}<span class="room-object-count">${count} объект.</span>`;
+    el.innerHTML=`<span class="room-title">${esc(r.name)}</span>${areaText?`<small>${esc(areaText)}</small>`:""}<span class="room-object-count">${count} объект.</span>${noteText?`<span class="room-overlap-note">${esc(noteText)}</span>`:""}`;
     /* полигональную комнату подпись не двигает (контур отдельно) — только выделяет/удаляет
        кликом; подпись комнаты без контура тащится и выделяется единым обработчиком makeDraggable */
     if(isPoly)el.onclick=e=>{
@@ -70,6 +74,67 @@ function renderRooms(){
     else{el.onclick=e=>{e.stopPropagation();if(state.pending)placePendingAtEvent(e)};makeDraggable(el,r,"room")}   /* клик не доходит до canvas.onclick; в размещении — пост в точку клика тем же правилом */
     canvas.appendChild(el);
   });
+  /* Закраска областей наложения — ПОВЕРХ контуров комнат (добавляем последними), штриховкой. Если
+     наложений нет — ни одного лишнего узла в SVG. pointer-events:none, иначе закраска перехватит клики
+     по комнатам. При исправлении контура (ч.2) или удалении комнаты renderRooms зовётся заново — узлы
+     пересчитываются, подсветка гаснет сразу. */
+  if(svg&&report.regions.length){
+    svg.appendChild(overlapHatchDefs());
+    report.regions.forEach(poly=>{
+      const pg=document.createElementNS(SVG_NS,"polygon");
+      pg.setAttribute("points",poly.map(p=>p.x+","+p.y).join(" "));
+      pg.setAttribute("class","room-overlap");
+      pg.setAttribute("fill","url(#roomOverlapHatch)");
+      svg.appendChild(pg);
+    });
+  }
+}
+/* Ч.4 блока: расчёт наложений и текст красной строки — одно место для renderRooms и updateRoomLabelText,
+   чтобы подпись не разъехалась. Вся геометрия в EPRoomOverlap (§7.1); здесь лишь перевод комнат в
+   нейтральную форму (контур / точка бесконтурной таблички) и сборка строки. EPRoomOverlap/EPConfig —
+   window-глобалы (сборщика нет, PLAN 2.2): нет модуля → пустой отчёт, показ ведёт себя как прежде. */
+function overlapOpts(){return {tol:(typeof EPConfig!=="undefined"?EPConfig.roomWeldTol:undefined)}}
+function computeOverlaps(){
+  if(typeof EPRoomOverlap==="undefined")return {regions:[],notes:{}};
+  const rooms=state.rooms.map(r=>{
+    const isPoly=r.polygon&&r.polygon.length>2;
+    /* точка бесконтурной таблички: seed привязки постов, а при его отсутствии — та же точка, что
+       даёт перетаскивание таблички (x+55,y+18, см. app.js) */
+    const point=isPoly?null:{x:r.seedX!=null?r.seedX:r.x+55,y:r.seedY!=null?r.seedY:r.y+18};
+    return {id:r.id,name:r.name,polygon:isPoly?r.polygon:null,point};
+  });
+  return EPRoomOverlap.overlaps(rooms,overlapOpts());
+}
+/* Имена соседей в одну строку: до двух, остальное «и ещё N» (не растягиваем табличку). */
+function joinRoomNames(names){
+  const MAX=2,shown=names.slice(0,MAX).map(nm=>`«${nm}»`);
+  if(names.length>MAX)shown.push(`и ещё ${names.length-MAX}`);
+  return shown.join(", ");
+}
+/* Текст красной строки для комнаты (plain, экранируется на вставке): бесконтурная внутри контурной —
+   «внутри «…»»; перекрытие по площади — «пересекается с «…»»; иначе пусто. */
+function overlapNoteText(n){
+  if(!n)return "";
+  if(n.inside&&n.inside.length)return "внутри "+joinRoomNames(n.inside);
+  if(n.overlaps&&n.overlaps.length)return "пересекается с "+joinRoomNames(n.overlaps);
+  return "";
+}
+/* Штриховка области наложения — <defs> с диагональным паттерном (красные полосы на бледном фоне),
+   id фиксированный: на холсте всегда один такой defs (роль innerHTML очищает SVG перед отрисовкой). */
+function overlapHatchDefs(){
+  const defs=document.createElementNS(SVG_NS,"defs");
+  const pat=document.createElementNS(SVG_NS,"pattern");
+  pat.setAttribute("id","roomOverlapHatch");
+  pat.setAttribute("patternUnits","userSpaceOnUse");
+  pat.setAttribute("width","8");pat.setAttribute("height","8");
+  pat.setAttribute("patternTransform","rotate(45)");
+  const bg=document.createElementNS(SVG_NS,"rect");
+  bg.setAttribute("width","8");bg.setAttribute("height","8");bg.setAttribute("fill","rgba(191,63,78,.15)");
+  const ln=document.createElementNS(SVG_NS,"line");
+  ln.setAttribute("x1","0");ln.setAttribute("y1","0");ln.setAttribute("x2","0");ln.setAttribute("y2","8");
+  ln.setAttribute("stroke","#bf3f4e");ln.setAttribute("stroke-width","3");
+  pat.appendChild(bg);pat.appendChild(ln);defs.appendChild(pat);
+  return defs;
 }
 /* Точечно обновить ТЕКСТ подписи комнаты на плане — без пересоздания слоя .room-label.
    ЗАЧЕМ НЕ renderRooms(): flushRoomDraft зовётся в начале renderProperties, а та — из beginPress
@@ -81,6 +146,9 @@ function renderRooms(){
    Меняются лишь name/area, поэтому обновляем название и подпись площади; счётчик объектов не трогаем. */
 function updateRoomLabelText(room){
   const rid=String(room.id);
+  /* Ч.4: красную строку наложения правим в ОБОИХ местах (здесь и в renderRooms), иначе смена имени
+     через flushRoomDraft оставит на табличке старую строку — расчёт берём из того же EPRoomOverlap. */
+  const noteText=overlapNoteText(computeOverlaps().notes[room.id]);
   canvas.querySelectorAll(".room-label").forEach(el=>{
     if(String(el.dataset.id)!==rid)return;
     const title=el.querySelector(".room-title");
@@ -91,6 +159,11 @@ function updateRoomLabelText(room){
       if(!small){small=document.createElement("small");el.insertBefore(small,el.querySelector(".room-object-count"))}
       small.textContent=areaText;
     }else if(small)small.remove();   /* ручную площадь стёрли и авторасчёта нет → подпись убираем */
+    let note=el.querySelector(".room-overlap-note");
+    if(noteText){
+      if(!note){note=document.createElement("span");note.className="room-overlap-note";el.appendChild(note)}
+      note.textContent=noteText;   /* textContent экранирует — как esc() в renderRooms */
+    }else if(note)note.remove();
   });
 }
 

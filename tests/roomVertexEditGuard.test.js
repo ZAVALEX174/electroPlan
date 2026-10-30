@@ -146,6 +146,11 @@ function buildRooms(state) {
   };
   const code = [
     stand.functionSource("renderRooms"),
+    stand.functionSource("computeOverlaps"),
+    stand.functionSource("overlapOpts"),
+    stand.functionSource("joinRoomNames"),
+    stand.functionSource("overlapNoteText"),
+    stand.functionSource("overlapHatchDefs"),
     stand.functionSource("overlapGuardFor"),
     stand.functionSource("svgTitle"),
     stand.functionSource("markRoomEdited"),
