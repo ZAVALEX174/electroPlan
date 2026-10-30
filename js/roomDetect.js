@@ -400,10 +400,20 @@ function buildRoomsFromLines(opts){
   /* ручные контуры (autoPolygon===false) переживают пересчёт — как в detectRooms* */
   state.rooms=state.rooms.filter(r=>!r.autoPolygon);
   const kept=state.rooms.length;
+  /* Ч.1 «комнаты не налезают»: новая грань не строится поверх уже размещённой комнаты. Контуры
+     переживших пересчёт комнат (они и есть «уже существующие с контуром») режут свежие грани — клин,
+     заехавший внутрь, обрезается по их границе, спорная область остаётся у прежней комнаты (решение
+     владельца 30.10). Касание по общей стене наложением не считается. Вся геометрия — в EPRoomOverlap;
+     при отсутствии существующих комнат ветку не трогаем (обычный случай, поведение не меняется). */
+  const existing=state.rooms.filter(r=>r.polygon&&r.polygon.length>=3);
+  const faceRooms=existing.length
+    ? EPRoomOverlap.clipRoomsAgainst(res.rooms,existing.map(r=>r.polygon),
+        {geom:EPGeom,faces:EPRoomsFromLines,tol:EPConfig.roomWeldTol,minArea:EPConfig.roomMinAreaPx})
+    : res.rooms;
   /* нумеруем «Помещение N» дальше существующих одноимённых, чтобы имена не дублировались */
   let next=state.rooms.reduce((max,r)=>{const m=/^Помещение\s+(\d+)$/.exec(r.name||"");return m?Math.max(max,Number(m[1])):max},0);
   const built=[];
-  res.rooms.forEach(rm=>{
+  faceRooms.forEach(rm=>{
     const poly=rm.polygon,c=roomLabelPoint(poly),nm=roomNamePoint(poly);   /* В10 И5: seed — точка ВНУТРИ контура (roomNamePoint) */
     /* roomSource — признак способа получения контура (по линиям/по сетке): запасной
        проход не подменяет основной молча, источник виден и в state, и в отчётах */
@@ -413,14 +423,17 @@ function buildRoomsFromLines(opts){
   carryUserRoomFields(oldAuto,built);   /* вернуть имя/площадь, введённые вручную, на совпавшие комнаты */
   refreshAfterRoomAssignments(renderAll, persistProject);
   if(!silent){
-    const byGrid=res.rooms.filter(r=>r.source==="grid").length;
+    /* считаем по ФАКТИЧЕСКИ построенным комнатам (built): обрезка по уже размещённым (ч.1) могла
+       разделить грань надвое или убрать вырожденный осколок — число должно совпадать с тем, что на холсте */
+    const total=built.length;
+    const byGrid=built.filter(r=>r.roomSource==="grid").length;
     const note=res.method==="grid"?" (по сетке — контур приблизительный)":byGrid?` (из них по сетке: ${byGrid})`:"";
     /* число «зашитых» зазоров показываем явно: если починка склеила лишнее, пользователь
        должен это видеть, а не гадать, почему помещения не те (решение владельца) */
     const healed=res.healedJoints||0;
     const healNote=healed?` · зашито зазоров: ${healed}`:"";
-    toast(`Помещений по линиям: ${res.rooms.length}${note}`);
-    updateStatus((kept?`Помещений по линиям: ${res.rooms.length} · сохранено ручных контуров: ${kept}`:`Помещений по линиям: ${res.rooms.length}`)+healNote);
+    toast(`Помещений по линиям: ${total}${note}`);
+    updateStatus((kept?`Помещений по линиям: ${total} · сохранено ручных контуров: ${kept}`:`Помещений по линиям: ${total}`)+healNote);
   }
 }
 
