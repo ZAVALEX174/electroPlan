@@ -19,13 +19,14 @@ const EPMechColor = require("../js/mechColor.js");
 const EPCatalog = require("../js/catalog.js");
 
 /* deps как в app.js/postBuilder: совместимость с серией — compatibleMechanisms (семейное правило, ТОТ
-   ЖЕ отбор, что начинка в окне поста), цвет — elementColor. НЕ productsForRoom: серия комнаты это
-   подсерия («Eikon Evo»), а цветные механизмы под базой «Eikon» — точное членство дало бы пусто. */
+   ЖЕ отбор, что начинка в окне поста), цвет — EPMechColor.colorOf (столбец elementColor, иначе выведенный
+   nameColor — то же ЕДИНОЕ правило, что в рантайме). НЕ productsForRoom: серия комнаты это подсерия
+   («Eikon Evo»), а цветные механизмы под базой «Eikon» — точное членство дало бы пусто. */
 const DEPS = {
   match: (m, c) => c && c.collection ? EPCatalog.compatibleMechanisms({ series: [c.collection] }, m) : m.slice(),
-  colorOf: item => (item && item.elementColor) || ""
+  colorOf: EPMechColor.colorOf
 };
-const FDEPS = { colorOf: item => (item && item.elementColor) || "", keyOf: EPCatalog.facingColorKey };
+const FDEPS = { colorOf: EPMechColor.colorOf, keyOf: EPCatalog.facingColorKey };
 
 /* Синтетическая начинка повторяет каталог: цветные механизмы Eikon лежат под БАЗОЙ «Eikon»; декоративный
    цвет живёт в подсерии «Eikon Vintage»; Plana с одним цветом; Linea без цвета вовсе. Серия комнаты —
@@ -126,17 +127,42 @@ test("checkboxLabel: подпись с цветом", () => {
   assert.equal(EPMechColor.checkboxLabel("Белый"), "Только механизмы цвета «Белый»");
 });
 
+/* ---- colorOf: ЕДИНОЕ правило «цвет механизма для окна поста» = elementColor || nameColor --------
+   Мутация «colorOf вернуть только nameColor» красит «столбец главнее»; «только elementColor» красит
+   «без столбца берём выведенный». */
+
+test("colorOf: столбец (elementColor) ГЛАВНЕЕ выведенного (nameColor)", () => {
+  assert.equal(EPMechColor.colorOf({ elementColor: "Белый", nameColor: "Чёрный" }), "Белый");
+});
+
+test("colorOf: столбца нет → выведенный из названия (nameColor)", () => {
+  assert.equal(EPMechColor.colorOf({ nameColor: "Серебристый" }), "Серебристый");
+});
+
+test("colorOf: ни столбца, ни выведенного → \"\" (бесцветный, в окне поста виден всегда)", () => {
+  assert.equal(EPMechColor.colorOf({}), "");
+  assert.equal(EPMechColor.colorOf(null), "");
+});
+
 /* ---- НАСТОЯЩИЙ каталог VIMAR: точные числа цветов по сериям (разведка 31.10) ------------------ */
 
-/* ТОЛЬКО active — как byKind в приложении (дефект 31.10 замерен на active). */
+/* ТОЛЬКО active — как byKind в приложении (дефект 31.10 замерен на active). Подмешиваем ОБА раздела
+   как js/data.js: elementColor из colors (столбец) и nameColor из nameColors (выведенный) — окно поста
+   читает их через colorOf. */
 function loadRealMechanisms() {
   const win = {};
   ["catalog-vimar.js", "catalog-vimar-attrs.js"].forEach(f =>
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "js", f), "utf8"), { window: win }));
   const colors = (win.EP_VIMAR_ATTRS && win.EP_VIMAR_ATTRS.colors) || {};
+  const nameColors = (win.EP_VIMAR_ATTRS && win.EP_VIMAR_ATTRS.nameColors) || {};
   return win.EP_VIMAR_CATALOG.products
     .filter(p => p.kind === "mechanism" && p.active !== false)
-    .map(p => colors[p.code] ? { ...p, elementColor: colors[p.code] } : { ...p });
+    .map(p => {
+      const o = { ...p };
+      if (colors[p.code]) o.elementColor = colors[p.code];
+      if (nameColors[p.code]) o.nameColor = nameColors[p.code];
+      return o;
+    });
 }
 
 test("реальный каталог (active): Eikon Evo/Exe берут цвета базовой линии — шаг НЕ пустой (дефект 31.10)", () => {
@@ -155,28 +181,85 @@ test("реальный каталог (active): числа цветов по с�
   const mechs = loadRealMechanisms();
   const countOf = (series, color) =>
     EPCatalog.compatibleMechanisms({ series: [series] }, mechs)
-      .filter(m => m.elementColor && EPCatalog.facingColorKey(m.elementColor) === EPCatalog.facingColorKey(color)).length;
-  /* Eikon Evo: Белый/Чёрный/Серебристый по 37, Металлик 1 */
-  assert.equal(countOf("Eikon Evo", "Белый"), 37);
-  assert.equal(countOf("Eikon Evo", "Чёрный"), 37);
-  assert.equal(countOf("Eikon Evo", "Серебристый"), 37);
+      .filter(m => { const c = EPMechColor.colorOf(m); return c && EPCatalog.facingColorKey(c) === EPCatalog.facingColorKey(color); }).length;
+  /* Eikon Evo (К12 ч.3, доводка 31.10, раунд 2): числа выросли против столбца — цвет берётся и ИЗ
+     НАЗВАНИЯ через colorOf, когда столбец «Цвет элемента» пуст (серый 20003 → Чёрный и т. д.). Чёрный 53,
+     а не 57 как в раунде 1: голым механизмам за клавишей (20001.0/20005.0/20008.0/20013.0) цвет из
+     названия БОЛЬШЕ не выводится (решение владельца 31.10 п.3) — они бесцветны и видны всегда. Белый/
+     Серебристый по 69. Бронза 0: декор подсерии Vintage в базу Eikon не подмешивается (регресс-гард цел). */
+  assert.equal(countOf("Eikon Evo", "Белый"), 69);
+  assert.equal(countOf("Eikon Evo", "Чёрный"), 53);
+  assert.equal(countOf("Eikon Evo", "Серебристый"), 69);
   assert.equal(countOf("Eikon Evo", "Металлик"), 1);
   assert.equal(countOf("Eikon Evo", "Бронза"), 0, "декор Vintage НЕ попал в Evo");
   /* Eikon Flat: база + свой декор (как окно поста к накладке Flat) */
   const flat = EPMechColor.colorsFor(mechs, { collection: "Eikon Flat" }, DEPS);
   assert.ok(flat.includes("Белый") && flat.includes("Бронза"), "Flat = база + свой декор");
-  /* Arke: Белый 30, Чёрный 31, Металлик 31 */
-  assert.equal(countOf("Arke", "Белый"), 30);
-  assert.equal(countOf("Arke", "Чёрный"), 31);
-  assert.equal(countOf("Arke", "Металлик"), 31);
-  /* Plana: Белый/Серебристый по 32 */
-  assert.equal(countOf("Plana", "Белый"), 32);
-  assert.equal(countOf("Plana", "Серебристый"), 32);
-  /* Neve Up: Белый 26, Чёрный 25 */
+  /* Arke: Белый/Чёрный/Металлик по 65 (было 30/31/31 — вывод цвета из названия добавил «серые»/«белые») */
+  assert.equal(countOf("Arke", "Белый"), 65);
+  assert.equal(countOf("Arke", "Чёрный"), 65);
+  assert.equal(countOf("Arke", "Металлик"), 65);
+  /* Plana: Белый 64, Серебристый 53 (было 32/32) */
+  assert.equal(countOf("Plana", "Белый"), 64);
+  assert.equal(countOf("Plana", "Серебристый"), 53);
+  /* Neve Up: Белый 52, Чёрный 54 (было 26/25; «карбон матовый» в названии → Чёрный по столбцу серии) */
   assert.deepEqual(EPMechColor.colorsFor(mechs, { collection: "Neve Up" }, DEPS), ["Белый", "Чёрный"]);
-  assert.equal(countOf("Neve Up", "Белый"), 26);
-  assert.equal(countOf("Neve Up", "Чёрный"), 25);
+  assert.equal(countOf("Neve Up", "Белый"), 52);
+  assert.equal(countOf("Neve Up", "Чёрный"), 54);
   /* Linea — цвета механизмов нет → шаг скрыт */
   assert.deepEqual(EPMechColor.colorsFor(mechs, { collection: "Linea" }, DEPS), []);
   assert.equal(EPMechColor.visible(mechs, { collection: "Linea" }, DEPS), false);
+});
+
+test("реальный каталог: голый механизм за клавишей БЕСЦВЕТЕН (цвет из названия не выведен) → виден всегда", () => {
+  const mechs = loadRealMechanisms();
+  const byCode = c => mechs.find(m => m.code === c);
+  /* 20001.0/20005.0/20008.0/20013.0 — голые Eikon «Механизм-… серый» за клавишей любого цвета (решение
+     владельца 31.10 п.3: цвет из названия им НЕ выводим). colorOf = "" → фильтр окна поста их не трогает. */
+  ["20001.0", "20005.0", "20008.0", "20013.0"].forEach(c =>
+    assert.equal(EPMechColor.colorOf(byCode(c)), "", c + " должен быть бесцветным"));
+  const filtered = EPMechColor.filter(EPCatalog.compatibleMechanisms({ series: ["Eikon Evo"] }, mechs), "Белый", FDEPS);
+  ["20001.0", "20005.0", "20008.0", "20013.0"].forEach(c =>
+    assert.ok(filtered.some(m => m.code === c), c + " виден в окне поста Eikon Evo + Белый"));
+  /* А цветной НЕголый серый 20003 при «Белом» отсеивается, белый 20003.B — остаётся. */
+  assert.ok(!filtered.some(m => m.code === "20003"), "серый 20003 отсеян при Белом");
+  assert.ok(filtered.some(m => m.code === "20003.B"), "белый 20003.B остаётся");
+});
+
+/* ---- АВТОЗАМЕНА СМЕТЫ: цвет из названия НЕ должен в неё попасть (решение владельца 31.10) --------
+   resolveReplacement сравнивает цвет через colorKeyOf. Он ОБЯЗАН читать только столбец (item.elementColor),
+   как в HEAD, иначе выведенный nameColor добавляет ложных кандидатов и строка выпадает из сметы (деньги).
+   МУТАЦИЯ: colorKeyOf читает nameColor||elementColor — все три пары становятся неоднозначными/пустыми
+   (ниже), тест краснеет. */
+function loadReplacementCatalog() {
+  const ctx = vm.createContext({ window: {}, structuredClone });
+  ["catalog-vimar.js", "catalog-vimar-attrs.js", "catalog-vimar-discontinued.js", "data.js"].forEach(f =>
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", f), "utf8"), ctx, { filename: f }));
+  return ctx.window.EP_DATA.products;
+}
+function replacementDeps(colorField) {
+  return {
+    seriesOf: EPCatalog.productSeries, spanOf: EPCatalog.mechanismSpan,
+    colorKeyOf: i => i && colorField(i) ? EPCatalog.facingColorKey(colorField(i)) : null,
+    fgOf: i => (i && i.functionalGroup) || null, fsgOf: i => (i && i.functionalSubgroup) || null
+  };
+}
+
+test("автозамена: цвет по СТОЛБЦУ даёт точную замену (как HEAD); nameColor в colorKeyOf её ломает", () => {
+  const EPLightingPlan = require("../js/lightingPlan.js");
+  const prods = loadReplacementCatalog();
+  const mechs = prods.filter(p => p.kind === "mechanism" && p.active);
+  const byCode = c => prods.find(p => p.code === c);
+  const rep = (code, role, deps) => EPLightingPlan.resolveReplacement({ role, source: byCode(code) }, mechs, deps);
+  /* Столбец (как в рантайме и HEAD) — однозначные замены. */
+  const col = replacementDeps(i => i.elementColor);
+  assert.equal(rep("14100.2", "changeover", col).product.code, "14104.2");
+  assert.equal(rep("14066", "switch", col).product.code, "14100");
+  assert.equal(rep("14003", "changeover", col).product.code, "14007", "снятый 14003 → 14007");
+  /* МУТАЦИЯ: добавили nameColor в ключ цвета — замены ломаются (неоднозначно/пусто). Это и есть доказательство,
+     что в смету выведенный цвет попадать НЕ должен. */
+  const mut = replacementDeps(i => i.nameColor || i.elementColor);
+  assert.equal(rep("14100.2", "changeover", mut).product, null, "мутация: 14100.2 стала неоднозначной");
+  assert.equal(rep("14066", "switch", mut).product, null, "мутация: 14066 без замены");
+  assert.equal(rep("14003", "changeover", mut).product, null, "мутация: 14003 стала неоднозначной");
 });

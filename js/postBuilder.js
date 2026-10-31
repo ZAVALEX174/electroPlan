@@ -784,7 +784,7 @@ function renderBuilder(){
   /* К12 ч.3: цвет механизмов комнаты сужает начинку ОТДЕЛЬНО — бесцветные видны всегда (EPMechColor.filter,
      §7.1). К EPMechColor обращаемся только при заданном цвете, чтобы окна без него его не требовали. */
   const roomMechColor=state.builder.restrictInnardsColor?((builderFilterRoom()||{}).mechColor||null):null;
-  const catalogMechs=(roomMechColor?EPMechColor.filter(colorFiltered,roomMechColor,{colorOf:m=>(m&&m.elementColor)||"",keyOf:EPCatalog.facingColorKey}):colorFiltered).filter(m=>!EPThermoSensor.isSensorMechanism(m));
+  const catalogMechs=(roomMechColor?EPMechColor.filter(colorFiltered,roomMechColor,{colorOf:EPMechColor.colorOf,keyOf:EPCatalog.facingColorKey}):colorFiltered).filter(m=>!EPThermoSensor.isSensorMechanism(m));
   const innardsColor=roomMechColor||(state.builder.restrictInnardsColor?EPRoom.roomFrameFacing(builderFilterRoom(),"frameColor",frameFacingList("frameColor")):null);
   /* Подпись галочки: с цветом механизмов, если задан у комнаты (решение владельца 31.10), иначе прежняя. */
   {const lbl=$("builderRestrictColorLabel");if(lbl)lbl.textContent=roomMechColor?EPMechColor.checkboxLabel(roomMechColor):"Только клавиши, розетки и механизмы в цвет накладки";}

@@ -24,6 +24,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { classify } from "./classify.mjs";
+import { buildColorDictionary, deriveColorFromName } from "./elementColorFromName.mjs";
 
 const require = createRequire(import.meta.url);
 const XLSX = require("xlsx");
@@ -554,7 +555,7 @@ export function canonicalFacingMap(records, pick) {
    добавлял по одному датчику на каждый такой терморегулятор. */
 const SENSOR_NOTE_RE = /термодатчика\s+"([^"]+)"/i;
 export function buildAttrs(records) {
-  const standards = {}, supports = {}, boxes = {}, wallTypes = {}, mounting = {}, roles = {}, groups = {}, colors = {}, sensors = {}, packs = {};
+  const standards = {}, supports = {}, boxes = {}, wallTypes = {}, mounting = {}, roles = {}, groups = {}, colors = {}, nameColors = {}, sensors = {}, packs = {};
   /* Канонические написания отделки — по всем НАКЛАДКАМ сразу, до основного цикла: одно написание
      на признак должно быть одинаковым у всех накладок этого цвета/материала/формы, иначе список
      комнаты раздвоился бы на «Слоновая Кость» и «Слоновая кость». Строим три карты один раз. */
@@ -569,6 +570,15 @@ export function buildAttrs(records) {
      записям с цветом сразу (у накладок он пуст → в карту не попадут), чтобы «Белый»/«Белый»
      сошлись к одному написанию, как у цветов накладки. */
   const canonElementColor = canonicalFacingMap(records.filter(r => r && r.color), r => r.color);
+  /* Словарь «слово в названии → цвет» (К12 ч.3, elementColorFromName.mjs): учим ОДИН раз по
+     механизмам с ЗАПОЛНЕННЫМ «Цветом элемента», отдельно по каждой серии. Нужен, чтобы
+     механизм без столбца («…серый», «…серебро матовое») всё равно получил ВЫВЕДЕННЫЙ цвет —
+     иначе фильтр цвета в окне поста пропускал серый 20003 при выбранном «Белом». Выведенный
+     цвет НЕ смешивается со столбцом: столбец едет в раздел colors (→ item.elementColor, его
+     читают автозамена сметы и «в цвет накладки» — решение владельца 31.10 «смета как в HEAD»),
+     а вывод из названия — в ОТДЕЛЬНЫЙ раздел nameColors (→ item.nameColor), и его читает только
+     окно поста/шаг цвета механизмов через EPMechColor.colorOf. Учим по механизмам с цветом. */
+  const elementColorDict = buildColorDictionary(records.filter(r => r && r.kind === "mechanism" && r.color));
   /* Приложить каноническое написание отделки к записи накладки, только если сырое непусто —
      как principle/layoutRows: «признака нет» рантайм отличает по отсутствию ключа. */
   const addFacing = (entry, rec) => {
@@ -633,6 +643,20 @@ export function buildAttrs(records) {
        отсутствию, как principle/partRole. */
     if (rec.color) colors[rec.code] = canonElementColor.get(facingKey(rec.color)) || norm(rec.color);
 
+    /* ВЫВЕДЕННЫЙ из названия цвет механизма — ОТДЕЛЬНЫЙ раздел nameColors (→ item.nameColor).
+       Кладём ТОЛЬКО когда столбца нет (столбец всегда главнее, он уже в colors) и ТОЛЬКО для
+       механизма, который НЕ голый. «Голый механизм» определяем ТЕМ ЖЕ признаком, каким
+       программа отбирает механизм за клавишей (EPLightingPlan.resolveMechanism — кандидат
+       partRole === "bare_mechanism"): такой механизм стоит за клавишей любого цвета (20001.0/
+       20005.0/20008.0/20013.0 «Механизм-… серый») и в окне поста ДОЛЖЕН быть виден всегда —
+       цвет из названия ему не выводим (решение владельца 31.10, п.3). Канонизуем тем же
+       canonElementColor: выведенное значение — реальный цвет столбца этой серии, его ключ в
+       карте уже есть. */
+    if (rec.kind === "mechanism" && !norm(rec.color) && rec.partRole !== "bare_mechanism") {
+      const derived = deriveColorFromName(rec, elementColorDict);
+      if (derived) nameColors[rec.code] = canonElementColor.get(facingKey(derived)) || norm(derived);
+    }
+
     /* Кол-во в упаковке (К6): сквозной раздел packs, ключ на артикул → число штук в упаковке
        поставщика. Нужен выгрузке «По артикулам» (кратно упаковке) и далее КП/панели итогов.
        Кладём только положительное целое: у позиций без данных об упаковке ключа нет — рантайм
@@ -683,5 +707,5 @@ export function buildAttrs(records) {
       if (Object.keys(entry).length) mounting[rec.code] = entry;
     }
   }
-  return { standards, supports, boxes, wallTypes, mounting, roles, groups, colors, sensors, packs };
+  return { standards, supports, boxes, wallTypes, mounting, roles, groups, colors, nameColors, sensors, packs };
 }

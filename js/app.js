@@ -2274,7 +2274,7 @@ const framePickerDeps={
    правило = отбор начинки окна поста): серия комнаты — подсерия «Eikon Evo», цветные механизмы под базой
    «Eikon» → точное членство дало бы пусто, шаг не появлялся бы (дефект 31.10). */
 const MECH_COLOR_STEP={prop:"mechColor",title:"Цвет механизмов"};
-const mechColorDeps={match:(m,c)=>c&&c.collection?EPCatalog.compatibleMechanisms({series:[c.collection]},m):(m||[]).slice(),colorOf:item=>(item&&item.elementColor)||""};
+const mechColorDeps={match:(m,c)=>c&&c.collection?EPCatalog.compatibleMechanisms({series:[c.collection]},m):(m||[]).slice(),colorOf:item=>EPMechColor.colorOf(item)};
 /* Видимые шаги окна: видимые шаги накладки + шаг цвета механизмов, если он виден в текущем отборе. */
 function framePickerVisible(sel){
   const v=EPFramePicker.visibleSteps(byKind("frame"),sel,framePickerDeps);
@@ -2285,7 +2285,7 @@ function framePickerVisible(sel){
    серии), для шагов накладки — прежний stepOptions. */
 function framePickerStepOptions(step,sel){
   return step.prop==="mechColor"
-    ?EPMechColor.colorsFor(byKind("mechanism"),sel,mechColorDeps).map(value=>({value,count:mechColorDeps.match(byKind("mechanism"),{collection:sel.collection}).filter(m=>m.elementColor&&EPCatalog.facingColorKey(m.elementColor)===EPCatalog.facingColorKey(value)).length,imageUrl:""}))
+    ?EPMechColor.colorsFor(byKind("mechanism"),sel,mechColorDeps).map(value=>({value,count:mechColorDeps.match(byKind("mechanism"),{collection:sel.collection}).filter(m=>{const c=EPMechColor.colorOf(m);return c&&EPCatalog.facingColorKey(c)===EPCatalog.facingColorKey(value);}).length,imageUrl:""}))
     :EPFramePicker.stepOptions(byKind("frame"),sel,step.prop,framePickerDeps);
 }
 const framePickerSteps=()=>EPFramePicker.STEPS.concat([MECH_COLOR_STEP]);

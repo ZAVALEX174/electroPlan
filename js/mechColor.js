@@ -26,6 +26,18 @@
 (() => {
 "use strict";
 
+/* ЕДИНОЕ правило «цвет механизма для окна поста» (§7.1): СТОЛБЕЦ ГЛАВНЕЕ названия. Заполнен
+   собственный цвет из столбца номенклатуры (item.elementColor, раздел colors — его же читают
+   автозамена сметы и фильтр «в цвет накладки») — берём его. Пусто — берём ВЫВЕДЕННЫЙ из названия
+   (item.nameColor, раздел nameColors, К12 ч.3). Ни того ни другого → "" (бесцветный: в окне поста
+   виден всегда, в список значений шага не идёт). Это ЕДИНСТВЕННОЕ место выражения elementColor||
+   nameColor: и список значений шага, и фильтр начинки, и счётчик окна подбора зовут именно его —
+   второй копии нет. Автозамена и смета этой функции НЕ зовут: они читают только столбец (решение
+   владельца 31.10 «смета ровно как в HEAD»). */
+function colorOf(item) {
+  return (item && (item.elementColor || item.nameColor)) || "";
+}
+
 /* Правило видимости шага — ЕДИНОЕ с framePicker (visibleSteps, К12 ч.1): «≥2 значения ИЛИ выбрано
    мёртвое». Берём его ФУНКЦИЕЙ у framePicker, а не копией (§7.1): поменяется правило «когда прятать
    шаг» — поменяется в одном месте. Браузер — window.EPFramePicker (подключён раньше), Node — require. */
@@ -86,7 +98,7 @@ function checkboxLabel(color) {
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
-const api = { colorsFor, visible, autoValue, filter, checkboxLabel };
+const api = { colorOf, colorsFor, visible, autoValue, filter, checkboxLabel };
 if (typeof window !== "undefined") window.EPMechColor = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

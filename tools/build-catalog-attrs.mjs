@@ -53,7 +53,7 @@ async function main() {
   let overridesDoc = { overrides: {} };
   try { overridesDoc = JSON.parse((await fs.readFile(OVERRIDES, "utf8")).replace(/^﻿/, "")); } catch { /* нет файла — ноль правок */ }
   applyKindOverrides(records, overridesDoc.overrides || {});
-  const { standards, supports, boxes, wallTypes, mounting, roles, groups, colors, sensors, packs } = buildAttrs(records);
+  const { standards, supports, boxes, wallTypes, mounting, roles, groups, colors, nameColors, sensors, packs } = buildAttrs(records);
 
   const tally = (obj, pick) => {
     const t = {};
@@ -83,6 +83,7 @@ async function main() {
       roles: path.basename(NOM),
       groups: path.basename(NOM),
       colors: path.basename(NOM),
+      nameColors: path.basename(NOM),
       sensors: path.basename(NOM),
       packs: path.basename(NOM),
     },
@@ -94,6 +95,7 @@ async function main() {
     roles,
     groups,
     colors,
+    nameColors,
     sensors,
     packs,
   };
@@ -132,6 +134,12 @@ async function main() {
   const colorTally = {};
   for (const c in colors) colorTally[colors[c]] = (colorTally[colors[c]] || 0) + 1;
   console.log(`  цвет элемента начинки:  ${Object.keys(colors).length} позиций (${Object.keys(colorTally).length} цветов) — ${JSON.stringify(colorTally)}`);
+  // Выведенный из названия цвет механизма (К12 ч.3, раздел nameColors — только окно поста/шаг цвета
+  // механизмов, в смету не идёт). Охват и разбивка по цветам — чтобы при пересборке было видно, что
+  // словарь по сериям собрался ожидаемо (и голые механизмы за клавишей сюда НЕ попали).
+  const nameColorTally = {};
+  for (const c in nameColors) nameColorTally[nameColors[c]] = (nameColorTally[nameColors[c]] || 0) + 1;
+  console.log(`  цвет из названия:       ${Object.keys(nameColors).length} позиций (${Object.keys(nameColorTally).length} цветов) — ${JSON.stringify(nameColorTally)}`);
   // Термодатчики терморегуляторов (К5а): сколько терморегуляторов «с возможностью подключения
   // термодатчика» нашлось и на какие артикулы датчиков они ссылаются (ожидается 9 → 02965.1). Регресс
   // в примечаниях номенклатуры обязан быть виден при пересборке, а не всплыть в рантайме пустым составом.

@@ -291,11 +291,12 @@ function MechColor() {
 /* deps для EPMechColor: совместимость с серией — compatibleMechanisms (семейное правило, ТОТ ЖЕ отбор
    начинки по накладке, что в окне поста, §7.1): серия комнаты — подсерия («Eikon Evo»), а цветные
    механизмы под базой «Eikon», поэтому точное членство (productsForRoom) дало бы пусто. Цвет механизма —
-   elementColor («» если нет). Одна точка на список-вид, окно подбора и сводку. */
+   EPMechColor.colorOf (столбец elementColor, иначе выведенный nameColor; «» если нет) — ТО ЖЕ единое
+   правило, что в окне поста. Одна точка на список-вид, окно подбора и сводку. */
 function mechColorDeps() {
   return {
     match: (m, c) => c && c.collection ? Catalog().compatibleMechanisms({ series: [c.collection] }, m) : (m || []).slice(),
-    colorOf: item => (item && item.elementColor) || ""
+    colorOf: MechColor().colorOf
   };
 }
 /* Действующий цвет механизмов варианта: строка или null. Валидируем «мягко» (как roomCollection для

@@ -825,11 +825,11 @@
 <!-- Сообщения с крестиком, не гаснущие сами (Б9/2б): стоят над toast, одно над другим. Наполняет EPNotices. -->
 <div class="notices" id="notices"></div>
   <script src="js/catalog-vimar.js?v=20261019.2"></script>
-  <script src="js/catalog-vimar-attrs.js?v=20261023.2"></script>
+  <script src="js/catalog-vimar-attrs.js?v=20261031.2"></script>
   <script src="js/catalog-vimar-openings.js?v=20260920.1"></script>
   <script src="js/catalog-vimar-faces.js?v=20260801.2"></script>
   <script src="js/catalog-vimar-discontinued.js?v=20261019.1"></script>
-  <script src="js/data.js?v=20261022.2"></script>
+  <script src="js/data.js?v=20261031.1"></script>
 <script src="js/store.js?v=20260723"></script>
 <script src="js/config.js?v=20261005.1"></script>
 <!-- Подтверждение необратимой команды повтором того же действия (у окна есть и нижняя, и
@@ -912,7 +912,7 @@
      правило размещения. Грузится до app.js, который в частях 3–4 добавит селектор и размещение. -->
 <script src="js/roomVariants.js?v=20261031.1"></script>
 <script src="js/roomWalls.js?v=20261018.1"></script>
-<script src="js/roomVariantsUi.js?v=20261031.2"></script>
+<script src="js/roomVariantsUi.js?v=20261031.3"></script>
 <script src="js/roomCarry.js?v=20261024.1"></script>
 <script src="js/roomAssign.js?v=20260831.1"></script>
 <script src="js/planTrace.js?v=20260727.1"></script>
@@ -930,7 +930,7 @@
 <!-- Цвет механизмов (К12 ч.3): чистое правило «какие цвета у серии, как сузить начинку (без цвета —
      видно), подпись галочки». Грузится ПОСЛЕ framePicker (берёт у него stepVisible) и ДО postBuilder/
      app.js, которые зовут EPMechColor. -->
-<script src="js/mechColor.js?v=20261031.1"></script>
+<script src="js/mechColor.js?v=20261031.2"></script>
 <!-- Автонумерация КП (EPG-ГГГГ-NNNN): формат и счётчик по году в одном чистом модуле. Грузится
      до app.js, который зовёт его при сборке КП, если «Номер КП» пуст. -->
 <script src="js/offerNumber.js?v=20261011.1"></script>
@@ -938,7 +938,7 @@
      «висящего» промиса и провязка кнопок. Вынесена из app.js (И1). Грузится ДО app.js, который
      подключает её через EPWallScope.create({$, WALL_STEP_LABEL}). -->
 <script src="js/wallScope.js?v=20260927.1"></script>
-<script src="js/postBuilder.js?v=20261031.1"></script>
+<script src="js/postBuilder.js?v=20261031.2"></script>
 <script src="js/rooms.js?v=20261030.2"></script>
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
@@ -992,6 +992,6 @@
 <!-- Левая панель (Редизайн, часть 4): сворачиваемые секции (память в EPPrefs), статус/автосворачивание
      «Исходного плана», горячие клавиши инструментов V/W/L/R/E. До app.js, который зовёт EPLeftPanel.attach(ctx). -->
 <script src="js/leftPanel.js?v=20261030.2"></script>
-<script src="js/app.js?v=20261031.3"></script>
+<script src="js/app.js?v=20261031.4"></script>
 </body>
 </html>
