@@ -1528,13 +1528,19 @@ function renderProperties(){
     const standardOptions=EPRoomVariantsUi.facingFieldOptionsHtml(roomFrames,facingEntity,"standard","Не задан — накладки любого стандарта",facingValidate);
     const roomColl=facingValidate(facingEntity,"collection");
     const collectionOptions=EPRoomVariantsUi.facingFieldOptionsHtml(roomFrames,facingEntity,"collection","Не задана — предлагать все накладки",facingValidate);
+    /* К12 ч.1: шаг отделки с одним значением в текущем отборе не показываем — то же правило, что в
+       окне подбора (EPRoomVariantsUi.visibleFacingProps → EPFramePicker.visibleSteps, §7.1: одна
+       функция «когда прятать»). Для каталога VIMAR это убирает «Форму» и из селекторов списка, и из
+       сводки вида «С картинками» (facingChosen строится из этого же facingSpecs). Сохранённое
+       frameShape в данных остаётся (поле не трогаем) и продолжает сужать отбор. */
+    const visibleFacingProps=EPRoomVariantsUi.visibleFacingProps(roomFrames,facingEntity,facingValidate);
     /* Отделка (E14): материал, форма, цвет. Плейсхолдер/подсказку держим ПОФИЛЬДНО из-за рода слова
        (материал «задан», форма «задана»). Опции — тот же facingFieldOptionsHtml. id room_<признак>Select. */
     const facingSpecs=[
       {prop:"frameMaterial",label:"Материал накладки",empty:"Не задан — любой материал",on:"Предлагаются накладки только этого материала",off:"Материал не задан — не сужается"},
       {prop:"frameShape",label:"Форма накладки",empty:"Не задана — любая форма",on:"Предлагаются накладки только этой формы",off:"Форма не задана — не сужается"},
       {prop:"frameColor",label:"Цвет накладки",empty:"Не задан — любой цвет",on:"Предлагаются накладки только этого цвета",off:"Цвет не задан — не сужается"}
-    ].map(spec=>{
+    ].filter(spec=>visibleFacingProps.has(spec.prop)).map(spec=>{
       const cur=facingValidate(facingEntity,spec.prop);
       const options=EPRoomVariantsUi.facingFieldOptionsHtml(roomFrames,facingEntity,spec.prop,spec.empty,facingValidate);
       return {...spec,cur,options};
@@ -1567,8 +1573,9 @@ function renderProperties(){
     /* К8г, решение владельца (Б): под полями отделки ВЫБРАННОГО варианта — строка, когда под него нет
        ни одной накладки. Текст/условия — существующие frameFacingEmptyText/frameFacingSelectionLabels
        (та же формулировка, что у хинта окна поста; §7.1); функции — в ПРАВОЙ ветке тернарника. */
+    const facingHiddenProps=EPRoomVariants.FIELDS.filter(p=>!visibleFacingProps.has(p));
     const facingEmptyNote=EPRoomVariantsUi.variantHasNoFrames(roomFrames,facingEntity,facingValidate)
-      ?`<small class="prop-hint room-facing-none">${esc(frameFacingEmptyText(frameFacingSelectionLabels(roomCatalogFilter(facingEntity)).join(", ")))}</small>`
+      ?`<small class="prop-hint room-facing-none">${esc(frameFacingEmptyText(frameFacingSelectionLabels(roomCatalogFilter(facingEntity),facingHiddenProps).join(", ")))}</small>`
       :"";
     const facingBlockHtml=`<div class="room-facing-block">
       ${EPRoomVariantsUi.tabsHtml(roomVariants,roomVariantIdx)}
@@ -2151,11 +2158,16 @@ function roomCatalogFilter(room){
 /* Человеческие подписи активных признаков отделки комнаты — ОДИН источник формулировки «что сузило
    выбор» для хинта и для пустого контекста поиска (§7.1: не размножать текст по потребителям).
    filter — результат builderRoomFilter. Пустой массив, если отделка не задана. */
-function frameFacingLabels(filter){
+function frameFacingLabels(filter,hidden){
+  /* hidden — признаки СКРЫТЫХ шагов (EPFramePicker.visibleSteps, К12 ч.1): их не поминаем как
+     «сузившие выбор», ведь выбирать там нечего (например «Форма» у каталога с одной формой ничего не
+     сужает). Без аргумента — поведение прежнее (все заданные признаки). */
+  const skip=hidden?new Set(hidden):null;
+  const show=p=>!skip||!skip.has(p);
   const parts=[];
-  if(filter.frameMaterial)parts.push(`материал «${filter.frameMaterial}»`);
-  if(filter.frameShape)parts.push(`форма «${filter.frameShape}»`);
-  if(filter.frameColor)parts.push(`цвет «${filter.frameColor}»`);
+  if(filter.frameMaterial&&show("frameMaterial"))parts.push(`материал «${filter.frameMaterial}»`);
+  if(filter.frameShape&&show("frameShape"))parts.push(`форма «${filter.frameShape}»`);
+  if(filter.frameColor&&show("frameColor"))parts.push(`цвет «${filter.frameColor}»`);
   return parts;
 }
 /* ОДНА формулировка «под это сочетание накладок нет» (E14) на всех потребителей: хинт конструктора
@@ -2180,26 +2192,36 @@ function innardsEmptyText(color){
 /* Подписи ВСЕХ активных признаков выбора (серия + отделка) — для крошек и пустого сообщения мастера.
    Серию frameFacingLabels не несёт (её хинт конструктора показывает отдельно), поэтому добавляем
    здесь, но саму отделку берём из frameFacingLabels — не второй копией. */
-function frameFacingSelectionLabels(sel){
+function frameFacingSelectionLabels(sel,hidden){
+  /* hidden — признаки скрытых шагов (К12 ч.1): их не поминаем, как и frameFacingLabels ниже. Стандарт
+     и серию в каталоге VIMAR это не затрагивает (у них >1 значения), но правило одно на все признаки. */
+  const skip=hidden?new Set(hidden):null;
+  const show=p=>!skip||!skip.has(p);
   const parts=[];
-  if(sel.standard)parts.push(`стандарт «${EPCatalog.standardLabel(sel.standard)}»`);
-  if(sel.collection)parts.push(`серия «${sel.collection}»`);
-  return parts.concat(frameFacingLabels(sel));
+  if(sel.standard&&show("standard"))parts.push(`стандарт «${EPCatalog.standardLabel(sel.standard)}»`);
+  if(sel.collection&&show("collection"))parts.push(`серия «${sel.collection}»`);
+  return parts.concat(frameFacingLabels(sel,hidden));
 }
 function frameFacingHintText(allFrames){
   const f=builderRoomFilter();
+  /* К12 ч.1: скрытые шаги не поминаем в подсказке «сузили: …» — «Форма» у каталога с одной формой
+     ничего не сужает и в окне подбора её нет, подсказка не должна её называть. Правило видимости одно
+     с окном и селекторами комнаты (EPRoomVariantsUi.visibleFacingProps → EPFramePicker.visibleSteps,
+     §7.1). f — уже готовый плоский фильтр, поэтому validate = (v,p)=>v[p]. */
+  const visibleProps=EPRoomVariantsUi.visibleFacingProps(allFrames,f,(v,p)=>v[p]);
+  const hidden=EPRoomVariants.FIELDS.filter(p=>!visibleProps.has(p));
   const pool=EPCatalog.productsForRoom(allFrames,f);
   if(!pool.length){
     /* Пул ПУСТ — честно перечисляем ВСЁ, чем сузили (стандарт+серия+отделка через
        frameFacingSelectionLabels), а не только отделку: комната DE+Arke+«Бронза матовая» пуста из-за
        СТАНДАРТА (накладка есть, но итальянская), и совет «менять цвет» увёл бы не туда (п.5). Одна
        формулировка (frameFacingEmptyText) на хинт и мастер отделки (§7.1). */
-    const all=frameFacingSelectionLabels(f);
+    const all=frameFacingSelectionLabels(f,hidden);
     return all.length?frameFacingEmptyText(all.join(", ")):"";
   }
   /* Непустой пул: «показано из скольких» — про ОТДЕЛКУ (E14). Отделка не задана → хинта нет
      (коллекция E13 своё сообщение несёт отдельно). */
-  const parts=frameFacingLabels(f);
+  const parts=frameFacingLabels(f,hidden);
   if(!parts.length)return "";
   const base=EPCatalog.productsForRoom(allFrames,{collection:f.collection}).length;
   return `Показано ${pool.length} из ${base} ${EPCatalog.pluralRu(base,"накладки","накладок","накладок")} · сузили: ${parts.join(", ")}`;
@@ -2249,7 +2271,8 @@ function openFramePicker(room){
   });
   framePickerSel=sel;
   /* Открываемся на первом НЕзаполненном шаге (продолжаем там, где человек остановился); всё задано —
-     на первом, чтобы можно было пересмотреть с начала. Крошки всё равно показывают выбор целиком. */
+     на первом, чтобы можно было пересмотреть с начала. Если шаг окажется скрытым (например «Форма»),
+     renderFramePicker перескочит на ближайший видимый вперёд. */
   const firstUnset=EPFramePicker.STEPS.findIndex(s=>!sel[s.prop]);
   framePickerStep=firstUnset>=0?firstUnset:0;
   renderFramePicker();
@@ -2258,10 +2281,19 @@ function openFramePicker(room){
 }
 function renderFramePicker(){
   const steps=EPFramePicker.STEPS,allFrames=byKind("frame");
-  /* Крошки: что уже выбрано и возврат на любой шаг (data-step). Значения каноничны из каталога, но
-     через esc — они уходят в HTML. */
-  $("framePickerCrumbs").innerHTML=steps.map((s,i)=>{
-    const val=framePickerSel[s.prop];
+  /* К12 ч.1: показываем ТОЛЬКО видимые шаги (EPFramePicker.visibleSteps) — шаг с одним значением в
+     текущем отборе (например «Форма», у которой во всём каталоге одно значение) скрыт и из крошек, и
+     из переходов. Текущий шаг мог стать скрытым (выбор серии с одной формой убирает «Форму») —
+     перепрыгиваем на ближайший видимый вперёд, иначе на последний видимый. */
+  const visible=EPFramePicker.visibleSteps(allFrames,framePickerSel,framePickerDeps);
+  if(visible.length&&!visible.some(s=>steps.indexOf(s)===framePickerStep)){
+    const fwd=steps.findIndex((s,i)=>i>=framePickerStep&&visible.indexOf(s)>=0);
+    framePickerStep=fwd>=0?fwd:steps.indexOf(visible[visible.length-1]);
+  }
+  /* Крошки: что уже выбрано и возврат на любой шаг (data-step — индекс в STEPS). Значения каноничны
+     из каталога, но через esc — они уходят в HTML. */
+  $("framePickerCrumbs").innerHTML=visible.map(s=>{
+    const i=steps.indexOf(s),val=framePickerSel[s.prop];
     return `<button type="button" class="frame-picker-crumb${i===framePickerStep?" active":""}${val?" is-set":""}" data-step="${i}">
       <span class="frame-picker-crumb-title">${esc(s.title)}</span>
       <span class="frame-picker-crumb-value">${val?esc(frameStepValueLabel(s.prop,val)):"—"}</span>
@@ -2289,7 +2321,9 @@ function renderFramePicker(){
        ТОЙ ЖЕ формулировкой E14, что и хинт конструктора (frameFacingEmptyText), плюс подсказка
        вернуться — шаг не тупик, крошки позволяют исправить выбор. */
     const base=Object.assign({},framePickerSel);delete base[step.prop];
-    const labels=frameFacingSelectionLabels(base);
+    /* В пустом сообщении тоже не поминаем скрытые шаги (например «Форму») — тот же набор видимых. */
+    const hidden=steps.filter(s=>visible.indexOf(s)<0).map(s=>s.prop);
+    const labels=frameFacingSelectionLabels(base,hidden);
     body.innerHTML=`<p class="frame-picker-empty">${esc(frameFacingEmptyText(labels.join(", ")))}</p>
       <p class="frame-picker-empty-hint">Вернитесь на предыдущий шаг и измените выбор.</p>`;
   }
@@ -2302,7 +2336,12 @@ function pickFrameStep(value){
   /* Каскад серия→материал→форма→цвет: выбор на шаге сбрасывает НИЖЕлежащие. Тогда каждый следующий
      шаг выбирается из того, что реально осталось, и итоговое сочетание всегда непусто. */
   steps.slice(framePickerStep+1).forEach(s=>{delete framePickerSel[s.prop];});
-  if(framePickerStep<steps.length-1)framePickerStep++;
+  /* К12 ч.1: переходим на следующий ВИДИМЫЙ шаг, пропуская скрытые (например «Форму»). Выбор мог
+     изменить и видимость нижних шагов, поэтому пересчитываем после записи значения; следующего
+     видимого нет — остаёмся на текущем (это последний значимый шаг). */
+  const visible=EPFramePicker.visibleSteps(byKind("frame"),framePickerSel,framePickerDeps);
+  const next=steps.findIndex((s,i)=>i>framePickerStep&&visible.indexOf(s)>=0);
+  if(next>=0)framePickerStep=next;
   renderFramePicker();
 }
 function applyFramePicker(){

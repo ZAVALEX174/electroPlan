@@ -113,3 +113,52 @@ test("пустое сочетание → пустой список опций (
   const opts = EPFramePicker.stepOptions(FRAMES, { collection: "Plana", frameMaterial: "Металл" }, "frameShape", DEPS);
   assert.deepEqual(opts, [], "у Plana металла нет → пул пуст → шаг без вариантов");
 });
+
+/* ---- visibleSteps (К12 ч.1): шаг с одним значением в текущем отборе скрыт -------------------- */
+
+test("каталог с ОДНОЙ формой → шаг «Форма» скрыт (а шаги с выбором видны)", () => {
+  /* Повторяет настоящий каталог VIMAR: у всех накладок форма одна. «Форма» выпадает, остальные
+     шаги (стандарт/серия/материал/цвет), где есть из чего выбирать, остаются. Мутация «≤1 → всё
+     равно показать» (заменить >1 на >=1) покрасит этот тест. */
+  const ONE_SHAPE = [
+    { id: 1, kind: "frame", series: ["Arke"],  frameMaterial: "Металл",       frameShape: "Классическая", frameColor: "Белый"  },
+    { id: 2, kind: "frame", series: ["Arke"],  frameMaterial: "Технополимер", frameShape: "Классическая", frameColor: "Чёрный" },
+    { id: 3, kind: "frame", series: ["Plana"], frameMaterial: "Металл",       frameShape: "Классическая", frameColor: "Серый"  }
+  ];
+  const props = EPFramePicker.visibleSteps(ONE_SHAPE, {}, DEPS).map(s => s.prop);
+  assert.ok(!props.includes("frameShape"), "«Форма» скрыта: во всём каталоге одно значение");
+  assert.deepEqual(props, ["collection", "frameMaterial", "frameColor"],
+    "видны серия/материал/цвет; «Стандарт» без значений тоже скрыт, «Форма» — одно значение");
+});
+
+test("подставной каталог с ДВУМЯ формами → шаг «Форма» виден (появится бренд — вернётся сам)", () => {
+  /* FRAMES держит Классическую и Скруглённую → у «Формы» два значения, шаг показывается. Это и есть
+     «если другие бренды будут, можно оставить» без правок кода. */
+  const props = EPFramePicker.visibleSteps(FRAMES, {}, DEPS).map(s => s.prop);
+  assert.ok(props.includes("frameShape"), "две формы в каталоге → шаг «Форма» виден");
+});
+
+test("выбор, сужающий признак до одного значения → его шаг скрыт", () => {
+  /* В FRAMES две формы, но только в серии Arke; Plana держит одну «Классическую». Выбрав Plana,
+     человек не может сменить форму — шаг «Форма» скрыт. Проверяет, что видимость считается в ТЕКУЩЕМ
+     отборе (развилка 1б), а не по всему каталогу. */
+  const all = EPFramePicker.visibleSteps(FRAMES, {}, DEPS).map(s => s.prop);
+  assert.ok(all.includes("frameShape"), "без выбора форм две → видна");
+  const narrowed = EPFramePicker.visibleSteps(FRAMES, { collection: "Plana" }, DEPS).map(s => s.prop);
+  assert.ok(!narrowed.includes("frameShape"), "у Plana одна форма → шаг «Форма» скрыт");
+});
+
+test("сужение считается ВЫШЕлежащими шагами, выбор ниже на видимость не влияет", () => {
+  /* У Arke две формы. Выбор цвета (шаг НИЖЕ формы) не должен прятать форму: форма определяется тем,
+     что выбрано ДО неё, иначе, вернувшись на шаг формы, человек не увидел бы альтернативу. */
+  const props = EPFramePicker.visibleSteps(FRAMES, { collection: "Arke", frameColor: "Белый" }, DEPS).map(s => s.prop);
+  assert.ok(props.includes("frameShape"), "цвет ниже формы — её не прячет");
+});
+
+test("сохранённое значение, НЕсовместимое с текущим отбором, оставляет шаг видимым (обратная совместимость)", () => {
+  /* Старый проект: серия Plana (одна форма «Классическая») + сохранённая «Скруглённая». В отборе
+     такой формы нет — шаг нельзя прятать молча, иначе «висящая» форма режет отбор в ноль, а поправить
+     нечем (§7.1). Шаг остаётся, чтобы человек сменил значение. */
+  const props = EPFramePicker.visibleSteps(FRAMES, { collection: "Plana", frameShape: "Скруглённая" }, DEPS).map(s => s.prop);
+  assert.ok(props.includes("frameShape"), "несовместимое сохранённое значение → шаг виден для правки");
+});

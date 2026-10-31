@@ -258,6 +258,29 @@ function facingFieldOptionsHtml(frames, variant, prop, emptyLabel, validate){
     html += '<option value="' + esc(cur) + '" selected>' + esc(label(cur)) + ' (не подходит)</option>';
   return html;
 }
+/* EPFramePicker — чистое правило «какие шаги отделки видны в текущем отборе» (К12 ч.1). Резолвим как
+   Catalog()/V(): в браузере namespace уже загружен, в Node — через require (автотесты модуля без
+   window-шима). Правило «когда прятать шаг» держим в ОДНОМ месте (у него, §7.1) — здесь лишь строим
+   для него deps из каталога, чтобы и список-вид комнаты, и подсказка конструктора спрашивали ту же
+   функцию, что окно подбора. */
+function FramePicker() {
+  if (typeof window !== "undefined" && window.EPFramePicker) return window.EPFramePicker;
+  if (typeof require !== "undefined") return require("./framePicker.js");
+  return null;
+}
+/* Набор ВИДИМЫХ признаков отделки (К12 ч.1): шаг с одним значением в текущем отборе (например «Форма»,
+   у которой во всём каталоге VIMAR одно значение) в наборе не окажется. Делегируем EPFramePicker.
+   visibleSteps, подсунув ему тот же productsForRoom и ту же диспетчеризацию значений (facingValuesOf),
+   что у списка-вида и мастера — второго правила нет (§7.1). selection строим из валидированных полей
+   варианта (validate: мёртвое/снятое → null, шаг не сужает и не «висит»). Для подсказки конструктора,
+   где на входе уже готовый плоский фильтр, validate = (v,p)=>v[p]. */
+function visibleFacingProps(frames, variant, validate) {
+  const sel = {};
+  V().FIELDS.forEach(p => { const v = validate(variant, p); if (v) sel[p] = v; });
+  const deps = { match: (f, c) => Catalog().productsForRoom(f, c), valuesOf: facingValuesOf };
+  return new Set(FramePicker().visibleSteps(frames, sel, deps).map(s => s.prop));
+}
+
 /* Есть ли под ВЕСЬ вариант хоть одна накладка (решение владельца Б). Критерий — все пять полей
    варианта (валидированные тем же validate), отбор — тот же productsForRoom. True → накладок нет,
    вызывающий (панель комнаты и селектор окна поста) показывает «нет подходящих накладок». Полный
@@ -294,7 +317,7 @@ function applyBuilderVariantChange(d){
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
 const api = { roomLabel, facingTitle, activeIndex, setActiveIndex, applyResult, writeField, writeSelection, tabsHtml, removeBtnHtml, bindTabs,
   builderIndex, builderInitialIndex, builderVariantLabel, renderBuilderVariantSelect,
-  facingFieldOptionsHtml, variantHasNoFrames, builderVariantResetMessage, applyBuilderVariantChange };
+  facingFieldOptionsHtml, visibleFacingProps, variantHasNoFrames, builderVariantResetMessage, applyBuilderVariantChange };
 if (typeof window !== "undefined") window.EPRoomVariantsUi = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
