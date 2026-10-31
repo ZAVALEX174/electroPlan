@@ -858,6 +858,8 @@
 <!-- Автосостав термодатчика терморегулятора (К5а). Чистое правило, до posts.js/app.js. -->
 <script src="js/thermoSensor.js?v=20261022.1"></script>
 <script src="js/posts.js?v=20261024.1"></script>
+<!-- Кнопочные накладки Flat и двойная клавиша 22751 (К12 ч.4): чистое правило ёмкости, до postBuilder.js/app.js. -->
+<script src="js/buttonFrame.js?v=20261101.1"></script>
 <script src="js/picker.js?v=20260801.1"></script>
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
 <script src="js/catalogSections.js?v=20261019.1"></script>
@@ -938,7 +940,7 @@
      «висящего» промиса и провязка кнопок. Вынесена из app.js (И1). Грузится ДО app.js, который
      подключает её через EPWallScope.create({$, WALL_STEP_LABEL}). -->
 <script src="js/wallScope.js?v=20260927.1"></script>
-<script src="js/postBuilder.js?v=20261031.2"></script>
+<script src="js/postBuilder.js?v=20261101.1"></script>
 <script src="js/rooms.js?v=20261030.2"></script>
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
@@ -992,6 +994,6 @@
 <!-- Левая панель (Редизайн, часть 4): сворачиваемые секции (память в EPPrefs), статус/автосворачивание
      «Исходного плана», горячие клавиши инструментов V/W/L/R/E. До app.js, который зовёт EPLeftPanel.attach(ctx). -->
 <script src="js/leftPanel.js?v=20261030.2"></script>
-<script src="js/app.js?v=20261031.4"></script>
+<script src="js/app.js?v=20261101.1"></script>
 </body>
 </html>

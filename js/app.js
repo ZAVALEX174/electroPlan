@@ -138,6 +138,13 @@ function frameOptions(items,selectedId){
    как buildEstimate() над EPEstimate. */
 const fitMechanismIds=(ids,items,capacity)=>EPPosts.fitMechanismIds(ids,items,capacity,{product,mechanismSpan});
 const fitMechanismIdsPreserving=(ids,items,capacity,pinnedIndex)=>EPPosts.fitMechanismIdsPreserving(ids,items,capacity,pinnedIndex,{product,mechanismSpan});
+/* Ширина механизма С УЧЁТОМ накладки — ОДИН шов (К12 ч.4). Правило «двойная клавиша 22751 в
+   кнопочной накладке Flat занимает прорезь на кнопку» живёт в чистом EPButtonFrame.spanIn; здесь —
+   тонкая обёртка, связывающая его с каталожным mechanismSpan и КОНКРЕТНОЙ накладкой. Потребители
+   ёмкости/раскладки берут span функцией spanForFrame(накладка), а не зовут mechanismSpan напрямую,
+   — тогда у правила «кнопочная накладка» нет краёв. Смета поста (postDeps ниже) намеренно остаётся
+   на «голом» mechanismSpan: число мест/механизмов и цена по решению владельца не меняются. */
+const spanForFrame=frame=>item=>(typeof EPButtonFrame!=="undefined"?EPButtonFrame.spanIn(item,frame,mechanismSpan(item)):mechanismSpan(item));
 /* Единственная формулировка «фото нет» — одна на карточку каталога и на плитку мастера подбора
    отделки (§7.1). Держим её ЗДЕСЬ, а не копией в каждой разметке: раньше карточка писала «Нет
    фото», а мастер — «без фото», и владелец видел две разные фразы про одно и то же. */
@@ -4326,7 +4333,7 @@ const {openPostBuilder,renderPostSlotCountSelect,requestClosePostBuilder,builder
   compatibleMechanisms,defaultPostName,enhancePicker,esc,findByExactCode,frameFacingEmptyText,
   frameFacingHintText,frameFacingLabels,frameFacingList,frameFacingSelectionLabels,frameOptions,frameProduct,
   frameSlotCount,frameSlotOptions,innardsEmptyText,installSheetOptions,isBareMechanism,isControlPlaceItem,keySlotKind,
-  lightingFor,lightingHtml,lightingRowSummary,lightingRowsFor,mechanismModulesTotal,mechanismSpan,
+  lightingFor,lightingHtml,lightingRowSummary,lightingRowsFor,mechanismModulesTotal,mechanismSpan,spanForFrame,
   moduleWord,money,moneyShown,openInstallSheet,openInstallSheetWindow,postComposition,postTotalCost,preferOwnFrame,
   product,productMoney,productPicture,productSeries,renderAll,renderLightingSchemeSelect,
   renderProperties,renderSummary,renderTemplates,roomCatalogFilter,socketBox,state,

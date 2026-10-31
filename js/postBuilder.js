@@ -42,9 +42,13 @@ const {
   lightingFor,lightingHtml,lightingRowSummary,lightingRowsFor,mechanismModulesTotal,mechanismSpan,
   moduleWord,money,moneyShown,openInstallSheet,openInstallSheetWindow,postComposition,postTotalCost,preferOwnFrame,
   product,productMoney,productPicture,productSeries,renderAll,renderLightingSchemeSelect,
-  renderProperties,renderSummary,renderTemplates,roomCatalogFilter,socketBox,state,
+  renderProperties,renderSummary,renderTemplates,roomCatalogFilter,socketBox,spanForFrame,state,
   toast,uid,updateStatus
 }=ctx;
+/* spanForFrame (ширина С УЧЁТОМ накладки, К12 ч.4) приходит из ctx через деструктуризацию выше — это
+   шов из app.js (EPButtonFrame.spanIn). В точках вызова ниже он берётся через typeof-страховку: стенд
+   appStand вырезает функции по одной, деструктуризация в вырезку не попадает, и без шва (старые тесты,
+   кнопочных накладок у них нет) остаётся «голый» mechanismSpan — прежнее поведение. */
 
 /* Пустой поиск накладки: артикул есть в каталоге, но отсеян фильтром. filter — отбор ВЫБРАННОГО
    варианта комнаты (roomCatalogFilter), не только коллекция. null — артикула нет или он и так подходит.
@@ -765,6 +769,10 @@ function renderBuilder(){
      здесь обязательно снимаем его после осознанного выбора замены. */
   $("builderInstallSheet").disabled=false;
   const selectedFrame=frameProduct(frameSelect.value);
+  /* Ширина С УЧЁТОМ накладки для ёмкости/раскладки (К12 ч.4): spanForFrame — шов из app.js. typeof-
+     страховка на случай стенда/теста без шва (его там нет → «голый» mechanismSpan, прежнее поведение):
+     appStand вырезает функции по одной, модульный const сюда не попадает. */
+  const frameSpan=(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(selectedFrame);
   /* Ёмкость — единой функцией builderCapacity (тот же источник, что у pickBuilderProduct): от
      НАСТОЯЩЕЙ выбранной накладки, а не от значения селектора. Раньше заполнение считалось от count
      (селектор), а фильтр каталога — от накладки: выбор «5 модулей» при 3-модульной накладке давал
@@ -829,7 +837,7 @@ function renderBuilder(){
      «Занято N» и строка «+ свободно» предложили бы поставить механизм в модуль, занятый пробелом,
      и переполнили бы пост. Реордер ниже только переставляет слоты, сумма модулей от него не
      зависит, поэтому считать здесь безопасно. */
-  const occupied=EPPosts.moduleLayout(EPBuilderSlots.toPost(state.builder.slots).mechanismIds,{product,mechanismSpan}).reduce((sum,m)=>sum+m.span,0);
+  const occupied=EPPosts.moduleLayout(EPBuilderSlots.toPost(state.builder.slots).mechanismIds,{product,mechanismSpan:frameSpan}).reduce((sum,m)=>sum+m.span,0);
   const remaining=Math.max(0,capacity-occupied);
   /* Распределение механизмов по постам накладки (EPPosts.distributePosts): даёт превью с
      импостами/рядами, ограничивает ширину подбираемого механизма ёмкостью ПОСТА (не всей
@@ -837,7 +845,7 @@ function renderBuilder(){
      через импост. maxPostCap — самый широкий пост; addMax — наибольшее свободное место
      среди ВСЕХ постов: механизм такой ширины ещё влезает хоть в какой-то пост (напр. 2М
      идёт во второй пост немецкой 2+2, когда в первом занят один модуль). */
-  const packDeps=EPBuilderSlots.tokenDeps(state.builder.slots,{product,mechanismSpan});
+  const packDeps=EPBuilderSlots.tokenDeps(state.builder.slots,{product,mechanismSpan:frameSpan});
   const dist=EPPosts.distributePosts(EPBuilderSlots.tokens(state.builder.slots),selectedFrame,packDeps);
   /* Авто-раскладка: когда набор укладывается по постам без разрыва через импост, принимаем
      ПОРЯДОК из распределения (dist.posts, пост за постом) — так многомодульный механизм встаёт
@@ -871,7 +879,7 @@ function renderBuilder(){
   /* Нумерация модулей слота (одномодульный «2», двухмодульный «2–3») — общая чистая
      функция EPPosts.moduleLayout: тот же код считает позиции для листа монтажника,
      чтобы номера в конструкторе и в документе не разошлись. */
-  const layout=EPPosts.moduleLayout(mechanismIds,{product,mechanismSpan});
+  const layout=EPPosts.moduleLayout(mechanismIds,{product,mechanismSpan:frameSpan});
   renderBuilderSlots(layout,remaining,lightingRowsFor(draft,light));
   /* errorHtml лежит в контексте, чтобы точечное обновление групп света (refreshBuilderLighting)
      могло перерисовать состав, не потеряв причину несовместимости: набор механизмов оно не
@@ -908,7 +916,7 @@ function renderBuilder(){
   /* mechs каталога = catalogMechs (суженное под цвет комнаты); seriesCount — сколько было ДО цвета,
      чтобы renderBuilderCatalog отличил «начинка обнулилась цветом» от «каталог не загружен».
      innardsColor — цвет накладки комнаты, которым сузили (для объяснения словами). */
-  builderCtx={mechs:catalogMechs,seriesCount:mechs.length,innardsColor,keepMechs,missingMechIds,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:frameNoticeHtml+mechNoticeHtml+missingMechErrorHtml+builderErrorHtml(dist)};
+  builderCtx={mechs:catalogMechs,seriesCount:mechs.length,innardsColor,keepMechs,missingMechIds,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:frameNoticeHtml+mechNoticeHtml+missingMechErrorHtml+builderErrorHtml(dist,selectedFrame)};
   renderBuilderCatalog();
   renderBuilderComposition(selectedFrame,builderCtx.errorHtml,light,draft);
   /* Сохранять можно, только когда сборка физически собирается (никакой механизм не шире поста
@@ -1105,7 +1113,10 @@ function renderBuilderCatalog(){
     host.innerHTML='<div class="catalog-empty">Все модули рамки заняты. Чтобы поменять элемент, нажмите «Заменить» в нужном модуле слева.</div>';return;
   }
   const result=EPCatalogSections.build(builderCtx.mechs,{
-    spanOf:mechanismSpan,maxSpan,query:state.builder.query,
+    /* Ширина для ФИЛЬТРА по оставшемуся месту — с учётом накладки (К12 ч.4): двойная клавиша в
+       кнопочной накладке занимает 2 прорези, поэтому прячется, когда свободна одна. Подпись карточки
+       «1 модуль» ниже (productCardHtml) остаётся «голой» — это свойство изделия (решение владельца). */
+    spanOf:(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(builderCtx.frame),maxSpan,query:state.builder.query,
     /* Голые механизмы — отдельным разделом в самом конце: их подставляет расчёт групп света,
        вручную они нужны редко, а рядом с готовыми изделиями провоцируют двойную оплату. */
     asideOf:item=>isBareMechanism(item)?"Голые механизмы — подставляются расчётом":null
@@ -1191,6 +1202,16 @@ function pickBuilderProduct(id){
       EPPosts.fitMechanismIdsPreserving(EPBuilderSlots.tokens(state.builder.slots),
         EPBuilderSlots.allowedTokens(state.builder.slots,builderCtx.keepMechs,keepMissing),capacity,index,deps));
   }else{
+    /* ДОБАВЛЕНИЕ ограничиваем оставшимся местом С УЧЁТОМ накладки (К12 ч.4): двойная клавиша в
+       кнопочной накладке занимает 2 прорези, поэтому третья в 22684.4 уже не встаёт. Её карточку
+       обычно и так прячет фильтр каталога (spanForFrame), но прямой вызов (тест/горячая клавиша) не
+       должен переполнять пост. Старые посты этим НЕ режутся: сюда приходит только НОВОЕ добавление,
+       а загрузка старого поста идёт мимо pickBuilderProduct (fromPost → renderBuilder). remaining не
+       посчитан (прямой тест без builderCtx) → гейт пропускаем, прежнее поведение. */
+    if(typeof builderCtx!=="undefined"&&builderCtx&&builderCtx.remaining!=null){
+      const addSpan=(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(frameProduct($("postFrameSelect").value))(product(id));
+      if(addSpan>builderCtx.remaining){toast("В накладке не хватает прорезей для этой клавиши");return;}
+    }
     state.builder.slots=EPBuilderSlots.add(state.builder.slots,id);
   }
   state.builder.target={mode:"add"};
@@ -1200,13 +1221,20 @@ function pickBuilderProduct(id){
 /* Ошибка несовместимости в конструкторе (требование заказчика 3.2: показывать ПРИЧИНУ,
    не блокировать молча). Причины — из EPPosts.distributePosts: механизм шире поста либо
    сборка не делится по постам без разрыва через импост. */
-function builderErrorHtml(dist){
+function builderErrorHtml(dist,frame){
   if(!dist||dist.valid)return"";
   const parts=[];
   dist.errors.filter(e=>e.type==="too-wide").forEach(e=>
     parts.push(`Механизм «${esc(e.item?.name||"—")}» занимает ${esc(moduleWord(e.span))} — это шире поста накладки (${esc(moduleWord(e.maxCapacity))}); в такую накладку он не встанет.`));
-  if(dist.errors.some(e=>e.type==="overflow"))
-    parts.push(`Механизмы не делятся по постам без разрыва через импост. Каждый пост (по ${esc(moduleWord(dist.maxCapacity))}) заполняется целиком — переставьте механизмы или смените накладку.`);
+  /* Переполнение КНОПОЧНОЙ накладки (К12 ч.4) — свой текст: прорезей меньше, чем кнопок у стоящих
+     клавиш (чаще всего старый пост, куда 22751 когда-то влезали по одному модулю). «Не делятся по
+     постам через импост» тут ложь — пост один, импостов нет; говорим про прорези. */
+  if(dist.errors.some(e=>e.type==="overflow")){
+    if(typeof EPButtonFrame!=="undefined"&&EPButtonFrame.isButtonFrame(frame))
+      parts.push("В накладке не хватает прорезей: клавиш больше, чем помещается — уберите лишние или выберите накладку больше.");
+    else
+      parts.push(`Механизмы не делятся по постам без разрыва через импост. Каждый пост (по ${esc(moduleWord(dist.maxCapacity))}) заполняется целиком — переставьте механизмы или смените накладку.`);
+  }
   if(!parts.length)return"";
   return `<div class="builder-error" role="alert"><strong>Несовместимое сочетание</strong>${parts.map(p=>`<span>${p}</span>`).join("")}</div>`;
 }
@@ -1366,7 +1394,8 @@ async function savePostBuilder(){
      импост (dist.valid), и все посты должны быть заполнены целиком (dist.full). Для
      итальянской однорядной накладки это ровно прежнее «заполните все модули». */
   const fields=EPBuilderSlots.toPost(state.builder.slots);
-  const dist=EPPosts.distributePosts(fields.mechanismIds,frameProduct($("postFrameSelect").value),{product,mechanismSpan});
+  const saveFrame=frameProduct($("postFrameSelect").value);
+  const dist=EPPosts.distributePosts(fields.mechanismIds,saveFrame,{product,mechanismSpan:(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(saveFrame)});
   if(!dist.valid){toast("Несовместимое сочетание — см. причину над составом поста");return}
   if(!dist.full){toast("Заполните все модули рамки");return}
   /* Поля поста перечислены ПОИМЁННО (белый список). keyGroups/keyCrossNumbers/keyMechanisms обязаны
