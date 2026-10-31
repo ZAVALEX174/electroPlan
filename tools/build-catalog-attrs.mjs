@@ -53,7 +53,7 @@ async function main() {
   let overridesDoc = { overrides: {} };
   try { overridesDoc = JSON.parse((await fs.readFile(OVERRIDES, "utf8")).replace(/^﻿/, "")); } catch { /* нет файла — ноль правок */ }
   applyKindOverrides(records, overridesDoc.overrides || {});
-  const { standards, supports, boxes, wallTypes, mounting, roles, groups, colors, nameColors, sensors, packs } = buildAttrs(records);
+  const { standards, supports, boxes, wallTypes, mounting, roles, groups, colors, nameColors, articleColors, sensors, packs } = buildAttrs(records);
 
   const tally = (obj, pick) => {
     const t = {};
@@ -84,6 +84,7 @@ async function main() {
       groups: path.basename(NOM),
       colors: path.basename(NOM),
       nameColors: path.basename(NOM),
+      articleColors: path.basename(NOM),
       sensors: path.basename(NOM),
       packs: path.basename(NOM),
     },
@@ -96,6 +97,7 @@ async function main() {
     groups,
     colors,
     nameColors,
+    articleColors,
     sensors,
     packs,
   };
@@ -140,6 +142,12 @@ async function main() {
   const nameColorTally = {};
   for (const c in nameColors) nameColorTally[nameColors[c]] = (nameColorTally[nameColors[c]] || 0) + 1;
   console.log(`  цвет из названия:       ${Object.keys(nameColors).length} позиций (${Object.keys(nameColorTally).length} цветов) — ${JSON.stringify(nameColorTally)}`);
+  // Выведенный из АРТИКУЛА цвет механизма (К12 ч.3 раунд 3, раздел articleColors — только окно поста/
+  // шаг цвета механизмов, в смету не идёт). Серые по артикулу (20066, 20021.C) без столбца и названия.
+  // Охват и разбивка по цветам — чтобы при пересборке словарь суффиксов/баз по сериям был виден.
+  const articleColorTally = {};
+  for (const c in articleColors) articleColorTally[articleColors[c]] = (articleColorTally[articleColors[c]] || 0) + 1;
+  console.log(`  цвет из артикула:       ${Object.keys(articleColors).length} позиций (${Object.keys(articleColorTally).length} цветов) — ${JSON.stringify(articleColorTally)}`);
   // Термодатчики терморегуляторов (К5а): сколько терморегуляторов «с возможностью подключения
   // термодатчика» нашлось и на какие артикулы датчиков они ссылаются (ожидается 9 → 02965.1). Регресс
   // в примечаниях номенклатуры обязан быть виден при пересборке, а не всплыть в рантайме пустым составом.

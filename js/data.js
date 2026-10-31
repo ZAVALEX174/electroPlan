@@ -62,7 +62,7 @@ window.EP_DATA = {
      (стандарт → unknown, тип стены → не подтверждён), приложение это переживает. */
   products: (function enrichCatalog(){
     const list = window.EP_VIMAR_CATALOG?.products || [];
-    const attrs = window.EP_VIMAR_ATTRS || {standards:{},supports:{},wallTypes:{},boxes:{},mounting:{},roles:{},groups:{},colors:{},nameColors:{},sensors:{},packs:{}};
+    const attrs = window.EP_VIMAR_ATTRS || {standards:{},supports:{},wallTypes:{},boxes:{},mounting:{},roles:{},groups:{},colors:{},nameColors:{},articleColors:{},sensors:{},packs:{}};
     const supports = attrs.supports || {};
     const boxes = attrs.boxes || {};
     /* Роль детали в посте и роль управления — из колонок номенклатуры «Функциональная группа»
@@ -90,6 +90,14 @@ window.EP_DATA = {
     // остаются как в HEAD. Поле появляется, только если цвет удалось вывести из названия (столбца
     // нет, механизм не голый) — «цвета из названия нет» отличается по отсутствию ключа, как elementColor.
     const nameColors = attrs.nameColors || {};
+    // ВЫВЕДЕННЫЙ из АРТИКУЛА цвет механизма (К12 ч.3 раунд 3, раздел articleColors) — у серий с
+    // постоянной палитрой цвет кодируется суффиксом артикула (20066 — серый, 20066.B — белый), а ни
+    // в столбце, ни в названии его нет. Как и nameColors — ТОЛЬКО для окна поста/шага цвета механизмов
+    // (EPMechColor.colorOf = elementColor || nameColor || articleColor). В СМЕТУ не идёт: автозамена и
+    // фильтр «в цвет накладки» читают item.elementColor. Отдельный раздел (не nameColors), чтобы
+    // nameColor-гард сметы читал цвет из названия без примеси артикула. Ключа нет, если вывести из
+    // артикула не удалось (столбца/названия нет, механизм не голый) — как elementColor/nameColor.
+    const articleColors = attrs.articleColors || {};
     // Термодатчик терморегулятора (К5а): артикул датчика, который требует терморегулятор «с
     // возможностью подключения термодатчика» (раздел sensors, ключ — артикул терморегулятора). По нему
     // автосостав поста добавляет по одному датчику на каждый такой механизм (EPThermoSensor). Поля нет
@@ -241,6 +249,14 @@ window.EP_DATA = {
       if (nameCol) {
         out = out === p ? {...p} : out;
         out.nameColor = nameCol;
+      }
+      /* Выведенный из АРТИКУЛА цвет механизма (К12 ч.3 раунд 3): ТОЛЬКО для окна поста/шага цвета
+         механизмов (colorOf = elementColor || nameColor || articleColor). Столбца и названия тут нет
+         по построению articleColors; в смету не идёт. Поля нет, если вывести не удалось. */
+      const artCol = articleColors[p.code];
+      if (artCol) {
+        out = out === p ? {...p} : out;
+        out.articleColor = artCol;
       }
       /* Термодатчик терморегулятора (К5а): артикул датчика на механизм-терморегулятор. По нему
          EPThermoSensor добавляет датчик в состав поста. Поля нет, если механизм датчика не требует, —
