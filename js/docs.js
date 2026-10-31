@@ -37,7 +37,7 @@ const {
   $,STANDARD_LABEL,assembledPostHtml,assembledPostSpec,buildEstimate,canvas,companyLogo,companySignature,
   companyStamp,companyTerms,displayCurrency,displayRate,docHeader,esc,frameProduct,installSheetOptions,
   keySlotKind,lightingHtml,lightingRowsFor,mechanismSpan,money,moneyShown,openInstallSheetWindow,postComposition,
-  postCost,postTotalCost,postsForGroupLinks,product,productImage,projectLighting,roomNamePoint,scheduleSave,state,toast
+  postCost,postTotalCost,postsForGroupLinks,product,productImage,projectLighting,roomNamePoint,scheduleSave,spanForFrame,state,toast
 }=ctx;
 
 /* Состав ОДНОГО поста С ЦЕНАМИ для столбца «Стоимость артикулов» раскладки КП. Считаем ТЕМ ЖЕ
@@ -451,9 +451,15 @@ function buildPostSheet(post,light,options){
      переставить механизмы между постами накладки, и без токенов было бы не узнать, какая
      позиция исходного набора попала в какой пост, — примечание с группой света уехало бы к
      чужой клавише. Товары при этом настоящие: их отдаёт tokenDeps.product. */
-  const layout=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan});
+  /* Номера модулей С УЧЁТОМ накладки (К12 ч.4): двойная клавиша 22751 в кнопочной накладке Flat
+     занимает 2 прорези → адрес «1–2». Тем же spanForFrame, что окно поста и картинка. Для прочих
+     накладок spanForFrame === mechanismSpan — адреса байт в байт прежние. Это нумерация/адресация, на
+     смету не влияет: цену считает postComposition выше по «голому» mechanismSpan. Нет spanForFrame в
+     ctx (старый стенд) → падаем на mechanismSpan, адреса прежние. */
+  const frameSpan=(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(frame);
+  const layout=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan:frameSpan});
   const slots=EPBuilderSlots.fromPost(post,keySlotKind);
-  const tokenDeps=EPBuilderSlots.tokenDeps(slots,{product,mechanismSpan});
+  const tokenDeps=EPBuilderSlots.tokenDeps(slots,{product,mechanismSpan:frameSpan});
   const groups=EPPosts.postModuleGroups(EPBuilderSlots.tokens(slots),frame,tokenDeps);
   /* ⚠️ ОДНА НУМЕРАЦИЯ МОДУЛЕЙ НА ВСЮ КАРТОЧКУ ПОСТА. Монтажник читает таблицу модулей, обвязку
      и взрыв-схему рядом, глазами, — и один и тот же модуль обязан называться в них ОДИНАКОВО.

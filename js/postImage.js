@@ -516,6 +516,18 @@ function postWindows(opening, rows, windows) {
     return { rects: measured, measured: true, perModule: false };
   }
   const cells = flatCells(rows);
+  /* КНОПОЧНАЯ НАКЛАДКА (К12 ч.4): ячейки несут cell.slots — по слоту на занимаемую прорезь (двойная
+     клавиша → 2). Число прорезей = сумма длин slots; совпало с числом измеренных окон → помодульный
+     режим, где каждый СЛОТ (а не ячейка) ложится в своё окно. Ветка идёт только когда slots есть —
+     обычные накладки её не касаются и идут прежним путём ниже. */
+  const slotCells = cells.filter(c => Array.isArray(c.slots) && c.slots.length);
+  if (slotCells.length) {
+    const totalSlots = cells.reduce((a, c) => a + (Array.isArray(c.slots) && c.slots.length ? c.slots.length : 1), 0);
+    if (measured && measured.length === totalSlots && totalSlots >= 1) {
+      return { rects: measured, measured: true, perModule: true };
+    }
+    return { rects: splitOpening(opening, rows), measured: false, perModule: false };
+  }
   const totalSpan = cells.reduce((a, c) => a + spanOf(c), 0);
   /* all-1М проверяем равенством «число ячеек == суммарный span»: любой 2М поднял бы totalSpan над
      числом ячеек, и условие не выполнится. */
@@ -540,9 +552,12 @@ function windowsHoldModules(opening, rows, windows) {
   const w = (Array.isArray(windows) ? windows.find(x => x && Number(x.aspect) > 0) : null);
   const aspect = w ? Number(w.aspect) : (o.aspect > 0 ? o.aspect : 1);
   /* Единица под каждым окном: помодульные окна держат ОДИН модуль (span его ячейки), окна-посты —
-     весь пост (суммарный span его ячеек). Проверяем ту же пропорцию, что и раньше. */
+     весь пост (суммарный span его ячеек). У кнопочной накладки (cell.slots) каждое окно держит одну
+     ПРОРЕЗЬ (одну кнопку/модуль-долю) — единица span 1 на окно. Проверяем ту же пропорцию, что и
+     раньше. */
+  const hasSlots = flatCells(rows).some(c => Array.isArray(c.slots) && c.slots.length);
   const units = pw.perModule
-    ? flatCells(rows).map(spanOf)
+    ? (hasSlots ? pw.rects.map(() => 1) : flatCells(rows).map(spanOf))
     : (() => {
         const posts = [];
         (Array.isArray(rows) ? rows : []).forEach(r => ((r && r.posts) || []).forEach(p => posts.push(p)));
@@ -601,6 +616,24 @@ function moduleWindowPhoto(c, rect, pitch, aspect, framePal, s, sizeKey, radius,
   return `<div data-ep="cell" title="${esc(c.name || "")}" style="${mask}"><div style="${inner}">${img}</div></div>`;
 }
 
+/* ПРОРЕЗЬ КНОПОЧНОЙ НАКЛАДКИ (К12 ч.4): доля лица клавиши ЗАПОЛНЯЕТ окно целиком (слова владельца
+   «каждый маленький квадрат клавиши в отдельную прорезь»), а не ложится истинной величиной по центру,
+   как одиночный модуль. Отличие от moduleWindowPhoto: там лицо центрируется в окне-маске по шагу
+   модулей; здесь доля лица (уже нарезанная в cell.face выше по правилу EPButtonFrame) растягивается
+   на всё окно спрайтом faceSprite. Нет фото/лица → нарисованная клавиша-фолбэк в окне, как раньше. */
+function windowFaceFill(c, rect, framePal, s, sizeKey, radius, esc) {
+  const mask = `position:absolute;left:${rect.left}%;top:${rect.top}%;width:${rect.width}%;height:${rect.height}%;overflow:hidden`;
+  if (!useFacePhoto(c)) {
+    return `<div style="${mask};display:flex;align-items:stretch">`
+      + moduleKey(c, framePal, s, sizeKey, radius, esc) + `</div>`;
+  }
+  const sp = faceSprite(c.face);
+  return `<div data-ep="cell" title="${esc(c.name || "")}" style="${mask}">`
+    + `<img src="${esc(c.imageUrl)}" alt="${esc(c.name || "")}" style="position:absolute;`
+    + `width:${sp.width.toFixed(3)}%;height:${sp.height.toFixed(3)}%;left:${sp.left.toFixed(3)}%;top:${sp.top.toFixed(3)}%">`
+    + `</div>`;
+}
+
 /* РЕЖИМ ФОТО: подложка — ДЕТАЛЬНАЯ фотография накладки, механизмы поверх в границах монтажных окон.
    Геометрию и способ раскладки даёт postWindows (см. там порядок веток):
    • ОКНА-ПОСТЫ (pw.perModule=false) — пост i в окно i слева направо: у немецкой накладки окон
@@ -646,12 +679,26 @@ function photoStage(frame, rows, s, sizeKey, modulesWide, esc) {
   const wins = [];
   if (pw.perModule) {
     /* ПОМОДУЛЬНЫЕ ОКНА (винтажные/flat): окно i — отверстие модуля i слева направо. Механизм лежит
-       ПОД накладкой в истинную величину, окно режет его как маска (moduleWindowPhoto). */
+       ПОД накладкой в истинную величину, окно режет его как маска (moduleWindowPhoto).
+       КНОПОЧНАЯ НАКЛАДКА (К12 ч.4): ячейка несёт cell.slots — по слоту на прорезь (двойная клавиша →
+       2 слота с долями лица). Тогда одно окно = один СЛОТ: доля лица заполняет прорезь (windowFaceFill,
+       slot.fill). Обычная помодульная ячейка slots не несёт → один слот на всю ячейку, прежний
+       moduleWindowPhoto истинной величины. */
     const cells = flatCells(rows);
     const pitch = modulePitch(rects);
-    cells.forEach((c, i) => {
-      const rect = rects[i];
-      if (rect) wins.push(moduleWindowPhoto(c, rect, pitch, aspect, pal, s, sizeKey, radius, esc));
+    let wi = 0;
+    cells.forEach(c => {
+      const slots = Array.isArray(c.slots) && c.slots.length ? c.slots : [null];
+      slots.forEach(slot => {
+        const rect = rects[wi++];
+        if (!rect) return;
+        if (slot && slot.fill) {
+          wins.push(windowFaceFill(Object.assign({}, c, { face: slot.face, span: 1 }), rect, pal, s, sizeKey, radius, esc));
+        } else {
+          const cc = slot ? Object.assign({}, c, { face: slot.face }) : c;
+          wins.push(moduleWindowPhoto(cc, rect, pitch, aspect, pal, s, sizeKey, radius, esc));
+        }
+      });
     });
   } else {
     /* ОКНА-ПОСТЫ: пост i раскладывается в окно i (немецкая 2+2 — импост уже на фото; итальянская

@@ -299,7 +299,19 @@ function assembledPostSpec(post,{size="md",articles=true}={},light){
      постам/коробкам не меняется — меняется только показанный артикул. */
   const lightRows=lightingRowsFor(post,light===undefined?projectLighting():light);
   const effIds=EPEstimate.effectiveMechanismIds(post.mechanismIds||[],lightRows);
-  const dist=EPPosts.distributePosts(effIds,frame,{product,mechanismSpan});
+  /* Ширина С УЧЁТОМ накладки (К12 ч.4): раскладка и номера модулей картинки — тем же spanForFrame,
+     что ёмкость окна поста, поэтому двойная клавиша 22751 в кнопочной накладке Flat занимает 2 прорези
+     и подписывается «1–2». Для всех прочих накладок spanForFrame === mechanismSpan (spanIn возвращает
+     базовую ширину) — картинка обычных постов не меняется ни на байт. frameSpan здесь — ОДИН шов для
+     distributePosts и для span ячейки ниже. typeof-guard: стенды, извлекающие эту функцию в песочницу
+     без spanForFrame, падают на mechanismSpan — кнопочных накладок у них нет, поведение прежнее. */
+  const frameSpan=(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(frame);
+  /* Кнопочная накладка Flat с ≥2 прорезями — только тогда у ячеек появляется раскладка по прорезям
+     (cell.slots): у двойной клавиши 2 слота с долями лица, у остального по 1. EPButtonFrame.appliesTo —
+     тот же гейт, что в spanIn, второй копии нет (§7.1). Вне кнопочных накладок slots не ставим —
+     postImage идёт прежним путём. */
+  const btn=typeof EPButtonFrame!=="undefined"&&EPButtonFrame.appliesTo(frame);
+  const dist=EPPosts.distributePosts(effIds,frame,{product,mechanismSpan:frameSpan});
   const rowsMap=new Map();   /* группируем посты по физическому ряду накладки */
   dist.posts.forEach(p=>{
     if(!rowsMap.has(p.row))rowsMap.set(p.row,[]);
@@ -311,11 +323,13 @@ function assembledPostSpec(post,{size="md",articles=true}={},light){
          свободным модулем: место занято, но чем — неизвестно. Ноль-модульная ячейка (span у
          product(null) равен 0) схлопнулась бы в ничто и сдвинула бы номера соседних модулей. */
       if(!item){
-        cells.push({span:1,missing:true,name:articles?`Механизм не найден (арт. ${id})`:"Механизм не найден",num:String(occ+1)});
+        const miss={span:1,missing:true,name:articles?`Механизм не найден (арт. ${id})`:"Механизм не найден",num:String(occ+1)};
+        if(btn)miss.slots=[{face:null,fill:false}];   /* пробел — одна прорезь, долей лица нет */
+        cells.push(miss);
         occ+=1;
         return;
       }
-      const span=mechanismSpan(item);
+      const span=frameSpan(item);
       const start=occ+1,end=occ+span;
       /* Модуль показываем НАСТОЯЩИМ фото механизма, обрезанным по лицу: imageUrl — детальное фото,
          face — лицевой прямоугольник в % фото (moduleFace, снят детектором). Нет фото/лица →
@@ -323,12 +337,22 @@ function assembledPostSpec(post,{size="md",articles=true}={},light){
          (categoryId + символ icon → значок pickIcon) и цвет клавиши: color — ЯВНЫЙ цвет, иначе
          цвет из name самого механизма (лицевая панель — отдельный товар: VIMAR даёт белую накладку
          с серебр. клавишами). */
-      cells.push({span,imageUrl:productImage(item,{detail:true}),face:moduleFace(item),color:item?.properties?.color||item?.color||"",categoryId:item?.categoryId,icon:item?.icon,name:item?.name||"",num:start===end?String(start):`${start}–${end}`});
-      if(!articles)cells[cells.length-1].name=EPOfferOptions.itemText(item.name,false,item.code);
+      const face=moduleFace(item);
+      const cell={span,imageUrl:productImage(item,{detail:true}),face,color:item?.properties?.color||item?.color||"",categoryId:item?.categoryId,icon:item?.icon,name:item?.name||"",num:start===end?String(start):`${start}–${end}`};
+      /* Раскладка по прорезям (двойная клавиша → 2 слота, доли лица верх/низ) — правило в
+         EPButtonFrame.cellSlots, здесь только вызов. baseSpan берём «голый» mechanismSpan: spanIn
+         сам решает, расширять ли его до числа кнопок. */
+      if(btn)cell.slots=EPButtonFrame.cellSlots(item,frame,mechanismSpan(item),face);
+      if(!articles)cell.name=EPOfferOptions.itemText(item.name,false,item.code);
+      cells.push(cell);
       occ+=span;
     });
     /* свободные модули поста — пустые ячейки с номером слота (место, а не поломка) */
-    for(let i=occ;i<p.capacity;i++)cells.push({span:1,empty:true,num:String(i+1)});
+    for(let i=occ;i<p.capacity;i++){
+      const free={span:1,empty:true,num:String(i+1)};
+      if(btn)free.slots=[{face:null,fill:false}];   /* пустая прорезь — одна прорезь без лица */
+      cells.push(free);
+    }
     rowsMap.get(p.row).push({capacity:p.capacity,cells});
   });
   const rows=[...rowsMap.keys()].sort((a,b)=>a-b).map(r=>({posts:rowsMap.get(r)}));
@@ -340,7 +364,9 @@ function assembledPostSpec(post,{size="md",articles=true}={},light){
   const count=frameSlotCount(frame)||dist.totalCapacity;
   const frameSpec=frame?{
     name:articles?frame.name:EPOfferOptions.itemText(frame.name,false,frame.code),code:articles?frame.code:"",imageUrl:productImage(frame,{detail:true}),standard:frame.standard,
-    opening:frameOpening(frame,count),windows:frameOpenings(frame,count)
+    /* У кнопочной накладки прорези упорядочиваем правилом раскладки (ряд → слева направо, ряды → сверху
+       вниз), чтобы слоты ячеек ложились в прорези по порядку. У прочих накладок — окна как есть. */
+    opening:frameOpening(frame,count),windows:btn?EPButtonFrame.orderWindows(frameOpenings(frame,count)):frameOpenings(frame,count)
   }:null;
   return {size,frame:frameSpec,rows};
 }
@@ -1819,7 +1845,11 @@ function lightingFor(posts){
 function lightingRowsFor(post,light){
   if(!light)return[];
   const rows=light.rows.get(EPLightingPlan.postKey(post))||[];
-  const layout=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan});
+  /* Номер модуля клавиши — тем же spanForFrame, что ёмкость/картинка (К12 ч.4): двойная клавиша 22751
+     в кнопочной накладке Flat занимает 2 прорези и подписывается «1–2». Для прочих накладок spanForFrame
+     === mechanismSpan — номера прежние. */
+  const layoutSpan=(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(frameProduct(post.frameId));
+  const layout=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan:layoutSpan});
   return rows.map(r=>Object.assign({},r,
     {moduleLabel:layout[r.keyIndex]?layout[r.keyIndex].label:String(Number(r.keyIndex)+1)}));
 }
@@ -4310,7 +4340,7 @@ const {buildPostSheet,openInstallSheet}=EPDocs.attach({
   $,STANDARD_LABEL,assembledPostHtml,assembledPostSpec,buildEstimate,canvas,companyLogo,companySignature,
   companyStamp,companyTerms,displayCurrency,displayRate,docHeader,esc,frameProduct,installSheetOptions,
   keySlotKind,lightingHtml,lightingRowsFor,mechanismSpan,money,moneyShown,openInstallSheetWindow,postComposition,
-  postCost,postTotalCost,postsForGroupLinks,product,productImage,projectLighting,roomNamePoint,scheduleSave,state,toast
+  postCost,postTotalCost,postsForGroupLinks,product,productImage,projectLighting,roomNamePoint,scheduleSave,spanForFrame,state,toast
 });
 /* Автономер КП выдаётся ВНУТРИ generateCommercialOffer (docs.js) при первой печати пустого номера —
    это ещё один путь, которым меняется docHeader.number (пишется в поле программно, без события). Следом
@@ -4385,7 +4415,7 @@ const {makeDraggable,placePendingAtEvent,onSpaceKeydown,canvasPointer}=EPCanvasI
    остался в app.js (roomCatalogFilter/preferOwnFrame/подбор накладок); к низу файла все объявлены (TDZ нет). */
 const {frameForRoomPlacement}=EPPostVariant.attach({
   byKind,compatibleMechanisms,frameFacingSelectionLabels,frameProduct,frameSlotCount,
-  mechanismSpan,moduleWord,preferOwnFrame,product,productSeries,roomCatalogFilter
+  mechanismSpan,moduleWord,preferOwnFrame,product,productSeries,roomCatalogFilter,spanForFrame
 });
 
 /* Копирование/вставка постов (Б9, И2) вынесено в js/postCopyUi.js. Поднимаем ПОСЛЕ EPCanvasInput.attach:

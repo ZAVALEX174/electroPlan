@@ -859,7 +859,7 @@
 <script src="js/thermoSensor.js?v=20261022.1"></script>
 <script src="js/posts.js?v=20261024.1"></script>
 <!-- Кнопочные накладки Flat и двойная клавиша 22751 (К12 ч.4): чистое правило ёмкости, до postBuilder.js/app.js. -->
-<script src="js/buttonFrame.js?v=20261101.1"></script>
+<script src="js/buttonFrame.js?v=20261101.2"></script>
 <script src="js/picker.js?v=20260801.1"></script>
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
 <script src="js/catalogSections.js?v=20261019.1"></script>
@@ -893,7 +893,7 @@
      ПОСЛЕ packRound.js (зовёт его лениво) и используется estimate.js (тоже лениво) и docs.js. -->
 <script src="js/packTopUp.js?v=20261023.5"></script>
 <script src="js/specExcel.js?v=20261023.5"></script>
-<script src="js/postImage.js?v=20260920.1"></script>
+<script src="js/postImage.js?v=20261101.1"></script>
 <script src="js/explodedView.js?v=20261028.1"></script>
 <script src="js/planRotate.js?v=20261004.2"></script>
 <script src="js/planLabels.js?v=20261026.1"></script>
@@ -945,7 +945,7 @@
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
-<script src="js/docs.js?v=20261028.3"></script>
+<script src="js/docs.js?v=20261101.1"></script>
 <!-- Ввод на холсте (клики, перенос объектов, панорама, зум колесом): trackDrag, makeDraggable,
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него
@@ -976,7 +976,7 @@
 <script src="js/packMultipleUi.js?v=20261023.2"></script>
 <!-- Подмена накладки готового поста под варианты отделки комнаты (К8а): EPPostVariant.attach(ctx).
      После posts.js/room.js/roomVariants.js/catalog.js, до app.js, который зовёт attach. -->
-<script src="js/postVariant.js?v=20261024.2"></script>
+<script src="js/postVariant.js?v=20261101.1"></script>
 <!-- Шаблон прайса и проверка файла заказчика (К9): правила столбцов (ч.1), генерация шаблона (ч.2),
      окно «Прайс по шаблону» (ч.3). priceCheckUi подключаем ДО app.js — app.js его только провязывает. -->
 <!-- priceSheet — общий разбор листа прайса (цена/шапка/смещение/модули), один с конвертером (§7.1);
@@ -994,6 +994,6 @@
 <!-- Левая панель (Редизайн, часть 4): сворачиваемые секции (память в EPPrefs), статус/автосворачивание
      «Исходного плана», горячие клавиши инструментов V/W/L/R/E. До app.js, который зовёт EPLeftPanel.attach(ctx). -->
 <script src="js/leftPanel.js?v=20261030.2"></script>
-<script src="js/app.js?v=20261101.1"></script>
+<script src="js/app.js?v=20261101.2"></script>
 </body>
 </html>

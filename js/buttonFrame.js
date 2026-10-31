@@ -55,6 +55,13 @@ function buttonsOf(item) {
   return item && codeHasBase(item.code, "22751") ? 2 : 1;
 }
 
+/* Применяется ли правило «по прорези на кнопку» к этой накладке: кнопочная И прорезей ≥ 2. Тот же
+   гейт, что внутри spanIn, вынесен наружу — по нему окно поста решает, нужна ли вообще раскладка по
+   прорезям (у однопрорезной 22682.1 ничего не меняем, решение владельца 01.11). */
+function appliesTo(frame) {
+  return isButtonFrame(frame) && slotCountOf(frame) >= 2;
+}
+
 /* Ширина изделия в прорезях КОНКРЕТНОЙ накладки — ЕДИНСТВЕННОЕ выражение правила ёмкости для К12 ч.4.
    baseSpan — обычная ширина в модулях (EPCatalog.mechanismSpan), её передаёт вызывающий; второй раз
    считать название/поле здесь не нужно. В кнопочной накладке с ≥2 прорезями многокнопочное изделие
@@ -71,8 +78,72 @@ function spanIn(item, frame, baseSpan) {
   return base;
 }
 
+const round2 = n => Math.round(n * 100) / 100;
+
+/* Порядок прорезей накладки для раскладки (решение владельца 01.11): ряд → слева направо, несколько
+   рядов → сверху вниз. На вход — измеренные окна накладки (EPCatalog.frameOpenings, {left,top,width,
+   height}); на выход — НОВЫЙ массив тех же окон, переупорядоченный. Окна группируем в ряды по близости
+   top (в пределах половины высоты окна — одно отверстие от другого по вертикали отстоит заметно
+   сильнее), ряды идут сверху вниз, внутри ряда — слева направо. У реальных Flat-накладок прорези в
+   один ряд и уже отсортированы по left, поэтому для них это тождество; вертикаль заложена правилом на
+   случай двухрядной накладки (таких в каталоге пока нет — держим тестом на подставных данных). */
+function orderWindows(windows) {
+  const ws = (Array.isArray(windows) ? windows : [])
+    .filter(w => w && Number.isFinite(Number(w.top)) && Number.isFinite(Number(w.left)));
+  const rows = [];
+  ws.slice().sort((a, b) => Number(a.top) - Number(b.top)).forEach(w => {
+    const h = Number(w.height) || 0;
+    const row = rows.find(r => Math.abs(r.top - Number(w.top)) <= Math.max(h, r.h) * 0.5);
+    if (row) row.items.push(w);
+    else rows.push({ top: Number(w.top), h, items: [w] });
+  });
+  rows.forEach(r => r.items.sort((a, b) => Number(a.left) - Number(b.left)));
+  return rows.reduce((acc, r) => acc.concat(r.items), []);
+}
+
+/* Доля лица изделия на каждую из его прорезей. face — лицевой прямоугольник изделия в % фото
+   (EPCatalog.moduleFace); count — на сколько прорезей делим; vertical — кнопки на фото одна НАД
+   другой (двойная клавиша 22751) → режем лицо по горизонтали на полосы сверху вниз (верхняя кнопка в
+   первую прорезь, нижняя — во вторую). Иначе (широкий многомодульный механизм) — по вертикали на доли
+   слева направо. count≤1 или нет лица → столько же копий самого face (true-size как раньше). */
+function faceParts(face, count, vertical) {
+  const n = Math.max(1, Number(count) || 1);
+  const f = face && {
+    left: Number(face.left), top: Number(face.top),
+    width: Number(face.width), height: Number(face.height)
+  };
+  const ok = f && [f.left, f.top, f.width, f.height].every(Number.isFinite) && f.width > 0 && f.height > 0;
+  if (!ok || n === 1) return Array.from({ length: n }, () => face || null);
+  const parts = [];
+  for (let i = 0; i < n; i++) {
+    if (vertical) {
+      const h = f.height / n;
+      parts.push({ left: round2(f.left), top: round2(f.top + i * h), width: round2(f.width), height: round2(h) });
+    } else {
+      const w = f.width / n;
+      parts.push({ left: round2(f.left + i * w), top: round2(f.top), width: round2(w), height: round2(f.height) });
+    }
+  }
+  return parts;
+}
+
+/* РАСКЛАДКА ячейки по прорезям — единственное место правила «какие прорези и какая доля лица» (§7.1).
+   item — товар ячейки (null у свободного/пропавшего модуля), baseSpan — его «голая» ширина
+   (EPCatalog.mechanismSpan), face — лицо товара. Возвращает по одному слоту на занимаемую прорезь:
+   { face: доля лица для этой прорези, fill: заполнять ли прорезь долей лица целиком }.
+   • fill=true у многопрорезной ячейки (двойная клавиша/широкий механизм): каждый квадратик кнопки
+     заполняет свою прорезь (слова владельца «каждый маленький квадрат клавиши в отдельную прорезь»);
+   • fill=false у однопрорезной — прежнее поведение (лицо истинной величины, окно режет как маска).
+   Длина массива = spanIn(item, frame, baseSpan): ёмкость и рисунок считают прорези ОДНИМ правилом. */
+function cellSlots(item, frame, baseSpan, face) {
+  const n = Math.max(1, spanIn(item, frame, baseSpan));
+  const vertical = isButtonFrame(frame) && buttonsOf(item) > 1;   // кнопки 22751 на фото одна над другой
+  const fill = n > 1;
+  return faceParts(face, n, vertical).map(part => ({ face: part, fill }));
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для тестов. */
-const api = { BUTTON_FRAME_BASES, isButtonFrame, buttonsOf, spanIn };
+const api = { BUTTON_FRAME_BASES, isButtonFrame, buttonsOf, spanIn, appliesTo, orderWindows, faceParts, cellSlots };
 if (typeof window !== "undefined") window.EPButtonFrame = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

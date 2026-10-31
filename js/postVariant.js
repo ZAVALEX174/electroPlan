@@ -45,7 +45,7 @@ function placementFits(frame,criteria){
 function attach(ctx){
 const {
   byKind,compatibleMechanisms,frameFacingSelectionLabels,frameProduct,frameSlotCount,
-  mechanismSpan,moduleWord,preferOwnFrame,product,productSeries,roomCatalogFilter
+  mechanismSpan,moduleWord,preferOwnFrame,product,productSeries,roomCatalogFilter,spanForFrame
 }=ctx;
 
 /* Предикат «в накладку-кандидата встают ВСЕ клавиши шаблона» — ПРАВИЛОМ КОНСТРУКТОРА
@@ -123,7 +123,15 @@ function frameForRoomPlacement(template,room){
   /* ни одному не подошла → перебор вариантов ПО ПОРЯДКУ, первый, под который подмена собирается. */
   const fitsSeries=frameFitsTemplateMechs(template);
   const mechIds=Array.isArray(template.mechanismIds)?template.mechanismIds:[];
-  const assembles=f=>{const d=EPPosts.distributePosts(mechIds,f,{product,mechanismSpan});return d.valid&&d.full;};
+  /* «Собирается ли состав в накладку-кандидат f» — ширину считаем С УЧЁТОМ именно f (К12 ч.4): в
+     кнопочной накладке Flat двойная клавиша 22751 занимает 2 прорези, и подмена должна это учесть.
+     spanForFrame — тот же шов, что окно поста; для прочих накладок он равен mechanismSpan. typeof-guard:
+     старые стенды ctx без spanForFrame падают на mechanismSpan. Считаем на КАЖДОГО кандидата f отдельно. */
+  const assembles=f=>{
+    const spanOf=(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(f);
+    const d=EPPosts.distributePosts(mechIds,f,{product,mechanismSpan:spanOf});
+    return d.valid&&d.full;
+  };
   const deps={frameProduct,frameSlotCount,frameFitsMechs:f=>fitsSeries(f)&&assembles(f)};
   const ownCriteria={collection:productSeries(frame)[0],frameColor:EPPosts.templateFrameColor(template,{frameProduct})};
   for(let i=0;i<variants.length;i++){
