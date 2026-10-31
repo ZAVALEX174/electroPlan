@@ -1,6 +1,7 @@
-/* Вместимость кнопочной накладки Flat (К12 ч.4, часть 1) на НАСТОЯЩЕМ каталоге VIMAR через ОДИН шов
-   spanForFrame (EPButtonFrame.spanIn + EPCatalog.mechanismSpan). Предмет — числа ёмкости, которые
-   окно поста показывает человеку: «свободно N», переполнение старого поста, подписи модулей «1–2».
+/* Вместимость кнопочной накладки Flat (К12 ч.4, переделка по словам заказчика 15.10) на НАСТОЯЩЕМ
+   каталоге VIMAR через ОДИН шов spanForFrame (EPButtonFrame.spanIn + EPCatalog.mechanismSpan).
+   Предмет — числа ёмкости, которые окно поста показывает человеку: «свободно N», переполнение,
+   подписи модулей «1»/«2». Одна клавиша 22751 = одна прорезь, поэтому в 22684.4 встают 4 клавиши.
    Считаем теми же EPPosts.distributePosts/maxFreeSpan/moduleLayout, что и окно поста, — второй копии
    раскладки нет. Запуск: node --test tests/ */
 const test = require("node:test");
@@ -31,52 +32,47 @@ assert.equal(EPCatalog.mechanismSpan(KEY), 1, "предпосылка: у кла
 const spanForFrame = frame => item => EPButtonFrame.spanIn(item, frame, EPCatalog.mechanismSpan(item));
 const distIn = (ids, frame) => EPPosts.distributePosts(ids, frame, { product, mechanismSpan: spanForFrame(frame) });
 
-test("22684.4 + одна 22751 → занято 2, СВОБОДНО 2, пост валиден и ещё не полон", () => {
+test("22684.4 + одна 22751 → занято 1, СВОБОДНО 3, пост валиден и ещё не полон", () => {
   const d = distIn([KEY.id], F4);
-  assert.equal(d.totalOccupied, 2, "двойная клавиша занимает 2 прорези");
+  assert.equal(d.totalOccupied, 1, "одна клавиша — одна прорезь (переделка 15.10)");
   assert.equal(d.totalCapacity, 4);
-  assert.equal(EPPosts.maxFreeSpan(d), 2, "свободно 2 — ровно слова владельца");
+  assert.equal(EPPosts.maxFreeSpan(d), 3, "свободно 3 — ещё три клавиши влезут");
   assert.equal(d.valid, true);
   assert.equal(d.full, false, "ещё не заполнена");
 });
 
-test("22684.4 + две 22751 → занято 4, СВОБОДНО 0, пост полон (каталог закрыт)", () => {
-  const d = distIn([KEY.id, KEY.id], F4);
+test("22684.4 + четыре 22751 → занято 4, СВОБОДНО 0, пост полон (заказ 15: 4 клавиши в 4 прорези)", () => {
+  const d = distIn([KEY.id, KEY.id, KEY.id, KEY.id], F4);
   assert.equal(d.totalOccupied, 4);
   assert.equal(EPPosts.maxFreeSpan(d), 0, "места нет → карточки шире 0 скрыты, каталог закрыт");
   assert.equal(d.full, true);
-  assert.equal(d.valid, true);
+  assert.equal(d.valid, true, "ровно 4 клавиши помещаются — сборка валидна");
 });
 
-test("22684.4 + три 22751 → переполнение: лишние в overflow, ничего не исчезло из разметки", () => {
-  const d = distIn([KEY.id, KEY.id, KEY.id], F4);
-  assert.equal(d.valid, false, "третья не помещается — сборка невалидна");
+test("22684.4 + пять 22751 → переполнение: пятая в overflow, ничего не исчезло из разметки", () => {
+  const d = distIn([KEY.id, KEY.id, KEY.id, KEY.id, KEY.id], F4);
+  assert.equal(d.valid, false, "пятая не помещается — сборка невалидна");
   assert.equal(d.overflow.length, 1, "ровно одна клавиша в overflow");
   assert.ok(d.errors.every(e => e.type === "overflow"), "причина — переполнение, не «шире поста»");
+  const placed = d.posts.reduce((n, p) => n + p.mechanismIds.length, 0);
+  assert.equal(placed + d.overflow.length, 5, "ни одна из 5 клавиш не потеряна");
 });
 
-test("22683.3 + одна 22751 → СВОБОДНО 1 (ровно слова владельца)", () => {
+test("22683.3 + одна 22751 → СВОБОДНО 2", () => {
   const d = distIn([KEY.id], F3);
-  assert.equal(d.totalOccupied, 2);
+  assert.equal(d.totalOccupied, 1);
   assert.equal(d.totalCapacity, 3);
-  assert.equal(EPPosts.maxFreeSpan(d), 1, "свободно 1");
+  assert.equal(EPPosts.maxFreeSpan(d), 2, "свободно 2");
 });
 
 test("22751 в накладке «на 1 кнопку» 22682.1 — один модуль, поведение прежнее", () => {
   const d = distIn([KEY.id], F1);
-  assert.equal(d.totalOccupied, 1, "1 прорезь → правило 2-прорезей не включается");
+  assert.equal(d.totalOccupied, 1, "одна прорезь — одна клавиша");
 });
 
-test("старый пост 22684.4 с 4×22751: все 4 позиции на месте (размещены + overflow), флаг переполнения", () => {
-  const d = distIn([KEY.id, KEY.id, KEY.id, KEY.id], F4);
-  const placed = d.posts.reduce((n, p) => n + p.mechanismIds.length, 0);
-  assert.equal(placed + d.overflow.length, 4, "ни одна из 4 клавиш не потеряна — распределены либо в overflow");
-  assert.equal(d.valid, false, "переполнение помечено (окно поста покажет предупреждение)");
-});
-
-test("подпись модулей клавиш — «1–2» и «3–4» (две прорези у каждой двойной клавиши)", () => {
+test("подпись модулей клавиш — «1» и «2» (каждая 22751 занимает один модуль)", () => {
   const layout = EPPosts.moduleLayout([KEY.id, KEY.id], { product, mechanismSpan: spanForFrame(F4) });
-  assert.deepEqual(layout.map(l => l.label), ["1–2", "3–4"]);
+  assert.deepEqual(layout.map(l => l.label), ["1", "2"]);
 });
 
 /* СМЕТА не меняется: число мест/механизмов и цена считаются «голым» mechanismSpan (postDeps в app.js
@@ -87,12 +83,16 @@ test("смета: raw-ширина 4×22751 = 4 модуля (постройка
   assert.equal(raw, 4, "по «голой» ширине 4 клавиши = 4 модуля — смета как раньше");
 });
 
-/* МУТАЦИЯ шва: уберём учёт накладки из spanIn (вернём base) — «свободно 2» превратится в «свободно 3»
-   у 22684.4 с одной клавишей, и тест обязан покраснеть. Доказываем, что проверка держит правило. */
-test("мутация: шов без накладки дал бы свободно 3 (а не 2) — расхождение налицо", () => {
-  const noFrameSpan = frame => item => EPCatalog.mechanismSpan(item);   // «сломанный» spanIn
-  const dBroken = EPPosts.distributePosts([KEY.id], F4, { product, mechanismSpan: noFrameSpan(F4) });
-  assert.equal(EPPosts.maxFreeSpan(dBroken), 3, "сломанный шов: клавиша = 1 модуль → свободно 3");
-  const dReal = distIn([KEY.id], F4);
-  assert.notEqual(EPPosts.maxFreeSpan(dReal), EPPosts.maxFreeSpan(dBroken), "настоящий шов даёт другое число");
+/* МУТАЦИЯ шва: если спан клавиши в накладке снова станет 2 (как было до переделки 15.10), 22684.4 с
+   четырьмя клавишами переполнится (влезут только две) — а по новому правилу все 4 помещаются. Тест
+   обязан покраснеть на такой мутации. Доказываем, что проверка держит именно «одна клавиша = 1 прорезь». */
+test("мутация: span=2 переполнил бы 22684.4 четырьмя клавишами — настоящее правило вмещает все 4", () => {
+  const span2 = frame => item =>
+    EPButtonFrame.isButtonFrame(frame) && EPCatalog.mechanismSpan(item) ? 2 : EPCatalog.mechanismSpan(item);
+  const four = [KEY.id, KEY.id, KEY.id, KEY.id];
+  const dBroken = EPPosts.distributePosts(four, F4, { product, mechanismSpan: span2(F4) });
+  assert.equal(dBroken.valid, false, "сломанный шов (span=2): 4 клавиши не влезают в 4 прорези");
+  const dReal = distIn(four, F4);
+  assert.equal(dReal.valid, true, "настоящий шов: 4 клавиши = 4 прорези, пост валиден");
+  assert.notEqual(dReal.valid, dBroken.valid, "правило реально влияет на вместимость");
 });

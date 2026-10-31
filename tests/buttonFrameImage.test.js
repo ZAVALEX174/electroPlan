@@ -1,10 +1,11 @@
-/* РИСУНОК кнопочной накладки Flat (К12 ч.4, часть 2). Двойная плоская клавиша 22751 в накладке «на
-   4 кнопки» (22684.4) должна рисоваться ДВУМЯ квадратиками в ДВУХ соседних прорезях, каждый — своя
-   кнопка (доля лица изделия), а не обеими кнопками в одной прорези. Проверяем ПРАВИЛО раскладки
-   (чистый EPButtonFrame: порядок прорезей, доли лица, слоты ячейки) и ЕГО ПРОВОДКУ через настоящий
-   assembledPostSpec из app.js + EPPostImage.postWindows (одна сборка картинки для окна поста, холста,
-   КП и листа монтажника). Каталог — НАСТОЯЩИЙ, обогащённый data.js (окна/лица), как в index.html.
-   Запуск: node --test tests/ */
+/* РИСУНОК кнопочной накладки Flat (К12 ч.4, переделка по словам заказчика 15.10). Двойная плоская
+   клавиша 22751 в накладке «на 4 кнопки» (22684.4) занимает ОДНУ прорезь (как 1-модульный механизм),
+   но рисуется не всем лицом (две кнопки), а ОДНОЙ кнопкой — ВЕРХНЕЙ половиной лица, обрезанной и
+   заполняющей прорезь (слова заказчика «обрезать картинку, оставить одну клавишу»). Проверяем ПРАВИЛО
+   раскладки (чистый EPButtonFrame: порядок прорезей, доли лица, слоты ячейки) и ЕГО ПРОВОДКУ через
+   настоящий assembledPostSpec из app.js + EPPostImage.postWindows (одна сборка картинки для окна поста,
+   холста, КП и листа монтажника). Каталог — НАСТОЯЩИЙ, обогащённый data.js (окна/лица), как в
+   index.html. Запуск: node --test tests/ */
 "use strict";
 
 const test = require("node:test");
@@ -95,15 +96,16 @@ test("orderWindows: один ряд → по left; два ряда → верх�
   );
 });
 
-test("cellSlots: клавиша 22751 в 22684.4 — 2 слота (fill), доли лица верх/низ; обычный 1М — 1 слот без fill", async () => {
+test("cellSlots: клавиша 22751 в 22684.4 — ОДИН слот (fill), доля лица = верхняя половина; обычный 1М — 1 слот без fill", async () => {
   const P = await loadRuntimeProducts();
   const byCode = c => P.find(p => p.code === c);
   const F4 = byCode("22684.4.11"), KEY = byCode("22751.11");
   const kFace = EPCatalog.moduleFace(KEY);
   const kSlots = EPButtonFrame.cellSlots(KEY, F4, EPCatalog.mechanismSpan(KEY), kFace);
-  assert.equal(kSlots.length, 2, "двойная клавиша — две прорези");
-  assert.ok(kSlots.every(s => s.fill === true), "каждая прорезь заполняется долей лица");
-  assert.ok(kSlots[0].face.top < kSlots[1].face.top, "верхняя кнопка в первую прорезь, нижняя — во вторую");
+  assert.equal(kSlots.length, 1, "одна клавиша — одна прорезь (переделка 15.10)");
+  assert.equal(kSlots[0].fill, true, "кнопка заполняет прорезь");
+  assert.ok(kSlots[0].face.top - kFace.top < 0.1, "верхняя кнопка — от верха лица");
+  assert.ok(Math.abs(kSlots[0].face.height - kFace.height / 2) < 0.1, "в прорези половина высоты лица (одна из двух кнопок)");
 
   const m1 = P.find(p => p.kind === "mechanism" && EPCatalog.mechanismSpan(p) === 1 && p.code !== "22751.11" && EPCatalog.moduleFace(p));
   const mFace = EPCatalog.moduleFace(m1);
@@ -115,47 +117,49 @@ test("cellSlots: клавиша 22751 в 22684.4 — 2 слота (fill), дол
 
 /* ───────── ПРОВОДКА: assembledPostSpec + postWindows ───────── */
 
-test("окно поста 22684.4 + одна 22751: ячейка-клавиша занимает ОКНА 0 и 1, доли лица верх/низ", async () => {
+test("окно поста 22684.4 + одна 22751: ячейка-клавиша занимает ОКНО 0 одной прорезью, доля лица верхняя половина", async () => {
   const P = await loadRuntimeProducts();
   const byCode = c => P.find(p => p.code === c);
   const build = makeSpecBuilder(P);
   const F4 = byCode("22684.4.11"), KEY = byCode("22751.11");
+  const kFace = EPCatalog.moduleFace(KEY);
 
   const spec = build({ frameId: F4.id, mechanismIds: [KEY.id] });
   const cells = flatCells(spec.rows);
   const key = cells[0];
-  assert.ok(Array.isArray(key.slots) && key.slots.length === 2, "клавиша несёт 2 слота-прорези");
-  assert.equal(key.num, "1–2", "подпись модуля клавиши — «1–2»");
-  assert.ok(key.slots[0].face.top < key.slots[1].face.top, "верх/низ лица по слотам");
-  /* Прорези 3 и 4 — свободные, по одному слоту. */
-  assert.equal(cells.length, 3, "клавиша + 2 свободных модуля (2 прорези клавиши + 2 пустых = 4 окна)");
+  assert.ok(Array.isArray(key.slots) && key.slots.length === 1, "клавиша несёт один слот-прорезь");
+  assert.equal(key.num, "1", "подпись модуля клавиши — «1»");
+  assert.equal(key.slots[0].fill, true, "кнопка заполняет прорезь");
+  assert.ok(Math.abs(key.slots[0].face.height - kFace.height / 2) < 0.1, "в прорези верхняя половина лица");
+  /* Прорези 2, 3 и 4 — свободные, по одному слоту. */
+  assert.equal(cells.length, 4, "клавиша + 3 свободных модуля (1 прорезь клавиши + 3 пустых = 4 окна)");
   assert.ok(cells.slice(1).every(c => c.empty && c.slots.length === 1), "свободные — по одной прорези");
 
   const pw = EPPostImage.postWindows(spec.frame.opening, spec.rows, spec.frame.windows);
   assert.equal(pw.perModule, true, "помодульный режим: каждый слот — своё окно");
   assert.equal(pw.rects.length, 4, "четыре окна 22684.4");
-  /* окна упорядочены слева направо → клавиша встаёт в два ЛЕВЫХ (0 и 1). */
+  /* окна упорядочены слева направо → клавиша встаёт в самое ЛЕВОЕ (0). */
   assert.deepEqual(pw.rects.map(r => r.left), [22.5, 37.5, 52.5, 67.5], "окна слева направо");
 });
 
-test("окно поста 22684.4 + две 22751: вторая клавиша встаёт в окна 2 и 3, пост полон", async () => {
+test("окно поста 22684.4 + четыре 22751: каждая клавиша в своё окно 0–3, пост полон", async () => {
   const P = await loadRuntimeProducts();
   const byCode = c => P.find(p => p.code === c);
   const build = makeSpecBuilder(P);
   const F4 = byCode("22684.4.11"), KEY = byCode("22751.11");
 
-  const spec = build({ frameId: F4.id, mechanismIds: [KEY.id, KEY.id] });
+  const spec = build({ frameId: F4.id, mechanismIds: [KEY.id, KEY.id, KEY.id, KEY.id] });
   const cells = flatCells(spec.rows);
-  assert.equal(cells.length, 2, "две клавиши, свободных модулей нет");
+  assert.equal(cells.length, 4, "четыре клавиши, свободных модулей нет");
   /* .join: spec.rows приходит из vm-песочницы app.js (другой realm Array), поэтому сверяем по значению. */
-  assert.equal(cells.map(c => c.num).join(","), "1–2,3–4");
-  assert.ok(cells.every(c => c.slots.length === 2 && c.slots.every(s => s.fill)));
+  assert.equal(cells.map(c => c.num).join(","), "1,2,3,4");
+  assert.ok(cells.every(c => c.slots.length === 1 && c.slots.every(s => s.fill)));
   const pw = EPPostImage.postWindows(spec.frame.opening, spec.rows, spec.frame.windows);
   assert.equal(pw.perModule, true);
-  assert.equal(pw.rects.length, 4, "4 слота двух клавиш легли в 4 окна");
+  assert.equal(pw.rects.length, 4, "4 клавиши легли в 4 окна");
 });
 
-test("смешанный состав 22751 + обычный 1М: по порядку слева направо (окна 0–1 клавиша, окно 2 механизм)", async () => {
+test("смешанный состав 22751 + обычный 1М: по порядку слева направо (окно 0 клавиша, окно 1 механизм)", async () => {
   const P = await loadRuntimeProducts();
   const byCode = c => P.find(p => p.code === c);
   const build = makeSpecBuilder(P);
@@ -164,9 +168,12 @@ test("смешанный состав 22751 + обычный 1М: по поря�
 
   const spec = build({ frameId: F4.id, mechanismIds: [KEY.id, m1.id] });
   const cells = flatCells(spec.rows);
-  assert.equal(cells[0].slots.length, 2, "клавиша — 2 прорези (окна 0,1)");
-  assert.equal(cells[1].slots.length, 1, "механизм — 1 прорезь (окно 2)");
-  assert.equal(cells[2].empty, true, "свободная прорезь (окно 3)");
+  assert.equal(cells[0].slots.length, 1, "клавиша — 1 прорезь (окно 0)");
+  assert.equal(cells[0].slots[0].fill, true, "клавиша — обрезанная кнопка, заполняет прорезь");
+  assert.equal(cells[1].slots.length, 1, "механизм — 1 прорезь (окно 1)");
+  assert.equal(cells[1].slots[0].fill, false, "обычный механизм — истинная величина");
+  assert.equal(cells[2].empty, true, "свободная прорезь (окно 2)");
+  assert.equal(cells[3].empty, true, "свободная прорезь (окно 3)");
   const totalSlots = cells.reduce((a, c) => a + c.slots.length, 0);
   assert.equal(totalSlots, 4, "4 прорези 22684.4 заняты по порядку");
   const pw = EPPostImage.postWindows(spec.frame.opening, spec.rows, spec.frame.windows);
@@ -185,22 +192,22 @@ test("обычная накладка Eikon — БЕЗ изменений: у я
   assert.ok(cells.every(c => c.slots === undefined), "обычная накладка slots не получает — прежний путь postImage");
 });
 
-/* ───────── МУТАЦИЯ: отключить раскладку по прорезям → режим ломается ───────── */
+/* ───────── МУТАЦИЯ: отключить обрезку лица клавиши → в прорези покажется всё лицо (обе кнопки) ───────── */
 
-test("мутация: убрать cell.slots у клавиши → postWindows теряет помодульный режим (краснеет)", async () => {
+test("мутация: без спец-случая 22751 в прорезь легло бы ВСЁ лицо (обе кнопки) — обрезка реально меняет рисунок", async () => {
   const P = await loadRuntimeProducts();
   const byCode = c => P.find(p => p.code === c);
-  const build = makeSpecBuilder(P);
   const F4 = byCode("22684.4.11"), KEY = byCode("22751.11");
+  const kFace = EPCatalog.moduleFace(KEY);
 
-  const spec = build({ frameId: F4.id, mechanismIds: [KEY.id] });
-  const real = EPPostImage.postWindows(spec.frame.opening, spec.rows, spec.frame.windows);
-  assert.equal(real.perModule, true, "с раскладкой по прорезям — помодульный режим");
+  /* Настоящее правило: одна прорезь, но доля лица — верхняя ПОЛОВИНА (одна кнопка), заполняет прорезь. */
+  const real = EPButtonFrame.cellSlots(KEY, F4, EPCatalog.mechanismSpan(KEY), kFace)[0];
+  assert.equal(real.fill, true);
+  assert.ok(Math.abs(real.face.height - kFace.height / 2) < 0.1, "в прорези половина высоты лица");
 
-  /* Сломанный вариант: ячейки те же (клавиша span 2 + 2 свободных), но БЕЗ slots — число ячеек (3)
-     не совпадает с числом окон (4), и старая ветка all-1М уводит на фолбэк (не perModule). */
-  const broken = spec.rows.map(r => ({ posts: r.posts.map(p => ({ capacity: p.capacity, cells: p.cells.map(c => { const cc = Object.assign({}, c); delete cc.slots; return cc; }) })) }));
-  const brokenPw = EPPostImage.postWindows(spec.frame.opening, broken, spec.frame.windows);
-  assert.equal(brokenPw.perModule, false, "без slots раскладка по прорезям пропадает");
-  assert.notEqual(real.perModule, brokenPw.perModule, "правило реально влияет на рисунок");
+  /* Сломанный вариант: если убрать спец-случай, клавиша пошла бы общим путём 1-модульного механизма —
+     один слот с ПОЛНЫМ лицом (обе кнопки) и fill=false. Высота лица отличается вдвое, fill другой —
+     photoStage нарисовал бы изделие целиком вместо одной обрезанной кнопки. */
+  assert.ok(Math.abs(real.face.height - kFace.height) > 0.1, "настоящая доля лица НЕ равна полному лицу");
+  assert.notEqual(real.fill, false, "настоящая прорезь заполняется долей, а не рисует лицо истинной величины");
 });
