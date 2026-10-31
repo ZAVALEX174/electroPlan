@@ -98,8 +98,16 @@ function checkboxLabel(color) {
   return "Только механизмы цвета «" + color + "»";
 }
 
+/* Текст пустого каталога в РЕЖИМЕ ЦВЕТА МЕХАНИЗМОВ (решение владельца 01.11): у комнаты задан цвет
+   механизмов, галочка включена, а после фильтра по цвету механизмов не осталось. Параллелен
+   app.innardsEmptyText (тот — про цвет НАКЛАДКИ), но про механизмы; выход — та же галочка над каталогом.
+   Вызывающий различает режимы и для цвета накладки оставляет прежний innardsEmptyText. */
+function emptyCatalogText(color) {
+  return "Механизмов цвета «" + color + "» для этой накладки в каталоге нет. Снимите галочку над каталогом — тогда предложим совместимые изделия любого цвета";
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
-const api = { colorOf, colorsFor, visible, autoValue, filter, checkboxLabel };
+const api = { colorOf, colorsFor, visible, autoValue, filter, checkboxLabel, emptyCatalogText };
 if (typeof window !== "undefined") window.EPMechColor = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

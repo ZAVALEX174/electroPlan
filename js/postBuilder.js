@@ -795,7 +795,10 @@ function renderBuilder(){
   const catalogMechs=(roomMechColor?EPMechColor.filter(colorFiltered,roomMechColor,{colorOf:EPMechColor.colorOf,keyOf:EPCatalog.facingColorKey}):colorFiltered).filter(m=>!EPThermoSensor.isSensorMechanism(m));
   const innardsColor=roomMechColor||(state.builder.restrictInnardsColor?EPRoom.roomFrameFacing(builderFilterRoom(),"frameColor",frameFacingList("frameColor")):null);
   /* Подпись галочки: с цветом механизмов, если задан у комнаты (решение владельца 31.10), иначе прежняя. */
-  {const lbl=$("builderRestrictColorLabel");if(lbl)lbl.textContent=roomMechColor?EPMechColor.checkboxLabel(roomMechColor):"Только клавиши, розетки и механизмы в цвет накладки";}
+  /* Подпись НЕ зависит от галочки (решение владельца 01.11): задан цвет механизмов у комнаты — всегда
+     «Только механизмы цвета «<цвет>»», и при включённой, и при снятой галочке. Поэтому берём цвет прямо
+     у комнаты, а не roomMechColor (тот гаснет при снятой галочке — это нужно фильтру, но не подписи). */
+  {const lbl=$("builderRestrictColorLabel");if(lbl){const labelColor=(builderFilterRoom()||{}).mechColor||null;lbl.textContent=labelColor?EPMechColor.checkboxLabel(labelColor):"Только клавиши, розетки и механизмы в цвет накладки";}}
   /* ⚠️ МЕХАНИЗМ, УЖЕ СТОЯЩИЙ В ПОСТЕ И СНЯТЫЙ С ПРОИЗВОДСТВА (active:false), УДЕРЖИВАЕМ — то же
      правило владельца, что для накладки (4456bd0): изделие могло быть заложено в проект до снятия
      позиции и физически существует, смета обязана считаться по нему. byKind фильтрует active,
@@ -916,7 +919,7 @@ function renderBuilder(){
   /* mechs каталога = catalogMechs (суженное под цвет комнаты); seriesCount — сколько было ДО цвета,
      чтобы renderBuilderCatalog отличил «начинка обнулилась цветом» от «каталог не загружен».
      innardsColor — цвет накладки комнаты, которым сузили (для объяснения словами). */
-  builderCtx={mechs:catalogMechs,seriesCount:mechs.length,innardsColor,keepMechs,missingMechIds,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:frameNoticeHtml+mechNoticeHtml+missingMechErrorHtml+builderErrorHtml(dist,selectedFrame)};
+  builderCtx={mechs:catalogMechs,seriesCount:mechs.length,innardsColor,mechColorMode:!!roomMechColor,keepMechs,missingMechIds,addMax,maxPostCap,remaining,frame:selectedFrame,errorHtml:frameNoticeHtml+mechNoticeHtml+missingMechErrorHtml+builderErrorHtml(dist,selectedFrame)};
   renderBuilderCatalog();
   renderBuilderComposition(selectedFrame,builderCtx.errorHtml,light,draft);
   /* Сохранять можно, только когда сборка физически собирается (никакой механизм не шире поста
@@ -1105,7 +1108,7 @@ function renderBuilderCatalog(){
        непуст, но того же цвета механизмов нет — ОТДЕЛКА-ПОРЯДОК п.5, объясняем словами и даём выход
        галочкой) либо прайс действительно не подключён (серийный набор тоже пуст). */
     host.innerHTML=builderCtx.innardsColor&&builderCtx.seriesCount>0
-      ?`<div class="catalog-empty">${esc(innardsEmptyText(builderCtx.innardsColor))}</div>`
+      ?`<div class="catalog-empty">${esc(builderCtx.mechColorMode?EPMechColor.emptyCatalogText(builderCtx.innardsColor):innardsEmptyText(builderCtx.innardsColor))}</div>`
       :'<div class="catalog-empty">Каталог механизмов не загружен — проверьте, что прайс подключён.</div>';
     return;
   }

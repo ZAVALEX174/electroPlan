@@ -117,7 +117,10 @@ function makeCtx(state, dom) {
     renderBuilderSlots: () => {}, lightingRowsFor: () => [], retargetBuilderSlot: () => {},
     builderErrorHtml: () => "",
     renderBuilderCatalog: () => {}, renderBuilderComposition: () => {},
-    renderBuilder: () => {}, builderCtx: {}, EPBuilderSlots, EPPosts, EPThermoSensor: require("../js/thermoSensor.js")
+    renderBuilder: () => {}, builderCtx: {}, EPBuilderSlots, EPPosts, EPThermoSensor: require("../js/thermoSensor.js"),
+    /* К12 01.11: renderBuilder зовёт EPMechColor.checkboxLabel для подписи галочки при заданном у
+       комнаты цвете механизмов (и filter — только когда галочка включена). */
+    EPMechColor: require("../js/mechColor.js")
   };
 }
 
@@ -214,7 +217,9 @@ function renderCatalog(builderCtx) {
     EPCatalogSections: { build: () => ({ sections: [] }) },
     productCardHtml: () => "", bindProductPictureFallbacks: () => {},
     resolveMissingMechanism: () => null, emptyCatalogHtml: () => "",
-    isBareMechanism: () => false, pickBuilderProduct: () => {}
+    isBareMechanism: () => false, pickBuilderProduct: () => {},
+    /* К12 01.11: в режиме цвета механизмов (mechColorMode) пустой каталог берёт текст у EPMechColor. */
+    EPMechColor: require("../js/mechColor.js")
   };
   stand.run(["innardsEmptyText", "renderBuilderCatalog"], ctx)();
   return dom.$("builderCatalog").innerHTML;
@@ -234,4 +239,38 @@ test("renderBuilderCatalog: пустой каталог БЕЗ цветовог�
     remaining: 3, addMax: 1, maxPostCap: 3 });
   assert.match(html, /не загружен/, "серийный набор пуст и цвета нет → причина «каталог не загружен»");
   assert.doesNotMatch(html, /Снимите галочку/, "про галочку не говорим — она тут ни при чём");
+});
+
+/* ---------- К12 01.11: цвет механизмов комнаты — подпись галочки и пустой каталог ---------- */
+
+/* Комната с заданным ЦВЕТОМ МЕХАНИЗМОВ: вариант несёт mechColor (как в roomVariants). */
+const ROOM_MECH = { id: "r1", name: "Гостиная", collection: "Test", frameColor: "Белая", mechColor: "Белый" };
+
+test("★ 01.11 подпись: цвет механизмов задан, галочка СНЯТА → «Только механизмы цвета «…»» (а не про накладку)", () => {
+  const ctx = render(ROOM_MECH, false);   // галочка снята, но у комнаты есть цвет механизмов
+  const label = ctx.$("builderRestrictColorLabel").textContent;
+  assert.equal(label, "Только механизмы цвета «Белый»",
+    "подпись НЕ зависит от галочки: задан цвет механизмов → всегда про цвет механизмов");
+  assert.doesNotMatch(label, /в цвет накладки/, "прежней подписи «в цвет накладки» при заданном цвете механизмов быть не должно");
+});
+
+test("★ 01.11 подпись: цвет механизмов НЕ задан → прежняя подпись «…в цвет накладки»", () => {
+  const ctx = render(ROOM, false);   // у ROOM mechColor нет
+  assert.equal(ctx.$("builderRestrictColorLabel").textContent,
+    "Только клавиши, розетки и механизмы в цвет накладки", "без цвета механизмов подпись прежняя");
+});
+
+test("★ 01.11 пустой каталог в режиме ЦВЕТА МЕХАНИЗМОВ → текст про механизмы цвета + снять галочку", () => {
+  const html = renderCatalog({ frameMissing: false, mechs: [], seriesCount: 5, innardsColor: "Чёрный",
+    mechColorMode: true, remaining: 3, addMax: 1, maxPostCap: 3 });
+  assert.match(html, /Механизмов цвета «Чёрный» для этой накладки в каталоге нет/, "назван цвет механизмов и накладка");
+  assert.match(html, /Снимите галочку/, "указан выход — снять галочку");
+  assert.doesNotMatch(html, /в цвет накладки комнаты/, "это НЕ текст режима цвета накладки");
+});
+
+test("★ 01.11 пустой каталог в режиме ЦВЕТА НАКЛАДКИ (mechColorMode выкл) → прежний текст без изменений", () => {
+  const html = renderCatalog({ frameMissing: false, mechs: [], seriesCount: 5, innardsColor: "Медь Матовая",
+    mechColorMode: false, remaining: 3, addMax: 1, maxPostCap: 3 });
+  assert.match(html, /Под цвет накладки комнаты/, "режим цвета накладки сохраняет прежнюю формулировку");
+  assert.doesNotMatch(html, /Механизмов цвета/, "в режиме накладки текст про механизмы не появляется");
 });

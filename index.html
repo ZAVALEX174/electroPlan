@@ -932,7 +932,7 @@
 <!-- Цвет механизмов (К12 ч.3): чистое правило «какие цвета у серии, как сузить начинку (без цвета —
      видно), подпись галочки». Грузится ПОСЛЕ framePicker (берёт у него stepVisible) и ДО postBuilder/
      app.js, которые зовут EPMechColor. -->
-<script src="js/mechColor.js?v=20261031.3"></script>
+<script src="js/mechColor.js?v=20261101.1"></script>
 <!-- Автонумерация КП (EPG-ГГГГ-NNNN): формат и счётчик по году в одном чистом модуле. Грузится
      до app.js, который зовёт его при сборке КП, если «Номер КП» пуст. -->
 <script src="js/offerNumber.js?v=20261011.1"></script>
@@ -940,7 +940,7 @@
      «висящего» промиса и провязка кнопок. Вынесена из app.js (И1). Грузится ДО app.js, который
      подключает её через EPWallScope.create({$, WALL_STEP_LABEL}). -->
 <script src="js/wallScope.js?v=20260927.1"></script>
-<script src="js/postBuilder.js?v=20261101.1"></script>
+<script src="js/postBuilder.js?v=20261101.2"></script>
 <script src="js/rooms.js?v=20261030.2"></script>
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
