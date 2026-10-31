@@ -21,8 +21,17 @@ const EPCatalog = require("../js/catalog.js");
 const EPLightingGroups = require("../js/lightingGroups.js");
 const EPRoomVariants = require("../js/roomVariants.js");
 const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
+const EPFramePicker = require("../js/framePicker.js");
 
 const PRODUCTS = stand.loadVimarCatalog().products;
+/* Зависимости чистого EPFramePicker, которые onchange комнаты берёт из лексики app.js (К12 ч.2
+   автозаполнение): тот же бандл, что framePickerDeps в app.js, маршрут к настоящему EPCatalog;
+   imageOf автозаполнению не нужен. */
+const framePickerDeps = {
+  match: (frames, criteria) => EPCatalog.productsForRoom(frames, criteria),
+  valuesOf: (pool, prop) => prop === "standard" ? EPCatalog.productStandards(pool) : prop === "collection" ? EPCatalog.productCollections(pool) : EPCatalog.productFacingValues(pool, prop),
+  imageOf: () => ""
+};
 const spy = () => { const f = () => { f.calls++; }; f.calls = 0; return f; };
 
 /* Исполнить настоящий renderProperties для выделенной комнаты room; активную вкладку задаём ДО рендера
@@ -41,7 +50,7 @@ function renderRoom(room, activeIdx) {
     applySelectionClasses: spy(), getObjectsInRoom: () => [], roomAutoAreaText: () => "",
     polygonAreaPx: () => 0, lightingScheme: () => "classic",
     EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"),
-    EPRoomVariants, EPRoomVariantsUi,
+    EPRoomVariants, EPRoomVariantsUi, EPFramePicker, framePickerDeps,
     EPPrefs: { get: (k, fb) => fb, set: () => {} },   /* вид «Списком» — тест про варианты, не про переключатель вида */
     setTool: spy(), persistProject: spy(), renderSummary: spy(), renderAll: spy(), mountedRoomId: null
   };
@@ -86,7 +95,11 @@ test("§3 change на вкладке 2 пишет в вариант 2, плос�
   ctx.renderProperties = function () { rerender(); return real.apply(this, arguments); };
   dom.els.roomCollectionSelect.onchange({ target: { value: "Plana" } });
   assert.equal(room.collection, "Arke", "⚠️ плоские поля (вариант 1) НЕ изменились — правка не ушла в первый вариант");
-  assert.deepEqual(room.moreVariants, [{ collection: "Plana" }], "правка записана в вариант 2 (ВЫБРАННАЯ вкладка)");
+  /* К12 ч.2: кроме коллекции, autoFill дописывает в ТОТ ЖЕ вариант единственное значение скрытого
+     шага «Форма» (во всём каталоге одна «Классическая») — проверяем маршрутизацию правки по collection
+     и неизменность варианта 1, не фиксируя точный набор автозаполненных полей. */
+  assert.ok(Array.isArray(room.moreVariants) && room.moreVariants.length === 1, "вариант 2 остался один");
+  assert.equal(room.moreVariants[0].collection, "Plana", "правка записана в вариант 2 (ВЫБРАННАЯ вкладка)");
   assert.equal(rerender.calls, 1, "панель перерисована");
   assert.equal(ctx.persistProject.calls, 1, "проект сохранён");
   assert.equal(ctx.renderSummary.calls, 0, "отделка не денежная — смета не пересчитывается");

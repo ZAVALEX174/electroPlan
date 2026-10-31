@@ -80,9 +80,40 @@ function visibleSteps(frames, selection, deps) {
   return visible;
 }
 
+/* Автозаполнение единственного оставшегося варианта (К12 ч.2). После КАЖДОГО ручного выбора каждое
+   ещё ПУСТОЕ поле отделки, у которого в отборе по ВСЕМ уже выбранным полям остаётся ровно одно
+   значение, заполняется этим значением — ровно то, что просил заказчик 15.10: «выбрал Eikon Flat —
+   „Металл“ встал сам, окно сразу открыло цвета». skip — поля, которые НЕ подставляем никогда: туда
+   идёт "standard", потому что монтажный стандарт = коробки/суппорты = деньги, его выбирает человек
+   (решение владельца 31.10). Поле, уже заданное (рукой или подставленное ранее), не трогаем — чужой
+   выбор перезаписывать нельзя; значение скрытого шага («Форма» с одним значением) при этом тоже
+   записывается, видимость (ч.1) отдельно от записи.
+     «Что считается единственным» — ТОТ ЖЕ отбор каталога (deps.match/valuesOf), что у stepOptions и
+   visibleSteps (§7.1), второго счётчика нет. Проход повторяем, пока что-то заполняется: подстановка
+   одного поля сужает отбор для остальных, а часть 3 добавит сюда цвет механизмов с иной семантикой
+   членства, где один проход может не сойтись. Вход не мутируем — возвращаем НОВЫЙ selection. */
+function autoFill(frames, selection, deps, opts) {
+  const skip = opts && Array.isArray(opts.skip) ? opts.skip : [];
+  const sel = Object.assign({}, selection || {});
+  let filled = true;
+  while (filled) {
+    filled = false;
+    STEPS.forEach(step => {
+      const prop = step.prop;
+      if (skip.indexOf(prop) >= 0) return;
+      if (typeof sel[prop] === "string" && sel[prop]) return;    /* уже задано рукой/ранее — не трогаем */
+      /* В отборе по ВСЕМ уже выбранным полям (sel; текущий prop пуст, поэтому в sel его нет и исключать
+         нечего) у признака осталось ровно одно значение → оно вынуждено, подставляем. */
+      const values = deps.valuesOf(deps.match(frames, sel), prop);
+      if (values.length === 1) { sel[prop] = values[0]; filled = true; }
+    });
+  }
+  return sel;
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { STEPS, stepOptions, visibleSteps };
+const api = { STEPS, stepOptions, visibleSteps, autoFill };
 if (typeof window !== "undefined") window.EPFramePicker = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

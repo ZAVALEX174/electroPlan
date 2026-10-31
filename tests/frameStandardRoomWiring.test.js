@@ -100,6 +100,13 @@ function renderList(room) {
     applySelectionClasses: spy(), getObjectsInRoom: () => [], roomAutoAreaText: () => "",
     polygonAreaPx: () => 0, lightingScheme: () => "classic",
     EPLightingGroups, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
+    /* К12 ч.2: onchange комнаты после ручного выбора зовёт EPFramePicker.autoFill с framePickerDeps —
+       даём чистый модуль и бандл-маршрут к настоящему EPCatalog (imageOf автозаполнению не нужен). */
+    EPFramePicker, framePickerDeps: {
+      match: (frames, criteria) => EPCatalog.productsForRoom(frames, criteria),
+      valuesOf: (pool, prop) => prop === "standard" ? EPCatalog.productStandards(pool) : prop === "collection" ? EPCatalog.productCollections(pool) : EPCatalog.productFacingValues(pool, prop),
+      imageOf: () => ""
+    },
     EPPrefs: { get: (k, fb) => (k === "frameFacingView" ? "list" : fb), set: () => {} },
     setTool: spy(), persistProject: spy(), renderSummary: spy(), renderAll: spy(), mountedRoomId: null
   };

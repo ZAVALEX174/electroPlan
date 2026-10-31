@@ -117,6 +117,13 @@ function renderRoom(room, opts) {
     polygonAreaPx: () => 0,
     lightingScheme: () => "classic",
     EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
+    /* К12 ч.2: onchange коллекции после ручного выбора зовёт EPFramePicker.autoFill с framePickerDeps —
+       даём чистый модуль и бандл-маршрут к настоящему EPCatalog (imageOf автозаполнению не нужен). */
+    EPFramePicker: require("../js/framePicker.js"), framePickerDeps: {
+      match: (frames, criteria) => EPCatalog.productsForRoom(frames, criteria),
+      valuesOf: (pool, prop) => prop === "standard" ? EPCatalog.productStandards(pool) : prop === "collection" ? EPCatalog.productCollections(pool) : EPCatalog.productFacingValues(pool, prop),
+      imageOf: () => ""
+    },
     /* Вид отделки (списком / с картинками) — привычка человека из EPPrefs. Заглушка отдаёт fallback,
        то есть «списком»: эти тесты про селекторы вида-списка, а не про переключатель вида. */
     EPPrefs: { get: (k, fb) => fb, set: () => {} },

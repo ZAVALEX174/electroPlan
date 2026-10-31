@@ -1652,7 +1652,16 @@ function renderProperties(){
         .concat(facingSpecs.map(spec=>["room_"+spec.prop+"Select",spec.prop]))
         .forEach(([selId,prop])=>{
           $(selId).onchange=e=>{
+            /* Сначала РУЧНОЕ поле тем же каскадом EPRoomVariants (стирает поля ниже), потом К12 ч.2 —
+               единственный оставшийся вариант каждого пустого поля (кроме стандарта) подставляем сам,
+               тем же EPFramePicker.autoFill, что в окне подбора (§7.1). sel берём из ВАРИАНТА (уже
+               очищенного list): catalog-мёртвое значение в нём остаётся константой отбора и writeSelection
+               его сохранит — автозаполнение не трогает заданных полей. Запись — тем же writeSelection, что
+               у мастера: одно ручное действие + автозаполнение = один persistProject = один шаг истории. */
             EPRoomVariantsUi.writeField(r,roomVariantIdx,prop,e.target.value);
+            const variant=EPRoomVariants.list(r)[roomVariantIdx];
+            const filled=EPFramePicker.autoFill(roomFrames,variant,framePickerDeps,{skip:["standard"]});
+            EPRoomVariantsUi.writeSelection(r,roomVariantIdx,filled);
             renderProperties();persistProject();
           };
         });
@@ -2333,15 +2342,20 @@ function renderFramePicker(){
 function pickFrameStep(value){
   const steps=EPFramePicker.STEPS,step=steps[framePickerStep];
   framePickerSel[step.prop]=value;
-  /* Каскад серия→материал→форма→цвет: выбор на шаге сбрасывает НИЖЕлежащие. Тогда каждый следующий
-     шаг выбирается из того, что реально осталось, и итоговое сочетание всегда непусто. */
+  /* Каскад серия→материал→форма→цвет: выбор на шаге сбрасывает НИЖЕлежащие. Сначала РУЧНОЕ поле (с
+     каскадом), потом автозаполнение — порядок важен, иначе автоподстановка цеплялась бы за уже снятые
+     поля. Тогда каждый следующий шаг выбирается из того, что реально осталось. */
   steps.slice(framePickerStep+1).forEach(s=>{delete framePickerSel[s.prop];});
-  /* К12 ч.1: переходим на следующий ВИДИМЫЙ шаг, пропуская скрытые (например «Форму»). Выбор мог
-     изменить и видимость нижних шагов, поэтому пересчитываем после записи значения; следующего
-     видимого нет — остаёмся на текущем (это последний значимый шаг). */
+  /* К12 ч.2: единственный оставшийся вариант каждого пустого шага (кроме стандарта) подставляем сам
+     (слова заказчика 15.10: «Eikon Flat → „Металл“ встал сам»). Правило — чистый EPFramePicker.autoFill
+     на ТОМ ЖЕ отборе, второго счётчика нет (§7.1). */
+  framePickerSel=EPFramePicker.autoFill(byKind("frame"),framePickerSel,framePickerDeps,{skip:["standard"]});
+  /* Текущим делаем первый ещё НЕ выбранный ВИДИМЫЙ шаг (Flat → материал встал сам → сразу «Цвет»);
+     скрытые шаги (например «Форму») пропускаем; всё заполнено — остаёмся на последнем видимом, где
+     «Применить» доступно. */
   const visible=EPFramePicker.visibleSteps(byKind("frame"),framePickerSel,framePickerDeps);
-  const next=steps.findIndex((s,i)=>i>framePickerStep&&visible.indexOf(s)>=0);
-  if(next>=0)framePickerStep=next;
+  const nextUnset=visible.find(s=>!framePickerSel[s.prop]);
+  framePickerStep=steps.indexOf(nextUnset||visible[visible.length-1]||step);
   renderFramePicker();
 }
 function applyFramePicker(){

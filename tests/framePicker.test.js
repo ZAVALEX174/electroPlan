@@ -162,3 +162,97 @@ test("сохранённое значение, НЕсовместимое с т�
   const props = EPFramePicker.visibleSteps(FRAMES, { collection: "Plana", frameShape: "Скруглённая" }, DEPS).map(s => s.prop);
   assert.ok(props.includes("frameShape"), "несовместимое сохранённое значение → шаг виден для правки");
 });
+
+/* ---- autoFill (К12 ч.2): единственный оставшийся вариант шага подставляется сам ----------------
+   deps — те же НАСТОЯЩИЕ функции EPCatalog, что фильтруют конструктор: autoFill считает «единственное»
+   через тот же отбор, своего счётчика у него нет (§7.1).
+
+   МУТАЦИОННАЯ ТАБЛИЦА (в отчёте):
+     убрать skip (standard тоже заполнять) → красит «стандарт не подставляется никогда»;
+     заполнять НЕпустые поля (убрать проверку sel[prop]) → красит «ручной выбор не перезаписан».
+   (Отдельно: см. отчёт о while-проходе — на монотонном каталоге он не добавляет заполнений, тест на
+    его удаление покрасить нельзя; держим его для части 3 с иной семантикой цвета механизмов.) */
+
+test("autoFill: Eikon Flat → единственный материал «Металл» встаёт сам, цвет (10 шт.) НЕ ставится", () => {
+  /* Повторяет настоящий Eikon Flat: один материал, несколько цветов. После выбора серии материал
+     вынужден → подставляем; цвет многозначен → ждём человека. Стандарт BOTH — его productStandards
+     раскрывает в IT/DE (два) и он всё равно в skip. */
+  const FLAT = [
+    { id: 1, kind: "frame", series: ["Flat"], standard: "BOTH", frameMaterial: "Металл", frameShape: "Классическая", frameColor: "Белый" },
+    { id: 2, kind: "frame", series: ["Flat"], standard: "BOTH", frameMaterial: "Металл", frameShape: "Классическая", frameColor: "Чёрный" }
+  ];
+  const sel = EPFramePicker.autoFill(FLAT, { collection: "Flat" }, DEPS, { skip: ["standard"] });
+  assert.equal(sel.frameMaterial, "Металл", "единственный материал подставился сам");
+  assert.equal(sel.collection, "Flat", "ручной выбор серии сохранён");
+  assert.ok(!sel.frameColor, "цветов несколько → цвет не подставляется");
+  assert.ok(!sel.standard, "стандарт в skip — не подставляется");
+});
+
+test("autoFill: стандарт НЕ подставляется никогда, даже если в отборе он один (покрасит удаление skip)", () => {
+  /* Серия только итальянская (standard IT, не BOTH) → productStandards = [IT], один стандарт. Без skip
+     autoFill подставил бы standard="IT"; со skip — поле остаётся пустым (деньги выбирает человек). */
+  const IT_ONLY = [
+    { id: 1, kind: "frame", series: ["Arke"], standard: "IT", frameMaterial: "Металл", frameShape: "Классическая", frameColor: "Белый" },
+    { id: 2, kind: "frame", series: ["Arke"], standard: "IT", frameMaterial: "Дерево", frameShape: "Классическая", frameColor: "Чёрный" }
+  ];
+  assert.deepEqual(EPCatalog.productStandards(IT_ONLY), ["IT"], "в отборе один стандарт — условие для подстановки без skip");
+  const sel = EPFramePicker.autoFill(IT_ONLY, { collection: "Arke" }, DEPS, { skip: ["standard"] });
+  assert.ok(!sel.standard, "стандарт не подставлен, хотя он единственный");
+});
+
+test("autoFill: «Никель матовый» (6 серий, 2 материала) без серии → ничего не заполняется", () => {
+  /* Моделирует реальный случай заказчика: цвет в нескольких сериях с разными материалами. Ни серия,
+     ни материал не вынуждены → autoFill их не трогает (решение владельца 31.10: честно заполнять
+     только однозначное). */
+  const NICKEL = [
+    { id: 1, kind: "frame", series: ["Flat"],  standard: "BOTH", frameMaterial: "Металл",       frameShape: "Классическая", frameColor: "Никель матовый" },
+    { id: 2, kind: "frame", series: ["Plana"], standard: "BOTH", frameMaterial: "Технополимер", frameShape: "Классическая", frameColor: "Никель матовый" }
+  ];
+  const sel = EPFramePicker.autoFill(NICKEL, { frameColor: "Никель матовый" }, DEPS, { skip: ["standard"] });
+  assert.ok(!sel.collection, "цвет в двух сериях → серия не подставляется");
+  assert.ok(!sel.frameMaterial, "два материала → материал не подставляется");
+  assert.equal(sel.frameColor, "Никель матовый", "ручной цвет сохранён");
+});
+
+test("autoFill: Arke + «Сталь матовая» — материал неоднозначен (металл/дерево) → материал пуст", () => {
+  const ARKE_STEEL = [
+    { id: 1, kind: "frame", series: ["Arke"], standard: "BOTH", frameMaterial: "Металл", frameShape: "Классическая", frameColor: "Сталь матовая" },
+    { id: 2, kind: "frame", series: ["Arke"], standard: "BOTH", frameMaterial: "Дерево", frameShape: "Классическая", frameColor: "Сталь матовая" }
+  ];
+  const sel = EPFramePicker.autoFill(ARKE_STEEL, { collection: "Arke", frameColor: "Сталь матовая" }, DEPS, { skip: ["standard"] });
+  assert.ok(!sel.frameMaterial, "под Arke+Сталь матовую материал неоднозначен → не подставляется");
+});
+
+test("autoFill: цвет из ОДНОЙ серии без серии → серия и материал заполнились, ручной цвет цел, стандарт пуст", () => {
+  /* Каскад из слов заказчика: «если бы я выбрал цвет, он должен и серию, и материал заполнить». Цвет
+     «Медь» есть только в Vintage, где один материал. autoFill подставляет серию И материал за один
+     вызов — это и проверяет проход по всем шагам (убрать перебор шагов → тест покраснеет). */
+  const UNIQUE = [
+    { id: 1, kind: "frame", series: ["Vintage"], standard: "BOTH", frameMaterial: "Латунь", frameShape: "Классическая", frameColor: "Медь" },
+    { id: 2, kind: "frame", series: ["Vintage"], standard: "BOTH", frameMaterial: "Латунь", frameShape: "Классическая", frameColor: "Бронза" },
+    { id: 3, kind: "frame", series: ["Arke"],    standard: "BOTH", frameMaterial: "Металл", frameShape: "Классическая", frameColor: "Белый" }
+  ];
+  const sel = EPFramePicker.autoFill(UNIQUE, { frameColor: "Медь" }, DEPS, { skip: ["standard"] });
+  assert.equal(sel.collection, "Vintage", "«Медь» только в Vintage → серия подставилась");
+  assert.equal(sel.frameMaterial, "Латунь", "в этом отборе один материал → подставился");
+  assert.equal(sel.frameColor, "Медь", "ручной цвет не перезаписан");
+  assert.ok(!sel.standard, "стандарт не подставляется");
+});
+
+test("autoFill: заданное поле не перезаписывается, даже если его «единственное» было бы другим", () => {
+  /* Серия Arke с одним материалом «Металл», но поле материала человек задал «Дерево» руками (пусть
+     и несовместимо). autoFill не трогает непустое поле — перезапись покрасит удаление проверки sel[prop]. */
+  const FRAMES2 = [
+    { id: 1, kind: "frame", series: ["Arke"], standard: "BOTH", frameMaterial: "Металл", frameShape: "Классическая", frameColor: "Белый" }
+  ];
+  const sel = EPFramePicker.autoFill(FRAMES2, { collection: "Arke", frameMaterial: "Дерево" }, DEPS, { skip: ["standard"] });
+  assert.equal(sel.frameMaterial, "Дерево", "заданный рукой материал не перезаписан автозаполнением");
+});
+
+test("autoFill: вход не мутируется, возвращается НОВЫЙ объект", () => {
+  const input = { collection: "Flat" };
+  const FLAT = [{ id: 1, kind: "frame", series: ["Flat"], standard: "BOTH", frameMaterial: "Металл", frameShape: "Классическая", frameColor: "Белый" }];
+  const out = EPFramePicker.autoFill(FLAT, input, DEPS, { skip: ["standard"] });
+  assert.notEqual(out, input, "возвращается новый объект");
+  assert.deepEqual(input, { collection: "Flat" }, "исходный selection не тронут");
+});
