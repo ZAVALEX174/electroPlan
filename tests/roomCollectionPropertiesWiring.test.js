@@ -124,6 +124,9 @@ function renderRoom(room, opts) {
       valuesOf: (pool, prop) => prop === "standard" ? EPCatalog.productStandards(pool) : prop === "collection" ? EPCatalog.productCollections(pool) : EPCatalog.productFacingValues(pool, prop),
       imageOf: () => ""
     },
+    /* К12 ч.3: onchange также зовёт EPMechColor.autoValue с mechColorDeps (автозаполнение цвета механизмов). */
+    EPMechColor: require("../js/mechColor.js"),
+    mechColorDeps: { match: (m, c) => c && c.collection ? EPCatalog.compatibleMechanisms({ series: [c.collection] }, m) : (m || []).slice(), colorOf: item => (item && item.elementColor) || "" },
     /* Вид отделки (списком / с картинками) — привычка человека из EPPrefs. Заглушка отдаёт fallback,
        то есть «списком»: эти тесты про селекторы вида-списка, а не про переключатель вида. */
     EPPrefs: { get: (k, fb) => fb, set: () => {} },

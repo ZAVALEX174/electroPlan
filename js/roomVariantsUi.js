@@ -281,6 +281,48 @@ function visibleFacingProps(frames, variant, validate) {
   return new Set(FramePicker().visibleSteps(frames, sel, deps).map(s => s.prop));
 }
 
+/* EPMechColor — чистое правило «цвет механизмов» (К12 ч.3). Резолвим как Catalog()/FramePicker():
+   браузер — namespace, Node — require. Нужен и списку-виду (селектор «Цвет механизмов»), и сводке. */
+function MechColor() {
+  if (typeof window !== "undefined" && window.EPMechColor) return window.EPMechColor;
+  if (typeof require !== "undefined") return require("./mechColor.js");
+  return null;
+}
+/* deps для EPMechColor: совместимость с серией — compatibleMechanisms (семейное правило, ТОТ ЖЕ отбор
+   начинки по накладке, что в окне поста, §7.1): серия комнаты — подсерия («Eikon Evo»), а цветные
+   механизмы под базой «Eikon», поэтому точное членство (productsForRoom) дало бы пусто. Цвет механизма —
+   elementColor («» если нет). Одна точка на список-вид, окно подбора и сводку. */
+function mechColorDeps() {
+  return {
+    match: (m, c) => c && c.collection ? Catalog().compatibleMechanisms({ series: [c.collection] }, m) : (m || []).slice(),
+    colorOf: item => (item && item.elementColor) || ""
+  };
+}
+/* Действующий цвет механизмов варианта: строка или null. Валидируем «мягко» (как roomCollection для
+   мёртвого значения): мёртвый/несовместимый цвет оставляем ВЫБРАННЫМ (его покажет опция «(не подходит)»),
+   данные проекта не трогаем. */
+function mechColorValue(variant) {
+  return variant && typeof variant.mechColor === "string" && variant.mechColor ? variant.mechColor : null;
+}
+/* Показывать ли шаг «Цвет механизмов» в списке-виде/сводке — то же правило, что в окне подбора
+   (EPMechColor.visible → framePicker.stepVisible, §7.1). Серию берём из варианта как есть (критерий
+   собирает productsForRoom). */
+function mechColorVisible(mechanisms, variant) {
+  return MechColor().visible(mechanisms, variant || {}, mechColorDeps());
+}
+/* <option>ы селектора «Цвет механизмов» (список-вид). Значения — цвета механизмов серии (EPMechColor),
+   сохранённое мёртвое значение остаётся отдельной опцией «(не подходит)» — симметрично
+   facingFieldOptionsHtml. Значения каноничны из каталога, но в HTML через esc. */
+function mechColorFieldOptionsHtml(mechanisms, variant, emptyLabel) {
+  const values = MechColor().colorsFor(mechanisms, variant || {}, mechColorDeps());
+  const cur = mechColorValue(variant);
+  let html = '<option value=""' + (cur ? '' : ' selected') + '>' + esc(emptyLabel) + '</option>'
+    + values.map(v => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(v) + '</option>').join("");
+  if (cur && values.indexOf(cur) === -1)
+    html += '<option value="' + esc(cur) + '" selected>' + esc(cur) + ' (не подходит)</option>';
+  return html;
+}
+
 /* Есть ли под ВЕСЬ вариант хоть одна накладка (решение владельца Б). Критерий — все пять полей
    варианта (валидированные тем же validate), отбор — тот же productsForRoom. True → накладок нет,
    вызывающий (панель комнаты и селектор окна поста) показывает «нет подходящих накладок». Полный
@@ -317,7 +359,8 @@ function applyBuilderVariantChange(d){
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
 const api = { roomLabel, facingTitle, activeIndex, setActiveIndex, applyResult, writeField, writeSelection, tabsHtml, removeBtnHtml, bindTabs,
   builderIndex, builderInitialIndex, builderVariantLabel, renderBuilderVariantSelect,
-  facingFieldOptionsHtml, visibleFacingProps, variantHasNoFrames, builderVariantResetMessage, applyBuilderVariantChange };
+  facingFieldOptionsHtml, visibleFacingProps, variantHasNoFrames, builderVariantResetMessage, applyBuilderVariantChange,
+  mechColorValue, mechColorVisible, mechColorFieldOptionsHtml };
 if (typeof window !== "undefined") window.EPRoomVariantsUi = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -367,10 +367,13 @@ function openPostBuilder({templateId=null,placedId=null}={}){
   state.builder.backlight=(src.backlight&&typeof src.backlight==="object")
     ?{enabled:!!src.backlight.enabled,color:src.backlight.color||null,voltage:src.backlight.voltage||null}
     :null;
-  /* Галочка «ограничить цветом накладки» — свойство поста, переживает сохранение. По умолчанию
-     ВЫКЛЮЧЕНА (начинка любого цвета). Старый пост без поля читается как «ограничение выключено»
-     (!!undefined === false) — новый дефолт, не включённое ограничение. */
-  state.builder.restrictInnardsColor=!!src.restrictInnardsColor;
+  /* Галочка «ограничить цветом» — свойство поста, переживает сохранение. По умолчанию ВЫКЛЮЧЕНА
+     (начинка любого цвета). Старый пост без поля читается как «ограничение выключено».
+     ⚠️ К12 ч.3 (решение владельца 31.10): если у КОМНАТЫ задан цвет механизмов — при ОТКРЫТИИ окно
+     сразу показывает только этот цвет, поэтому галочка включается (снять можно вручную). Состав уже
+     собранного поста это не меняет: placed-механизмы держит keepMechs, сужается лишь каталог карточек.
+     Снимок «как было» берётся ПОСЛЕ renderBuilder (ниже), поэтому ложным «есть что терять» не станет. */
+  state.builder.restrictInnardsColor=!!src.restrictInnardsColor||!!((builderFilterRoom()||{}).mechColor);
   /* Решение «термодатчик: с датчиком / без датчика» (К5б) — ЧЕРНОВИК окна. У поста хранится ТОЛЬКО
      явное «off» (src.thermoSensor==="off"); отсутствие поля = «с датчиком» (расчёт добавляет сам,
      EPThermoSensor.sensorsEnabled). Шаблон/новый пост поля не несут → "on". Второй трактовки
@@ -512,11 +515,16 @@ function builderRoomFilter(){
    выбранной накладке, второй серийный фильтр не заводим.
    Галочка поста (restrictInnardsColor) ВКЛЮЧАЕТ цветовое ограничение начинки — накладку она не
    трогает (её сужает builderRoomFilter отдельно). По умолчанию ВЫКЛЮЧЕНА → критерий пуст → начинка
-   не сужается по цвету (новый дефолт, решение владельца 16.09). Цвет комнаты не задан → критерий
-   тоже пуст. */
+   не сужается по цвету (новый дефолт, решение владельца 16.09). Цвет комнаты не задан → критерий тоже пуст.
+   ⚠️ К12 ч.3: если у КОМНАТЫ задан ЦВЕТ МЕХАНИЗМОВ (variant.mechColor), по цвету НАКЛАДКИ начинку
+   здесь НЕ сужаем (возвращаем {}) — её сузит EPMechColor.filter в renderBuilder, где бесцветные видны
+   всегда (решение владельца 31.10). Прежняя семантика «в цвет накладки» (бесцветные скрыты) остаётся
+   ровно для случая «цвет механизмов не задан». */
 function builderInnardsFilter(){
   if(!state.builder.restrictInnardsColor)return {};
-  const color=EPRoom.roomFrameFacing(builderFilterRoom(),"frameColor",frameFacingList("frameColor"));
+  const v=builderFilterRoom();
+  if(v&&typeof v.mechColor==="string"&&v.mechColor)return {};
+  const color=EPRoom.roomFrameFacing(v,"frameColor",frameFacingList("frameColor"));
   return color?{elementColor:color}:{};
 }
 /* Селектор «Комната поста» в конструкторе. Комнат нет → поле скрыто (пост «вне комнат», отбор не
@@ -772,8 +780,14 @@ function renderBuilder(){
      а не механизм на суппорте). Признак — EPThermoSensor.isSensorMechanism (группа «Термодатчик» из
      данных). Убираем ТОЛЬКО из каталога карточек; mechs/keepMechs (fit/упаковка) не трогаем — если
      датчик уже стоит в слоте старого поста руками, он остаётся и считается как есть (реальных таких нет). */
-  const catalogMechs=EPCatalog.productsForRoom(mechs,builderInnardsFilter()).filter(m=>!EPThermoSensor.isSensorMechanism(m));
-  const innardsColor=state.builder.restrictInnardsColor?EPRoom.roomFrameFacing(builderFilterRoom(),"frameColor",frameFacingList("frameColor")):null;
+  const colorFiltered=EPCatalog.productsForRoom(mechs,builderInnardsFilter());
+  /* К12 ч.3: цвет механизмов комнаты сужает начинку ОТДЕЛЬНО — бесцветные видны всегда (EPMechColor.filter,
+     §7.1). К EPMechColor обращаемся только при заданном цвете, чтобы окна без него его не требовали. */
+  const roomMechColor=state.builder.restrictInnardsColor?((builderFilterRoom()||{}).mechColor||null):null;
+  const catalogMechs=(roomMechColor?EPMechColor.filter(colorFiltered,roomMechColor,{colorOf:m=>(m&&m.elementColor)||"",keyOf:EPCatalog.facingColorKey}):colorFiltered).filter(m=>!EPThermoSensor.isSensorMechanism(m));
+  const innardsColor=roomMechColor||(state.builder.restrictInnardsColor?EPRoom.roomFrameFacing(builderFilterRoom(),"frameColor",frameFacingList("frameColor")):null);
+  /* Подпись галочки: с цветом механизмов, если задан у комнаты (решение владельца 31.10), иначе прежняя. */
+  {const lbl=$("builderRestrictColorLabel");if(lbl)lbl.textContent=roomMechColor?EPMechColor.checkboxLabel(roomMechColor):"Только клавиши, розетки и механизмы в цвет накладки";}
   /* ⚠️ МЕХАНИЗМ, УЖЕ СТОЯЩИЙ В ПОСТЕ И СНЯТЫЙ С ПРОИЗВОДСТВА (active:false), УДЕРЖИВАЕМ — то же
      правило владельца, что для накладки (4456bd0): изделие могло быть заложено в проект до снятия
      позиции и физически существует, смета обязана считаться по нему. byKind фильтрует active,

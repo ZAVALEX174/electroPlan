@@ -144,6 +144,53 @@ test("setVariantField не мутирует вход", () => {
   assert.deepEqual(room, { standard: "IT", collection: "Arke", moreVariants: [{ standard: "DE" }] });
 });
 
+/* --- setVariantField: цвет механизмов (К12 ч.3) ---------------------------------------------- */
+
+test("mechColor едет в вариант (cleanVariant/list) и сериализацию — наравне с признаками накладки", () => {
+  const room = { standard: "IT", collection: "Eikon", mechColor: "Белый" };
+  assert.deepEqual(V.list(room), [{ standard: "IT", collection: "Eikon", mechColor: "Белый" }]);
+  assert.deepEqual(V.serialize(V.list(room)).fields, { standard: "IT", collection: "Eikon", mechColor: "Белый" });
+});
+
+test("смена СЕРИИ стирает цвет механизмов (совместимость механизмов — по серии)", () => {
+  const room = { standard: "IT", collection: "Eikon", frameColor: "Белый", mechColor: "Белый" };
+  const got = V.setVariantField(room, 0, "collection", "Arke");
+  assert.deepEqual(got.fields, { standard: "IT", collection: "Arke" }, "frameColor и mechColor сброшены сменой серии");
+});
+
+test("смена СТАНДАРТА стирает цвет механизмов", () => {
+  const room = { standard: "IT", collection: "Eikon", mechColor: "Белый" };
+  assert.deepEqual(V.setVariantField(room, 0, "standard", "DE").fields, { standard: "DE" });
+});
+
+test("смена ЦВЕТА НАКЛАДКИ НЕ стирает цвет механизмов (мутация: добавить mechColor во фрейм-каскад красит)", () => {
+  const room = { standard: "IT", collection: "Eikon", frameColor: "Белый", mechColor: "Чёрный" };
+  const got = V.setVariantField(room, 0, "frameColor", "Серый");
+  assert.deepEqual(got.fields, { standard: "IT", collection: "Eikon", frameColor: "Серый", mechColor: "Чёрный" });
+});
+
+test("смена МАТЕРИАЛА НЕ стирает цвет механизмов", () => {
+  const room = { standard: "IT", collection: "Eikon", frameMaterial: "Металл", mechColor: "Чёрный" };
+  const got = V.setVariantField(room, 0, "frameMaterial", "Дерево");
+  assert.equal(got.fields.mechColor, "Чёрный", "материал накладки не влияет на цвет механизмов");
+});
+
+test("смена самого цвета механизмов ничего не стирает; пустое значение снимает его", () => {
+  const room = { standard: "IT", collection: "Eikon", frameColor: "Белый", mechColor: "Белый" };
+  assert.deepEqual(V.setVariantField(room, 0, "mechColor", "Чёрный").fields,
+    { standard: "IT", collection: "Eikon", frameColor: "Белый", mechColor: "Чёрный" });
+  assert.deepEqual(V.setVariantField(room, 0, "mechColor", "").fields,
+    { standard: "IT", collection: "Eikon", frameColor: "Белый" });
+});
+
+test("dependentFields: серия/стандарт → снести mechColor; цвет/материал — нет", () => {
+  assert.ok(V.dependentFields("collection").includes("mechColor"));
+  assert.ok(V.dependentFields("standard").includes("mechColor"));
+  assert.ok(!V.dependentFields("frameColor").includes("mechColor"));
+  assert.ok(!V.dependentFields("frameMaterial").includes("mechColor"));
+  assert.deepEqual(V.dependentFields("mechColor"), [], "цвет механизмов ничего ниже себя не сносит");
+});
+
 /* --- fitIndex / placementIndex -------------------------------------------------------------- */
 
 /* предикат «накладка подходит варианту»: совпадает по заданным признакам (не заданное в варианте не

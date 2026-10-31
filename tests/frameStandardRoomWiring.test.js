@@ -107,6 +107,9 @@ function renderList(room) {
       valuesOf: (pool, prop) => prop === "standard" ? EPCatalog.productStandards(pool) : prop === "collection" ? EPCatalog.productCollections(pool) : EPCatalog.productFacingValues(pool, prop),
       imageOf: () => ""
     },
+    /* К12 ч.3: onchange также зовёт EPMechColor.autoValue с mechColorDeps (автозаполнение цвета механизмов). */
+    EPMechColor: require("../js/mechColor.js"),
+    mechColorDeps: { match: (m, c) => c && c.collection ? EPCatalog.compatibleMechanisms({ series: [c.collection] }, m) : (m || []).slice(), colorOf: item => (item && item.elementColor) || "" },
     EPPrefs: { get: (k, fb) => (k === "frameFacingView" ? "list" : fb), set: () => {} },
     setTool: spy(), persistProject: spy(), renderSummary: spy(), renderAll: spy(), mountedRoomId: null
   };

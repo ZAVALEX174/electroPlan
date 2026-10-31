@@ -1548,6 +1548,15 @@ function renderProperties(){
     const facingFieldsHtml=facingSpecs.map(spec=>
       `<label class="room-facing-field">${esc(spec.label)}<select id="room_${spec.prop}Select">${spec.options}</select></label>`
       +`<small class="prop-hint prop-collection-source${spec.cur?" own":""}">${esc(spec.cur?spec.on:spec.off)}</small>`).join("");
+    /* К12 ч.3: шаг «Цвет механизмов» в списке — над МЕХАНИЗМАМИ (EPMechColor), видимость тем же правилом,
+       что в окне подбора (§7.1). Значения/опции/видимость даёт EPRoomVariantsUi, app.js — только склейка. */
+    const roomMechs=byKind("mechanism");
+    const mechColorShow=EPRoomVariantsUi.mechColorVisible(roomMechs,facingEntity);
+    const mechColorCur=EPRoomVariantsUi.mechColorValue(facingEntity);
+    const mechColorFieldHtml=mechColorShow
+      ?`<label class="room-facing-field">Цвет механизмов<select id="room_mechColorSelect">${EPRoomVariantsUi.mechColorFieldOptionsHtml(roomMechs,facingEntity,"Не задан — любой цвет механизмов")}</select></label>`
+        +`<small class="prop-hint prop-collection-source${mechColorCur?" own":""}">${esc(mechColorCur?"В посте этой комнаты предлагаются механизмы только этого цвета":"Цвет механизмов не задан — в посте любой цвет")}</small>`
+      :"";
     /* Отделка накладки — ДВА ВИДА одного и того же выбора (согласовано с владельцем 15.09): «Списком»
        (готовые селекторы E13/E14) и «С картинками» (шаговый мастер поверх ТОГО ЖЕ отбора). Вид —
        привычка человека (frameFacingView, EPPrefs), не свойство проекта. В виде «С картинками» на
@@ -1564,9 +1573,9 @@ function renderProperties(){
        списка). Значение — тот же валидированный roomStd (мёртвый → «не задан»). Из общей сводки
        стандарт убран, чтобы не показываться дважды; и пустой текст сводки зависит от него: при
        заданном стандарте «предлагаются все накладки каталога» было бы неправдой. */
-    const facingChosen=[roomColl?`Серия: ${roomColl}`:null].concat(facingSpecs.filter(s=>s.cur).map(s=>`${s.label}: ${s.cur}`)).filter(Boolean);
+    const facingChosen=[roomColl?`Серия: ${roomColl}`:null].concat(facingSpecs.filter(s=>s.cur).map(s=>`${s.label}: ${s.cur}`)).concat(mechColorCur?[`Цвет механизмов: ${mechColorCur}`]:[]).filter(Boolean);
     const facingBody=facingView==="list"
-      ?standardFieldHtml+collectionFieldHtml+facingFieldsHtml
+      ?standardFieldHtml+collectionFieldHtml+facingFieldsHtml+mechColorFieldHtml
       :`<div class="room-facing-summary room-facing-standard${roomStd?" own":""}">Стандарт: ${esc(roomStd?EPCatalog.standardLabel(roomStd):"не задан")}</div>
         <div class="room-facing-summary${facingChosen.length?" own":""}">${facingChosen.length?esc(facingChosen.join(" · ")):(roomStd?"Серия, материал, форма и цвет не заданы":"Отделка не задана — предлагаются все накладки каталога")}</div>
         <button type="button" class="btn ghost room-facing-pick-btn" id="roomFramePickerBtn">Подобрать накладку</button>`;
@@ -1650,6 +1659,7 @@ function renderProperties(){
          «Не задан» (value="") СНИМАЕТ признак. Один цикл на все селекторы — правило в одной точке. */
       [["roomStandardSelect","standard"],["roomCollectionSelect","collection"]]
         .concat(facingSpecs.map(spec=>["room_"+spec.prop+"Select",spec.prop]))
+        .concat(mechColorShow?[["room_mechColorSelect","mechColor"]]:[])   /* К12 ч.3: шаг цвета механизмов, если виден */
         .forEach(([selId,prop])=>{
           $(selId).onchange=e=>{
             /* Сначала РУЧНОЕ поле тем же каскадом EPRoomVariants (стирает поля ниже), потом К12 ч.2 —
@@ -1661,6 +1671,9 @@ function renderProperties(){
             EPRoomVariantsUi.writeField(r,roomVariantIdx,prop,e.target.value);
             const variant=EPRoomVariants.list(r)[roomVariantIdx];
             const filled=EPFramePicker.autoFill(roomFrames,variant,framePickerDeps,{skip:["standard"]});
+            /* К12 ч.3: автозаполнение распространяется и на цвет механизмов (единственный вынужденный цвет
+               серии), как в окне подбора — иная семантика, отдельным EPMechColor.autoValue. */
+            if(!filled.mechColor){const only=EPMechColor.autoValue(roomMechs,filled,mechColorDeps);if(only)filled.mechColor=only;}
             EPRoomVariantsUi.writeSelection(r,roomVariantIdx,filled);
             renderProperties();persistProject();
           };
@@ -2256,6 +2269,26 @@ const framePickerDeps={
   valuesOf:(pool,prop)=>prop==="standard"?EPCatalog.productStandards(pool):prop==="collection"?EPCatalog.productCollections(pool):EPCatalog.productFacingValues(pool,prop),
   imageOf:item=>productImage(item)
 };
+/* К12 ч.3: шаг «Цвет механизмов» ПОСЛЕ шагов накладки, над МЕХАНИЗМАМИ (EPMechColor — значения/видимость/
+   автозаполнение/подпись, §7.1); здесь склейка в список шагов и deps. match=compatibleMechanisms (семейное
+   правило = отбор начинки окна поста): серия комнаты — подсерия «Eikon Evo», цветные механизмы под базой
+   «Eikon» → точное членство дало бы пусто, шаг не появлялся бы (дефект 31.10). */
+const MECH_COLOR_STEP={prop:"mechColor",title:"Цвет механизмов"};
+const mechColorDeps={match:(m,c)=>c&&c.collection?EPCatalog.compatibleMechanisms({series:[c.collection]},m):(m||[]).slice(),colorOf:item=>(item&&item.elementColor)||""};
+/* Видимые шаги окна: видимые шаги накладки + шаг цвета механизмов, если он виден в текущем отборе. */
+function framePickerVisible(sel){
+  const v=EPFramePicker.visibleSteps(byKind("frame"),sel,framePickerDeps);
+  if(EPMechColor.visible(byKind("mechanism"),sel,mechColorDeps))v.push(MECH_COLOR_STEP);
+  return v;
+}
+/* Варианты шага: для цвета механизмов — цвета серии (EPMechColor, счётчик = механизмы этого цвета в
+   серии), для шагов накладки — прежний stepOptions. */
+function framePickerStepOptions(step,sel){
+  return step.prop==="mechColor"
+    ?EPMechColor.colorsFor(byKind("mechanism"),sel,mechColorDeps).map(value=>({value,count:mechColorDeps.match(byKind("mechanism"),{collection:sel.collection}).filter(m=>m.elementColor&&EPCatalog.facingColorKey(m.elementColor)===EPCatalog.facingColorKey(value)).length,imageUrl:""}))
+    :EPFramePicker.stepOptions(byKind("frame"),sel,step.prop,framePickerDeps);
+}
+const framePickerSteps=()=>EPFramePicker.STEPS.concat([MECH_COLOR_STEP]);
 /* Подпись значения шага ЧЕЛОВЕКУ: стандарт показываем словом (EPCatalog.standardLabel — единственный
    перевод "IT"/"DE" в «итальянский»/«немецкий»), остальные признаки уже человеческие (серия, материал,
    форма, цвет каноничны из каталога). Хранимое значение (data-value, room.<prop>) остаётся кодом —
@@ -2278,28 +2311,31 @@ function openFramePicker(room){
     const v=EPRoom.roomFrameFacing(facingEntity,prop,frameFacingList(prop));
     if(v)sel[prop]=v;
   });
+  /* Цвет механизмов (К12 ч.3) — канонический из каталога, читаем из варианта как есть (мёртвый/
+     несовместимый renderFramePicker покажет видимым шагом для правки — stepVisible, край совместимости). */
+  if(typeof facingEntity.mechColor==="string"&&facingEntity.mechColor)sel.mechColor=facingEntity.mechColor;
   framePickerSel=sel;
   /* Открываемся на первом НЕзаполненном шаге (продолжаем там, где человек остановился); всё задано —
      на первом, чтобы можно было пересмотреть с начала. Если шаг окажется скрытым (например «Форма»),
      renderFramePicker перескочит на ближайший видимый вперёд. */
-  const firstUnset=EPFramePicker.STEPS.findIndex(s=>!sel[s.prop]);
+  const firstUnset=EPFramePicker.STEPS.concat([{prop:"mechColor"}]).findIndex(s=>!sel[s.prop]);
   framePickerStep=firstUnset>=0?firstUnset:0;
   renderFramePicker();
   $("framePickerModal").classList.add("open");
   setTimeout(()=>{const b=$("framePickerBody").querySelector("button");if(b)b.focus();},0);
 }
 function renderFramePicker(){
-  const steps=EPFramePicker.STEPS,allFrames=byKind("frame");
-  /* К12 ч.1: показываем ТОЛЬКО видимые шаги (EPFramePicker.visibleSteps) — шаг с одним значением в
-     текущем отборе (например «Форма», у которой во всём каталоге одно значение) скрыт и из крошек, и
-     из переходов. Текущий шаг мог стать скрытым (выбор серии с одной формой убирает «Форму») —
-     перепрыгиваем на ближайший видимый вперёд, иначе на последний видимый. */
-  const visible=EPFramePicker.visibleSteps(allFrames,framePickerSel,framePickerDeps);
+  const steps=framePickerSteps();
+  /* К12 ч.1/ч.3: показываем ТОЛЬКО видимые шаги (framePickerVisible) — шаг с одним значением в текущем
+     отборе (например «Форма» у каталога с одной формой, или цвет механизмов у серии без цвета) скрыт и
+     из крошек, и из переходов. Текущий шаг мог стать скрытым — перепрыгиваем на ближайший видимый
+     вперёд, иначе на последний видимый. */
+  const visible=framePickerVisible(framePickerSel);
   if(visible.length&&!visible.some(s=>steps.indexOf(s)===framePickerStep)){
     const fwd=steps.findIndex((s,i)=>i>=framePickerStep&&visible.indexOf(s)>=0);
     framePickerStep=fwd>=0?fwd:steps.indexOf(visible[visible.length-1]);
   }
-  /* Крошки: что уже выбрано и возврат на любой шаг (data-step — индекс в STEPS). Значения каноничны
+  /* Крошки: что уже выбрано и возврат на любой шаг (data-step — индекс в steps). Значения каноничны
      из каталога, но через esc — они уходят в HTML. */
   $("framePickerCrumbs").innerHTML=visible.map(s=>{
     const i=steps.indexOf(s),val=framePickerSel[s.prop];
@@ -2309,19 +2345,22 @@ function renderFramePicker(){
     </button>`;
   }).join("");
   const step=steps[framePickerStep];
-  const options=EPFramePicker.stepOptions(allFrames,framePickerSel,step.prop,framePickerDeps);
+  const options=framePickerStepOptions(step,framePickerSel);
   const body=$("framePickerBody");
   if(options.length){
+    /* Цвет механизмов — не товар-накладка: без фото-плитки и счётчик в «механизмах». */
+    const isMech=step.prop==="mechColor";
     body.innerHTML=`<div class="frame-picker-grid">`+options.map(o=>{
       const active=framePickerSel[step.prop]===o.value;
       /* Плитка с фото или, у ~40% накладок без фото, достойный фолбэк (название + счётчик + общая
          подпись «фото нет») вместо пустой дыры. Разметку и подпись даёт framePickThumb — та же
          формулировка NO_PHOTO_LABEL, что и у карточки каталога (§7.1). */
-      const thumb=framePickThumb(o.imageUrl,o.value);
+      const thumb=isMech?"":framePickThumb(o.imageUrl,o.value);
+      const word=isMech?EPCatalog.pluralRu(o.count,"механизм","механизма","механизмов"):EPCatalog.pluralRu(o.count,"накладка","накладки","накладок");
       return `<button type="button" class="frame-pick-tile${active?" active":""}" data-value="${esc(o.value)}" aria-pressed="${active}">
         ${thumb}
         <span class="frame-pick-name">${esc(frameStepValueLabel(step.prop,o.value))}</span>
-        <span class="frame-pick-count">${o.count} ${EPCatalog.pluralRu(o.count,"накладка","накладки","накладок")}</span>
+        <span class="frame-pick-count">${o.count} ${word}</span>
       </button>`;
     }).join("")+`</div>`;
     bindProductPictureFallbacks(body);
@@ -2340,20 +2379,23 @@ function renderFramePicker(){
   body.querySelectorAll("[data-value]").forEach(b=>b.onclick=()=>pickFrameStep(b.dataset.value));
 }
 function pickFrameStep(value){
-  const steps=EPFramePicker.STEPS,step=steps[framePickerStep];
+  const steps=framePickerSteps(),step=steps[framePickerStep];
   framePickerSel[step.prop]=value;
-  /* Каскад серия→материал→форма→цвет: выбор на шаге сбрасывает НИЖЕлежащие. Сначала РУЧНОЕ поле (с
-     каскадом), потом автозаполнение — порядок важен, иначе автоподстановка цеплялась бы за уже снятые
-     поля. Тогда каждый следующий шаг выбирается из того, что реально осталось. */
-  steps.slice(framePickerStep+1).forEach(s=>{delete framePickerSel[s.prop];});
-  /* К12 ч.2: единственный оставшийся вариант каждого пустого шага (кроме стандарта) подставляем сам
-     (слова заказчика 15.10: «Eikon Flat → „Металл“ встал сам»). Правило — чистый EPFramePicker.autoFill
-     на ТОМ ЖЕ отборе, второго счётчика нет (§7.1). */
+  /* Каскад — ЕДИНОЕ правило EPRoomVariants.dependentFields (§7.1): смена признака накладки стирает
+     нижележащие признаки накладки; смена стандарта/серии стирает и цвет механизмов, смена самого цвета
+     механизмов не стирает ничего. Сначала РУЧНОЕ поле (с каскадом), потом автозаполнение — порядок
+     важен, иначе автоподстановка цеплялась бы за уже снятые поля. */
+  EPRoomVariants.dependentFields(step.prop).forEach(p=>{delete framePickerSel[p];});
+  /* К12 ч.2: единственный оставшийся вариант каждого пустого шага НАКЛАДКИ (кроме стандарта) подставляем
+     сам (слова заказчика 15.10: «Eikon Flat → „Металл“ встал сам»). */
   framePickerSel=EPFramePicker.autoFill(byKind("frame"),framePickerSel,framePickerDeps,{skip:["standard"]});
+  /* К12 ч.3: автозаполнение распространяется и на цвет механизмов — единственный вынужденный цвет серии
+     подставляем сам (иная семантика, над механизмами, поэтому отдельным вызовом EPMechColor.autoValue). */
+  if(!framePickerSel.mechColor){const only=EPMechColor.autoValue(byKind("mechanism"),framePickerSel,mechColorDeps);if(only)framePickerSel.mechColor=only;}
   /* Текущим делаем первый ещё НЕ выбранный ВИДИМЫЙ шаг (Flat → материал встал сам → сразу «Цвет»);
      скрытые шаги (например «Форму») пропускаем; всё заполнено — остаёмся на последнем видимом, где
      «Применить» доступно. */
-  const visible=EPFramePicker.visibleSteps(byKind("frame"),framePickerSel,framePickerDeps);
+  const visible=framePickerVisible(framePickerSel);
   const nextUnset=visible.find(s=>!framePickerSel[s.prop]);
   framePickerStep=steps.indexOf(nextUnset||visible[visible.length-1]||step);
   renderFramePicker();

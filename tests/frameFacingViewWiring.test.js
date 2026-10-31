@@ -167,6 +167,7 @@ function makeLive(room, view) {
     applySelectionClasses: spy(), getObjectsInRoom: () => [], roomAutoAreaText: () => "",
     polygonAreaPx: () => 0, lightingScheme: () => "classic",
     EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"), EPFramePicker,
+    EPMechColor: require("../js/mechColor.js"),   /* К12 ч.3: onchange зовёт EPMechColor.autoValue (mechColorDeps даёт вырезка frameFacingView) */
     EPPrefs: { get: (k, fb) => (k in prefs ? prefs[k] : fb), set: (k, v) => { prefs[k] = v; } },
     setTool: spy(), persistProject: spy(), renderSummary: spy(), renderAll: spy(),
     mountedRoomId: null

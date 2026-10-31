@@ -62,6 +62,14 @@ function stepOptions(frames, selection, prop, deps) {
    старого проекта) в сужение нижних шагов всё равно переносим — отбор остаётся прежним, сохранённое
    не стирается. Части 2 (автозаполнение единственного значения) и 3 (цвет механизмов) берут ту же
    функцию. */
+/* Правило «показывать ли шаг» в ОДНОЙ точке (§7.1): есть из чего выбирать (≥2 значения) ИЛИ сохранено
+   значение, которого в текущем отборе нет (несовместимое/мёртвое из старого проекта) — тогда шаг нужен,
+   чтобы человек увидел и поправил его, а не чтобы «висящий» признак молча резал отбор в ноль (край
+   обратной совместимости). Шаг «Цвет механизмов» (К12 ч.3, mechColor.js) спрашивает ЭТО ЖЕ правило —
+   поэтому вынесено в экспортируемую функцию, а не повторено. */
+function stepVisible(values, chosen) {
+  return values.length > 1 || (!!chosen && values.indexOf(chosen) < 0);
+}
 function visibleSteps(frames, selection, deps) {
   const sel = selection || {};
   const above = {};
@@ -70,11 +78,8 @@ function visibleSteps(frames, selection, deps) {
     const pool = deps.match(frames, above);
     const values = deps.valuesOf(pool, step.prop);
     const chosen = (typeof sel[step.prop] === "string" && sel[step.prop]) ? sel[step.prop] : null;
-    /* Показываем шаг, если есть из чего выбирать (≥2 значения) ИЛИ сохранено значение, которого в
-       текущем отборе нет (несовместимое/мёртвое из старого проекта): тогда шаг нужен, чтобы человек
-       увидел и поправил его, а не чтобы «висящий» признак молча резал отбор в ноль (§7.1 — край
-       обратной совместимости). Для каталога VIMAR «Форма» всегда одна и совместима → всегда скрыта. */
-    if (values.length > 1 || (chosen && values.indexOf(chosen) < 0)) visible.push(step);
+    /* Для каталога VIMAR «Форма» всегда одна и совместима → всегда скрыта (см. stepVisible). */
+    if (stepVisible(values, chosen)) visible.push(step);
     if (chosen) above[step.prop] = chosen;
   });
   return visible;
@@ -113,7 +118,7 @@ function autoFill(frames, selection, deps, opts) {
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { STEPS, stepOptions, visibleSteps, autoFill };
+const api = { STEPS, stepOptions, visibleSteps, stepVisible, autoFill };
 if (typeof window !== "undefined") window.EPFramePicker = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

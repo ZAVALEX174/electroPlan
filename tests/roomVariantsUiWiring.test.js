@@ -51,6 +51,10 @@ function renderRoom(room, activeIdx) {
     polygonAreaPx: () => 0, lightingScheme: () => "classic",
     EPLightingGroups, EPRoom, EPCatalog, EPRoomWalls: require("../js/roomWalls.js"),
     EPRoomVariants, EPRoomVariantsUi, EPFramePicker, framePickerDeps,
+    /* К12 ч.3: onchange комнаты после ручного выбора зовёт EPMechColor.autoValue с mechColorDeps —
+       автозаполнение цвета механизмов (как framePickerDeps для накладки). */
+    EPMechColor: require("../js/mechColor.js"),
+    mechColorDeps: { match: (m, c) => c && c.collection ? EPCatalog.compatibleMechanisms({ series: [c.collection] }, m) : (m || []).slice(), colorOf: item => (item && item.elementColor) || "" },
     EPPrefs: { get: (k, fb) => fb, set: () => {} },   /* вид «Списком» — тест про варианты, не про переключатель вида */
     setTool: spy(), persistProject: spy(), renderSummary: spy(), renderAll: spy(), mountedRoomId: null
   };
