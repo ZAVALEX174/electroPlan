@@ -1,455 +1,384 @@
-<!-- mapped-at-commit: 7464bf898e62eabf577d97f500a470979594c4ac -->
-<!-- mapped-at: 2026-08-26 -->
-
-# Карта кода ElectroPlan
-
-Клиентский прототип планировщика электрики на ванильном JS, без сборщика:
-скрипты подключаются напрямую через `<script>` в `index.html`, порядок
-подключения важен (см. раздел "Точка входа"). `/local/` — заготовка под
-перенос в 1С-Битрикс (см. `local/README.md`), сейчас это скелет-заглушка,
-реальной интеграции ещё нет. `/bitrix/` в проекте отсутствует (не начат
-этап интеграции).
-
-Тесты: `npm test` → `node --test "tests/*.test.js"`, 17 файлов, **281 тест**,
-все проходят (на коммите mapped-at-commit). Модули без DOM/state экспортируют
-себя двойным способом — `window.EPXxx` в браузере и `module.exports` в Node
-— именно поэтому их можно тестировать в node напрямую.
-
-Корень репозитория захламлён рабочими файлами не по теме кода: десятки
-`*.pdf` (прайсы/каталоги VIMAR), `.tmp-*/`, `seg-preview/`, `chertez/`,
-`icons.xlsx`, скриншот `разделение по комнатам.jpg` — это не код, в карту
-не включены. `vendor/` (в корне) — сторонние библиотеки (opencv.js, onnxruntime-web
-и т.п. для ML-распознавания планов), не индексируется построчно.
-
----
-
-## Точка входа — index.html
-
-`index.html` — единственная HTML-страница приложения (SPA). Порядок
-`<script>` (важен, т.к. модули читают глобалы друг друга при загрузке):
-
-```
-catalog-vimar.js        → window.EP_VIMAR_CATALOG (товары+meta, генерируется)
-catalog-vimar-attrs.js  → window.EP_VIMAR_ATTRS   (стандарты/суппорты/коробки, генерируется)
-catalog-vimar-openings.js → window.EP_VIMAR_OPENINGS (монтажные окна накладок, генерируется)
-catalog-vimar-faces.js  → window.EP_VIMAR_FACES   (лицевые прямоугольники механизмов, генерируется)
-data.js                 → window.EP_DATA, window.DataService (подмешивает attrs/openings/faces к товарам)
-store.js                → window.ProjectStore (LocalStorage проекта)
-config.js                → window.EPConfig (константы UI: сетка, зум, привязки)
-catalog.js               → window.EPCatalog (чистая логика каталога)
-postfit.js                → window.EPPostFit (подбор суппорта/коробки)
-posts.js                  → window.EPPosts (состав/раскладка поста)
-picker.js                 → window.EPPicker (кастомный select с миниатюрами)
-estimate.js                → window.EPEstimate (расчёт сметы)
-offerPdf.js                 → window.EPOfferPdf (КП, печатная форма)
-installSheet.js              → window.EPInstallSheet (лист монтажника)
-postImage.js                  → window.EPPostImage (картинка собранного поста, pickIcon/iconSvg)
-explodedView.js                → window.EPExplodedView (взрыв-схема поста)
-rates.js                        → window.EPRates (курс ЦБ РФ)
-geometry.js                      → window.EPGeom (геометрия полигонов/сетки)
-drag.js                           → window.EPDrag (перенос объектов — жест)
-viewport.js                        → window.EPViewport (экран↔мир, зум, fitView)
-roomsFromLines.js                   → window.EPRoomsFromLines (комнаты из линий разметки)
-planTrace.js                         → window.EPPlanTrace (автообрисовка стен по толщине)
-roomSegmentation.js                   → window.EPRoomSeg (OpenCV watershed-сегментация комнат)
-floorplanML.js                         → window.EPFloorplanML (YOLOv8 в браузере, ML-распознавание)
-planImport.js                           → импорт PNG/SVG/PDF/DXF/DWG плана
-app.js                                   → оркестратор: state, весь DOM/UI, склеивает всё выше
-```
-
-`preview-posts.html` — отдельная лёгкая страница-песочница для проверки
-рендера постов (EPPostImage) без всего приложения.
-
----
-
-## 1. ПОДБОР МЕХАНИЗМОВ И СОСТАВ ПОСТА
-
-Файл `js/posts.js` (чистая логика, без DOM/state, deps передаются аргументом;
-экспорт `window.EPPosts`):
-
-- `postComposition(post, deps)` — **строка 69**. Главная функция состава поста:
-  берёт накладку (`deps.frameProduct(post.frameId)`), считает суммарные модули
-  механизмов (`modulesTotal`), определяет стандарт накладки (`frameStandard`),
-  число коробок (`boxCount`), подбирает коробку через `deps.findBox`/`deps.fallbackBox`
-  и **ПОСЛЕ коробки** — суппорт через `deps.findSupport` (суппорт зависит от
-  подобранной коробки). Возвращает `{frame, standard, model, modulesTotal,
-  boxCount, boxUnit, postCount, support, box, boxFallback}`.
-- `boxCount(post, frame, standard, deps)` — **строка 53**. Правило "одна
-  накладка — одна коробка": для стандартов IT/IT_ROUND/BOTH и нераспознанного
-  — всегда `1`; только для DE/FR (`BOX_MODEL[standard]==="post"`) коробок
-  несколько — по числу физических постов накладки (явный `frame.postCount`
-  либо `ceil(модули/2)`).
-- `BOX_MODEL` — **строка 28**: `{IT:"assembly", IT_ROUND:"assembly", DE:"post", FR:"post", BOTH:"assembly"}`.
-- `postCost(post, deps)` — **строка 113**. Стоимость поста = механизмы + накладка
-  + суппорт (если подобран) + коробка × boxCount (точная либо совместимый фолбэк;
-  если нет ни одной — цена коробки честно не добавляется).
-- `moduleLayout(mechanismIds, deps)` — **строка 129**. Раскладка механизмов слева
-  направо с позициями/метками ("2", "2–3") — общий код для конструктора и листа
-  монтажника.
-- `fillWord`/`fillSummary` — **строки 151/166**. Человекочитаемое наполнение
-  поста ("Розетка — 2, Выключатель — 1") для КП.
-- `nextPostNumber`/`ensurePostNumbers` — **строки 181/188**. Номер поста —
-  сквозной, закрепляется при создании, не переиспользуется при удалении.
-- `fitMechanismIds`/`fitMechanismIdsPreserving` — **строки 197/214**. Отбор
-  механизмов под ёмкость рамки (для конструктора).
-
-Подбор суппорта/коробки — отдельный файл **`js/postfit.js`** (namespace
-`window.EPPostFit`), правило владельца: подобранное изделие НИКОГДА не
-противоречит монтажному стандарту накладки (жёсткий фильтр по стандарту,
-иначе `null` — честный пробел, а не случайная подстановка):
-
-- `selectBox(opts)` — **строка 46** (ядро), обёрнуто в `findBox` (строка 86,
-  тип стены обязателен) и `fallbackBox` (строка 87, `relaxWall:true` — тип
-  стены как приоритет, не фильтр). Круглые стандарты (DE/FR/IT_ROUND) — одна
-  коробка на пост, выбор по стене+цене; IT/BOTH/unknown — одна коробка на
-  ВСЮ накладку по ёмкости (наименьшая вмещающая).
-- `socketBox(boxes)` — **строка 93**. Фолбэк-подрозетник по умолчанию
-  (для `socketBoxProductId` в старых вызовах) — круглая ø60, самая дешёвая.
-- `supportTypeForBox(std, box)` — **строка 115**. Тип суппорта (602/603)
-  задаётся ПОДОБРАННОЙ КОРОБКОЙ, не эвристикой: DE → всегда 603; коробка
-  71701 → 603; коробка 71001 → 602. Тип суппорта закодирован в последних
-  3 цифрах артикула (`supportTypeCode`, строка 103).
-- `findSupport(opts)` — **строка 129**. Приоритет: тип по коробке (см. выше),
-  та же серия (`series`), затем по модульности (обычно 2М). Нет подходящего
-  по правилу → `null`.
-
-Тесты: `tests/posts.test.js`, `tests/postfit.test.js`.
-
----
-
-## 2. РАСКЛАДКА ПОСТОВ (импосты, многопостовые накладки)
-
-Всё в `js/posts.js`:
-
-- `frameLayout(frame)` — **строка 252**. Строит модель накладки: `rows`
-  (массив рядов, каждый — массив ёмкостей постов), `posts` (плоский список
-  `{index,row,col,capacity}`), `capacity`, `postCount`, `multiRow`. Источник
-  раскладки — `frame.layoutRows` (снята конвертером каталога из номенклатуры:
-  "2+2" → `[[2,2]]` один ряд/два поста, "4+4" → `[[4],[4]]` два ряда);
-  нет её — запасная эвристика (DE/FR делится по 2 модуля в один ряд, иначе
-  один пост на всю ширину — итальянская сплошная накладка).
-- **Импост** — физическая перегородка накладки, разделяющая её на отдельные
-  посты (буквально отдельные монтажные коробки); механизм не может
-  "пересекать" импост — обязан целиком лечь внутри одного поста. Только
-  немецкий/французский стандарт (DE/FR) физически разбит импостами; итальянский
-  (IT) — сплошное окно без импостов, один пост на всю накладку (или несколько
-  РЯДОВ у многорядных модификаций).
-- `packAll(items, capacities)` — **строка 284**. Полный перебор с возвратом
-  (backtracking): пытается уложить механизмы (`items:[{span}]`) по постам
-  (`capacities:[число]`) без разрыва через импост. Механизмы берутся по
-  порядку входа, каждый пробует **первый подходящий пост слева направо**
-  (first-fit по ветке), при неудаче — откат (`occ[p]-=it.span; bins[p].pop()`)
-  и следующий пост; идентичные по ёмкости и занятости посты повторно не
-  пробуются (отсечение симметричных веток). Возвращает `bins` (массив постов
-  с уложенными items) либо `null`, если валидной раскладки нет вообще.
-  Задача маленькая (постов ≤8, механизмов ≤8) — перебор дёшев.
-- `distributePosts(mechanismIds, frame, deps)` — **строка 315**. Оркестратор
-  раскладки: строит `layout` (`frameLayout`), отсекает механизмы шире самого
-  широкого поста (`too-wide`, ошибка сразу), пробует `packAll`; если полная
-  укладка найдена — переносит её как есть в `posts[i].mechanismIds`; если нет
-  — раскладывает "как влезет" (first-fit без отката) и помечает не влезшее
-  как `overflow` с причиной `overflow`. Возвращает
-  `{layout, posts, overflow, errors, valid, full, maxCapacity, totalCapacity, totalOccupied}`
-  (`valid` — ничего не overflow/too-wide; `full` — все посты заполнены целиком).
-- `maxFreeSpan(dist)` — **строка 361**. Максимальное свободное место среди
-  ВСЕХ постов (не только первого) — ограничивает ширину механизма, который
-  ещё можно добавить в конструкторе.
-- `postModuleGroups(mechanismIds, frame, deps)` — **строка 370**. Нумерация
-  модулей ПО ПОСТАМ для листа монтажника (в каждом посте счёт начинается
-  заново с 1) — строится поверх `distributePosts`+`moduleLayout`.
-
-В `app.js` эта раскладка используется в `renderBuilder()` (строка 1164,
-конструктор поста): вызывает `EPPosts.distributePosts`, при валидной укладке
-переупорядочивает `state.builder.mechanismIds` в "упакованный" порядок
-(строки 1200-1203), считает `maxPostCap`/`addMax` для ограничения выбора
-в пустых слотах, и блокирует "Сохранить" пока `!(dist.valid && dist.full)`
-(строка 1243). Ошибки показываются пользователю текстом причины —
-`builderErrorHtml(dist)` (строка 1255), не молча.
-
-Тесты: `tests/posts.test.js` (входит перебор/packAll/impost-сценарии).
-
----
-
-## 3. КАТАЛОГ
-
-### Формат записи товара (`window.EP_VIMAR_CATALOG.products`, генерируется)
-
-Общие поля у всех kind: `id, categoryId, code, name, kind, icon, price,
-currency, unit, active, series[], compatibility` (+ `previewImageUrl`/`imageUrl`,
-если найдено фото; `color`, если есть в номенклатуре).
-
-`kind` ∈ `mechanism | frame | socket_box | support | accessory`.
-
-Специфичные поля:
-- `mechanism`: `moduleSpan` (1..8, валидируется конвертером; если нет —
-  рантайм выводит из названия через `EPCatalog.mechanismSpan`, `js/catalog.js:26`).
-- `frame`: `slotCount` (ёмкость в модулях, 1..8).
-
-Пример **механизма** (реальная запись, `js/catalog-vimar.js`):
-```json
-{
-  "id": 200040, "categoryId": 700, "code": "02970",
-  "name": "Термостат поворотный 2M 100-240V серый",
-  "kind": "mechanism", "icon": "°C", "price": 237.71,
-  "currency": "EUR", "unit": "шт.", "active": true,
-  "series": ["Arke", "Arke Fit", "Eikon Evo", "Eikon Exe", "Plana"],
-  "compatibility": "Arke, Arke Fit, Eikon Evo, Eikon Exe, Plana",
-  "previewImageUrl": "https://vimar.ru/.../ceb....jpg",
-  "imageUrl": "https://vimar.ru/.../ceb....jpg",
-  "moduleSpan": 2, "color": "Чёрный"
-}
-```
-
-Пример **рамки/накладки**:
-```json
-{
-  "id": 100992, "categoryId": 100, "code": "09661.01",
-  "name": "Накладка на 1 модуль центрально для коробки на 2 модуля, белая",
-  "kind": "frame", "icon": "□", "price": 3.12,
-  "currency": "EUR", "unit": "шт.", "active": true,
-  "series": ["Neve Up"], "compatibility": "Neve Up",
-  "previewImageUrl": "https://vimar.ru/.../98e....jpg",
-  "imageUrl": "https://vimar.ru/.../98e....jpg",
-  "slotCount": 1
-}
-```
-
-meta текущего каталога (на момент карты): `total: 2146` (`mechanisms: 435,
-frames: 1631, socketBoxes: 17, supports: 38, accessories: 25`), цена из
-прайса — 1694, из номенклатуры (нет в прайсе) — 452.
-
-Признаки автосостава поста (стандарт накладки, тип стены/форма/модульность
-коробки, стандарт+модульность суппорта, `layoutRows`) в `catalog-vimar.js`
-**не хранятся** — отдельный генерируемый файл `js/catalog-vimar-attrs.js`
-(`window.EP_VIMAR_ATTRS = {standards:{code:{standard,postCount,layoutRows?}},
-supports:{code:{standard,modules,pitchMm}}, boxes:{code:{wallType,shape,modules,standards[]}},
-wallTypes:{}}`), подмешивается к товарам в `js/data.js` (функция
-`enrichCatalog`, строки 41-102) при загрузке. Аналогично измеренные окна
-накладки (`js/catalog-vimar-openings.js` → `EP_VIMAR_OPENINGS`, ключ — база
-артикула) и лицевые прямоугольники механизмов (`js/catalog-vimar-faces.js` →
-`EP_VIMAR_FACES`, ключ — полный артикул) подмешиваются туда же как
-`mountRect`/`mountRects` и `faceRect`.
-
-### `js/catalog.js` (`window.EPCatalog`) — чистая логика над товаром
-
-- `mechanismSpan(item)` — **строка 26**: явное поле → иначе разбор названия
-  ("2 модуля"/"2М"/"2M", с защитой от "16A"/"250V"/"6 м"/"2МВт") → иначе `1`.
-- `frameSlotCount(item)` — **строка 58**: явное `slotCount` (1..8) → иначе
-  разбор названия → иначе `null` (многорядные 14/21-модульные накладки
-  намеренно не подставляются под однорядные размеры).
-- `compatibleMechanisms(frame, mechanisms)` — **строка 43**: фильтр механизмов
-  по пересечению `series` с накладкой.
-- `frameOpening`/`frameOpenings`/`moduleFace` — **строки 87/117/149**: чтение
-  геометрии окон/лица для рендера собранного поста (`postImage.js`).
-- `productImage(item, {detail})` — **строка 172**: URL картинки с приоритетом
-  и фильтром заглушек `no_photo.png`.
-
-### `tools/build-catalog.mjs` — сборка `js/catalog-vimar.js`
-
-Запуск: `npm run build:catalog`. Источники:
-- **Состав/атрибуты** — файл номенклатуры заказчика `../Номенклатура новая.xls`
-  (вне репозитория проекта, путь по умолчанию в `DEFAULT_NOMENCLATURE` из
-  `tools/lib/nomenclature.mjs`); читается и классифицируется в
-  `tools/lib/nomenclature.mjs` (`readNomenclature`).
-- **Цены** — актуальный прайс VIMAR `.xls` (лист "VIMAR", строки данных с 4-й,
-  колонки: A артикул, C цена, D упаковка); если артикула нет в прайсе — берётся
-  цена из номенклатуры и это учитывается в статистике сборки.
-- **ID товаров** — стабильны между пересборками через `tools/data/catalog-ids.json`
-  (сопоставление артикул→id); новым артикулам — id из диапазона `200000+`,
-  дописывается обратно в тот же файл (детерминированный повторный прогон).
-- **Overrides, применяются ПОСЛЕ чтения номенклатуры:**
-  - `tools/data/kind-overrides.json` — явные переклассификации `kind` (например
-    IP55-корпуса 14901-14904 → `socket_box`, светодиоды подсветки 00935.* →
-    `accessory`), применяет `applyKindOverrides` из `nomenclature.mjs`.
-  - `tools/data/image-overrides.json` — точечные подмены `imageUrl` (когда
-    у товара на vimar.ru фото битое/заглушка, а на vimar.com — настоящее),
-    применяется прямо в `build-catalog.mjs` (строки 120-127).
-- Изображения — индексы `outputs/db_price_import_20260723/vimar-ru-image-index.json`
-  и `vimar-image-index.json` (вне репозитория проекта, путь по умолчанию
-  строится от `repoRoot`, т.е. на уровень выше `electroplan-project/`).
-- Результат — `js/catalog-vimar.js` (`window.EP_VIMAR_CATALOG = {meta, products}`),
-  JSON одной строкой (грузится синхронно при открытии, без минификации весит
-  дороже). **Файл генерируемый — ручные правки теряются**, править нужно
-  источники (номенклатуру/прайс/overrides).
-
-Смежный `tools/build-catalog-attrs.mjs` (`npm run build:attrs`) строит
-`js/catalog-vimar-attrs.js` из той же номенклатуры + тех же kind-overrides —
-даёт признаки автосостава (standards/supports/boxes/wallTypes) отдельно от
-основного каталога, т.к. основной каталог пересобирается конвертером и
-не должен раздуваться служебными полями рантайма.
-
-`tools/detect-openings.mjs` (`npm run build:openings`) и `tools/detect-faces.mjs`
-(`npm run build:faces`) — детекторы геометрии по фото (окна накладки / лицо
-механизма) → `catalog-vimar-openings.js` / `catalog-vimar-faces.js`.
-
-`tools/discover-candidates.mjs`, `tools/fetch-site-groups.mjs`,
-`tools/analyze-price.mjs` — вспомогательные разведочные скрипты (сверка
-прайса/сайта VIMAR с номенклатурой), не часть основного пайплайна сборки
-каталога, но используются как источники для overrides (см. `_source` в
-`kind-overrides.json`/`image-overrides.json`).
-
----
-
-## 4. ЭЛЕМЕНТЫ НА ПЛАНЕ
-
-Хранятся в `state` (`js/app.js`, строка 6) плоскими массивами:
-`state.devices[]`, `state.posts[]`, `state.rooms[]`. Общий вид объекта на
-плане — **мировые координаты** `x, y` (top-left, экран↔мир через
-`EPViewport`), `id` (генерируется `uid(prefix)`, строка 26 — `prefix + Date.now в base36 + случайные символы`).
-
-**Device** (одиночный элемент каталога — `kind` mechanism/accessory/standalone
-не в составе поста), создаётся в `addPending()` (`app.js:1336`):
-```js
-{ id: "dev_...", productId, x, y, height: "300 мм", roomId: null }
-```
-Полей "номер"/"подпись"/"группа освещения" у устройства **нет**.
-
-**Post** (электрический пост — накладка+механизмы+суппорт+коробка), создаётся
-в `addPending()` (`app.js:1343`):
-```js
-{
-  id: "post_...", templateId, x, y,
-  number,              // сквозной номер поста — см. EPPosts.nextPostNumber
-  name, frameId, mechanismIds: [...], socketBoxProductId,
-  roomId: null,
-  height, purpose       // необязательные — используются в листе монтажника (installSheet.js),
-                          // но нет UI-поля для их ввода в текущем properties-панеле (задел на будущее)
-}
-```
-У поста ЕСТЬ подпись/номер (`entity.number`, рисуется на плане как текст
-пиктограммы, см. ниже) и есть `height`/`purpose` (используются в
-`buildPostSheet()`, `app.js:1841`, для листа монтажника), но нет отдельного
-поля "группа освещения" — **такого поля в проекте сейчас нет вообще**
-(проверено grep по `js/` — не найдено).
-
-**Room** (помещение) — `{id, name, x, y, polygon?:[{x,y}], manual?}`; либо
-прямоугольная подпись без контура (тащится как обычный объект), либо
-полигон (`r.polygon`, рисуется в `<svg id="roomsSvg">` отдельным слоем,
-не двигается кликом — только выделяется/удаляется). Привязка объекта к
-комнате — по `roomId` (устройства и посты); `getObjectsInRoom(roomId)`
-(`app.js:843`) собирает и устройства, и посты внутри комнаты.
-
-### Пиктограммы на плане
-
-`compactIcon(entity, kind)` — **`app.js:345`**. Общий рендер иконки-квадрата
-для device/post: `kind==="device"` → текст = `product(entity.productId)?.icon`
-(поле `icon` товара каталога — символ типа "°C", "□" и т.п.); `kind==="post"`
-→ текст = сквозной номер поста (`entity.number`). Позиционируется абсолютно
-по `entity.x/y`, перенос — через `makeDraggable` (использует `js/drag.js`
-для расчёта жеста).
-- `renderDevices()` — **`app.js:364`** — перерисовывает все `.plan-icon.device-only`.
-- `renderPosts()` — **`app.js:365`** — перерисовывает все `.plan-icon.post`,
-  двойной клик открывает конструктор поста (`openPostBuilder`).
-- `renderRooms()` — **`app.js:366`** — рисует подписи/полигоны комнат отдельно.
-
-Полная **картинка собранного поста** (не иконка-квадрат, а фото
-накладки+механизмов) — отдельный модуль `js/postImage.js` (`window.EPPostImage`,
-функции `buildHtml`/`pickIcon`/`iconSvg`), используется в подсказке на плане,
-библиотеке шаблонов, КП и листе монтажника — не на самом плане (там только
-компактная иконка с номером).
-
----
-
-## 5. СМЕТА И ДОКУМЕНТЫ
-
-- **Смета** — `js/estimate.js` (`window.EPEstimate.build(input)`), единственный
-  источник истины: и панель "Стоимость проекта" в UI, и КП считают ТОЛЬКО
-  через него (раньше формулы дублировались и расходились). Группирует позиции
-  по составу (посты — по ключу накладка+мультимножество механизмов, не по
-  номеру/имени), считает скидку/материалы/работы/НДС. Оркестратор —
-  `buildEstimate()` (`app.js:1125`), подставляет `product`/`postCost`/
-  `postComposition`/`state.devices`/`state.posts`/`EP_DATA.settings`.
-- **КП (печатная форма)** — `js/offerPdf.js` (`window.EPOfferPdf.buildHtml(est, deps)`),
-  вызывается из `generateCommercialOffer()` (`app.js:1932`): считает смету,
-  открывает `window.open`, пишет HTML документа (спецификация + раздел
-  "Раскладка постов" с иллюстрациями + итоги + курс, если валюта RUB).
-  Автопечать по загрузке всех картинок (инлайн-скрипт в самом документе,
-  предохранитель 4000мс).
-- **Лист монтажника** — `js/installSheet.js` (`window.EPInstallSheet.buildHtml`),
-  оркестрируется в `app.js`: `buildPostSheet(post)` (**строка 1841**) собирает
-  данные одного поста (таблица модулей, обвязка суппорт→коробка→накладка,
-  картинка сборки, взрыв-схема); `installSheetForBuilder()` (**1899**) —
-  для поста прямо в конструкторе; `installSheetForProject()` (**1909**) —
-  на все посты проекта, сгруппировано по помещениям, с сортировкой по
-  порядку комнат и номеру поста; `renumberPosts()` (**1922**) — осознанная
-  перенумерация 1..N по расположению на плане (сверху-вниз, слева-направо),
-  отдельная команда, не автоматическая.
-- **`js/explodedView.js`** (`window.EPExplodedView.buildHtml(spec, deps)`) —
-  взрыв-схема поста (детали разнесены в пространстве, выносные линии к
-  подписям с артикулом). Собирается из уже посчитанного состава функцией
-  `buildExplodedSpec(comp, box, layout, frameSpec)` (**`app.js:1792`**):
-  порядок деталей накладка → механизмы(стек) → суппорт → коробка; глиф детали
-  берётся из каталожной системы иконок (`pickIcon`/`iconSvg` из `postImage.js`).
-  Используется ТОЛЬКО в листе монтажника (не в КП).
-
-**Точки расширения**: все 3 документа (`offerPdf.js`, `installSheet.js`,
-`explodedView.js`) — чистые модули "spec/data → HTML", без DOM/state; чтобы
-добавить документ или секцию, нужно расширить оркестратор в `app.js`
-(собрать данные из `state`) и передать их в `buildHtml` соответствующего
-модуля, либо добавить новый такой же модуль по образцу. `docHeader()`
-(`app.js:1742`, используется в обоих печатных документах) — общие реквизиты
-проект/клиент/дата.
-
----
-
-## 6. ТЕСТЫ
-
-`tests/*.test.js` — 17 файлов, запуск `npm test` → `node --test "tests/*.test.js"`
-(нативный раннер Node, без Jest/Mocha). На коммите mapped-at-commit: **281 тест,
-все проходят**. Тестируются только чистые модули (без DOM) — `app.js` целиком
-автотестами не покрыт (комментарии в коде явно объясняют это архитектурное
-решение — "как estimate.js — без зависимостей приложения, под автотесты").
-
-Файлы тестов соответствуют модулям 1:1: `catalog.test.js`, `drag.test.js`,
-`estimate.test.js`, `explodedView.test.js`, `faces.test.js`, `geometry.test.js`,
-`installSheet.test.js`, `nomenclature.test.js` (тестирует `tools/lib/nomenclature.mjs`),
-`offerPdf.test.js`, `picker.test.js`, `postImage.test.js`, `postfit.test.js`,
-`posts.test.js`, `rates.test.js`, `roomsFromLines.test.js`,
-`siteGroups.test.js` (тестирует `tools/lib/site-groups.mjs`), `viewport.test.js`.
-
----
-
-## local/ — заготовка под интеграцию в 1С-Битрикс
-
-Реальной интеграции нет, это заготовка-скелет (см. `local/README.md`, подробная
-таблица соответствия "прототип → Битрикс"). Заказчик — ЦентрСвет, модуль
-`centrsvet.electroplan`, namespace `Centrsvet\Electroplan`.
-
-- `local/modules/centrsvet.electroplan/` — модуль:
-  - `lib/Controller/Catalog.php`, `Post.php`, `Project.php` — заготовки
-    AJAX-контроллеров (`Bitrix\Main\Engine\Controller`), должны заменить
-    `DataService.getProducts/getSavedPosts/savePost/deletePost` из `js/data.js`.
-  - `lib/Catalog/ProductRepository.php` — чтение товаров из инфоблока
-    (сейчас читает `PROPERTY_KIND/ICON/UNIT/COMPATIBILITY/MOUNT_RECT` —
-    урезанный набор полей относительно реального формата `catalog-vimar.js`,
-    TODO по ID инфоблока в опциях модуля не решён).
-  - `lib/Post/PostTemplateRepository.php`, `lib/Project/ProjectRepository.php` —
-    заготовки под Highload-блоки (шаблоны постов, проекты).
-  - `install/`, `.settings.php`, `options.php`, `lang/ru/` — стандартный
-    скелет модуля Битрикс.
-- `local/components/centrsvet/electroplan.app/` — комплексный компонент:
-  `class.php` отдаёт каталог во `arResult['CATALOG']`; `templates/.default/`
-  содержит заготовки `template.php`/`script.js`/`style.css`/`data-adapter.js`
-  под перенос `index.html`/`js/app.js`/`css/styles.css`/`js/data.js`.
-
-Все правки бизнес-логики фронта в текущем прототипе достаточно делать в
-`js/`, `css/`, `index.html` — перенос в `local/` предстоит отдельным этапом
-и не блокирует текущую работу над прототипом.
-
----
-
-## Прочее / не индексировано построчно
-
-- `api/README.md` — описание REST-контракта (`/api/products`, `/api/posts`,
-  `/api/projects`) для будущего бэкенда Битрикс.
-- `database/schema.sql` — предполагаемая SQL-схема (справочно, целевая
-  платформа — инфоблоки/Highload-блоки, не голый SQL).
-- `docs/*.md`, `docs/*.txt` — рабочие заметки, переписка с заказчиком,
-  анализ прайса VIMAR, планы фич — справочные материалы, не код.
-- `PLAN.md`, `PLAN-segmentation.md`, `INTERFACE.md`, `HANDOFF.md`, `README.md` —
-  проектная документация верхнего уровня в корне.
-- `tools/data/*.json` (кроме уже описанных overrides/ids) — вспомогательные
-  данные разведки (site-groups, box-wall-type, compat-draft/external,
-  price-columns, price-parsed.csv) — источники для ручной курации каталога.
-- `.tmp-faces/`, `.tmp-openings/`, `.tmp-site/`, `seg-preview/`, `chertez/` —
-  рабочие/временные каталоги, не код.
+<!-- mapped-at-commit: 5c5939e720132bbe16fcd048fd152fa4fba4cdd2 -->
+<!-- mapped-at: 2026-11-01 -->
+
+# Карта кода ElectroPlan Pro
+
+Навигатор для исполнителей: сначала сюда, потом читать ТОЛЬКО указанные файлы/строки.
+Номера строк — фактические на HEAD 5c5939e (ветка redesign). Строка из grep без пометки
+«(комм.)» — код; номера в разделе 4 сверены вызовом `Имя(`, но строки внутри больших
+комментариев могли просочиться — при правке открывай место и проверяй.
+
+Проект: ванильный JS (без сборщика), `index.html` + `js/*.js` (90 файлов) + `css/styles.css` (833 строки) +
+`tools/` (пересборка каталога) + `tests/` (node:test). Заказчик — EPG/ЦентрСвет, продукт — веб-планировщик
+электрики. `/local/` — заглушка под Битрикс (`local/components/centrsvet`, `local/modules/centrsvet.electroplan`,
+`local/README.md`); `/bitrix/` нет; не индексируется. `api/` (README), `database/schema.sql` — задел под сервер, в рантайме не участвуют.
+`vendor/` (dwgdxf, dxf-parser, heic-to, opencv.js, pdfjs) — сторонний код, не индексируется.
+`seg-preview/`, `chertez/`, корневые `*.pdf`/`*.jpg` — справочные материалы, не код.
+
+## 1. Запуск и проверка
+
+- Тесты: `npm test` (= `node --test "tests/*.test.js"`). На HEAD: **217 тестовых файлов, 2772 теста, 0 падений, ~12 с**.
+- Локальный сервер: `.claude/launch.json` → `python -m http.server --directory . 8420` (конфигурация `electroplan`, порт 8420).
+  Для QA-скриншотов tools/qa поднимает свой node-сервер на 8431 (python не выдерживает десятков js).
+- Пересборка каталога (нужен `npm install`, devDeps: xlsx, jimp, heic-to):
+  `npm run build:catalog | build:attrs | build:discontinued | build:openings | build:faces | build:site-groups`.
+- Кэш-бастинг: каждый `<script src="js/x.js?v=ГГГГММДД.N">` в index.html — при правке файла поднимай `?v=` в index.html.
+- Тестов app.js: сам app.js в node не грузится; поведенческие тесты вырезают функции app.js/docs.js/postBuilder.js… в vm через `tests/helpers/appStand.js`
+  (`stand.run(["имя1","имя2"], ctx)`, `SOURCE_FILES`); комментарии срезает `tests/helpers/stripComments.js`.
+
+## 2. Точка входа — порядок `<script>` в index.html (строки 827–997)
+
+Все модули — IIFE с двойным экспортом: `window.EPXxx = api` и `module.exports = api` (для node-тестов). Порядок важен.
+Сам index.html: 999 строк, разметка окон (`#postModal` конструктор поста, `#kpSetupModal`, `#installSheetWindowModal`, `#wallScopeModal`, тосты `#toast`, `#notices`), скрипты в конце.
+Тяжёлые вендорные библиотеки (xlsx/SheetJS, pdfjs, opencv, heic-to, dxf) грузятся лениво через `document.createElement("script")`
+(floorplanML.js:133, heicImport.js:43, planImport.js:75, priceCheckUi.js:134, roomDetect.js:139).
+
+| # | файл | глобал |
+|---|------|--------|
+| 827–831 | catalog-vimar.js, catalog-vimar-attrs.js, catalog-vimar-openings.js, catalog-vimar-faces.js, catalog-vimar-discontinued.js | EP_VIMAR_CATALOG, EP_VIMAR_ATTRS, EP_VIMAR_OPENINGS, EP_VIMAR_FACES, EP_VIMAR_DISCONTINUED (сгенерированные) |
+| 832 | data.js | EP_DATA (settings, products, categories), DataService |
+| 833 | store.js | ProjectStore (ключ `electroplan_current_project`) |
+| 834 | config.js | EPConfig |
+| 838 | confirmRepeat.js | EPConfirmRepeat |
+| 839 | placeDblClick.js | EPPlaceDblClick |
+| 840 | seriesMatch.js | EPSeriesMatch |
+| 841 | catalog.js | EPCatalog |
+| 844 | lightingGroups.js | EPLightingGroups |
+| 848 | lightingPlan.js | EPLightingPlan |
+| 852 | lightingByRoom.js | EPLightingByRoom |
+| 853 | postfit.js | EPPostFit |
+| 855 | backlightPick.js | EPBacklightPick |
+| 857 | catalogPool.js | EPCatalogPool |
+| 859 | thermoSensor.js | EPThermoSensor |
+| 860 | posts.js | EPPosts |
+| 862 | buttonFrame.js | EPButtonFrame |
+| 863 | picker.js | EPPicker |
+| 865 | catalogSections.js | EPCatalogSections |
+| 866 | builderSlots.js | EPBuilderSlots |
+| 867 | offerOptions.js | EPOfferOptions |
+| 871 | installSheetOptions.js | EPInstallSheetOptions |
+| 875 | installSheetWindow.js | EPInstallSheetWindow |
+| 876 | docRequisites.js | EPDocRequisites |
+| 877 | estimate.js | EPEstimate |
+| 880 | imageFormats.js | EPImageFormats |
+| 883 | docImages.js | EPDocImages |
+| 886 | heicImport.js | EPHeicImport |
+| 887 | offerPdf.js | EPOfferPdf |
+| 888 | installSheet.js | EPInstallSheet |
+| 889 | supplierSpec.js | EPSupplierSpec |
+| 890 | packRound.js | EPPackRound |
+| 894 | packTopUp.js | EPPackTopUp |
+| 895 | specExcel.js | EPSpecExcel |
+| 896 | postImage.js | EPPostImage |
+| 897 | explodedView.js | EPExplodedView |
+| 898 | planRotate.js | EPPlanRotate |
+| 899 | planLabels.js | EPPlanLabels |
+| 900 | rates.js | EPRates |
+| 901 | geometry.js | EPGeom |
+| 902 | drag.js | EPDrag |
+| 903 | viewport.js | EPViewport |
+| 904 | selection.js | EPSelection |
+| 905 | roomsFromLines.js | EPRoomsFromLines |
+| 909 | roomOverlap.js | EPRoomOverlap |
+| 910 | roomDraft.js | EPRoomDraft |
+| 911 | room.js | EPRoom |
+| 915 | roomVariants.js | EPRoomVariants |
+| 916 | roomWalls.js | EPRoomWalls |
+| 917 | roomVariantsUi.js | EPRoomVariantsUi |
+| 918 | roomCarry.js | EPRoomCarry |
+| 919 | roomAssign.js | EPRoomAssign |
+| 920 | planTrace.js | EPPlanTrace |
+| 921 | roomSegmentation.js | EPRoomSeg |
+| 922 | floorplanML.js | EPFloorplanML |
+| 924 | planShrink.js | EPPlanShrink |
+| 925 | planImport.js | EPPlanImport |
+| 928 | prefs.js | EPPrefs (ключ `ep_prefs`) |
+| 931 | framePicker.js | EPFramePicker |
+| 935 | mechColor.js | EPMechColor |
+| 938 | offerNumber.js | EPOfferNumber |
+| 942 | wallScope.js | EPWallScope |
+| 943 | postBuilder.js | EPPostBuilder (attach) |
+| 944 | rooms.js | EPRooms (attach) |
+| 948 | docs.js | EPDocs (attach) |
+| 953 | canvasInput.js | EPCanvasInput (attach) |
+| 958 | roomDetect.js | EPRoomDetect (attach) |
+| 959 | history.js | EPHistory |
+| 963 | postCopy.js | EPPostCopy |
+| 967 | notices.js | EPNotices |
+| 968 | postCopyUi.js | EPPostCopyUi (attach) |
+| 969 | projectFile.js | EPProjectFile (attach) |
+| 972 | projectSetup.js | EPProjectSetup (attach) |
+| 976 | packMultipleUi.js | EPPackMultiple (attach) |
+| 979 | postVariant.js | EPPostVariant (attach) |
+| 984–987 | priceSheet.js, priceTemplate.js, priceTemplateFile.js, priceCheckUi.js | EPPriceSheet, EPPriceTemplate, EPPriceTemplateFile, EPPriceCheckUi (attach) |
+| 988 | planDrop.js | EPPlanDrop (attach) |
+| 989 | topbar.js | EPTopbar (attach) |
+| 990 | rightPanel.js | EPRightPanel (attach) |
+| 993 | canvasBar.js | EPCanvasBar (attach) |
+| 996 | leftPanel.js | EPLeftPanel (attach) |
+| 997 | app.js | — (последним, оркестратор) |
+
+Паттерн: чистые модули (без DOM/state) получают всё аргументом `deps`; модули с `attach(ctx)` вынесены из app.js (раздел «И1/И2» ОСТАТОК-РАБОТ), получают от app.js
+замыкания (`state`, `renderAll`, `product`…) и возвращают функции, которые app.js вызывает (`app.js:4339–4470`).
+Правило владельца: новый код интерфейса — в свой модуль `js/<имя>.js`, в app.js только подключение.
+
+## 3. Модуль → назначение (ключевые функции с :строкой)
+
+### 3.1 Оркестратор js/app.js (4473 строки, одна IIFE `(() => {…})()`; монолит state+DOM)
+
+| строки | что |
+|--------|-----|
+| 1–63 | `state` (tool, scale/pan, devices, posts, rooms, walls, roomLines, builder{…}, worldAngle…), `uid`, `esc` |
+| 64–150 | валюта/деньги: `displayCurrency` 69, `displayRate` 74, `moneyShown` 88, `money` 95; каталог-хелперы `product` 99, `byKind` 100, `byKindOff` 104 (снятые), `frameProduct` 108, деструктуризация EPCatalog 112, `mechanismModulesTotal` 115, `frameOptions` 120, обёртки `fitMechanismIds`/`fitMechanismIdsPreserving` 139–140, **шов `spanForFrame` 147** |
+| 150–218 | `productPicture` 152, `framePickThumb` 170, `enhancePicker` 201 (EPPicker), `findByExactCode` 213, `toast` 219 |
+| 220–285 | обёртки подбора через `EPCatalogPool.pick`: `findBox` 232, `fallbackBox` 234, `supportFound` 240, `findSupport` 241, `resolveSupport` 246, `findBacklight` 251, `findSensor` 256, **`postDeps` 264**, `postCost` 275, `postComposition` 276 |
+| 286–373 | `assembledPostSpec` 286 (spec картинки поста: ячейки, слоты 22751, окна), `assembledPostHtml` 373 → EPPostImage |
+| 379–480 | `setTool` 379, `updateStatus` 410, `loadProjectIntoUi` 431, `init` 460 |
+| 482–650 | шаблоны («Готовые посты») `renderTemplates` 482, `compactIcon` 533, `renderDevices`/`renderPosts` 565–566, `openPostOnDblClick` 573, `renderGroupLinks` 607 |
+| 651–727 | стены-хелперы 651–660, площадь комнаты 669–676, курс евро: `applyRateEntry` 679, `refreshRate` 712 |
+| 728–890 | масштаб плана (`renderScaleRuler` 728, `addScalePoint` 787), аннотации плана `annotatePlan` 860 |
+| 890–1093 | привязка объектов к комнатам: `roomResolveContext` 921, `resolveRoomForPoint` 950, `getRoomForPoint` 1027, `recalculateRoomAssignments` 1052 |
+| 1094–1230 | `renderAll` 1094, `applyProjectSettings` 1143, hover-карточка `showHover` 1155 (состав+коробки+цена поста), выделение 1190–1222 |
+| 1231–1356 | перенос/удаление: `moveSelectedBy` 1231, `removeEntity` 1286, `deleteSelectedEntity` 1306, `flushRoomDraft` 1323 |
+| 1357–1757 | **`renderProperties` 1379** — вся панель свойств (комната: варианты/стены/схема; пост: тип стены, состав, группы света; устройство); `controlPlaceKind` 1744, `isControlPlaceItem` 1746 |
+| 1758–2105 | **группы света и смета**: `lightingScheme` 1758, `lightingFor` 1771, `lightingRowsFor` 1845, `lightingRowSummary` 1867, `projectLighting` 1924, `postTotalCost` 1939, `lightingHtml` 1959, `buildEstimate` 1971, `renderSummary` 2019 |
+| 2106–2175 | селект схемы электрики 2106, подсветка проекта `backlightCatalogOptions` 2132, `renderProjectBacklight` 2152, `preferOwnFrame` 2175 |
+| 2175–2475 | отделка комнаты/мастер: `roomCatalogFilter` 2195, `frameFacingView` 2291, `mechColorDeps` 2314, `openFramePicker` 2334, `renderFramePicker` 2364, `applyFramePicker` 2440 |
+| 2475–2540 | `wallScope` 2475 (EPWallScope), **`addPending` 2489** (размещение поста с плана) |
+| 2540–2784 | рисование стен/линий разметки 2540–2616, видимость/поворот подложки 2617–2658, `clearPlan` 2699, подтверждение «Очистить» 2723–2763 |
+| 2785–3040 | **сохранение**: `projectSnapshot` 2785, `persistProject` 2834, `scheduleSave` 2847, история `captureHistory` 2889, `applyPlanSnapshot` 2956, `undoPlan`/`redoPlan` 3005/3005, `saveProject` 3013, `dropOrphanKeyGroups` 3029 |
+| 3040–3160 | **`restoreProject` 3040** — загрузка и миграции старых проектов (см. раздел 6) |
+| 3160–3480 | шапка КП `docHeader` 3160, реквизиты 3214–3262, картинки бланка 3290–3341, условия КП 3344, опции КП/пресеты 3358–3442, опции листа монтажника 3444–3453 |
+| 3480–3655 | связи групп света между постами `postsForGroupLinks` 3486, перенумерация постов 3571–3650 (`renumberPosts`, подтверждение EPConfirmRepeat) |
+| 3655–3835 | автообрисовка `autoTracePlan` 3670, поворот плана 3744–3814, `ensureBacklightSetting` 3815 |
+| 3836–3900 | вид холста: `view` 3836, `clientToWorld` 3843, `applyView` 3852, `zoomBy` 3871, `fitToScreen` 3892 |
+| 3901–3990 | импорт плана `applyImportedPlan` 3927, `importPlanFile` 3959 |
+| 3988–4143 | `clearCanvas` 3988, условия сделки `applyTerms` 4064, скидка `applyItemDiscount` 4084, `applyCurrency` 4116, `applySurcharge` 4132 |
+| 4144–4290 | `trapBuilderFocus` 4144 и обработчики событий (клавиши, кнопки шапки) |
+| 4293–4473 | `reportFailure` 4293; подключение вынесенных модулей: EPDocs 4339, EPPostBuilder 4360, EPRoomDetect 4384, EPRoomWalls 4393, EPCanvasInput 4404, EPPostVariant 4416, EPPostCopyUi 4426, EPRooms 4436, EPProjectFile 4448, EPProjectSetup 4459, EPPriceCheckUi 4464, EPPackMultiple 4470; `init()` 4472 |
+
+### 3.2 Вынесенные из app.js (attach-модули, DOM+state через ctx)
+
+- `js/postBuilder.js` (1650) — окно поста/конструктор (#postModal). `attach` 35; `openPostBuilder` 293, `builderSignature` 421, `builderPostDraft` 443, `projectPostsWithBuilder` 476,
+  `builderCapacity` 491, `builderFilterRoom` 505, `builderInnardsFilter` 527, `renderBuilder` 560, `renderBuilderSlots` 945, `refreshBuilderLighting` 1053,
+  `renderBuilderCatalog` 1081, `pickBuilderProduct` 1183, `builderErrorHtml` 1227, `renderBuilderComposition` 1244, `savePostBuilder` 1395, `closePostBuilder` 1501,
+  `requestClosePostBuilder` 1519, `installSheetForBuilder` 1533; подбор накладки по умолчанию `pickDefaultFrame` 220, `defaultFrameForRoom` 246, `applyAutoDefaultFrame` 262;
+  `resolveMissingFrame` 58 / `resolveMissingMechanism` 94 (пропавший артикул); подсветка/термодатчик в окне `renderPostBacklight` 124, `renderPostThermoSensor` 165.
+- `js/docs.js` (777) — сборка документов. `attach` 35; `postPricedItems` 51, `buildPostLayout` 60, `planLabelsSpec` 151, `planBlockHtml` 194, `supplierSpecData` 213,
+  `supplierSpecHtml` 301, `buildExplodedSpec` 326, **`buildPostSheet` 439**, `openInstallSheet` 594, `installSheetForProject` 612, **`generateCommercialOffer` 658**, `exportSpecExcel` 731.
+- `js/rooms.js` (293) — слой комнат на плане, правка вершин (`attach` 34). `js/roomDetect.js` (465) — «Определить помещения»: линии → грани, ML, сегментация (`attach` 57).
+- `js/canvasInput.js` (527) — клики/жесты/панорама/зум (`attach` 52). `js/postCopyUi.js` (129) — Ctrl+C/V постов (`attach` 28).
+- `js/postVariant.js` (153) — готовый пост ↔ варианты отделки комнаты: `placementFits` 35, `attach` 45 (`frameForRoomPlacement`).
+- `js/projectFile.js` (259) — файл проекта: `build` 50, `parse` 64, `signature` 89, `mergePrefs` 125, `attach` 146 (скачать/открыть/новый). `js/projectSetup.js` (58) — окно «Данные проекта и КП».
+- `js/topbar.js` (116) шапка, `js/rightPanel.js` (82) правая панель (`kpLine` 21), `js/leftPanel.js` (122) левая панель (`planStatusText` 22), `js/canvasBar.js` (42) строка под холстом (Орто/Сетка/шаг, F8/F9).
+- `js/installSheetWindow.js` (151) — окно состава листа монтажника (`create` 24; ключ prefs `installSheetPresets`). `js/wallScope.js` (63) — промис-модалка «этот пост / все однотипные».
+- `js/priceCheckUi.js` (207) — окно «Прайс по шаблону» (`buildReport` 33, `reportHtml` 48, `attach` 71). `js/packMultipleUi.js` (54) — галка «кратно упаковке». `js/planDrop.js` (125) — drag-and-drop файла плана.
+- `js/notices.js` (118) — сообщения с крестиком (`buildGroupNameText` 37, `attach` 55). `js/roomWalls.js` (216) — стены комнаты и предупреждение о несовпадении со стеной поста (К4в): `normalizeKinds` 32, `roomWallKinds` 41, `mismatch` 48, `gestureMismatches` 106, `applyWall` 129, `attach` 141.
+- `js/roomVariantsUi.js` (367) — вкладки вариантов отделки комнаты в свойствах и селектор в окне поста: `tabsHtml` 115, `builderIndex` 174, `renderBuilderVariantSelect` 208, `applyBuilderVariantChange` 354, `mechColorFieldOptionsHtml` 317.
+- `js/history.js` (251) — undo/redo: `PLAN_FIELDS` 32, `planOf` 60, `create` 122, `hotkeyAction` 236.
+
+### 3.3 Чистая доменная логика (без DOM/state)
+
+Каталог и подбор
+- `js/catalog.js` (381) — каталог: `mechanismSpan` 65 (ширина в модулях), `productSeries` 74, `productCollections` 85, `productFacingValues` 96, `productStandards` 110, `standardLabel` 129, `facingColorKey` 141,
+  `productsForRoom` 181 (отбор накладок/начинки под отделку комнаты), `compatibleMechanisms` 212, `frameSlotCount` 227, `frameSlotOptions` 257, `defaultPostName` 264, `frameOpening` 283, `frameOpenings` 313, `moduleFace` 345, `productImage` 368.
+- `js/seriesMatch.js` (81) — единое правило совместимости серий: `matchOne` 41, `seriesCompatible` 47, `matchLevel` 63 (exact/family/…).
+- `js/catalogPool.js` (44) — `pick` 30: сначала активные, снятые — запас (Д2). `js/catalogSections.js` (170) — разделы каталога в конструкторе: `keyOf` 68, `build` 108.
+- `js/postfit.js` (429) — монтажная коробка и суппорт: `supportRequired` 67, `boxFitsStandard` 72, `selectBox` 89, `findBox` 134, `fallbackBox` 135, `socketBox` 141, `resolveSupport` 284, `findSupport` 362, `backlightVoltage` 391, `findBacklight` 406.
+- `js/backlightPick.js` (129) — LED подсветки по типу клавиши: `classify` 72, `accepts` 102, `pick` 110. `js/thermoSensor.js` (131) — автодатчик терморегулятора: `isSensorMechanism` 40, `sensorCodeFor` 54, `sensorsEnabled` 66, `plan` 79, `rowSummary` 110.
+- `js/mechColor.js` (113) — цвет механизмов (К12 ч.3): `colorOf` 38 (elementColor‖nameColor‖articleColor), `colorsFor` 52, `visible` 64, `autoValue` 73, `filter` 86, `checkboxLabel` 97, `emptyCatalogText` 105.
+- `js/framePicker.js` (124) — шаги мастера отделки: `STEPS` 26, `stepOptions` 42, `stepVisible` 70, `visibleSteps` 73, `autoFill` 100. `js/picker.js` (431) — кастомный выпадающий список с миниатюрами: `filterOptions` 31, `enhance` 72.
+- `js/buttonFrame.js` (156) — кнопочные накладки Flat и двойная клавиша 22751 (К12 ч.4): `BUTTON_FRAME_BASES` 33, `isButtonFrame` 51, `buttonsOf` 59, `appliesTo` 66, **`spanIn` 78**, `orderWindows` 91, `faceParts` 110, `cellSlots` 141.
+
+Посты и конструктор
+- `js/posts.js` (828) — состав/цена/раскладка поста: `frameAvailability` 26, `mechanismAvailability` 70, `boxCount` 128, `postWallType` 152, `applyProjectWallToPosts` 168, `postTypeKey` 194, `wallTypeTargets` 220,
+  `normalizeBacklight` 249, `postBacklight` 276, `backlightPlan` 284, **`postComposition` 317**, **`postCost` 422**, `moduleLayout` 445, `fillSummary` 482, `nextPostNumber` 497, `ensurePostNumbers` 504,
+  `placementFields` 533, `templateFrameColor` 577, `templateFitsRoomColor(s)` 591/609, `pickRoomFrame` 626, `fitMechanismIds` 637, `fitMechanismIdsPreserving` 654, `frameLayout` 692, `packAll` 725, **`distributePosts` 756**, `maxFreeSpan` 802, `postModuleGroups` 811.
+- `js/builderSlots.js` (253) — слоты окна поста «механизм+группа света»: `slot` 40, `fromPost` 72, `toPost` 89, `tokens` 102, `tokenDeps` 114, `allowedTokens` 137, `pick` 151, `replaceAt` 184, `setGroup` 192, `setCross` 198, `setMech` 203, `reindex` 232, `signature` 244.
+- `js/postImage.js` (791) — единая картинка собранного поста: `itemColor` 214, `pickIcon` 226, `faceSprite` 322, `splitOpening` 421, **`buildHtml` 451**, `photoReady` 494, `postWindows` 511, `windowsHoldModules` 547.
+- `js/postCopy.js` (307) — копирование постов: `newCrossNumbers` 68, `snapshot` 92, `buildCopies` 124, `copyHotkey` 215, `stripSharedGroupNames` 263. `js/selection.js` (117) — групповое выделение: `toggle` 54, `postsInRect` 105.
+- `js/explodedView.js` (435) — взрыв-схема поста для листа монтажника: `layout` 127, `linesNeeded` 271, `buildHtml` 333.
+
+Группы света
+- `js/lightingGroups.js` (1108) — ядро: `ROLES` 46, `SCHEMES` 63 (classic/relay/bell), `normalizeGroup` 106, `groupKeyOf` 134, `crossGroupKey` 150, `canonicalSeries` 271, `canonicalOrder` 433, `resolveGroup` 519, `buildRegistry` 540,
+  **`classicRole` 652, `relayCount` 665, `roleFor` 676**, `roleOverrideOf` 687, `GAPS` 698, `isSupplyGap` 748, **`plan` 788**.
+- `js/lightingPlan.js` (590) — места управления из постов и подбор голого механизма: `collect` 101, `seriesMatch` 168, `resolveMechanism` 263, `resolveReplacement` 363 (замена цельного изделия), `addressKey` 403, `rowsByPost` 420, `postKey` 458, `buildHtml` 468, `planSignature` 580.
+- `js/lightingByRoom.js` (270) — расчёт групп по комнатам и слияние: `partitionNorm` 75, `planByRooms` 100, `cacheSignature` 252. `js/room.js` (77) — `roomLightingScheme` 24, `roomCollection` 50, `roomFrameFacing` 65.
+
+Смета и документы
+- `js/estimate.js` (964) — единственный источник цены: `billableLighting` 37, `separateLighting` 45, `effectiveMechanismIds` 51, **`postPrice` 61**, `lightingCounts` 74, `renderItem` 93, `vatBreakdown` 154, `round2` 176, `roundShown` 209, `pricedUnit` 279, `shownSum` 302, `specShown` 325,
+  **`postPriceShown` 353**, `totalsShown` 398, `vatModeOf` 468, `discountOf` 501, `discountBreakdown` 507, `discountLabel` 533, **`build` 574**, `pricelessNote` 932, `isEmptyProject` 949.
+- `js/offerPdf.js` (459) — КП (HTML для печати/PDF): `termsFooterHtml` 62, `signatureBlockHtml` 91, `hasContent` 405, `buildHtml` 451. `js/offerOptions.js` (158) — галочки/пресеты КП: `fields` 5, `normalize` 39, `preset` 62, `itemText` 103, `saveCustomPreset` 143, `assemblyView` 55.
+- `js/installSheet.js` (610) — лист монтажника (HTML): `buildFittings` 67, **`cardModuleOrder` 186, `cardFittingOrder` 205**, `buildHtml` 302. `js/installSheetOptions.js` (129) — галочки листа: `fields` 14, `normalize` 43, `preset` 55, `migrate` 83, `saveCustomPreset` 114.
+- `js/supplierSpec.js` (393) — сводная «По артикулам» для поставщика: `kindFromCatalog` 114, `collect` 148, `buildHtml` 268. `js/specExcel.js` (562) — .xlsx (два листа) без библиотеки: `sheetXml` 113, `build` 157, `crc32` 422, `workbookBytes` 490, `fileName` 546.
+- `js/packRound.js` (33) — `packRound` 19 (вверх до целых упаковок). `js/packTopUp.js` (161) — добор до упаковок: `codeKey` 23, `buildPackMap` 38, `topUpGroups` 62, `splitRows` 106, `topUpColumns` 127, `panelHtml` 147.
+- `js/offerNumber.js` (67) — номер КП EPG-ГГГГ-NNNN: `parse` 23, `format` 30, `assign` 46. `js/docRequisites.js` (81) — реквизиты КП: `MY_FIELDS` 16, `CUSTOMER_FIELDS` 24, `shouldPrint` 43, `migrateDocHeader` 61.
+- `js/docImages.js` (118) — логотип/подпись/печать: `readHeader` 34, `validateSource` 55, `fitSize` 79, `imgHtml` 100. `js/imageFormats.js` (178) — какие картинки принимаем: `FORMATS` 26, `detectSignature` 90, `recognize` 111, `withMime` 138. `js/heicImport.js` (83) — HEIC→JPEG: `toJpegBlob` 60, `toJpegDataUrl` 68.
+- `js/planLabels.js` (460) — план с бирками номеров постов для печати: `groupChains` 121, `layout` 154, `buildHtml` 329. `js/rates.js` (91) — курс ЦБ: `loadCached` 20, `fetchFresh` 34, `manual` 50, `effectiveRate` 64, `startupRate` 80 (ключ `ep_eur_rate`).
+- Прайс по шаблону (К9): `js/priceSheet.js` (126) разбор листа (`parsePrice` 25, `chooseSheet` 109, `isHermeticCover` 99); `js/priceTemplate.js` (348) шаблон и проверка (`COLUMNS` 82, `check` 191); `js/priceTemplateFile.js` (136) Excel-шаблон (`build` 100).
+
+Геометрия, план, комнаты
+- `js/geometry.js` (537) — полигоны/сетка: `polygonCentroid` 12, `roomLabelPoint` 142, `polygonAreaPx` 231, `pointInPolygon` 239, `tightestRoomAtPoint` 258, `snapPlanPoint` 378, `buildSpaceComponents` 399, `roomContourProbe` 480. `js/viewport.js` (175) — экран↔мир: `worldToScreen` 23, `zoomAt` 51, `rotateAt` 68, `fitView` 108.
+- `js/roomsFromLines.js` (398) — помещения из линий разметки: `healEndpointGaps` 52, `buildPlanarGraph` 117, `findFaces` 160, `roomsFromLines` 345. `js/roomOverlap.js` (328) — обрезка наложения контуров: `overlapArea` 86, `clipRoomsAgainst` 172, `clampVertexMove` 252. `js/roomSegmentation.js` (296) и `js/floorplanML.js` (582, YOLOv8 в браузере) — распознавание (базовый и ML).
+- `js/roomCarry.js` (429) — перенос полей комнаты при пересчёте: `isAutoName` 83, `carry` 174, `reconcile` 256. `js/roomVariants.js` (147) — варианты отделки комнаты (до 5): `FIELDS` 31, `list` 62, `serialize` 80, `addVariant` 90, `setVariantField` 112, `fitIndex` 127, `placementIndex` 137. `js/roomAssign.js` (25), `js/roomDraft.js` (67).
+- `js/planImport.js` (474) импорт PDF/растра/DXF/SVG (`importFile` 439); `js/planShrink.js` (85) уменьшение растра под localStorage (`decide` 69); `js/planRotate.js` (98); `js/planTrace.js` (146) автообрисовка стен; `js/drag.js` (43); `js/config.js` (72) «магические числа» EPConfig; `js/placeDblClick.js` (55); `js/confirmRepeat.js` (144) — `press` 94 (повтор-подтверждение, окно MIN_MS/ARM_MS); `js/prefs.js` (43) — `get`/`set` 23/28 (ключ `ep_prefs`).
+
+### 3.4 Сгенерированные данные (не читать целиком, не править)
+
+- `js/catalog-vimar.js` (6 строк, одна JSON-строка) — `EP_VIMAR_CATALOG {meta, products[2868]}`: kind mechanism 1046 / frame 1627 / accessory 113 / support 57 / socket_box 25. Генерирует `tools/build-catalog.mjs` (`npm run build:catalog`) из «Номенклатура 2026-10-10.xls» + прайса VIMAR.
+- `js/catalog-vimar-attrs.js` (25187 строк) — `EP_VIMAR_ATTRS` {standards, supports, wallTypes, boxes, mounting, roles, groups, colors, nameColors, articleColors, sensors, packs}. `tools/build-catalog-attrs.mjs`.
+- `js/catalog-vimar-openings.js` (734) — монтажные окна накладок по базе артикула (rects в %). `tools/detect-openings.mjs` (jimp по фото VIMAR).
+- `js/catalog-vimar-faces.js` (2320) — лицевой прямоугольник механизмов по полному артикулу. `tools/detect-faces.mjs`.
+- `js/catalog-vimar-discontinued.js` (6) — снятые с производства позиции прежнего каталога (active=false). `tools/build-discontinued.mjs` из снимка `tools/data/discontinued-732ae3a.json`.
+- `js/data.js` (337) — `EP_DATA.settings` (дефолты проекта: workPercent 18, materialsPercent 7, vatPercent 20, rateSurchargePercent 3, lightingScheme, backlight, …),
+  `EP_DATA.products` = `enrichCatalog()` (стр. ~63–290: домешивает attrs/openings/faces/discontinued к товарам), `DataService` 256 (mock; шаблоны постов в `ep_post_templates`).
+
+## 4. Одно правило → все потребители
+
+Формат: **правило** — определено `файл:строка`; потребители `файл:строка` — что делает. «ДУБЛЬ» — правило продублировано вместо вызова общей функции.
+Обёртки в app.js (`postComposition` 276, `postCost` 275 и др.) передаются в docs.js/postBuilder.js/postVariant.js через ctx (`app.js:4339–4430`), поэтому в этих файлах видны как локальные имена.
+
+### R1. Состав поста: накладка + суппорт + коробки + число коробок (`boxCount`) — `EPPosts.postComposition` posts.js:317 (`boxCount` posts.js:128, зовётся только из posts.js:324)
+Единственная воронка: app.js:264 `postDeps` собирает deps (product, findBox, fallbackBox, resolveSupport, supportRequired, socketBox, backlight/sensor-планы) → posts.js:317.
+Прямые вызовы `postComposition(`: app.js:1160 (hover-карточка), app.js:1462 (карточка поста в панели свойств), docs.js:66 (`postPricedItems`), docs.js:226 (`supplierSpecData`), docs.js:444 (`buildPostSheet`), estimate.js:636 (через deps), postBuilder.js:1275 (панель «Состав поста»), posts.js:423 (`postCost`).
+Число коробок `comp.boxCount` читают: app.js:1163, 1478; docs.js:101, 270, 419–422; estimate.js:637; installSheet.js:153 (`buildFittings`); postBuilder.js:1308–1316; supplierSpec.js:206 (`po.boxCount` из docs.js:270).
+Подбор коробки/суппорта: postfit.js:89/134/135 (коробка), 284/362 (суппорт) ← только через app.js:232–247 (`EPCatalogPool.pick`: активные главнее снятых) ← posts.js:331, 337, 351–355, 426. `socketBox` ещё: postBuilder.js:1411 (пишет `socketBoxProductId`).
+Потребителей, считающих коробки мимо `postComposition`, не найдено.
+
+### R2. Цена поста — `EPEstimate.postPrice` estimate.js:61 (= базовая `EPPosts.postCost` posts.js:422 + механизмы групп света)
+- Показ цены поста в UI/документах идёт через `postTotalCost` app.js:1939 → `EPEstimate.postPriceShown` estimate.js:353 (единственный вызов app.js:1942). Потребители `postTotalCost`: app.js:1407 (сумма выделения), 1488 (панель свойств), docs.js:107 (`postPricedItems`), docs.js:591 (лист монтажника), postBuilder.js:1359 («Стоимость поста»).
+- В смете: estimate.js:843 `postPrice(postCost(...effIds...), allLightRows)` (внутри `build` 574). `postCost` как дep: app.js:1975, docs.js:53.
+- Тесты-стражи: tests/postPriceConsumers.test.js, postPriceShownInvariant.test.js, docsMoneyCoverage.test.js.
+- Механизмы групп света в цене: `effectiveMechanismIds` estimate.js:51 (замена цельного изделия 09001→09005) — app.js:301, docs.js:70, 243, estimate.js:635; `separateLighting` 45 / `billableLighting` 37 — docs.js:244, 549, estimate.js:60, 78, 310, 713.
+- Деньги в валюте показа: `roundShown` estimate.js:209 / `shownSum` 302 / `specShown` 325 / `totalsShown` 398 — app.js:93, 1872–1873, 2026, 3595; курс — `displayRate` app.js:74.
+
+### R3. Расчёт групп света проекта — `lightingFor` app.js:1771 → `EPLightingPlan.collect` lightingPlan.js:101 → `EPLightingByRoom.planByRooms` lightingByRoom.js:100 → `EPLightingGroups.plan` lightingGroups.js:788
+- `lightingFor(` зовут: app.js:1930 (`projectLighting` 1924, кэш по `cacheSignature`, app.js:1920/1926), app.js:3608 (превью перенумерации), postBuilder.js:723, 874, 1056, 1560 (окно поста — проект ПЛЮС редактируемый черновик, `projectPostsWithBuilder` 476).
+- `projectLighting(` зовут: app.js:300, 1406, 1461, 1940, 1972, 2020, 3607; docs.js:64, 620, 662, 732.
+- `lightingRowsFor(` (строки групп света одного поста + номер модуля через `moduleLayout`): app.js:1463, 1942, 1978; docs.js:54, 70, 242, 483; postBuilder.js:731, 886, 1058, 1331.
+- `lightingHtml(` (блок «Группы света»): app.js:2071; docs.js:630, 688; postBuilder.js:1356, 1567. `buildEstimate(` app.js:1971 ← app.js:2021, docs.js:663, 733 (+ docs.js:52 вызывает `EPEstimate.build` напрямую для одного поста).
+- Смета читает строки групп света: estimate.js:25/72/308/584 (`rowsByPost`), печать плана: EPLightingPlan.buildHtml ← app.js:1957/1961, estimate.js:712, installSheet.js:265, offerPdf.js:129.
+- Ключ места: `EPLightingPlan.postKey` lightingPlan.js:458 ← app.js:1847. Пробелы `isSupplyGap` lightingGroups.js:748 ← docs.js:235, 245, 543, 549.
+- `EPLightingGroups.SCHEMES` читают app.js:1531–1541, 1760, 1822–1826, 1929, 2090–2112.
+
+### R4. Механизм клавиши по числу мест управления (выключатель / 2 переключателя / инверторы; реле/звонок = кнопка) — `roleFor` lightingGroups.js:676 (`classicRole` 652, `relayRole` 660, `relayCount` 665)
+- Вызывается ТОЛЬКО внутри `plan` lightingGroups.js:788 (место = ПОСТ, не клавиша: `buildRegistry` 540; порядок мест — `canonicalOrder` 433).
+- Ручная переопределялка роли (вариант C): `roleOverrideOf` lightingGroups.js:687 ← app.js:1365 (запись в свойствах), postBuilder.js:1040 (селектор в слоте, `mechOverrideOptions` 1043). Выбранное руками главнее расчёта.
+- Подбор самого изделия под роль и серию: `resolveMechanism` lightingPlan.js:263 ← app.js:1775, 1807 (через `EPCatalogPool.pick`); замена цельного изделия `resolveReplacement` lightingPlan.js:363 ← app.js:1800, catalogSections.js:164.
+- Классификация «клавиша ли это» (`controlPlaceKind` app.js:1744 по partRole/controlRole) ← `keySlotKind` app.js:1754 (передаётся в EPBuilderSlots), app.js:1772 (`collect`).
+- Группа клавиши (строка, не число!): `normalizeGroup` lightingGroups.js:106 ← app.js:1363–1364, 3505, 3508; builderSlots.js:27; `groupKeyOf` 134 ← app.js:3511, planLabels.js:43, postCopy.js:256, postCopyUi.js:100; `crossGroupKey` 150 ← app.js:3496, 3504, postCopy.js:47, 116, postCopyUi.js:74, 100; `resolveGroup` 519 ← app.js:3492, builderSlots.js:61, postCopy.js:244.
+- Схема электрики комнаты: `EPRoom.roomLightingScheme` room.js:24 ← app.js:1529, 1537, 1825–1826, 1929; lightingByRoom.js:243; roomCarry.js:102.
+- ДУБЛЬ (осознанный): lightingPlan.js:41 `groupKey` — встроенный фолбэк копии `EPCatalogSections.keyOf` (для запуска модуля в изоляции); основной путь зовёт `keyOf`.
+
+### R5. Ширина механизма в накладке (шов) — `EPButtonFrame.spanIn` buttonFrame.js:78. С 5c5939e (К12 ч.4, заказчик 15.10 0:21:33) правило ТОЖДЕСТВЕННО: клавиша 22751 = ОДНА прорезь, spanIn возвращает обычную ширину; шов оставлен, чтобы будущая правка была в одном месте. Нетривиальное осталось только в картинке: `cellSlots` — одна верхняя кнопка лица на прорезь (`appliesTo` 66, `isButtonFrame` 51, `cellSlots` 141, `orderWindows` 91; базы накладок `BUTTON_FRAME_BASES` 33: 22682.1/.2, 22683.1/.2/.3, 22684.4)
+Единый шов: **`spanForFrame(frame)(item)` app.js:147** (обёртка над spanIn + голый `mechanismSpan` catalog.js:65). Через шов считают: app.js:308 (`assembledPostSpec`; потом distributePosts app.js:314), app.js:1851 (`lightingRowsFor`), docs.js:459 (`buildPostSheet`), postBuilder.js:775 (ёмкость окна), 1122 (карточки каталога), 1215 (добавление механизма), 1401 (`savePostBuilder` → distributePosts), postVariant.js:131 (подмена накладки).
+Прямые вызовы EPButtonFrame: app.js:313 (appliesTo), 345 (`cellSlots`), 369 (`orderWindows`), postBuilder.js:1236 (`isButtonFrame` — текст переполнения). Картинка читает `cell.slots`: postImage.js:523, 558.
+МИМО шва (на «голом» `mechanismSpan`): app.js:264 `postDeps` — по решению владельца (цена/число мест не меняются); app.js:115 `mechanismModulesTotal` (← app.js:514, postBuilder.js:328); app.js:139–140 `fitMechanismIds(Preserving)`; postBuilder.js:833 `fitDeps` (`tokenDeps(slots,{product,mechanismSpan})`) — пока spanIn тождественен, расхождения нет; если правило снова станет нетривиальным — это края.
+ДУБЛЬ: выражение-страховка `(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(frame)` повторено 8 раз (app.js:308, 1851; docs.js:459; postBuilder.js:775, 1122, 1215, 1401; postVariant.js:131).
+Тесты: buttonFrame, buttonFrameCapacity, buttonFrameBuilderWiring, buttonFrameImage.
+
+### R6. Раскладка механизмов по постам/импостам и порядок модулей — `distributePosts` posts.js:756 / `moduleLayout` posts.js:445 / `fitMechanismIds` posts.js:637 / `maxFreeSpan` 802 / `postModuleGroups` 811
+- `distributePosts(`: app.js:314; postBuilder.js:852, 1401; postVariant.js:132; posts.js:812 (`postModuleGroups`).
+- `moduleLayout(`: app.js:1852; docs.js:460; postBuilder.js:725, 843, 885; posts.js:815.
+- `fitMechanismIds`: postBuilder.js:834; `fitMechanismIdsPreserving`: postBuilder.js:1205; `maxFreeSpan`: postBuilder.js:869; `postModuleGroups`: docs.js:463.
+- Слоты «механизм+группа» вместо параллельных массивов: EPBuilderSlots — потребители postBuilder.js (tokens 834/852/1205, toPost 168/444/720/843/867/1274/1399/1407/1541, fromPost 359–360/1384), app.js:1351/1358/3020/3033 (fromPost/toPost), docs.js:461–463.
+
+### R7. Порядок модулей/обвязки в карточке листа монтажника — `EPInstallSheet.cardModuleOrder` installSheet.js:186, `cardFittingOrder` 205
+Вызовы: docs.js:529 (порядок карточки → раскладка/взрыв-схема), installSheet.js:208 (внутри `cardFittingOrder`), installSheet.js:419 (строки обвязки таблицы). Обвязка `buildFittings` installSheet.js:67 ← docs.js:548.
+Тест: installSheet.test.js, assemblyView.test.js.
+
+### R8. Подтверждение необратимой команды повтором — `EPConfirmRepeat.press` confirmRepeat.js:94
+Вызовы: app.js:2738, 2747 (очистить план), 3624, 3635 (перенумерация постов), postBuilder.js:1521 (закрыть окно поста с правками, `ESC_CONFIRM_MS`). Тесты: confirmRepeat, clearPlanConfirm, closePostBuilderWiring.
+
+### R9. Подсветка клавиш — `EPBacklightPick.pick` backlightPick.js:110 (`accepts` 102, `classify` 72); действующая настройка поста — `EPPosts.postBacklight` posts.js:276 (своя у поста, иначе проектная) → `backlightPlan` posts.js:284
+- `pick`: app.js:249–251 (`findBacklight`, `EPCatalogPool.pick`), posts.js:235. `accepts`: app.js:268, posts.js:290. Результат уходит в `comp.backlight` (posts.js:398) → смета estimate.js:717, docs.js:74–83, UI app.js:1873–1924.
+- Не через воронку posts: `EPPostFit.findBacklight` postfit.js:406 / `backlightVoltage` 391 / `acceptsBacklight` 400 — внешних вызовов не найдено (проверять, жив ли код).
+- Настройка проекта: `ensureBacklightSetting` app.js:3815; запись у поста postBuilder.js:1447.
+
+### R10. Автодатчик терморегулятора — `EPThermoSensor.plan` thermoSensor.js:79; включён ли у поста — `sensorsEnabled` 66
+`plan(`: app.js:269, 274 (deps `sensorPlan`), posts.js:400. `sensorsEnabled`: app.js:271, 274, posts.js:406, 557, postBuilder.js:383. `rowSummary` (строка в UI): app.js:1169, 1173, 1467, 1470; postBuilder.js:1346, 1349. `sensorCodeFor`/`isSensorMechanism`: postBuilder.js:162–169, 788–795. Подбор датчика `findSensor` app.js:256.
+
+### R11. Цвет механизмов комнаты (К12 ч.3) — `EPMechColor` mechColor.js (`colorOf` 38, `colorsFor` 52, `visible` 64, `autoValue` 73, `filter` 86, `checkboxLabel` 97, `emptyCatalogText` 105)
+app.js:1709, 2318, 2325, 2431 (`autoValue`/`visible`/`colorsFor`), app.js:2314 (`mechColorDeps`); postBuilder.js:795 (`filter` — начинка под цвет комнаты), 801 (`checkboxLabel`), 1111 (`emptyCatalogText`); roomVariantsUi.js:298, 305–317 (`mechColorValue/Visible/FieldOptionsHtml`).
+ДУБЛЬ: функция `match:(m,c)=>…compatibleMechanisms({series:[c.collection]},m)` написана дважды — app.js:2314 и roomVariantsUi.js:298.
+В смету цвет из названия/артикула НЕ идёт: автозамена читает `item.elementColor` (app.js:1789 `colorKeyOf` через `EPCatalog.facingColorKey` catalog.js:141).
+
+### R12. Отделка комнаты → отбор накладок и начинки — `EPCatalog.productsForRoom` catalog.js:181 + критерий `roomCatalogFilter` app.js:2195 + чтение полей `EPRoom.roomFrameFacing` room.js:65 / `roomCollection` 50
+- `productsForRoom(`: app.js:2176, 2272, 2285, 2305; postBuilder.js:247, 558, 791; postVariant.js:37, 40, 138; roomVariantsUi.js:236, 280, 335. `roomCatalogFilter(`: app.js:1620; postBuilder.js:247, 512, 1383; postVariant.js:121, 138, 143.
+- `roomFrameFacing(`: app.js:488–497, 1544, 1558, 2184–2204, 2343–2348; catalog.js:175; postBuilder.js:531, 796; posts.js:600; roomCarry.js:130. `roomCollection(`: app.js:1558, 2201, 2345; catalog.js:166; roomCarry.js:114; roomVariants.js:15, 125; roomVariantsUi.js:231.
+- Варианты отделки (до 5): `EPRoomVariants.list` roomVariants.js:62 ← app.js:497, 1551, 1705, 2340, 2447; postBuilder.js:509, 1383; postVariant.js:118. `fitIndex` 127 ← postVariant.js:122 (`placementIndex` 137 — внешних вызовов в js/ нет, только тесты).
+- Совместимость накладка↔начинка: `compatibleMechanisms` catalog.js:212 ← postBuilder.js:100, 785, 819; postVariant.js:65; app.js:2314; roomVariantsUi.js:298. Выбор «своей» накладки: `preferOwnFrame` app.js:2175 ← postBuilder.js:249, postVariant.js:139.
+- Накладка по умолчанию для поста: `pickDefaultFrame` postBuilder.js:220, `defaultFrameForRoom` 246, `EPPosts.pickRoomFrame` posts.js:626, `templateFitsRoomColors` posts.js:609 ← app.js:499.
+
+### R13. Совместимость серий — `EPSeriesMatch.seriesCompatible` seriesMatch.js:47 / `matchLevel` 63
+catalog.js:217 (`compatibleMechanisms`), lightingPlan.js:169 (обёртка `seriesMatch`), 288, 309 (`matchLevel === "exact"`), postfit.js:305 (суппорт).
+
+### R14. Тип стены поста — `EPPosts.postWallType` posts.js:152 (проектный фолбэк `applyProjectWallToPosts` 168; охват правки `wallTypeTargets` 220, ключ однотипности `postTypeKey` 194)
+`postWallType(`: app.js:1475, 1500; postBuilder.js:365, 1426; roomWalls.js:156, 165. `wallTypeTargets(`: app.js:1502, 1507; postBuilder.js:1432, 1443. `applyProjectWallToPosts`: app.js:3056 (миграция). Несовпадение со стеной комнаты: roomWalls.js:48 `mismatch`, `warnWallMismatch` app.js:4393. Модалка охвата: wallScope.js + app.js:2475.
+
+### R15. Пул «активные, потом снятые» — `EPCatalogPool.pick` catalogPool.js:30
+app.js:232, 234, 241, 246, 251, 256, 1807. Источники: `byKind` app.js:100 (active) / `byKindOff` 104 (active===false).
+
+### R16. Кратно упаковке — `EPPackRound.packRound` packRound.js:19; карта упаковок `EPPackTopUp.buildPackMap` packTopUp.js:38
+`packRound(`: packTopUp.js:86, specExcel.js:330, supplierSpec.js:291. `buildPackMap(`: app.js:1983, docs.js:306, 745. Добор: `splitRows`/`panelHtml` app.js:2062, 2067; `topUpGroups` (estimate.js ленивый вызов, docs.js). Поле `packQty` ставит data.js.
+
+### R17. Настройки документов — `EPOfferOptions.normalize` offerOptions.js:39; `EPInstallSheetOptions.normalize/migrate` installSheetOptions.js:43/83
+`EPOfferOptions.normalize(`: app.js:2812, 3125, 3368, 3402, 3415, 3429; docs.js:659, 740. `EPInstallSheetOptions`: app.js:2818, 3134, 3445, 3447; docs.js:604. Номер КП `EPOfferNumber.assign` offerNumber.js:46 ← docs.js:706 (единственный).
+Картинки бланка: `EPDocImages.validateSource/readHeader/fitSize` ← app.js:3303, 3317–3318; `EPImageFormats.withMime` ← app.js:3323; HEIC → app.js:3320; формат-проверка плана в planImport.js (через imageFormats).
+
+### R18. Документы из данных проекта (кто собирает КП/лист/Excel/сводную)
+`EPOfferPdf.buildHtml` ← docs.js:717; `EPInstallSheet.buildHtml` ← docs.js:605; `EPSupplierSpec.buildHtml` ← docs.js:302, `collect` ← docs.js:722/734; `EPSpecExcel.build` ← docs.js:746; `EPExplodedView.buildHtml` ← docs.js:581; `EPPostImage.buildHtml` ← app.js:373, docs.js:574/576; `EPPlanLabels.buildHtml` ← docs.js:197. Все документы получают смету/состав из R1–R3, а не считают сами.
+
+## 5. Данные каталога
+
+- Источники (в `..` = `D:\LuxarGROUP\myProgects\electro`): `Номенклатура 2026-10-10.xls` (состав+атрибуты, читает `tools/lib/nomenclature2026.mjs`), `Номенклатура новая.xls`, `Прайс VIMAR Евро 01.07.26 (2) (2).xls` (цены). Руками не править.
+- Сборка: `tools/build-catalog.mjs` → catalog-vimar.js; `build-catalog-attrs.mjs` → attrs; `build-discontinued.mjs` + `make-discontinued-snapshot.mjs` → discontinued; `detect-openings.mjs`/`detect-faces.mjs` → openings/faces (по фото VIMAR, jimp); `analyze-price.mjs`, `discover-candidates.mjs`, `fetch-site-groups.mjs` — разведка/отчёты. Описание — `tools/README.md`.
+- `tools/lib/`: nomenclature.mjs (общая классификация), nomenclature2026.mjs (чтение xls), classify.mjs (categoryId/icon по названию), stable-ids.mjs (id по артикулу из `data/catalog-ids.json`, новые 200000+), discontinued.mjs, faces.mjs, mountNote.mjs, backlightInherit.mjs, elementColorFromName/Article.mjs, site-groups.mjs.
+- `tools/data/`: catalog-ids.json (стабильные id), discontinued-732ae3a.json, box-wall-type.json, frame-facing-overrides.json, frame-standard-overrides.json, kind-overrides.json, image-overrides.json, price-columns.json, compat-*.json, site-groups.json.
+- Поля товара (после `enrichCatalog` data.js) и кто читает (файлы js/):
+  - `kind` (mechanism/frame/socket_box/support/accessory), `active` (false = снятый) — app.js (`byKind`), catalog.js, posts.js, postfit.js.
+  - `moduleSpan`/`modules`/`moduleCount` → `EPCatalog.mechanismSpan` catalog.js:65 (иначе парсит «N модуля» из названия), lightingPlan.js (`moduleSpanOf`).
+  - `slotCount` (накладка: число модулей) → `frameSlotCount` catalog.js:227, buttonFrame.js, posts.js.
+  - `series[]` → `productSeries` (catalog.js, seriesMatch, lightingPlan, postfit). `standard` (IT/DE/BOTH) — catalog.js, postfit.js, posts.js, postBuilder.js, roomVariants*.
+  - `wallType` (solid/hollow), `boxShape`, `boxModules`, `boxStandards`, `boxModularity`, `principle` — postfit.js, posts.js, estimate.js, roomWalls.js; `postCount`, `pitchMm` (суппорты).
+  - Отделка накладки: `frameColor`, `frameMaterial`, `frameShape` — catalog.js (`productFacingValues`), postBuilder.js, postVariant.js, roomCarry.js, roomDetect.js. Цвет начинки: `elementColor` (столбец), `nameColor`, `articleColor` — mechColor.js:38, lightingPlan.js, catalog.js.
+  - Роли: `partRole` (bare_mechanism|key), `controlRole` (switch|…), `functionalGroup`/`functionalSubgroup` (разделы выбора) — app.js:1744, catalogSections.js, lightingPlan.js, thermoSensor.js.
+  - Картинки: `imageUrl`, `previewImageUrl`; измерения: `mountRect(s)` (окна накладки) и `faceRect` (лицо механизма) — catalog.js (`frameOpening(s)`, `moduleFace`), postImage.js. `layoutRows` — catalog.js, posts.js (`frameLayout`).
+  - `packQty` → packTopUp.js; `thermoSensorCode` → thermoSensor.js; `price` в EUR (база), `currency`.
+- Правила (память владельца): BYME/KNX не трогаем; «По запросу» вместо пустой цены; курс = ЦБ РФ + 3% (надбавка отдельно: `rateSurchargePercent`).
+
+## 6. Хранение и миграции
+
+localStorage-ключи:
+- `electroplan_current_project` — снимок проекта (`ProjectStore` store.js; запись `persistProject` app.js:2834: при переполнении повторно без плана `{plan:null, planTooBig:true}`).
+- `ep_post_templates` — «Готовые посты» (data.js:311–335; app.js:4451 для файла проекта).
+- `ep_prefs` — привычки человека и бланк (prefs.js): `frameFacingView`, `myRequisites`, `companyLogo`/`companySignature`/`companyStamp`, `companyTerms`, `offerPresets`, `installSheetPresets`, `offerCounters` (автономер КП), состояние секций левой/правой панели.
+- `ep_eur_rate` — кэш курса ЦБ (rates.js:13). `ep_download_sig` — подпись последнего скачанного файла проекта (projectFile.js:149).
+Файл проекта (`.json`): `EPProjectFile.build/parse` projectFile.js:50/64, `PREF_KEYS` 36 едут вместе с проектом; снимок берётся из `projectSnapshot()` app.js:2785 напрямую (не из ProjectStore).
+Снимок: devices, posts, rooms, walls, autoWalls, roomLines, roomFieldMemory, planVisibility, planRotation, worldAngle, rotateTarget, view, orthoMode/snapGrid/gridStep, pxPerMeter/scaleSegment, plan (data-URL), docHeader, offerOptions, assemblyView, installSheetOptions, packMultiple, terms{workPercent, materialsPercent, discountPercent, vatPercent, vatMode, rateSurchargePercent, lightingScheme, backlight, displayCurrency, eurRate, rateDate, rateSource}.
+Загрузка и миграции — `restoreProject` app.js:3040–3160 (все идемпотентны): `relabelContourRooms`; `EPPosts.ensurePostNumbers` (3049, нумерация старых постов); `dropOrphanKeyGroups` 3029/3050 (осиротевшие группы света); `EPPosts.applyProjectWallToPosts` 3056 (проектная стена → на посты); поворот плана (`EPPlanRotate.normalizeAngle`, старые = 0/"image"); `rateSurchargePercent == null → 0` (старые сметы не дорожают); подсветка/схема электрики — по умолчанию выключена/classic; `vatMode` из `vatEnabled` (`EPEstimate.vatModeOf` estimate.js:468); `EPOfferOptions.normalize` 3125; `installSheetOptions` нет поля → `migrate` (лист как раньше) 3134; `EPDocRequisites.migrateDocHeader` docRequisites.js:61; `syncPackMultiple`.
+Undo/redo: `captureHistory` app.js:2889, `EPHistory` history.js (шаг = снимок плана без savedAt/view).
+
+## 7. Тесты (`tests/*.test.js`, раннер node:test; хелперы `tests/helpers/appStand.js`, `stripComments.js`)
+
+Чистые модули (по одному файлу на модуль):
+catalog (49) · seriesMatch · catalogSections, catalogSectionsOrder · catalogPoolFallback · posts (78) · postfit (57), postfitDeviceSupport, postfitSupportWallCatalog · estimate (63), estimateBacklight, specShown · lightingGroups (103) · lightingPlan (46) · lightingByRoom (37) · builderSlots (28) · buttonFrame, buttonFrameCapacity · mechColor · framePicker · thermoSensor, thermoSensorK5b · backlightPick (19) · confirmRepeat (24) · installSheet (56), installSheetOptions, installSheetWindow · offerPdf, offerOptions, offerNumber, offerTerms · supplierSpec (45) · specExcel · packRound, packTopUp · explodedView (38) · postImage (56) · planLabels (41) · postCopy (37) · geometry (54) · viewport · roomsFromLines · roomOverlap · roomCarry (66) · roomVariants (35), roomVariantsUi · roomWalls · room · roomDraft · selectionModule · drag · history · planImport, planRotate, planShrink · imageFormats, heicImport · docRequisites · priceSheet, priceTemplate (29), priceTemplateFile, priceCheckUi · projectFile, projectSetup · rates · notices · leftPanel, rightPanel, topbarProjectLabel · picker · placeDblClick · planDrop.
+
+Правила на данных/каталоге: nomenclature (33), nomenclature2026 (20) — чтение xls и классификация; catalogIdsUnique; catalogNoPlaceholderPhoto; catalogRuntimeEnrichment; discontinuedCatalog; packCatalogData; openingsKeyConsistency (ключ окон data.js ↔ tools); detectOpeningsSelection; faces; mountNote; elementColorFromArticle/FromName; siteGroups; backlightInherit.
+
+Поведенческие через appStand (вырезают функции app.js/docs.js/postBuilder.js):
+- Деньги/документы: postPriceConsumers, postPriceShownInvariant, docsMoneyCoverage, offerInvariant, offerTotalsConsistency, itemDiscount (35), vatModeWiring, vatMigrationChain, offerNumberWiring, rateStartup, packExportWiring, packMultipleExcel/RoundTrip/SupplierSpec, packTopUpDocs/Wiring, documentLogo, documentSignatureStamp, offerPresetSets, assemblyView, installSheetGating, integratedSwitchDocuments, backlightDocuments (19), backlightMoney/Settings/PostOverride/PostLayout/ScreenComposition/PostBuilderUi.
+- Окно поста/конструктор: appStandMultiFile, appStandFactoryTail, postBuilderModuleBoundary, builderPostDraftWiring, builderSignatureWiring, builderRoomFilterCollectionWiring, savePostBuilderWiring, closePostBuilderWiring, openPostBuilderCollectionWiring, openPostBuilderSearchClearWiring, newPostRoomFrameWiring (32), postSlotCountWiring, postLightGroupsUiWiring, resolveMissingFrameCollection, mechanismMissingGapWiring, mechanismDiscontinuedKeptWiring, mechanismAxialModule, frameAvailability, frameDiscontinuedKeptWiring/Placement, buttonFrameBuilderWiring, buttonFrameImage, innardsColorFilter (15), noPhotoLabelSingleSource, productPicture.
+- Отделка комнаты: frameFacingRoomWiring/ViewWiring/NarrowingWiring (27), frameStandardRoomWiring, frameCollectionList*, framePickerDepsWiring, frameSwapOnPlacement (30), postVariantSelect, roomVariantsPlacement, roomVariantsUiWiring, roomVariantsCarryRoundTrip, roomCollection*Wiring, roomFacingTitleWiring, noRoomStyleWiring.
+- Группы света: crossLinkNumbers (24), integratedSwitchReplacement, keyGroupsMigrationWiring, lightingByRoomWiring, replacementGroupCase, planLabelsSpecWiring, planLabelsWorldRotate, postCopyNames/Paste/Placement.
+- Комнаты и план: roomResolveRule, roomAssignSingleRuleWiring, roomAssignmentsRefreshWiring, roomCarryCollectionAppWiring, roomCoverManualAppWiring, roomDraftFlushWiring, roomFieldMemoryRoundTrip/Wiring, roomLabelPlacePending/SeedWiring, roomMarkupBehavior, roomNoRoomLabelBehavior/Wiring, roomOverlapShow, roomVertexEdit/Guard, roomWallsGesture, wallScopeModal, wallMigrationRestore, wallDrawPersistWiring, wallPointSummaryWiring, relabelContourRooms, orphanWarning, renderSummaryOrphanWiring, addPendingRoomToast, compactIconNoRoomBehavior, placementAnyTool.
+- Холст/история/файл: canvasDragBehavior, canvasInputRotateWorld, canvasRoomPickWiring, selectionBehavior (30), arrowNudgeRotate, undoBehavior (32), undoSnapshotClassification, clearPlanConfirm/Wiring, planBackingRaceGuard, rotateWorldControls/Wiring, setWorldAngleView, applyViewMatrix, statusCountsWiring, renderPropertiesStaleSelectionWiring, projectFileRoundTrip, installSheetPlanHintCss, priceCardHiddenCss.
+
+QA (`tools/qa/`): `run.mjs` (сценарий показа → скриншоты `out/shots`, свой сервер :8431, headless Chrome), `shoot.mjs` (общая часть сцен), `tails/*.txt` (хвосты сценария: vat, num, inst, inst2, disc, req, place…), `mutate.cjs` + `mutations/*.json` (мутационная проверка: сломать код — покраснел ли тест), `build-deck.py`, `README.md`.
+
+## 8. Документы-ориентиры (содержимое не пересказывается)
+
+- `HANDOFF.md` — входной документ: статус, журнал работ по датам, открытые решения владельца, правила 7.1–7.3.
+- `docs/ОСТАТОК-РАБОТ.md` — единый список оставшихся работ (на «что осталось» отвечать по нему).
+- `.claude/RULES.md` — обязательные правила проекта (хук печатает на каждое сообщение владельца): сначала слова заказчика, фраза «что увидит на экране», сабагенты в фоне, новый код в свой модуль.
+- Прочее: `PLAN.md` (основной план), `PLAN-segmentation.md`, `INTERFACE.md`, `README.md`, `tools/README.md` (пересборка каталога), `tools/qa/README.md`, `docs/К12-разведка-и-план.md` (образец перечня потребителей), `docs/итоги-встречи-*.md`, `docs/расшифровка-встречи-*.txt` (слова заказчика), `local/README.md` (план переноса в Битрикс).
