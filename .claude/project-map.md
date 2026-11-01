@@ -1,4 +1,4 @@
-<!-- mapped-at-commit: bc24318ae7e13d6ec8dd80a9914e1e3d9ab047da -->
+<!-- mapped-at-commit: 4e3d2f40a14af0f90943d89e44ad4c25209628eb -->
 <!-- mapped-at: 2026-11-01 -->
 
 # Карта кода ElectroPlan Pro
@@ -119,12 +119,12 @@
 | 997 | app.js | — (последним, оркестратор) |
 
 Паттерн: чистые модули (без DOM/state) получают всё аргументом `deps`; модули с `attach(ctx)` вынесены из app.js (раздел «И1/И2» ОСТАТОК-РАБОТ), получают от app.js
-замыкания (`state`, `renderAll`, `product`…) и возвращают функции, которые app.js вызывает (`app.js:4340–4471`).
+замыкания (`state`, `renderAll`, `product`…) и возвращают функции, которые app.js вызывает (`app.js:4348–4479`).
 Правило владельца: новый код интерфейса — в свой модуль `js/<имя>.js`, в app.js только подключение.
 
 ## 3. Модуль → назначение (ключевые функции с :строкой)
 
-### 3.1 Оркестратор js/app.js (4474 строки, одна IIFE `(() => {…})()`; монолит state+DOM)
+### 3.1 Оркестратор js/app.js (4482 строки, одна IIFE `(() => {…})()`; монолит state+DOM)
 
 | строки | что |
 |--------|-----|
@@ -154,8 +154,8 @@
 | 3837–3901 | вид холста: `view` 3837, `clientToWorld` 3844, `applyView` 3853, `zoomBy` 3872, `fitToScreen` 3893 |
 | 3902–3991 | импорт плана `applyImportedPlan` 3928, `importPlanFile` 3960 |
 | 3989–4144 | `clearCanvas` 3989, условия сделки `applyTerms` 4065, скидка `applyItemDiscount` 4085, `applyCurrency` 4117, `applySurcharge` 4133 |
-| 4145–4291 | `trapBuilderFocus` 4145 и обработчики событий (клавиши, кнопки шапки) |
-| 4294–4474 | `reportFailure` 4294; подключение вынесенных модулей: EPDocs 4339, EPPostBuilder 4360, EPRoomDetect 4384, EPRoomWalls 4393, EPCanvasInput 4404, EPPostVariant 4416, EPPostCopyUi 4426, EPRooms 4436, EPProjectFile 4448, EPProjectSetup 4459, EPPriceCheckUi 4464, EPPackMultiple 4470; `init()` 4472 |
+| 4145–4299 | `trapBuilderFocus` 4145 и обработчики событий (клавиши, кнопки шапки) |
+| 4302–4482 | `reportFailure` 4302; подключение вынесенных модулей: EPDocs 4339, EPPostBuilder 4360, EPRoomDetect 4384, EPRoomWalls 4393, EPCanvasInput 4404, EPPostVariant 4416, EPPostCopyUi 4426, EPRooms 4436, EPProjectFile 4448, EPProjectSetup 4459, EPPriceCheckUi 4464, EPPackMultiple 4470; `init()` 4472 |
 
 ### 3.2 Вынесенные из app.js (attach-модули, DOM+state через ctx)
 
@@ -236,7 +236,7 @@
 ## 4. Одно правило → все потребители
 
 Формат: **правило** — определено `файл:строка`; потребители `файл:строка` — что делает. «ДУБЛЬ» — правило продублировано вместо вызова общей функции.
-Обёртки в app.js (`postComposition` 276, `postCost` 275 и др.) передаются в docs.js/postBuilder.js/postVariant.js через ctx (`app.js:4340–4431`), поэтому в этих файлах видны как локальные имена.
+Обёртки в app.js (`postComposition` 276, `postCost` 275 и др.) передаются в docs.js/postBuilder.js/postVariant.js через ctx (`app.js:4348–4439`), поэтому в этих файлах видны как локальные имена.
 
 ### R1. Состав поста: накладка + суппорт + коробки + число коробок (`boxCount`) — `EPPosts.postComposition` posts.js:317 (`boxCount` posts.js:128, зовётся только из posts.js:324)
 Единственная воронка: app.js:265 `postDeps` собирает deps (product, findBox, fallbackBox, resolveSupport, supportRequired, socketBox, backlight/sensor-планы) → posts.js:317.
@@ -314,7 +314,7 @@ app.js:1710, 2319, 2326, 2432 (`autoValue`/`visible`/`colorsFor`), app.js:2315 (
 catalog.js:217 (`compatibleMechanisms`), lightingPlan.js:169 (обёртка `seriesMatch`), 288, 309 (`matchLevel === "exact"`), postfit.js:305 (суппорт).
 
 ### R14. Тип стены поста — `EPPosts.postWallType` posts.js:152 (проектный фолбэк `applyProjectWallToPosts` 168; охват правки `wallTypeTargets` 220, ключ однотипности `postTypeKey` 194)
-`postWallType(`: app.js:1476, 1501; postBuilder.js:365, 1426; roomWalls.js:156, 165. `wallTypeTargets(`: app.js:1503, 1508; postBuilder.js:1432, 1443. `applyProjectWallToPosts`: app.js:3057 (миграция). Несовпадение со стеной комнаты: roomWalls.js:48 `mismatch`, `warnWallMismatch` app.js:4394. Модалка охвата: wallScope.js + app.js:2476.
+`postWallType(`: app.js:1476, 1501; postBuilder.js:365, 1426; roomWalls.js:156, 165. `wallTypeTargets(`: app.js:1503, 1508; postBuilder.js:1432, 1443. `applyProjectWallToPosts`: app.js:3057 (миграция). Несовпадение со стеной комнаты: roomWalls.js:48 `mismatch`, `warnWallMismatch` app.js:4402. Модалка охвата: wallScope.js + app.js:2476.
 
 ### R15. Пул «активные, потом снятые» — `EPCatalogPool.pick` catalogPool.js:30
 app.js:233, 235, 242, 247, 252, 257, 1808. Источники: `byKind` app.js:100 (active) / `byKindOff` 104 (active===false).
@@ -328,6 +328,12 @@ app.js:233, 235, 242, 247, 252, 257, 1808. Источники: `byKind` app.js:1
 
 ### R18. Документы из данных проекта (кто собирает КП/лист/Excel/сводную)
 `EPOfferPdf.buildHtml` ← docs.js:717; `EPInstallSheet.buildHtml` ← docs.js:605; `EPSupplierSpec.buildHtml` ← docs.js:302, `collect` ← docs.js:722/734; `EPSpecExcel.build` ← docs.js:746; `EPExplodedView.buildHtml` ← docs.js:581; `EPPostImage.buildHtml` ← app.js:374, docs.js:574/576; `EPPlanLabels.buildHtml` ← docs.js:197. Все документы получают смету/состав из R1–R3, а не считают сами.
+
+
+### R19. Удаление ОДНОЙ точки контура комнаты (К13 ч.1, решение владельца 01.11) — `deleteVertex` rooms.js:214 (проверки ≤3 вершин и `EPRoomOverlap.overlapGrew`, splice, markRoomEdited, refreshRoomAfterEdit)
+Вызовы: Alt+pointerdown ручки в `renderVertexHandles` (rooms.js ~290), `tryDeleteSelectedVertex` rooms.js:258 (Delete). Выделенная точка — `selectedVertex` {roomId,index,count} rooms.js:47, `vertexSelectionValid` 53 (сброс в начале renderRooms 61, если сменились комната/инструмент/число вершин), `selectVertex` ~242, подсветка при перерисовке ~300, `h.onclick` ~317 гасит всплытие клика к canvasScroll.onclick (canvasInput.js ~419, иначе перевыбор комнаты сбрасывал выделение) — кроме state.pending (В11).
+Delete: app.js:4260 — `e.repeat` игнор; `tryDeleteSelectedVertex()` в режиме vertex ВСЕГДА true (комнату Delete в «Правке комнат» не удаляет никогда), вне — false → deleteSelectedEntity app.js:1307.
+Тесты: roomVertexDeleteKey (стаб refreshAfterRoomAssignments перерисовывает, как app.js:1075–1077), roomVertexEdit, roomVertexEditGuard; стенды renderRooms требуют vertexSelectionValid+selectedVertex: + roomOverlapShow, roomLabelPlacePending, placementAnyTool.
 
 ## 5. Данные каталога
 
@@ -351,7 +357,7 @@ app.js:233, 235, 242, 247, 252, 257, 1808. Источники: `byKind` app.js:1
 
 localStorage-ключи:
 - `electroplan_current_project` — снимок проекта (`ProjectStore` store.js; запись `persistProject` app.js:2835: при переполнении повторно без плана `{plan:null, planTooBig:true}`).
-- `ep_post_templates` — «Готовые посты» (data.js:311–335; app.js:4452 для файла проекта).
+- `ep_post_templates` — «Готовые посты» (data.js:311–335; app.js:4460 для файла проекта).
 - `ep_prefs` — привычки человека и бланк (prefs.js): `frameFacingView`, `myRequisites`, `companyLogo`/`companySignature`/`companyStamp`, `companyTerms`, `offerPresets`, `installSheetPresets`, `offerCounters` (автономер КП), состояние секций левой/правой панели.
 - `ep_eur_rate` — кэш курса ЦБ (rates.js:13). `ep_download_sig` — подпись последнего скачанного файла проекта (projectFile.js:149).
 Файл проекта (`.json`): `EPProjectFile.build/parse` projectFile.js:50/64, `PREF_KEYS` 36 едут вместе с проектом; снимок берётся из `projectSnapshot()` app.js:2786 напрямую (не из ProjectStore).
