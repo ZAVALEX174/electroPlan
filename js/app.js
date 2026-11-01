@@ -1787,7 +1787,11 @@ function lightingFor(posts){
      тем же mechanismSpan, что раскладка поста; серия/семья — как у отбора товара. */
   const replacementDeps={
     seriesOf:productSeries,spanOf:mechanismSpan,
-    colorKeyOf:item=>item&&item.elementColor?EPCatalog.facingColorKey(item.elementColor):null,
+    /* Цвет для замены — ТЕМ ЖЕ colorOf (столбец‖название‖артикул), что окно поста (К14 ч.1): у
+       «Управления светом» столбец цвета часто пуст, белый 19100.B несёт цвет только в названии. Правило
+       живёт одним выражением в EPMechColor.colorKey, второй копии чтения цвета здесь нет. ОТЛИЧИЕ от
+       сметы/автозамены/отбора начинки осознанно: те остаются на столбце (решение владельца 01.11). */
+    colorKeyOf:item=>EPMechColor.colorKey(item,{keyOf:EPCatalog.facingColorKey}),
     fgOf:item=>(item&&item.functionalGroup)||null,fsgOf:item=>(item&&item.functionalSubgroup)||null
   };
   const planDeps={

@@ -245,21 +245,27 @@ function replacementDeps(colorField) {
   };
 }
 
-test("автозамена: цвет по СТОЛБЦУ даёт точную замену (как HEAD); nameColor в colorKeyOf её ломает", () => {
+test("замена цельного изделия по роли: осевое правило К14 держит точность и с цветом из названия", () => {
   const EPLightingPlan = require("../js/lightingPlan.js");
   const prods = loadReplacementCatalog();
   const mechs = prods.filter(p => p.kind === "mechanism" && p.active);
   const byCode = c => prods.find(p => p.code === c);
   const rep = (code, role, deps) => EPLightingPlan.resolveReplacement({ role, source: byCode(code) }, mechs, deps);
-  /* Столбец (как в рантайме и HEAD) — однозначные замены. */
+  /* Цвет по столбцу — однозначные замены осевых пар. */
   const col = replacementDeps(i => i.elementColor);
   assert.equal(rep("14100.2", "changeover", col).product.code, "14104.2");
-  assert.equal(rep("14066", "switch", col).product.code, "14100");
-  assert.equal(rep("14003", "changeover", col).product.code, "14007", "снятый 14003 → 14007");
-  /* МУТАЦИЯ: добавили nameColor в ключ цвета — замены ломаются (неоднозначно/пусто). Это и есть доказательство,
-     что в смету выведенный цвет попадать НЕ должен. */
-  const mut = replacementDeps(i => i.nameColor || i.elementColor);
-  assert.equal(rep("14100.2", "changeover", mut).product, null, "мутация: 14100.2 стала неоднозначной");
-  assert.equal(rep("14066", "switch", mut).product, null, "мутация: 14066 без замены");
-  assert.equal(rep("14003", "changeover", mut).product, null, "мутация: 14003 стала неоднозначной");
+  /* 14066 «Кнопки NO+NO независимые» — НЕ осевая; с осевым правилом К14 (владелец 01.11) осевой
+     выключатель 14100 ей больше не подставляется (не-осевое меняется только не-осевым, а не-осевого
+     выключателя в Plana нет) — честный пробел. */
+  assert.equal(rep("14066", "switch", col).product, null, "14066 не-осевая → осевой 14100 не подставляется (К14)");
+  assert.equal(rep("14003", "changeover", col).product.code, "14007", "снятый 14003 (не-осевой) → не-осевой 14007");
+  /* РАНЬШЕ (К12 ч.3) выведенный из названия цвет делал 14100.2→changeover неоднозначным (примешивался
+     белый не-осевой «тройной» 14007). ОСЕВОЕ ПРАВИЛО К14 отделяет осевой 14104.2 от не-осевого 14007
+     НЕЗАВИСИМО от цвета, поэтому теперь замены остаются точными и с colorOf (столбец‖название‖артикул) —
+     ровно это и даёт заказчику белый 19100.B→19104.B. Прежняя гарантия «nameColor ломает замену»
+     снята осознанно (её роль взяло осевое правило, см. replacementColorFromName.test.js). */
+  const derived = replacementDeps(i => i.nameColor || i.elementColor);
+  assert.equal(rep("14100.2", "changeover", derived).product.code, "14104.2", "К14: осевое правило держит точность и с цветом из названия");
+  assert.equal(rep("14066", "switch", derived).product, null, "14066 по-прежнему честный пробел");
+  assert.equal(rep("14003", "changeover", derived).product.code, "14007", "14003 по-прежнему → не-осевой 14007");
 });

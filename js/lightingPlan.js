@@ -374,10 +374,14 @@ function resolveReplacement(query, products, deps) {
   const fgOf = d.fgOf || (item => (item && item.functionalGroup) || null);
   const fsgOf = d.fsgOf || (item => (item && item.functionalSubgroup) || null);
   const codeOf = d.codeOf || (item => item && item.code);
+  /* Осевой признак — ТОТ ЖЕ isAxialItem (по названию «осев…/аксиальн…»), которым resolveMechanism
+     различает голые механизмы (Д1); второй копии нет. */
+  const axialOf = d.axialOf || isAxialItem;
   /* Роль уже нужная — само изделие и есть замена (владелец п.4). */
   if (roleOf(source) === role) return { product: source, candidates: [source], ambiguous: false };
   const span = spanOf(source);
   const colorKey = colorKeyOf(source);
+  const srcAxial = axialOf(source);
   /* Функциональную группу/подгруппу сравниваем НОРМАЛИЗОВАННО (Д5): снятое изделие несёт их строчными,
      активное — с заглавной, и строгое === теряло замену снятому. groupKey — одно правило на проект. */
   const fg = groupKey(fgOf(source)), fsg = groupKey(fsgOf(source));
@@ -389,7 +393,15 @@ function resolveReplacement(query, products, deps) {
     && spanOf(item) === span
     && colorKeyOf(item) === colorKey
     && groupKey(fgOf(item)) === fg
-    && groupKey(fsgOf(item)) === fsg
+    /* ОСЕВОЕ меняется ТОЛЬКО осевым, не-осевое — только не-осевым (владелец 01.11): так осевой
+       переключатель 14104.2 отделён от не-осевого «тройного» 14007 (63,30 €), а осевой инвертор
+       19113.B — от не-осевого ИК-датчика/реле 19181.B. */
+    && axialOf(item) === srcAxial
+    /* Подгруппу (fsg) НЕ требуем, когда ОБА осевые: номенклатура осевым изделиям Arke проставляет fsg
+       непоследовательно (19100.B без подгруппы, его инвертор 19113.B — «Осевые механизмы»), и строгое
+       равенство теряло бы законную пару. Осевой фильтр выше уже не пускает сюда датчики/реле, поэтому
+       послабление безопасно. В остальных (не-осевых) случаях fsg отсекает как прежде. */
+    && (srcAxial || groupKey(fsgOf(item)) === fsg)
     && seriesMatch(seriesOf(source), seriesOf(item)));
   if (candidates.length === 1) return { product: candidates[0], candidates, ambiguous: false };
   return { product: null, candidates, ambiguous: candidates.length > 1 };

@@ -39,6 +39,19 @@ function colorOf(item) {
   return (item && (item.elementColor || item.nameColor || item.articleColor)) || "";
 }
 
+/* Ключ цвета для СТРОГОЙ ЗАМЕНЫ цельного изделия по роли (К14 ч.1, слова заказчика 15.10: «берём
+   19-100 осевой… а переключатель 19-104… точно такая же картинка»). Цвет берём ТЕМ ЖЕ colorOf
+   (столбец‖название‖артикул), что окно поста: у «Управления светом» столбец цвета пуст у 15 из 36
+   осевых Arke (19100.B несёт «Белый» только в названии), поэтому чтение одного elementColor не нашло
+   бы белому выключателю 19100.B белый переключатель 19104.B. Затем сводим к накладочной гамме через
+   deps.keyOf (EPCatalog.facingColorKey) — тем же ключом, что отбор начинки под цвет комнаты. Пусто →
+   null («цвет не задан»): нормализация resolveReplacement трактует null у обеих сторон как совпадение.
+   Это ЕДИНСТВЕННОЕ выражение «цвет изделия для замены» — в app.js второй копии чтения цвета нет. */
+function colorKey(item, deps) {
+  const c = colorOf(item);
+  return c ? deps.keyOf(c) : null;
+}
+
 /* Правило видимости шага — ЕДИНОЕ с framePicker (visibleSteps, К12 ч.1): «≥2 значения ИЛИ выбрано
    мёртвое». Берём его ФУНКЦИЕЙ у framePicker, а не копией (§7.1): поменяется правило «когда прятать
    шаг» — поменяется в одном месте. Браузер — window.EPFramePicker (подключён раньше), Node — require. */
@@ -107,7 +120,7 @@ function emptyCatalogText(color) {
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */
-const api = { colorOf, colorsFor, visible, autoValue, filter, checkboxLabel, emptyCatalogText };
+const api = { colorOf, colorKey, colorsFor, visible, autoValue, filter, checkboxLabel, emptyCatalogText };
 if (typeof window !== "undefined") window.EPMechColor = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
