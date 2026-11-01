@@ -166,9 +166,12 @@ function runVertex(state) {
   const svg = makeSvg();
   const api = stand.run(["svgTitle", "renderVertexHandles"], {
     state, SVG_NS: "http://www.w3.org/2000/svg", document: makeDoc(),
+    selectedVertex: null,   /* К13: renderVertexHandles читает «выделенную вершину» для подсветки — здесь не под тестом */
     markRoomEdited: r => spies.edited.push(r.id),
     refreshRoomAfterEdit: () => spies.refresh++,
     dragVertex: (r, i) => spies.drag.push(i),
+    selectVertex: (svg, r, i) => spies.select && spies.select.push(i),   /* К13: щелчок выделяет вершину — здесь не под тестом, тихая заглушка */
+    deleteVertex: (r, i) => spies.del && spies.del.push(i),              /* К13: Alt+клик зовёт deleteVertex — в размещении до него не доходит */
     updateStatus() {}, toast() {}
   });
   const room = { id: "r1", polygon: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 50, y: 80 }] };

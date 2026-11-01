@@ -243,6 +243,9 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;margin:0;padding:0;b
 .room-poly.editing{stroke:#1872ad;stroke-width:4;stroke-dasharray:none}
 .vertex-handle{fill:#fff;stroke:#bf3f4e;stroke-width:2;cursor:grab;pointer-events:all}
 .vertex-handle:hover{fill:#ffe2e6;r:8}
+/* К13 ч.1: выделенная щелчком вершина — залитый красным кружок крупнее обычной белой ручки, заметно,
+   чтобы было видно, какую вершину снимет Delete. Гаснет при перерисовке слоя ручек (см. js/rooms.js). */
+.vertex-handle.selected{fill:#bf3f4e;stroke:#fff;stroke-width:2.5;r:8}
 .vertex-mid{fill:#1872ad;fill-opacity:.55;stroke:#fff;stroke-width:1.5;cursor:copy;pointer-events:all}
 .vertex-mid:hover{fill-opacity:1}
 .scale-line{stroke:#1f9b52;stroke-width:3;stroke-linecap:round}

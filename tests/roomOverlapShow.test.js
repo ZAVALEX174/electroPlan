@@ -62,6 +62,8 @@ function runRooms(state) {
   const canvas = makeEl("div"), svg = makeEl("svg");
   const ctx = buildCtx(state, canvas, svg);
   const code = [
+    "let selectedVertex=null;",                      /* К13: модульная «выделенная вершина» — её читает renderRooms */
+    stand.functionSource("vertexSelectionValid"),    /* К13: renderRooms зовёт её первой строкой */
     stand.functionSource("renderRooms"),
     stand.functionSource("computeOverlaps"),
     stand.functionSource("overlapOpts"),

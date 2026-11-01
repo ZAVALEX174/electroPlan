@@ -25,7 +25,8 @@
    С НАЧАЛА СТРОКИ намеренно — по ним поведенческий стенд (tests/helpers/appStand.js, SOURCE_FILES
    включает этот файл) находит и вырезает тело; порядок сохранён из app.js.
 
-   Интерфейс приложению — window.EPRooms.attach(ctx) → { renderRooms, relabelContourRooms, updateRoomLabelText }. */
+   Интерфейс приложению — window.EPRooms.attach(ctx) → { renderRooms, relabelContourRooms, updateRoomLabelText,
+   tryDeleteSelectedVertex }. Последняя (К13 ч.1): Delete в режиме правки удаляет выделенную вершину, не комнату. */
 (() => {
 "use strict";
 
@@ -38,7 +39,26 @@ const {
   selectEntity,state,toast,updateStatus
 }=ctx;
 
+/* К13 ч.1: ВЫДЕЛЕННАЯ вершина контура в режиме правки — {roomId,index,count} или null. Щелчок по ручке
+   её запоминает (и подсвечивает), Delete по ней удаляет ОДНУ эту вершину (комната остаётся). `count` —
+   число вершин контура на момент выделения: по нему переживаем ПЕРЕРИСОВКУ (клик по ручке всплывает к
+   canvas.onclick и перевыбирает комнату → renderRooms; отпускание перетаскивания тоже перерисовывает).
+   Сбрасывать выделение на КАЖДУЮ renderRooms оказалось слишком широко (приёмка 01.11: щелчок+Delete
+   удалял всю комнату, т.к. click перерисовывал и гасил выделение). Поэтому индекс сохраняем, пока это
+   ТА ЖЕ комната в режиме правки и число вершин не изменилось; иначе индекс мог устареть — снимаем. */
+let selectedVertex=null;
+
+/* К13: действительно ли выделение вершины ещё валидно на момент перерисовки — та же выделенная комната в
+   режиме vertex и прежнее число вершин (добавление/удаление вершины и undo с иным числом сбрасывают). */
+function vertexSelectionValid(){
+  if(!selectedVertex)return false;
+  if(state.tool!=="vertex"||state.selected?.kind!=="room"||state.selected.id!==selectedVertex.roomId)return false;
+  const r=state.rooms.find(x=>x.id===selectedVertex.roomId);
+  return !!(r&&r.polygon&&r.polygon.length===selectedVertex.count);
+}
+
 function renderRooms(){
+  if(!vertexSelectionValid())selectedVertex=null;   /* К13: индекс устарел бы — снимаем; иначе выделение переживает перерисовку */
   canvas.querySelectorAll(".room-label").forEach(e=>e.remove());
   const svg=$("roomsSvg");if(svg)svg.innerHTML="";
   /* Ч.4 блока: уже существующие наложения (старые проекты) считаем ОДИН раз на всю сцену — отсюда и
@@ -194,6 +214,54 @@ function refreshRoomAfterEdit(room){
   room.seedX=nm.x;room.seedY=nm.y;room.x=c.x-45;room.y=c.y-16;
   refreshAfterRoomAssignments(renderRooms, persistProject);
 }
+/* К13 ч.1: удаление ОДНОЙ вершины контура — ЕДИНСТВЕННОЕ место правила (§7.1). Зовут и Alt+клик по
+   ручке, и Delete по выделенной вершине; второй копии проверок нет. Проверки: нельзя опустить контур
+   ниже трёх вершин; нельзя, если без этой вершины контур заедет в соседнюю комнату (наложение
+   вырастет) — короткий тост с именем соседа. При успехе: splice, пометка «ручная», пересчёт якоря/
+   seed/привязки (refreshRoomAfterEdit → renderRooms, он же сбросит selectedVertex), строка статуса.
+   Возвращает true, если вершина удалена; false — если отказано (показан тост). */
+function deleteVertex(room,index){
+  const poly=room.polygon;
+  if(!poly||index<0||index>=poly.length)return false;
+  if(poly.length<=3){toast("В полигоне должно остаться не менее трёх вершин");return false}
+  /* ч.2: снимок соседей/наложения — тот же overlapGuardFor, что у перетаскивания; нет соседей/модуля → null */
+  const g=overlapGuardFor(room);
+  if(g){
+    const bad=EPRoomOverlap.overlapGrew(poly.filter((_,k)=>k!==index),g.polys,g.base,g.opts);
+    if(bad>=0){toast(`Нельзя удалить: контур заедет в «${g.neighbors[bad].name}»`);return false}
+  }
+  poly.splice(index,1);markRoomEdited(room);refreshRoomAfterEdit(room);
+  updateStatus(`Вершина удалена · осталось ${poly.length}`);
+  return true;
+}
+/* К13 ч.1: запомнить выделенную вершину и подсветить её ручку (класс .vertex-handle.selected, в стиле
+   выделения контура). Подсветку ставим на месте — renderRooms тут не зовём (он снёс бы слой ручек и
+   сбросил бы выделение); снимаем прежнюю подсветку с других ручек. Сброс выделения — при ближайшей
+   renderRooms (см. selectedVertex). */
+function selectVertex(svg,room,i){
+  selectedVertex={roomId:room.id,index:i,count:room.polygon.length};
+  /* класс SVG-ручки ведём через setAttribute (как при их создании и как .room-poly выше), а не classList:
+     снимаем подсветку со всех ручек, ставим на выбранную — ровно одна выделена в цикле отрисовки */
+  svg.querySelectorAll(".vertex-handle").forEach(h=>h.setAttribute("class","vertex-handle"));
+  const h=svg.querySelectorAll(".vertex-handle")[i];
+  if(h)h.setAttribute("class","vertex-handle selected");
+  updateStatus("Вершина выделена · Delete — удалить");
+}
+/* К13 ч.1: Delete в режиме «Правка комнат». Решение владельца 01.11: в этом режиме Delete удаляет
+   ТОЛЬКО выделенную вершину и НИКОГДА не удаляет комнату (её удаляют инструментом «Удалить»). Поэтому
+   возвращаем true для ЛЮБОГО нажатия Delete в режиме vertex («обработано, к deleteSelectedEntity не
+   идём»): удалили вершину, отказали по проверке ИЛИ вершина не выделена — комнату не трогаем. Без этого
+   второй Delete (после удаления вершины selectedVertex сброшен renderRooms) сносил всю комнату (дефект
+   приёмки, раунд 3). Вне режима vertex — false: Delete удаляет выделенную сущность (пост/группа/комната
+   в «Выборе») прежним путём. */
+function tryDeleteSelectedVertex(){
+  if(state.tool!=="vertex")return false;
+  const room=selectedVertex&&state.selected?.kind==="room"&&state.selected.id===selectedVertex.roomId
+    ?state.rooms.find(r=>r.id===selectedVertex.roomId):null;
+  if(room)deleteVertex(room,selectedVertex.index);   /* удаляет вершину или отказывает по проверке (тост) */
+  else{selectedVertex=null;updateStatus("Щёлкните точку, чтобы удалить её · комнату удаляет инструмент «Удалить»")}
+  return true;   /* в режиме правки Delete комнату не удаляет — всегда «обработано» */
+}
 /* В10: миграция открываемого проекта. Старые проекты хранят якорь подписи контурной комнаты как
    среднее вершин; у Г/П-образных оно лежит ВНЕ контура, и табличка (с кликом «поставить сюда пост»)
    попадала в соседнюю комнату. Пересчитываем якорь контурных комнат через roomLabelPoint — точку
@@ -226,30 +294,30 @@ function renderVertexHandles(svg,room){
     };
     svg.appendChild(mid);
   });
-  /* вершины — перетаскивание, Alt+клик удаляет */
+  /* вершины — перетаскивание; щелчок выделяет (Delete удалит), Alt+клик удаляет сразу */
   poly.forEach((p,i)=>{
     const h=document.createElementNS(SVG_NS,"circle");
     h.setAttribute("cx",p.x);h.setAttribute("cy",p.y);h.setAttribute("r",6);
-    h.setAttribute("class","vertex-handle");
-    svgTitle(h,"Перетащите вершину · Alt+клик удаляет");
+    /* К13: при перерисовке восстанавливаем подсветку выделенной вершины (selectedVertex пережил
+       renderRooms по vertexSelectionValid) — ручки создаются заново и класс надо проставить тут же */
+    const isSel=selectedVertex&&selectedVertex.roomId===room.id&&selectedVertex.index===i;
+    h.setAttribute("class","vertex-handle"+(isSel?" selected":""));
+    svgTitle(h,"Перетащите вершину · щелчок и Delete или Alt+клик — удалить");
     h.onpointerdown=e=>{
       if(state.pending)return;   /* В11: в размещении вершину не двигаем/не удаляем — click поставит пост через canvas.onclick */
       e.preventDefault();e.stopPropagation();
-      if(e.altKey){
-        if(poly.length<=3){toast("В полигоне должно остаться не менее трёх вершин");return}
-        /* ч.2: если контур без этой вершины заедет в соседнюю комнату (наложение вырастет) —
-           удаление не выполняем (его нельзя сделать без наложения), короткий тост с именем соседа */
-        const g=overlapGuardFor(room);
-        if(g){
-          const bad=EPRoomOverlap.overlapGrew(poly.filter((_,k)=>k!==i),g.polys,g.base,g.opts);
-          if(bad>=0){toast(`Нельзя удалить: контур заедет в «${g.neighbors[bad].name}»`);return}
-        }
-        poly.splice(i,1);markRoomEdited(room);refreshRoomAfterEdit(room);
-        updateStatus(`Вершина удалена · осталось ${poly.length}`);
-        return;
-      }
+      if(e.altKey){deleteVertex(room,i);return}   /* К13: удаление — через единое правило deleteVertex */
+      /* К13: щелчок/нажатие выделяет вершину (подсветка + статус), затем начинается перетаскивание.
+         Чистый щелчок (без движения) оставит вершину выделенной — её удалит Delete; перетаскивание
+         работает как прежде. */
+      selectVertex(svg,room,i);
       dragVertex(room,i,e);
     };
+    /* К13: обычный клик по ручке (pointerdown+pointerup+click) НЕ должен всплывать к canvas.onclick —
+       иначе тот перевыберет комнату и renderRooms снимет только что сделанное выделение вершины (дефект
+       приёмки 01.11). В РЕЖИМЕ размещения (В11) клик, наоборот, пропускаем: pointerdown вышел рано, и
+       click через canvas.onclick ставит пост — гасить его здесь нельзя. */
+    h.onclick=e=>{if(!state.pending)e.stopPropagation()};
     svg.appendChild(h);
   });
 }
@@ -259,7 +327,8 @@ function dragVertex(room,index,startEvent){
   const handle=svg.querySelectorAll(".vertex-handle")[index];
   const point=room.polygon[index];
   const guard=overlapGuardFor(room);   /* ч.2: снимок соседей/наложения на начало жеста — для зажима */
-  const move=e=>{
+  let moved=false;   /* К13: было ли реальное перетаскивание — отличаем от чистого щелчка (только выделение) */
+  const apply=e=>{
     /* Поле бесконечное: по краям блока не зажимаем. Координаты — через единое clientToWorld (учитывает
        масштаб И угол мира, Б3 ч.2а): при повороте холста вершина садится под курсор, а не мимо.
        Ч.2: если желаемая точка заводит контур в соседнюю комнату — вершина упирается в её границу
@@ -271,19 +340,25 @@ function dragVertex(room,index,startEvent){
     if(pg)pg.setAttribute("points",room.polygon.map(p=>p.x+","+p.y).join(" "));
     if(handle){handle.setAttribute("cx",point.x);handle.setAttribute("cy",point.y)}
   };
+  const move=e=>{moved=true;apply(e)};
   const up=()=>{
     document.removeEventListener("pointermove",move);document.removeEventListener("pointerup",up);
     endGesture();   /* Б4 п.3: вершину отпустили — снова разрешаем шаг; refreshRoomAfterEdit его и зафиксирует */
+    /* К13: чистый щелчок (без движения) только ВЫДЕЛЯЕТ вершину — комнату не метим изменённой и НЕ
+       перерисовываем (renderRooms снял бы выделение/подсветку). Контур фиксируем лишь при реальном
+       перетаскивании — поведение переноса прежнее. */
+    if(!moved)return;
     markRoomEdited(room);refreshRoomAfterEdit(room);
     const m2=roomAreaM2(room);
     updateStatus(m2?`Контур изменён · площадь ${formatArea(m2)}`:"Контур комнаты изменён");
   };
   beginGesture();   /* Б4 п.3: пошло перетаскивание вершины — промежуточные положения в историю не пишем */
   document.addEventListener("pointermove",move);document.addEventListener("pointerup",up);
-  move(startEvent);
+  /* К13: позицию вершины НЕ трогаем на старте (прежний move(startEvent) сразу подтягивал её под
+     курсор) — чистый щелчок должен оставить вершину на месте; двигаем только по реальному pointermove. */
 }
 
-return {renderRooms,relabelContourRooms,updateRoomLabelText};
+return {renderRooms,relabelContourRooms,updateRoomLabelText,tryDeleteSelectedVertex};
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для автотестов. */

@@ -4252,7 +4252,15 @@ document.onkeydown=e=>{
      одним removePosts (один шаг истории, Ctrl+Z вернёт все); одиночное выделение (.id есть) — прежним
      removeEntity. Backspace здесь НЕ удаляет намеренно: в проекте одиночного удаления на Backspace нет,
      а в ветке «Разметка» ниже он снимает последнюю точку контура — поведение не меняем. */
-  if(e.key==="Delete"&&!typing&&!inBuilder)deleteSelectedEntity();
+  /* К13 ч.1: в режиме «Правка комнат» Delete удаляет ТОЛЬКО выделенную вершину и НИКОГДА комнату
+     (решение владельца 01.11) — EPRooms.tryDeleteSelectedVertex в режиме vertex всегда вернёт true
+     (обработано: вершину убрали, отказали по проверке или вершина не выделена). Вне режима правки
+     вернёт false — удаляем выделенную сущность (пост/группа/комната). e.repeat (зажатая клавиша) —
+     одно нажатие, как у Esc выше: иначе автоповтор после удаления вершины добивал бы комнату. */
+  if(e.key==="Delete"&&!typing&&!inBuilder){
+    if(e.repeat)return;
+    if(!tryDeleteSelectedVertex())deleteSelectedEntity();
+  }
   /* Клавиатура для выделенного объекта (PLAN 4): Enter — конструктор поста, стрелки —
      сдвиг на шаг сетки (Shift — на 1px). Только вне ввода и при закрытом конструкторе. */
   if(!typing&&state.selected&&!inBuilder){
@@ -4434,7 +4442,7 @@ const {copyPosts,pastePosts,copyBufferFilled}=EPPostCopyUi.attach({
    attach возвращает функции, которые app.js зовёт сам: renderRooms (init/renderAll и обработчики через
    refreshAfterRoomAssignments), relabelContourRooms (restoreProject — миграция открываемого проекта),
    updateRoomLabelText (flushRoomDraft). Правку вершин attach держит внутри — её зовёт только renderRooms. */
-const {renderRooms,relabelContourRooms,updateRoomLabelText}=EPRooms.attach({
+const {renderRooms,relabelContourRooms,updateRoomLabelText,tryDeleteSelectedVertex}=EPRooms.attach({
   $,SVG_NS,beginGesture,canvas,clientToWorld,endGesture,esc,formatArea,getObjectsInRoom,makeDraggable,persistProject,placePendingAtEvent,
   refreshAfterRoomAssignments,removeEntity,roomAreaM2,roomDisplayArea,roomLabelPoint,roomNamePoint,
   selectEntity,state,toast,updateStatus

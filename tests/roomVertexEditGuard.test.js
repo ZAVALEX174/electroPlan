@@ -145,6 +145,8 @@ function buildRooms(state) {
     toast(m) { spies.toast.push(m); }
   };
   const code = [
+    "let selectedVertex=null;",                 /* К13: модульная «выделенная вершина» — объявление вне функций */
+    stand.functionSource("vertexSelectionValid"),   /* К13: валидно ли выделение на перерисовке — зовёт renderRooms */
     stand.functionSource("renderRooms"),
     stand.functionSource("computeOverlaps"),
     stand.functionSource("overlapOpts"),
@@ -155,6 +157,8 @@ function buildRooms(state) {
     stand.functionSource("svgTitle"),
     stand.functionSource("markRoomEdited"),
     stand.functionSource("refreshRoomAfterEdit"),
+    stand.functionSource("deleteVertex"),      /* К13: удаление вершины (Alt+клик идёт через него) */
+    stand.functionSource("selectVertex"),      /* К13: выделение вершины щелчком (зовёт renderVertexHandles) */
     stand.functionSource("renderVertexHandles"),
     stand.functionSource("dragVertex"),
     ";({ renderRooms });"

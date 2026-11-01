@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261030.5">
+  <link rel="stylesheet" href="css/styles.css?v=20261101.1">
 </head>
 <body>
 <!-- Контурные иконки шапки (P1-1). Один спрайт <symbol>: иконки используют stroke:currentColor и
@@ -941,7 +941,7 @@
      подключает её через EPWallScope.create({$, WALL_STEP_LABEL}). -->
 <script src="js/wallScope.js?v=20260927.1"></script>
 <script src="js/postBuilder.js?v=20261101.2"></script>
-<script src="js/rooms.js?v=20261030.2"></script>
+<script src="js/rooms.js?v=20261101.1"></script>
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
@@ -994,6 +994,6 @@
 <!-- Левая панель (Редизайн, часть 4): сворачиваемые секции (память в EPPrefs), статус/автосворачивание
      «Исходного плана», горячие клавиши инструментов V/W/L/R/E. До app.js, который зовёт EPLeftPanel.attach(ctx). -->
 <script src="js/leftPanel.js?v=20261030.2"></script>
-<script src="js/app.js?v=20261101.2"></script>
+<script src="js/app.js?v=20261101.3"></script>
 </body>
 </html>
