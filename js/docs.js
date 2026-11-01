@@ -451,11 +451,11 @@ function buildPostSheet(post,light,options){
      переставить механизмы между постами накладки, и без токенов было бы не узнать, какая
      позиция исходного набора попала в какой пост, — примечание с группой света уехало бы к
      чужой клавише. Товары при этом настоящие: их отдаёт tokenDeps.product. */
-  /* Номера модулей С УЧЁТОМ накладки (К12 ч.4): двойная клавиша 22751 в кнопочной накладке Flat
-     занимает 2 прорези → адрес «1–2». Тем же spanForFrame, что окно поста и картинка. Для прочих
-     накладок spanForFrame === mechanismSpan — адреса байт в байт прежние. Это нумерация/адресация, на
-     смету не влияет: цену считает postComposition выше по «голому» mechanismSpan. Нет spanForFrame в
-     ctx (старый стенд) → падаем на mechanismSpan, адреса прежние. */
+  /* Номера модулей С УЧЁТОМ накладки (К12 ч.4): клавиша 22751 в кнопочной накладке Flat занимает одну
+     прорезь, как любой 1-модульный механизм (spanIn тождествен базовой ширине). Тем же spanForFrame,
+     что окно поста и картинка; для прочих накладок spanForFrame === mechanismSpan — адреса байт в байт
+     прежние. Это нумерация/адресация, на смету не влияет: цену считает postComposition выше по «голому»
+     mechanismSpan. Нет spanForFrame в ctx (старый стенд) → падаем на mechanismSpan, адреса прежние. */
   const frameSpan=(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(frame);
   const layout=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan:frameSpan});
   const slots=EPBuilderSlots.fromPost(post,keySlotKind);

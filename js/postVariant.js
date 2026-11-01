@@ -123,10 +123,10 @@ function frameForRoomPlacement(template,room){
   /* ни одному не подошла → перебор вариантов ПО ПОРЯДКУ, первый, под который подмена собирается. */
   const fitsSeries=frameFitsTemplateMechs(template);
   const mechIds=Array.isArray(template.mechanismIds)?template.mechanismIds:[];
-  /* «Собирается ли состав в накладку-кандидат f» — ширину считаем С УЧЁТОМ именно f (К12 ч.4): в
-     кнопочной накладке Flat двойная клавиша 22751 занимает 2 прорези, и подмена должна это учесть.
-     spanForFrame — тот же шов, что окно поста; для прочих накладок он равен mechanismSpan. typeof-guard:
-     старые стенды ctx без spanForFrame падают на mechanismSpan. Считаем на КАЖДОГО кандидата f отдельно. */
+  /* «Собирается ли состав в накладку-кандидат f» — ширину считаем С УЧЁТОМ именно f (К12 ч.4): клавиша
+     22751 занимает одну прорезь, как любой 1-модульный механизм (spanIn тождествен), и подмена считает
+     ширину через тот же шов spanForFrame, что окно поста; для прочих накладок он равен mechanismSpan.
+     typeof-guard: старые стенды ctx без spanForFrame падают на mechanismSpan. Считаем на КАЖДОГО кандидата f отдельно. */
   const assembles=f=>{
     const spanOf=(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(f);
     const d=EPPosts.distributePosts(mechIds,f,{product,mechanismSpan:spanOf});

@@ -138,12 +138,13 @@ function frameOptions(items,selectedId){
    как buildEstimate() над EPEstimate. */
 const fitMechanismIds=(ids,items,capacity)=>EPPosts.fitMechanismIds(ids,items,capacity,{product,mechanismSpan});
 const fitMechanismIdsPreserving=(ids,items,capacity,pinnedIndex)=>EPPosts.fitMechanismIdsPreserving(ids,items,capacity,pinnedIndex,{product,mechanismSpan});
-/* Ширина механизма С УЧЁТОМ накладки — ОДИН шов (К12 ч.4). Правило «двойная клавиша 22751 в
-   кнопочной накладке Flat занимает прорезь на кнопку» живёт в чистом EPButtonFrame.spanIn; здесь —
-   тонкая обёртка, связывающая его с каталожным mechanismSpan и КОНКРЕТНОЙ накладкой. Потребители
-   ёмкости/раскладки берут span функцией spanForFrame(накладка), а не зовут mechanismSpan напрямую,
-   — тогда у правила «кнопочная накладка» нет краёв. Смета поста (postDeps ниже) намеренно остаётся
-   на «голом» mechanismSpan: число мест/механизмов и цена по решению владельца не меняются. */
+/* Ширина механизма С УЧЁТОМ накладки — ОДИН шов (К12 ч.4). После переделки по словам заказчика (15.10)
+   клавиша 22751 в кнопочной накладке Flat НЕ раздувается: одна клавиша = одна прорезь, как любой
+   1-модульный механизм, поэтому EPButtonFrame.spanIn сейчас тождествен базовой ширине. Шов сохранён
+   осознанно — ширина с учётом накладки идёт через ОДНО место (эту обёртку над spanIn и mechanismSpan):
+   станет правило снова нетривиальным, менять придётся только spanIn, а не потребителей ёмкости/раскладки.
+   Смета поста (postDeps ниже) намеренно на «голом» mechanismSpan: число мест/механизмов и цена по
+   решению владельца не меняются. */
 const spanForFrame=frame=>item=>(typeof EPButtonFrame!=="undefined"?EPButtonFrame.spanIn(item,frame,mechanismSpan(item)):mechanismSpan(item));
 /* Единственная формулировка «фото нет» — одна на карточку каталога и на плитку мастера подбора
    отделки (§7.1). Держим её ЗДЕСЬ, а не копией в каждой разметке: раньше карточка писала «Нет
@@ -300,16 +301,16 @@ function assembledPostSpec(post,{size="md",articles=true}={},light){
   const lightRows=lightingRowsFor(post,light===undefined?projectLighting():light);
   const effIds=EPEstimate.effectiveMechanismIds(post.mechanismIds||[],lightRows);
   /* Ширина С УЧЁТОМ накладки (К12 ч.4): раскладка и номера модулей картинки — тем же spanForFrame,
-     что ёмкость окна поста, поэтому двойная клавиша 22751 в кнопочной накладке Flat занимает 2 прорези
-     и подписывается «1–2». Для всех прочих накладок spanForFrame === mechanismSpan (spanIn возвращает
-     базовую ширину) — картинка обычных постов не меняется ни на байт. frameSpan здесь — ОДИН шов для
-     distributePosts и для span ячейки ниже. typeof-guard: стенды, извлекающие эту функцию в песочницу
-     без spanForFrame, падают на mechanismSpan — кнопочных накладок у них нет, поведение прежнее. */
+     что ёмкость окна поста. После переделки по словам заказчика (15.10) клавиша 22751 в кнопочной
+     накладке Flat занимает одну прорезь, как любой 1-модульный механизм, а spanForFrame сейчас равен
+     mechanismSpan для всех накладок (spanIn тождествен базовой ширине) — картинка не меняется ни на байт.
+     frameSpan здесь — ОДИН шов для distributePosts и для span ячейки ниже. typeof-guard: стенды,
+     извлекающие эту функцию в песочницу без spanForFrame, падают на mechanismSpan — поведение прежнее. */
   const frameSpan=(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(frame);
   /* Кнопочная накладка Flat с ≥2 прорезями — только тогда у ячеек появляется раскладка по прорезям
-     (cell.slots): у двойной клавиши 2 слота с долями лица, у остального по 1. EPButtonFrame.appliesTo —
-     тот же гейт, что в spanIn, второй копии нет (§7.1). Вне кнопочных накладок slots не ставим —
-     postImage идёт прежним путём. */
+     (cell.slots): у клавиши 22751 одна прорезь, но в ней не всё лицо, а одна (верхняя) кнопка; у
+     остального по одной прорези на модуль. EPButtonFrame.appliesTo — тот же гейт, что в spanIn, второй
+     копии нет (§7.1). Вне кнопочных накладок slots не ставим — postImage идёт прежним путём. */
   const btn=typeof EPButtonFrame!=="undefined"&&EPButtonFrame.appliesTo(frame);
   const dist=EPPosts.distributePosts(effIds,frame,{product,mechanismSpan:frameSpan});
   const rowsMap=new Map();   /* группируем посты по физическому ряду накладки */
@@ -339,9 +340,9 @@ function assembledPostSpec(post,{size="md",articles=true}={},light){
          с серебр. клавишами). */
       const face=moduleFace(item);
       const cell={span,imageUrl:productImage(item,{detail:true}),face,color:item?.properties?.color||item?.color||"",categoryId:item?.categoryId,icon:item?.icon,name:item?.name||"",num:start===end?String(start):`${start}–${end}`};
-      /* Раскладка по прорезям (двойная клавиша → 2 слота, доли лица верх/низ) — правило в
-         EPButtonFrame.cellSlots, здесь только вызов. baseSpan берём «голый» mechanismSpan: spanIn
-         сам решает, расширять ли его до числа кнопок. */
+      /* Раскладка по прорезям (у клавиши 22751 — одна прорезь, в ней верхняя кнопка лица) — правило в
+         EPButtonFrame.cellSlots, здесь только вызов. baseSpan берём «голый» mechanismSpan: число и доли
+         прорезей внутри решает cellSlots. */
       if(btn)cell.slots=EPButtonFrame.cellSlots(item,frame,mechanismSpan(item),face);
       if(!articles)cell.name=EPOfferOptions.itemText(item.name,false,item.code);
       cells.push(cell);
@@ -1845,9 +1846,9 @@ function lightingFor(posts){
 function lightingRowsFor(post,light){
   if(!light)return[];
   const rows=light.rows.get(EPLightingPlan.postKey(post))||[];
-  /* Номер модуля клавиши — тем же spanForFrame, что ёмкость/картинка (К12 ч.4): двойная клавиша 22751
-     в кнопочной накладке Flat занимает 2 прорези и подписывается «1–2». Для прочих накладок spanForFrame
-     === mechanismSpan — номера прежние. */
+  /* Номер модуля клавиши — тем же spanForFrame, что ёмкость/картинка (К12 ч.4): клавиша 22751 в
+     кнопочной накладке Flat занимает одну прорезь (spanIn тождествен базовой ширине), как и прочие
+     1-модульные механизмы, поэтому spanForFrame === mechanismSpan — номера прежние. */
   const layoutSpan=(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(frameProduct(post.frameId));
   const layout=EPPosts.moduleLayout(post.mechanismIds,{product,mechanismSpan:layoutSpan});
   return rows.map(r=>Object.assign({},r,
