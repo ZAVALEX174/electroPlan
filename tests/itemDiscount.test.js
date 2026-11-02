@@ -234,6 +234,35 @@ test("панель (В9): сумма скидки — «−X €» БЕЗ «(N%)
   assert.match(els.discountTotal.textContent, /^−€/, "сумма начинается с минуса и валюты");
 });
 
+/* К7б: строку скидки панель гейтит по ПОКАЗАННОМУ (округлённому) значению, а не по сырому est.discount.
+   В рублях скидка меньше рубля округляется вниз до 0 — строки «Скидка −0 ₽» быть не должно. */
+function renderSummaryRub(over) {
+  const est = EPEstimate.build(Object.assign({ devices: [], posts: [], product, frameProduct: product, postCost }, over));
+  const dom = stand.makeDom();
+  stand.run("renderSummary", {
+    state: { rooms: [], devices: [], posts: [] },
+    EPEstimate, EPPackTopUp, $: dom.$, money: v => "₽" + Math.ceil(Number(v)), esc: String,
+    moneyShown: v => "₽" + Math.ceil(Number(v)), displayRate: () => 92.5, displayCurrency: () => "RUB",
+    projectLighting: () => ({}), buildEstimate: () => est,
+    lightingHtml: () => "", updateStatus: () => {}, orphanObjectsWarningText: () => "", _specGroups: []
+  })();
+  return { est, els: dom.els };
+}
+
+test("панель (К7б): строка скидки СКРЫТА, когда скидка в рублях < 1 рубля (нет «−0 ₽»)", () => {
+  const { est, els } = renderSummaryRub({ devices: [{ productId: 1 }],
+    product: () => ({ id: 1, code: "X", name: "X", price: 0.01, unit: "шт." }),
+    settings: { workPercent: 0, materialsPercent: 0, discountPercent: 5, vatPercent: 0, vatMode: "none" } });
+  assert.ok(est.discount > 0, "сырой est.discount (евро) > 0 — прежний гейт показал бы «−0 ₽»");
+  assert.equal(els.discountRow.hidden, true, "строка скидки скрыта (показанная скидка = 0)");
+});
+
+test("панель (К7б): обычная рублёвая скидка (>1 ₽) строку ПОКАЗЫВАЕТ", () => {
+  const { els } = renderSummaryRub({ devices: [{ productId: 7 }],
+    settings: { workPercent: 0, materialsPercent: 0, discountPercent: 5, vatPercent: 0, vatMode: "none" } });
+  assert.equal(els.discountRow.hidden, false, "строка скидки видна (показанная скидка > 0)");
+});
+
 test("панель (В9): без личных скидок подпись — «Скидка N%», как в КП", () => {
   const over = Object.assign({ devices: [{ productId: 7 }] }, withSettings({ discountPercent: 15 }));
   const els = renderSpecDom(over);

@@ -2031,8 +2031,11 @@ function renderSummary(){
   const rate=displayRate(),cur=displayCurrency(),totals=EPEstimate.totalsShown(est,rate,cur),spec=EPEstimate.specShown(est,rate,cur);
   $("equipmentTotal").textContent=moneyShown(totals.equipment);$("materialsTotal").textContent=moneyShown(totals.materials);
   $("workTotal").textContent=moneyShown(totals.work);$("grandTotal").textContent=moneyShown(totals.total);
-  /* скидка и НДС показываются, только когда заданы — чтобы не мозолить нулями */
-  $("discountRow").hidden=!est.discount;
+  /* скидка и НДС показываются, только когда заданы — чтобы не мозолить нулями. Гейт строки скидки —
+     по ПОКАЗАННОМУ (округлённому) значению, а не по сырому est.discount (К7б): в рублях скидка меньше
+     рубля округляется вниз до 0, и по сырому est.discount строка выводила бы «Скидка −0 ₽». Правило
+     «какая скидка показана» — одно, EPEstimate.discountShown (то же число, что печатаем ниже). */
+  $("discountRow").hidden=!(EPEstimate.discountShown(est,rate,cur)>0);
   /* Подпись строки скидки в панели — ТА ЖЕ, что в КП: одна функция EPEstimate.discountLabel (§7.1),
      второй копии текста нет. При смеси она сама пояснит «(общая N%, у отмеченных позиций своя)».
      Подпись идёт в <span> (#discountLabel), сумма «−X €» — в #discountTotal, без «(N%)»: процент

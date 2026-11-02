@@ -286,7 +286,7 @@ function buildSpecSheet(est, options, config, estimate, rate, currency) {
     } else {
       totalRow("Оборудование", totals.equipment, true);
     }
-    if (est.discount) totalRow(estimate.discountLabel(est.discountMixed, est.discountPercent), -totals.discount, true);
+    if (estimate.discountShown(est, rate, currency) > 0) totalRow(estimate.discountLabel(est.discountMixed, est.discountPercent), -totals.discount, true);
     totalRow("Монтажные материалы", totals.materials, true);
     totalRow("Работы", totals.work, true);
     if (est.vat && !est.vatIncluded) {

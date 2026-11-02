@@ -338,6 +338,35 @@ test("A6 МУТАЦИЯ-ловушка (рубли): три числа НДС и
   assert.ok(!hasNum(spec, 0.97125), "в книге НЕТ est.total×курс (0,97) — Excel не считает мимо правила");
 });
 
+test("A6 (К7а): рублёвый денежный формат — ЦЕЛЫЕ рубли, без «,00» (мутация: добавить копейки в формат)", () => {
+  /* Прежний тест проверял только символ (₽, не €), но не копейки: формат «#,##0.00 ₽» с копейками его
+     прошёл бы. Здесь ловим именно дробную часть формата рублёвой ячейки. */
+  const est = withVat("surcharge");
+  const rubStyles = sheets(EPSpecExcel.build(est, EPSupplierSpec.collect(supplierRub()),
+    { options: {}, currency: "RUB", rate: RATE })).files["xl/styles.xml"].data.toString("utf8");
+  const rubFmt = (rubStyles.match(/formatCode="([^"]*₽[^"]*)"/) || [])[1];
+  assert.ok(rubFmt, "рублёвый формат с ₽ найден");
+  assert.ok(!/\.0/.test(rubFmt), `рублёвый формат без дробной части (нет «,00»): ${rubFmt}`);
+  /* Контраст: в евро формат ОБЯЗАН нести две копейки — иначе тест прошёл бы на формате вообще без
+     десятичных, и мутация «убрать копейки у евро» осталась бы незамеченной. */
+  const eurStyles = sheets(EPSpecExcel.build(est, EPSupplierSpec.collect(supplierRub()),
+    { options: {}, currency: "EUR", rate: 1 })).files["xl/styles.xml"].data.toString("utf8");
+  const eurFmt = (eurStyles.match(/formatCode="([^"]*€[^"]*)"/) || [])[1];
+  assert.ok(/\.00/.test(eurFmt), `евро-формат несёт копейки (.00): ${eurFmt}`);
+});
+
+test("A6 (К7б): строки «Скидка −0 ₽» нет, когда скидка в рублях округлилась вниз до 0", () => {
+  /* Скидка 5 % от 0,01 € = 0,0005 € — сырой est.discount > 0, но в рублях (вниз до рубля) = 0. Строки
+     «Скидка» в книге быть не должно (гейт по discountShown, а не по сырому est.discount). */
+  const est = EPEstimate.build({ devices: [{ productId: 1 }],
+    product: () => ({ id: 1, code: "X", name: "X", price: 0.01, unit: "шт." }),
+    settings: { discountPercent: 5, materialsPercent: 0, workPercent: 0, vatMode: "none" } });
+  assert.ok(est.discount > 0, "сырой est.discount (евро) > 0 — прежний гейт напечатал бы «Скидка −0 ₽»");
+  const { spec } = sheets(EPSpecExcel.build(est, { rows: [] }, { options: {}, currency: "RUB", rate: 92.5 }));
+  const hasDiscLabel = Object.values(spec).some(c => c.type === "s" && /Скидка/.test(String(c.text || "")));
+  assert.ok(!hasDiscLabel, "строки «Скидка» в рублёвой книге нет (скидка < 1 ₽)");
+});
+
 /* ---- Имя файла: номер КП, безопасные символы, расширение ---- */
 test("A6: fileName подставляет номер КП и чистит запрещённые символы", () => {
   assert.equal(EPSpecExcel.fileName("EPG-2026-0001", "Проект"), "Спецификация EPG-2026-0001.xlsx");

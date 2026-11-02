@@ -460,6 +460,21 @@ function totalsShown(est, rate, currency) {
     mode: vat.mode, percent: vat.percent, included: vat.included, label: vat.label };
 }
 
+/* ⚠️ ПОКАЗАННАЯ СКИДКА — ОДНО правило «показывать ли строку скидки и каким числом» (К7б).
+   Строка «Скидка −X» в панели, КП и Excel раньше ГЕЙТИЛАСЬ по СЫРОМУ est.discount (евро, до
+   округления и курса), а ПЕЧАТАЛАСЬ округлённым totals.discount. В рублях скидка меньше рубля
+   округляется ВНИЗ до 0 (floorRub, решение владельца 20.10 п.4), и строка выводила бессмысленное
+   «Скидка −0 ₽», хотя сам итог был верный (скидка в него вошла нулём). Теперь и ПОКАЗ, и ЗНАЧЕНИЕ
+   идут от ОДНОГО округлённого числа — того же, что totalsShown кладёт в «Итого»: рубли — вниз до
+   рубля, евро — round2 (как было). Строки скидки нет, когда это число = 0 (в рублях — скидка
+   меньше рубля; в евро — меньше копейки). Второй копии условия «какая скидка показана» нет (§7.1):
+   три документа зовут ЭТУ функцию и сравнивают её результат с нулём, а не повторяют гейт над сырым
+   est.discount. Личные скидки строк в документах показываются ПРОЦЕНТОМ (discMark), а не суммой
+   «−X», поэтому «−0» у позиции взяться неоткуда — правило касается только итоговой строки скидки. */
+function discountShown(est, rate, currency) {
+  return totalsShown(est, rate, currency).discount;
+}
+
 /* Режим НДС проекта — ОДНО правило чтения настроек, вместе с миграцией старых проектов (§7.1 п.4:
    обратная совместимость — самый частый пропущенный край). Новое поле settings.vatMode
    ("none"|"included"|"surcharge"). Проекта, сохранённого до трёх режимов, этого поля нет — читаем
@@ -958,7 +973,7 @@ function isEmptyProject(est, supplier) {
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, roundShown, vatBreakdown, vatShown, pricedUnit, shownSum, lightingSumShown, lightingPlanSumShown, specShown, postPriceShown, totalsShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
+const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, roundShown, vatBreakdown, vatShown, pricedUnit, shownSum, lightingSumShown, lightingPlanSumShown, specShown, postPriceShown, totalsShown, discountShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

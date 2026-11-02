@@ -4,7 +4,7 @@
    поэтому браузер поднимать не нужно. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { build, postPrice, billableLighting, lightingCounts, pricelessNote, round2, roundShown, totalsShown, specShown, vatBreakdown, vatShown, vatModeOf } = require("../js/estimate.js");
+const { build, postPrice, billableLighting, lightingCounts, pricelessNote, round2, roundShown, totalsShown, discountShown, specShown, vatBreakdown, vatShown, vatModeOf } = require("../js/estimate.js");
 const PF = require("../js/postfit.js");
 const POSTS = require("../js/posts.js");
 
@@ -145,6 +145,76 @@ test("totalsShown: евро (нет валюты) НЕ округляет до �
     discountPercent: 5, materialsPercent: 0, workPercent: 0, vatMode: "none" }, 1);
   assert.equal(eur.equipment, 1021.05, "евро: оборудование с копейками");
   assert.equal(eur.discount, 51.05, "евро: скидка round2, не вниз до рубля");
+});
+
+/* ⚠️ К7а — МУТАЦИОННАЯ СТРАЖА НАПРАВЛЕНИЙ И ДРЕБЕЗГА (проверки 21.10 показали, что прежние фикстуры
+   не держат: на целых числах вверх/вниз совпадают, а дребезг снимался на входе без хвоста). Каждая
+   фикстура подобрана так, что floor≠ceil (дробный результат) ИЛИ вход несёт реальный двоичный хвост —
+   иначе мутация выжила бы. 68,07 € × 15 @95,5 = 97 515 ₽ ровно (specShown выше), поэтому процент от
+   97 515 легко сделать дробным. */
+test("К7а: ceilRub снимает ДВОИЧНЫЙ ХВОСТ — 0,07×100 = 7 ₽, не 8 (мутация: убрать toPrecision)", () => {
+  /* 0.07*100 === 7.000000000000001 в double (НЕ 65×100, которое ровно 6500 и хвоста не несёт —
+     прежний тест был тавтологией). Без toPrecision(15) Math.ceil округлил бы хвост до 8. */
+  assert.equal(0.07 * 100 > 7, true, "предусловие: 0,07×100 несёт двоичный хвост (> 7)");
+  assert.equal(roundShown(0.07 * 100, "RUB", "up"), 7, "ceilRub(7.000000000000001) = 7, не 8");
+});
+
+test("К7а: floorRub снимает ДВОИЧНЫЙ ХВОСТ — 0,29×100 = 29 ₽, не 28 (мутация: убрать toPrecision)", () => {
+  /* 0.29*100 === 28.999999999999996 в double. Без toPrecision(15) Math.floor срезал бы до 28. */
+  assert.equal(0.29 * 100 < 29, true, "предусловие: 0,29×100 несёт двоичный хвост (< 29)");
+  assert.equal(roundShown(0.29 * 100, "RUB", "down"), 29, "floorRub(28.999999999999996) = 29, не 28");
+});
+
+test("К7а: ЛИЧНАЯ скидка строки — ВНИЗ до рубля (6826, не 6827)", () => {
+  /* Строка 97 515 ₽ со СВОЕЙ скидкой 7 %: 97 515 × 0,07 = 6 826,05 → floor 6826, ceil 6827 (различны).
+     Прежние фикстуры личной скидки не задавали — мутация floorRub→ceilRub в личной ветке выживала. */
+  const est = { groups: [{ count: 15, items: [{ code: "x", count: 1, price: 68.07 }],
+    discountPersonal: true, discountPercent: 7 }],
+    discountPercent: 0, materialsPercent: 0, workPercent: 0, vatMode: "none" };
+  const t = totalsShown(est, 95.5, "RUB");
+  assert.equal(t.discount, 6826, "личная скидка 7% ВНИЗ до рубля (6826, не 6827)");
+});
+
+test("К7а: Материалы и Работы — ВВЕРХ до рубля (9752 и 6827, не 9751/6826)", () => {
+  /* Без скидки база = 97 515 ₽. Материалы 10 % = 9 751,5 → ceil 9752 (floor 9751); работы 7 % =
+     6 826,05 → ceil 6827 (floor 6826). Прежняя фикстура брала 10 %/20 %, дававшие ЦЕЛЫЕ (9264/18528),
+     и мутация «вверх→вниз» для материалов/работ выживала. */
+  const est = { groups: [{ count: 15, items: [{ code: "x", count: 1, price: 68.07 }] }],
+    discountPercent: 0, materialsPercent: 10, workPercent: 7, vatMode: "none" };
+  const t = totalsShown(est, 95.5, "RUB");
+  assert.equal(t.materials, 9752, "материалы 10% ВВЕРХ до рубля (9752, не 9751)");
+  assert.equal(t.work, 6827, "работы 7% ВВЕРХ до рубля (6827, не 6826)");
+});
+
+test("К7а: НДС «в том числе» — ВВЕРХ до рубля (16253, не 16252)", () => {
+  /* База 97 515 ₽, НДС «выделить» 20 %: 97 515 × 20/120 = 16 252,5 → ceil 16253 (floor 16252).
+     Прежняя фикстура «в т.ч.» давала ЦЕЛЫЙ НДС (20072), и мутация «вверх→вниз» выживала. Итог
+     при «в т.ч.» не меняется (= база), «без НДС» = итог − НДС — равенство сохраняется. */
+  const est = { groups: [{ count: 15, items: [{ code: "x", count: 1, price: 68.07 }] }],
+    discountPercent: 0, materialsPercent: 0, workPercent: 0, vatMode: "included", vatPercent: 20 };
+  const t = totalsShown(est, 95.5, "RUB");
+  assert.equal(t.amount, 16253, "в т.ч. НДС 20% ВВЕРХ до рубля (16253, не 16252)");
+  assert.equal(t.total, 97515, "«в т.ч.» итог = база (не меняется)");
+  assert.equal(t.subtotal, 81262, "без НДС = итог − НДС (97515 − 16253)");
+  assert.equal(t.subtotal + t.amount, t.total, "без НДС + НДС = итог");
+});
+
+/* ⚠️ К7б — строка скидки показывается по ПОКАЗАННОМУ (округлённому) значению, а не по сырому
+   est.discount: в рублях скидка меньше рубля округляется вниз до 0, и строки быть не должно
+   («Скидка −0 ₽» — дефект). discountShown — одно правило на панель/КП/Excel. */
+test("К7б: discountShown = показанная (округлённая) скидка; <1 ₽ в рублях даёт 0 (строки нет)", () => {
+  const near0 = build({ devices: [{ productId: 1 }],
+    product: () => ({ id: 1, code: "X", name: "X", price: 0.01, unit: "шт." }),
+    settings: { discountPercent: 5, materialsPercent: 0, workPercent: 0, vatMode: "none" } });
+  /* Сырой est.discount в евро > 0 (старый гейт показал бы строку), а показанная скидка в рублях = 0. */
+  assert.ok(near0.discount > 0, "сырой est.discount (евро) > 0 — прежний гейт показал бы «−0 ₽»");
+  assert.equal(discountShown(near0, 92.5, "RUB"), 0, "показанная скидка в рублях = 0 → строки нет");
+  /* Нормальная скидка в рублях остаётся (>0 → строка есть); евро не задето. */
+  const normal = build({ devices: [{ productId: 1 }],
+    product: () => ({ id: 1, code: "X", name: "X", price: 100, unit: "шт." }),
+    settings: { discountPercent: 5, materialsPercent: 0, workPercent: 0, vatMode: "none" } });
+  assert.ok(discountShown(normal, 92.5, "RUB") > 0, "обычная скидка в рублях > 0");
+  assert.equal(discountShown(normal, 1, "EUR"), 5, "евро: показанная скидка = round2 (как было)");
 });
 
 /* Каталог-заглушка: розетка 10 € за штуку и кабель-канал 5 € за метр. */

@@ -154,3 +154,34 @@ test("КП «не учитывать»: строки НДС нет вовсе, �
   assert.ok(!/НДС/.test(html), "ни одной строки со словом НДС");
   assert.match(html, /<span>Итого<\/span><b>100\.00 €<\/b>/, "итог равен базе, без пометок");
 });
+
+test("КП (К7а): «Цена»/«Сумма» СТРОКИ спецификации округлены в рублях (мутация: currency→EUR для строк)", () => {
+  /* Строка: изделие 0,01 € × 1 @ курс 92,5. specShown RUB → цена ceilRub(0,925)=1 ₽. Если бы строки
+     считались в EUR (currency не проброшен в specShown для строк), цена = round2(0,925)=0,93 — видно. */
+  const est2 = { groups: [{ name: "X", composition: "X", count: 1, unit: "шт", sum: 0.01,
+      items: [{ kind: "mechanism", code: "X", name: "X", count: 1, price: 0.01 }] }],
+    equipment: 0.01, discount: 0, materials: 0, work: 0, subtotal: 0.01, missing: [],
+    vatMode: "none", vat: 0, total: 0.01 };
+  const html = buildHtml(est2, Object.assign({}, deps, { displayCurrency: () => "RUB",
+    displayRate: () => 92.5, money: n => (Number(n) * 92.5).toFixed(2), moneyShown: n => Number(n).toFixed(2) }));
+  const sp = EPEstimate.specShown(est2, 92.5, "RUB");
+  assert.equal(sp.rows[0].price, 1, "предпосылка: цена строки в рублях = 1 (ceilRub)");
+  assert.match(html, /<td class="right">1\.00<\/td>/, "ячейка строки спецификации — целый рубль (1,00)");
+  assert.ok(!/<td class="right">0\.93<\/td>/.test(html), "строки НЕ в евро (нет 0,93 от round2)");
+});
+
+test("КП (К7б): строки «Скидка −0 ₽» нет, когда скидка в рублях < 1 рубля; обычная скидка печатается", () => {
+  const rubDeps = Object.assign({}, deps, { displayCurrency: () => "RUB",
+    displayRate: () => 92.5, money: n => (Number(n) * 92.5).toFixed(2), moneyShown: n => Number(n).toFixed(2) });
+  /* Скидка 5 % от 0,01 € = 0,0005 € — сырой est.discount > 0, но в рублях (вниз до рубля) = 0. */
+  const tiny = EPEstimate.build({ devices: [{ productId: 1 }],
+    product: () => ({ id: 1, code: "X", name: "X", price: 0.01, unit: "шт." }),
+    settings: { discountPercent: 5, materialsPercent: 0, workPercent: 0, vatMode: "none" } });
+  assert.ok(tiny.discount > 0, "сырой est.discount (евро) > 0 — прежний гейт напечатал бы «−0 ₽»");
+  assert.ok(!/Скидка/.test(buildHtml(tiny, rubDeps)), "строки «Скидка» в КП нет (скидка < 1 ₽)");
+  /* Контраст: обычная рублёвая скидка (>1 ₽) строку даёт — гейт не прячет её вообще. */
+  const normal = EPEstimate.build({ devices: [{ productId: 1 }],
+    product: () => ({ id: 1, code: "X", name: "X", price: 100, unit: "шт." }),
+    settings: { discountPercent: 5, materialsPercent: 0, workPercent: 0, vatMode: "none" } });
+  assert.match(buildHtml(normal, rubDeps), /Скидка/, "обычная рублёвая скидка печатается");
+});

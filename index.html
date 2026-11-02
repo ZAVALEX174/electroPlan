@@ -878,7 +878,7 @@
      EPInstallSheetWindow.create(...) и даёт открывалку кнопкам «Лист монтажника» (шапка и окно поста). -->
 <script src="js/installSheetWindow.js?v=20261028.2"></script>
 <script src="js/docRequisites.js?v=20261003.1"></script>
-<script src="js/estimate.js?v=20261023.2"></script>
+<script src="js/estimate.js?v=20261102.1"></script>
 <!-- Единое правило «какая это картинка» (формат по сигнатуре первых байтов, MIME для data-URL).
      Грузится ДО planImport.js и docImages.js, которые оба к нему обращаются (§7.1). -->
 <script src="js/imageFormats.js?v=20261025.2"></script>
@@ -888,7 +888,7 @@
 <!-- Конвертация HEIC/HEIF (айфон, мессенджеры) в JPEG — ОДНО место на план и бланк КП (§7.1).
      Декодер vendor/heic-to подключается лениво, только когда реально пришёл HEIC. -->
 <script src="js/heicImport.js?v=20261025.1"></script>
-<script src="js/offerPdf.js?v=20261023.5"></script>
+<script src="js/offerPdf.js?v=20261102.1"></script>
 <script src="js/installSheet.js?v=20261028.3"></script>
 <script src="js/supplierSpec.js?v=20261024.2"></script>
 <script src="js/packRound.js?v=20261022.1"></script>
@@ -896,7 +896,7 @@
      (buildPackMap), экспортируемый codeKey и сборка строк добора как групп сметы (topUpGroups). Грузится
      ПОСЛЕ packRound.js (зовёт его лениво) и используется estimate.js (тоже лениво) и docs.js. -->
 <script src="js/packTopUp.js?v=20261023.5"></script>
-<script src="js/specExcel.js?v=20261023.5"></script>
+<script src="js/specExcel.js?v=20261102.1"></script>
 <script src="js/postImage.js?v=20261101.1"></script>
 <script src="js/explodedView.js?v=20261028.1"></script>
 <script src="js/planRotate.js?v=20261004.2"></script>
@@ -998,6 +998,6 @@
 <!-- Левая панель (Редизайн, часть 4): сворачиваемые секции (память в EPPrefs), статус/автосворачивание
      «Исходного плана», горячие клавиши инструментов V/W/L/R/E. До app.js, который зовёт EPLeftPanel.attach(ctx). -->
 <script src="js/leftPanel.js?v=20261030.2"></script>
-<script src="js/app.js?v=20261101.4"></script>
+<script src="js/app.js?v=20261102.1"></script>
 </body>
 </html>

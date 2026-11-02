@@ -430,7 +430,7 @@ function compose(est, deps) {
   ${lightingSection}
   ${topUpSection}
   ${options.prices ? `<div class="totals"><div><span>Оборудование</span><b>${moneyShown(totals.equipment)}</b></div>
-  ${est.discount ? `<div><span>${estimate.discountLabel(est.discountMixed, est.discountPercent)}</span><b>−${moneyShown(totals.discount)}</b></div>` : ""}
+  ${estimate.discountShown(est, rate, currency) > 0 ? `<div><span>${estimate.discountLabel(est.discountMixed, est.discountPercent)}</span><b>−${moneyShown(totals.discount)}</b></div>` : ""}
   <div><span>Монтажные материалы</span><b>${moneyShown(totals.materials)}</b></div><div><span>Работы</span><b>${moneyShown(totals.work)}</b></div>
   ${est.vat && !est.vatIncluded ? `<div><span>Итого без НДС</span><b>${moneyShown(totals.subtotal)}</b></div><div><span>${esc(est.vatLabel || "НДС")} ${est.vatPercent}%</span><b>${moneyShown(totals.amount)}</b></div>` : ""}
   <div class="grand"><span>Итого${est.vat && !est.vatIncluded ? " с НДС" : ""}</span><b>${moneyShown(totals.total)}</b></div>
