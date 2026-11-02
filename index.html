@@ -861,8 +861,10 @@
 <!-- Кнопочные накладки Flat и двойная клавиша 22751 (К12 ч.4): чистое правило ёмкости, до postBuilder.js/app.js. -->
 <script src="js/buttonFrame.js?v=20261101.3"></script>
 <script src="js/picker.js?v=20260801.1"></script>
+<!-- Вид клавиши: простая / с символом-диффузором (К14 ч.2) — делит раздел «Клавиша» каталога. -->
+<script src="js/keyKind.js?v=20261102.1"></script>
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
-<script src="js/catalogSections.js?v=20261019.1"></script>
+<script src="js/catalogSections.js?v=20261102.1"></script>
 <script src="js/builderSlots.js?v=20260914.2"></script>
 <script src="js/offerOptions.js?v=20260926.1"></script>
 <!-- Галочки листа монтажника (К11-3): чистая модель «что показывать» (fields/normalize/preset/migrate),
@@ -940,7 +942,7 @@
      «висящего» промиса и провязка кнопок. Вынесена из app.js (И1). Грузится ДО app.js, который
      подключает её через EPWallScope.create({$, WALL_STEP_LABEL}). -->
 <script src="js/wallScope.js?v=20260927.1"></script>
-<script src="js/postBuilder.js?v=20261101.2"></script>
+<script src="js/postBuilder.js?v=20261102.1"></script>
 <script src="js/rooms.js?v=20261101.1"></script>
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО

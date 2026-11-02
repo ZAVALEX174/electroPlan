@@ -1115,11 +1115,23 @@ function renderBuilderCatalog(){
   if(!replacing&&!builderCtx.remaining){
     host.innerHTML='<div class="catalog-empty">Все модули рамки заняты. Чтобы поменять элемент, нажмите «Заменить» в нужном модуле слева.</div>';return;
   }
+  /* К14 ч.2: раздел «Клавиша» режем на простые клавиши (узкую/широкую/3М на цвет — остаются в
+     «Клавиша») и клавиши с символами/диффузором (уходят в свёрнутый «Клавиши с символами» сразу
+     после «Клавиша», порядок задан в EPCatalogSections.DEFAULT_ORDER). Признак «простая ли» — один,
+     в EPKeyKind.isSimpleKey; нормализацию имени группы берём у EPCatalogSections.keyOf (§7.1 —
+     единственный держатель ё→е/регистра), чтобы «Клавиша»/«клавиша» сошлись. */
+  const keyGroupKey=EPCatalogSections.keyOf(EPKeyKind.KEY_GROUP_LABEL);
   const result=EPCatalogSections.build(builderCtx.mechs,{
     /* Ширина для ФИЛЬТРА по оставшемуся месту — с учётом накладки (К12 ч.4) через spanForFrame: клавиша
        22751 занимает одну прорезь, как любой 1-модульный механизм (spanIn тождествен), и прячется, лишь
        когда свободных прорезей нет. Подпись «1 модуль» ниже (productCardHtml) — «голая», свойство изделия. */
     spanOf:(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(builderCtx.frame),maxSpan,query:state.builder.query,
+    /* Клавиша с символом/диффузором → отдельный раздел; простая и все прочие товары — по своей группе. */
+    groupOf:item=>{
+      const g=item&&item.functionalGroup;
+      return g&&EPCatalogSections.keyOf(g)===keyGroupKey&&!EPKeyKind.isSimpleKey(item)
+        ?EPKeyKind.SYMBOL_GROUP_LABEL:g;
+    },
     /* Голые механизмы — отдельным разделом в самом конце: их подставляет расчёт групп света,
        вручную они нужны редко, а рядом с готовыми изделиями провоцируют двойную оплату. */
     asideOf:item=>isBareMechanism(item)?"Голые механизмы — подставляются расчётом":null
