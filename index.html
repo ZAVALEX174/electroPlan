@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>ElectroPlan — проектирование электрики</title>
-  <link rel="stylesheet" href="css/styles.css?v=20261101.1">
+  <link rel="stylesheet" href="css/styles.css?v=20261102.1">
 </head>
 <body>
 <!-- Контурные иконки шапки (P1-1). Один спрайт <symbol>: иконки используют stroke:currentColor и
@@ -845,7 +845,7 @@
 <!-- Связка модуля групп света с проектом: сборка мест управления из постов, строгий подбор
      механизма по роли и серии, печатный блок для документов. Грузится ПОСЛЕ lightingGroups
      (использует его тексты пробелов) и до estimate/installSheet, которые его результат печатают. -->
-<script src="js/lightingPlan.js?v=20261101.1"></script>
+<script src="js/lightingPlan.js?v=20261102.1"></script>
 <!-- Чистый модуль (ни DOM, ни state): раскрой расчёта групп света ПО КОМНАТАМ и слияние обратно
      в один план. Грузится ПОСЛЕ lightingGroups/lightingPlan (использует их plan и форму мест) и
      до app.js, который через него считает projectLighting. -->
@@ -863,6 +863,8 @@
 <script src="js/picker.js?v=20260801.1"></script>
 <!-- Вид клавиши: простая / с символом-диффузором (К14 ч.2) — делит раздел «Клавиша» каталога. -->
 <script src="js/keyKind.js?v=20261102.1"></script>
+<!-- Свёртка осевых цельных изделий «Управления светом» в одну карточку (К14 ч.3) — чистое правило, до postBuilder.js. -->
+<script src="js/axialCard.js?v=20261102.1"></script>
 <!-- Разделы выбора товара (полноэкранный конструктор) и слоты поста с группами света. -->
 <script src="js/catalogSections.js?v=20261102.1"></script>
 <script src="js/builderSlots.js?v=20260914.2"></script>
@@ -942,7 +944,7 @@
      «висящего» промиса и провязка кнопок. Вынесена из app.js (И1). Грузится ДО app.js, который
      подключает её через EPWallScope.create({$, WALL_STEP_LABEL}). -->
 <script src="js/wallScope.js?v=20260927.1"></script>
-<script src="js/postBuilder.js?v=20261102.1"></script>
+<script src="js/postBuilder.js?v=20261102.2"></script>
 <script src="js/rooms.js?v=20261101.1"></script>
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО

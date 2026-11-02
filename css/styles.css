@@ -644,6 +644,9 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;margin:0;padding:0;b
 .product-card-meta{display:flex;justify-content:space-between;gap:8px;color:var(--muted);font-size:var(--fs-xs)}
 .product-card-meta b{color:var(--text);font-size:11px}
 .product-card-badge{align-self:flex-start;padding:2px 6px;border-radius:6px;background:#fdf0f0;color:#9a4a2f;font-size:var(--fs-xs);font-weight:800}
+/* Подпись карточки-представителя осевой группы (К14 ч.3): информирующая, не тревожная — нейтральный
+   фон вместо розового badge, перенос по строкам (текст длиннее значка «подставляется расчётом»). */
+.product-card-axial{align-self:stretch;white-space:normal;line-height:1.25;background:#eef2f7;color:#425169;font-weight:700}
 .catalog-empty{padding:18px;border:1px dashed var(--line-strong);border-radius:12px;color:var(--muted);font-size:11px;text-align:center}
 /* EPPicker — кастомный выпадающий список с миниатюрами (js/picker.js). Нативный <select>
    скрыт, но остаётся в DOM носителем значения — не убираем display:none-элемент из потока. */

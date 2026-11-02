@@ -595,8 +595,11 @@ const kitSignature = plan => JSON.stringify(planPlaces(plan).map(p => [p && p.ro
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
+/* isAxialItem экспортируем, чтобы признак «осевой» (по названию) был ОДНИМ на проект (§7.1): его же
+   переиспользует EPAxialCard.collapse (К14 ч.3) при свёртке осевых цельных изделий в одну карточку —
+   там группа взаимозаменяемости считается ровно тем же осевым признаком, что и в resolveReplacement. */
 const api = { collect, resolveMechanism, resolveReplacement, seriesMatch, isExtraLowVoltage, addressKey, postKey, rowsByPost, buildHtml,
-  planSignature, kitSignature };
+  planSignature, kitSignature, isAxialItem };
 if (typeof window !== "undefined") window.EPLightingPlan = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

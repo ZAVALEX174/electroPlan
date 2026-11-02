@@ -405,6 +405,11 @@ function openPostBuilder({templateId=null,placedId=null}={}){
    месте, в renderBuilder. */
 let builderCtx={mechs:[],addMax:0,maxPostCap:0,remaining:0,frame:null,errorHtml:""};
 
+/* id осевых изделий-представителей текущей выдачи каталога (К14 ч.3): их карточка получает подпись
+   «Осевой …». Считается в renderBuilderCatalog (зависит от поиска), читается productCardHtml — обе в
+   этом модуле, поэтому держим локальной переменной, а не в builderCtx (тот пишется только renderBuilder). */
+let builderAxialReps=new Set();
+
 /* Тип стены, с которым конструктор СЕЙЧАС считает состав поста: черновик окна. Пока окно
    закрыто (черновика нет), отвечает общим дефолтом «бетон» (К4б: настройки стены проекта
    больше нет) — так вызывающему не нужно знать, открыт ли конструктор. */
@@ -1121,7 +1126,25 @@ function renderBuilderCatalog(){
      в EPKeyKind.isSimpleKey; нормализацию имени группы берём у EPCatalogSections.keyOf (§7.1 —
      единственный держатель ё→е/регистра), чтобы «Клавиша»/«клавиша» сошлись. */
   const keyGroupKey=EPCatalogSections.keyOf(EPKeyKind.KEY_GROUP_LABEL);
-  const result=EPCatalogSections.build(builderCtx.mechs,{
+  /* К14 ч.3: осевые цельные изделия ролей switch/changeover/инвертор одной серии+цвета+ширины
+     сворачиваем в одну карточку-представитель (EPAxialCard.collapse) — заказчик: «зачем это изобилие
+     картинок». Признак «осевой» и «роль» берём ТЕ ЖЕ, что у resolveReplacement (EPLightingPlan.isAxialItem,
+     controlRole), группу — по тем же трём признакам взаимозаменяемости, что у замены цельного изделия.
+     Щелчок ставит артикул представителя, а конкретную роль по схеме подставит существующий расчёт.
+     При ПОИСКЕ не сворачиваем: человек ищет конкретный артикул (19104 и т. п.) и должен его найти. */
+  const axial=state.builder.query
+    ?{items:builderCtx.mechs,repIds:new Set()}
+    :EPAxialCard.collapse(builderCtx.mechs,{
+      partOf:item=>item&&item.partRole,
+      roleOf:item=>item&&item.controlRole,
+      axialOf:EPLightingPlan.isAxialItem,
+      spanOf:mechanismSpan,
+      colorKeyOf:item=>EPMechColor.colorKey(item,{keyOf:EPCatalog.facingColorKey}),
+      seriesKeyOf:item=>productSeries(item).map(s=>s.toLowerCase().trim()).sort().join("|"),
+      idOf:item=>item&&item.id
+    });
+  builderAxialReps=axial.repIds;
+  const result=EPCatalogSections.build(axial.items,{
     /* Ширина для ФИЛЬТРА по оставшемуся месту — с учётом накладки (К12 ч.4) через spanForFrame: клавиша
        22751 занимает одну прорезь, как любой 1-модульный механизм (spanIn тождествен), и прячется, лишь
        когда свободных прорезей нет. Подпись «1 модуль» ниже (productCardHtml) — «голая», свойство изделия. */
@@ -1166,7 +1189,9 @@ function renderBuilderCatalog(){
    модульность и цена. Фото есть у 296 механизмов из 435 — у остальных productPicture рисует
    значок-фолбэк, высота бокса задана в CSS, поэтому сетка не рвётся. */
 function productCardHtml(item){
-  const badge=isBareMechanism(item)?'<span class="product-card-badge">подставляется расчётом</span>':"";
+  /* Карточка-представитель свёрнутой осевой группы (К14 ч.3) несёт подпись: роль выберет схема. */
+  const badge=isBareMechanism(item)?'<span class="product-card-badge">подставляется расчётом</span>'
+    :builderAxialReps.has(item.id)?`<span class="product-card-badge product-card-axial">${esc(EPAxialCard.CAPTION)}</span>`:"";
   return `<button type="button" class="product-card" data-pick="${item.id}" title="${esc(item.name||"")}">
     ${productPicture(item,{detail:true,label:item.name})}
     <span class="product-card-code">${esc(item.code||"без артикула")}</span>

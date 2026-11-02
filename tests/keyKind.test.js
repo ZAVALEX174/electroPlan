@@ -17,6 +17,11 @@ const stand = require("./helpers/appStand.js");
 
 const EPKeyKind = require("../js/keyKind.js");
 const EPCatalogSections = require("../js/catalogSections.js");
+/* renderBuilderCatalog с К14 ч.3 сворачивает осевые цельные изделия перед build (EPAxialCard) —
+   признак «осевой» берёт у EPLightingPlan. Клавиши (partRole "key") свёртка не трогает, но объекты
+   должны существовать в контексте: даём настоящие модули. */
+const EPAxialCard = require("../js/axialCard.js");
+const EPLightingPlan = require("../js/lightingPlan.js");
 
 /* Обогащённые товары как в рантайме (data.js домешивает attrs.roles/attrs.groups): partRole и
    functionalGroup приезжают из js/catalog-vimar-attrs.js, в каталоге их нет. */
@@ -136,7 +141,8 @@ function runCatalog(query) {
   const state = { builder: { target: { mode: "add" }, query: query || "", openSections: new Set(), slots: [] } };
   const ctx = {
     state, $: dom.$,
-    EPCatalogSections, EPKeyKind,
+    EPCatalogSections, EPKeyKind, EPAxialCard, EPLightingPlan,
+    EPCatalog: { facingColorKey: x => x }, productSeries: () => [],
     builderCtx: { frameMissing: false, mechs: arke, remaining: 3, frame: { code: "19653.01" }, innardsColor: null, seriesCount: arke.length },
     spanForFrame: () => () => 1, mechanismSpan: () => 1,
     product: () => null, frameProduct: () => null,
@@ -144,7 +150,7 @@ function runCatalog(query) {
     moduleWord: () => "", esc: s => String(s == null ? "" : s),
     productCardHtml: () => "", emptyCatalogHtml: () => "",
     bindProductPictureFallbacks: () => {}, pickBuilderProduct: () => {},
-    EPMechColor: { emptyCatalogText: () => "" }, innardsEmptyText: () => "",
+    EPMechColor: { emptyCatalogText: () => "", colorKey: () => null }, innardsEmptyText: () => "",
     resolveMissingMechanism: () => null, moduleWordCapitalized: () => ""
   };
   stand.run(["renderBuilderCatalog"], ctx)();
