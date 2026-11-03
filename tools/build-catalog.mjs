@@ -27,6 +27,7 @@
  */
 
 import fs from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -63,6 +64,18 @@ const IDS = resolveArg(args.ids, path.join(here, "data/catalog-ids.json"));
 const OVERRIDES = resolveArg(args.overrides, path.join(here, "data/kind-overrides.json"));
 const IMAGE_OVERRIDES = resolveArg(args["image-overrides"], path.join(here, "data/image-overrides.json"));
 const OUT = resolveArg(args.out, path.join(projectRoot, "js/catalog-vimar.js"));
+
+// Локальные картинки каталога (img/catalog/<артикул>.jpg / .webp) скачивает
+// tools/download-catalog-images.mjs. Если файл есть — каталог ссылается на него
+// (относительный путь от index.html, работает и по file://), сайт VIMAR — запасной.
+const IMG_DIR = path.join(projectRoot, "img", "catalog");
+const imgSafe = code => String(code).replace(/[\\/:*?"<>|]/g, "_");
+function localImagePaths(code) {
+  const base = imgSafe(code);
+  const full = existsSync(path.join(IMG_DIR, base + ".jpg")) ? `img/catalog/${base}.jpg` : "";
+  const prev = existsSync(path.join(IMG_DIR, base + ".webp")) ? `img/catalog/${base}.webp` : full;
+  return { full, preview: prev };
+}
 
 const PRICE_DATE_ISO = "2026-07-01";
 const CURRENCY = "EUR";
@@ -211,8 +224,12 @@ async function main() {
       // Реальные фото монтажных коробок уже победили no_photo выше через image-overrides.json.
       const preview = isPlaceholderImageUrl(image.preview_image_url) ? "" : (image.preview_image_url || "");
       const full = isPlaceholderImageUrl(image.image_url) ? "" : (image.image_url || "");
-      if (preview) product.previewImageUrl = preview;
-      if (full) product.imageUrl = full;
+      // Картинки хранятся В ПРОГРАММЕ (img/catalog/, скачивает tools/download-catalog-images.mjs;
+      // 03.11: vimar.ru лёг — у заказчика пропали все картинки). Свой файл — первым; ссылка на
+      // сайт VIMAR остаётся только запасной, когда своего файла (ещё) нет.
+      const local = localImagePaths(rec.code);
+      if (preview) product.previewImageUrl = local.preview || preview;
+      if (full) product.imageUrl = local.full || full;
     }
     // moduleSpan механизма — только валидное (1..8), иначе рантайм выведет из названия/1
     if (rec.kind === "mechanism" && Number.isInteger(rec.moduleSize) && rec.moduleSize >= 1 && rec.moduleSize <= 8) {
