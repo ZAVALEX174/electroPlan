@@ -17,6 +17,7 @@
  */
 
 import fs from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -45,6 +46,17 @@ async function main() {
   const idMap = (await readJson(IDS)).ids || {};
 
   const { products, idWarnings } = collectDiscontinued(snapshot.products || [], activeCodes, idMap);
+  // Локальные картинки (img/catalog/, tools/download-catalog-images.mjs) — первым делом,
+  // как и в основном каталоге (build-catalog.mjs); ссылка на сайт VIMAR — только запасная.
+  const IMG_DIR = path.join(projectRoot, "img", "catalog");
+  const imgSafe = (code) => String(code).replace(/[\\/:*?"<>|]/g, "_");
+  const localImg = (code, ext) => existsSync(path.join(IMG_DIR, imgSafe(code) + ext)) ? `img/catalog/${imgSafe(code)}${ext}` : "";
+  for (const p of products) {
+    const full = localImg(p.code, ".jpg");
+    const prev = localImg(p.code, ".webp") || full;
+    if (full && p.imageUrl) p.imageUrl = full;
+    if (prev && p.previewImageUrl) p.previewImageUrl = prev;
+  }
   if (idWarnings.length) {
     // Прежний id из снимка и из catalog-ids.json обязаны совпадать — иначе сохранённый проект
     // получит чужую цену/состав. Расхождение останавливает сборку (§7.1), а не молча берёт один id.

@@ -36,10 +36,14 @@ fs.mkdirSync(path.dirname(REPORT), { recursive: true });
 // --- читаем артикулы из каталога тем же способом, что приложение ---
 const ctx = vm.createContext({ window: {}, structuredClone });
 vm.runInContext(fs.readFileSync(CATALOG_JS, "utf8"), ctx, { filename: "catalog-vimar.js" });
+// и снятые с производства (старые проекты рисуют их из живого каталога — аудит 03.11)
+vm.runInContext(fs.readFileSync(CATALOG_JS.replace("catalog-vimar.js", "catalog-vimar-discontinued.js"), "utf8"), ctx, { filename: "catalog-vimar-discontinued.js" });
 const cat = ctx.window.EP_CATALOG_VIMAR || Object.values(ctx.window)[0];
 const items = Array.isArray(cat) ? cat : (cat.items || cat.products || []);
-const codes = [...new Set(items.map(it => String(it.code || "").trim()).filter(Boolean))];
-console.log(`артикулов в каталоге: ${codes.length}`);
+const disc = ctx.window.EP_VIMAR_DISCONTINUED;
+const discItems = disc ? (disc.products || []) : [];
+const codes = [...new Set([...items, ...discItems].map(it => String(it.code || "").trim()).filter(Boolean))];
+console.log(`артикулов в каталоге: ${items.length} (+ снятых ${discItems.length}) → уникальных кодов: ${codes.length}`);
 
 const safe = code => code.replace(/[\\/:*?"<>|]/g, "_");
 const UA = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ElectroPlanCatalogImages/1.0", Accept: "text/html,image/*" };
