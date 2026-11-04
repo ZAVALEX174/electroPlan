@@ -95,13 +95,19 @@ async function one(code) {
   const mPrev = html.match(/\/cache\/images\/catalog\/[^"'\s]+\.webp/i);
   if (!mMain && !mPrev) { result.missing.push({ code, status: "no-image-on-page" }); return; }
   let ok = false;
+  /* Проверка сигнатуры ОБЯЗАТЕЛЬНА (04.11, факт: Incapsula иногда отдаёт HTML-заглушку с кодом 200 —
+     без проверки магических байтов в каталог ложились «картинки»-страницы по ~840 байт, и конвертер
+     потом ставил на них локальную ссылку). jpg = FF D8 FF, webp = RIFF....WEBP. */
+  const isJpg = b => b && b.length > 300 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  const isWebp = b => b && b.length > 100 && b.length > 11 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46
+    && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50;
   if (mMain) {
     const img = await get("https://www.vimar.com" + mMain[0], true);
-    if (img.status === 200 && img.body && img.body.length > 300) { fs.writeFileSync(jpgPath(code), img.body); ok = true; }
+    if (img.status === 200 && isJpg(img.body)) { fs.writeFileSync(jpgPath(code), img.body); ok = true; }
   }
   if (mPrev) {
     const img = await get("https://www.vimar.com" + mPrev[0], true);
-    if (img.status === 200 && img.body && img.body.length > 100) fs.writeFileSync(webpPath(code), img.body);
+    if (img.status === 200 && isWebp(img.body)) fs.writeFileSync(webpPath(code), img.body);
   }
   if (ok) result.downloaded.push(code);
   else result.missing.push({ code, status: "image-fetch-failed" });

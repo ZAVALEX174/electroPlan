@@ -215,7 +215,17 @@ async function main() {
       series: rec.series,
       compatibility: rec.series.join(", "),
     };
-    if (image) {
+    // Картинки хранятся В ПРОГРАММЕ (img/catalog/, скачивает tools/download-catalog-images.mjs;
+    // 03.11: vimar.ru лёг — у заказчика пропали все картинки). Свой файл — ПЕРВЫМ ВСЕГДА (04.11,
+    // решение владельца): если на диске есть img/catalog/<артикул>.jpg, товар получает его независимо
+    // от того, что говорит индекс vimar.ru — даже когда индекса/ссылки вообще не было или там была
+    // заглушка no_photo (реальные фото таких позиций скачаны с vimar.com по артикулу). Ссылка на
+    // сайт VIMAR — только запасная, когда своего файла (ещё) нет.
+    const local = localImagePaths(rec.code);
+    if (local.full) {
+      product.imageUrl = local.full;
+      product.previewImageUrl = local.preview;
+    } else if (image) {
       // Заглушка сайта «нет фото» (…/no_photo.png) — это НЕ фотография: индекс vimar.ru отдаёт её
       // для позиций без снимка. Пишем такой URL как «фото нет» (поле не выводим вовсе), чтобы КАЖДЫЙ
       // потребитель — и productImage, и сырой EPPostImage.photoReady накладки — вёл себя ровно как с
@@ -224,12 +234,8 @@ async function main() {
       // Реальные фото монтажных коробок уже победили no_photo выше через image-overrides.json.
       const preview = isPlaceholderImageUrl(image.preview_image_url) ? "" : (image.preview_image_url || "");
       const full = isPlaceholderImageUrl(image.image_url) ? "" : (image.image_url || "");
-      // Картинки хранятся В ПРОГРАММЕ (img/catalog/, скачивает tools/download-catalog-images.mjs;
-      // 03.11: vimar.ru лёг — у заказчика пропали все картинки). Свой файл — первым; ссылка на
-      // сайт VIMAR остаётся только запасной, когда своего файла (ещё) нет.
-      const local = localImagePaths(rec.code);
-      if (preview) product.previewImageUrl = local.preview || preview;
-      if (full) product.imageUrl = local.full || full;
+      if (preview) product.previewImageUrl = preview;
+      if (full) product.imageUrl = full;
     }
     // moduleSpan механизма — только валидное (1..8), иначе рантайм выведет из названия/1
     if (rec.kind === "mechanism" && Number.isInteger(rec.moduleSize) && rec.moduleSize >= 1 && rec.moduleSize <= 8) {

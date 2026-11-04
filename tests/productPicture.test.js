@@ -47,13 +47,15 @@ test("§заглушка-no_photo: превью-заглушка выгрузк�
   assert.doesNotMatch(html, /<img/, "заглушку no_photo как <img> не выводим");
 });
 
-test("§нет-фото-каталог: реальная 09661.03 (фото в каталоге нет) рисует «Нет фото»", () => {
-  // 14003.SL из прежнего каталога убран новой номенклатурой К2; берём живую накладку без фото.
+test("§нет-фото-каталог: реальная 30642.70 (фото нет нигде) рисует «Нет фото»", () => {
+  // 04.11: 09661.03 получила свой файл с vimar.com (свой файл первым всегда) — взята накладка,
+  // у которой нет ни внешней ссылки, ни файла в img/catalog/. Если докачка принесёт ей фото —
+  // фикстуру заменить на другую безфото позицию.
   const catalog = stand.loadVimarCatalog();
-  const item = catalog.products.find(p => p.code === "09661.03");
-  assert.ok(item, "09661.03 должна быть в каталоге VIMAR");
-  assert.ok(!item.previewImageUrl && !item.imageUrl, "предпосылка: у 09661.03 фото в каталоге нет");
+  const item = catalog.products.find(p => p.code === "30642.70");
+  assert.ok(item, "30642.70 должна быть в каталоге VIMAR");
+  assert.ok(!item.previewImageUrl && !item.imageUrl, "предпосылка: у 30642.70 фото в каталоге нет");
   const html = picture(item);
-  assert.match(html, /product-picture-nophoto">Нет фото</, "у 09661.03 фото нет → в карточке подпись «Нет фото»");
-  assert.doesNotMatch(html, /<img/, "у 09661.03 картинки нет — <img> не выводим");
+  assert.match(html, /product-picture-nophoto">Нет фото</, "у 30642.70 фото нет → в карточке подпись «Нет фото»");
+  assert.doesNotMatch(html, /<img/, "у 30642.70 картинки нет — <img> не выводим");
 });

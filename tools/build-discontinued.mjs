@@ -48,14 +48,15 @@ async function main() {
   const { products, idWarnings } = collectDiscontinued(snapshot.products || [], activeCodes, idMap);
   // Локальные картинки (img/catalog/, tools/download-catalog-images.mjs) — первым делом,
   // как и в основном каталоге (build-catalog.mjs); ссылка на сайт VIMAR — только запасная.
+  // 04.11, решение владельца: свой файл ставится ВСЕГДА, когда он есть на диске — даже если
+  // у позиции раньше внешней ссылки не было вовсе (поле просто не выводилось).
   const IMG_DIR = path.join(projectRoot, "img", "catalog");
   const imgSafe = (code) => String(code).replace(/[\\/:*?"<>|]/g, "_");
   const localImg = (code, ext) => existsSync(path.join(IMG_DIR, imgSafe(code) + ext)) ? `img/catalog/${imgSafe(code)}${ext}` : "";
   for (const p of products) {
     const full = localImg(p.code, ".jpg");
     const prev = localImg(p.code, ".webp") || full;
-    if (full && p.imageUrl) p.imageUrl = full;
-    if (prev && p.previewImageUrl) p.previewImageUrl = prev;
+    if (full) { p.imageUrl = full; p.previewImageUrl = prev; }
   }
   if (idWarnings.length) {
     // Прежний id из снимка и из catalog-ids.json обязаны совпадать — иначе сохранённый проект
