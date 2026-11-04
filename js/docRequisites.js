@@ -57,7 +57,12 @@ function printedFields(fields, values, show) {
 /* Миграция старого проекта: поле «Клиент» (docHeader.client) становится ФИО заказчика
    (customer.values.fio). Данные НЕ теряем — переносим только если своего ФИО ещё нет; старый ключ
    убираем, чтобы строки «Клиент» в шапке КП не осталось (её заменяет блок «Заказчик»). Приводим
-   customer к форме {values, show} заодно. Идемпотентна: migrate(migrate(x)) === migrate(x). */
+   customer к форме {values, show} заодно. Идемпотентна: migrate(migrate(x)) === migrate(x).
+   Б6: единый «Адрес объекта» (dh.address) → структурированные поля addrStreet/addrHouse/addrFlat/
+   addrFloor. Данные НЕ теряем: переносим целиком в addrStreet (префикс «ул. » при печати добавит
+   docHeader) и только когда ВСЕ addr* пусты — заполненную структуру не затираем. Старый ключ
+   убираем в любом случае: в снимке проекта address больше не живёт, печатная строка собирается
+   из addr* одним правилом в docHeader (§7.1). */
 function migrateDocHeader(docHeader) {
   const dh = Object.assign({}, docHeader || {});
   const customer = Object.assign({}, dh.customer || {});
@@ -70,6 +75,12 @@ function migrateDocHeader(docHeader) {
   customer.show = Object.assign({}, customer.show || {});
   delete dh.client;
   dh.customer = customer;
+  const addrEmpty = ["addrStreet", "addrHouse", "addrFlat", "addrFloor"]
+    .every(k => dh[k] == null || String(dh[k]).trim() === "");
+  if (dh.address != null && String(dh.address).trim() !== "" && addrEmpty) {
+    dh.addrStreet = String(dh.address).trim();
+  }
+  delete dh.address;
   return dh;
 }
 

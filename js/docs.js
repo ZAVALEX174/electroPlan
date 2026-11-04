@@ -2,7 +2,9 @@
    app.js по разделу И docs/ОСТАТОК-РАБОТ (И1, кусок 3). Здесь оркестраторы, которые СОБИРАЮТ данные из
    state/каталога и ОТКРЫВАЮТ окно печати: план с бирками для документа (planLabelsSpec/planBlockHtml,
    пережатие подложки planImageForDoc), свод по артикулам для поставщика (supplierSpecData/supplierSpecHtml),
-   лист монтажника (buildPostSheet + взрыв-схема buildExplodedSpec, openInstallSheet, installSheetForProject)
+   лист монтажника (buildPostSheet + взрыв-схема buildExplodedSpec, openInstallSheet, installSheetForProject),
+   экспликация по комнатам (Б7: postsByRooms — единое правило раскладки постов по комнатам, общее с листом
+   монтажника, §7.1 — и roomSheetForProject поверх чистого EPRoomSheet)
    и КП (раскладка постов buildPostLayout с разбивкой цены postPricedItems, generateCommercialOffer с
    автономером). Перенос ДОСЛОВНЫЙ — поведение, тексты и логика не менялись (решение владельца «на экране
    ничего не меняется»): КП и лист монтажника печатаются байт в байт как прежде.
@@ -37,7 +39,7 @@ const {
   $,STANDARD_LABEL,assembledPostHtml,assembledPostSpec,buildEstimate,canvas,companyLogo,companySignature,
   companyStamp,companyTerms,displayCurrency,displayRate,docHeader,esc,frameProduct,installSheetOptions,
   keySlotKind,lightingHtml,lightingRowsFor,mechanismSpan,money,moneyShown,openInstallSheetWindow,postComposition,
-  postCost,postTotalCost,postsForGroupLinks,product,productImage,projectLighting,roomNamePoint,scheduleSave,spanForFrame,state,toast
+  postCost,postTotalCost,postsForGroupLinks,product,productImage,projectLighting,roomDisplayArea,roomNamePoint,scheduleSave,spanForFrame,state,toast
 }=ctx;
 
 /* Состав ОДНОГО поста С ЦЕНАМИ для столбца «Стоимость артикулов» раскладки КП. Считаем ТЕМ ЖЕ
@@ -93,6 +95,13 @@ function buildPostLayout(options,light){
     if(sens&&sens.gaps&&sens.gaps.length)fill.push({word:sens.gaps.length>1?`${sens.gaps.length} × термодатчик не подобран`:"термодатчик не подобран",noCount:true});
     return {
       number:p.number,
+      /* id/комната/высота/назначение — для экспликации по комнатам (Б7, roomSheetForProject):
+         строки раскладки там группируются по комнатам, а высота и назначение — свои столбцы.
+         КП эти поля не читает — его раскладка не изменилась. */
+      id:p.id,
+      roomId:p.roomId,
+      height:p.height||"",
+      purpose:p.purpose||"",
       modules:comp.modulesTotal,
       /* Личная скидка поста — для пометки в раскладке КП (EPOfferPdf). Процент/признак «личная»
          считает та же EPEstimate.discountOf по p.discount, что и строки сметы. */
@@ -607,16 +616,34 @@ function openInstallSheet(data){
     {esc,logo:companyLogo()}));
   win.document.close();
 }
+/* Раскладка постов по комнатам — ОДНО ПРАВИЛО (§7.1) на лист монтажника и экспликацию (Б7):
+   порядок комнат — как в state.rooms (порядок на плане), внутри комнаты — по номеру поста,
+   посты без комнаты — отдельной группой {room:null} В КОНЦЕ. Возвращает [{room, posts}] по
+   ВСЕМ комнатам (пустые включены — экспликация показывает их с пометкой «постов нет»;
+   лист монтажника их просто не замечает, т.к. берёт сами посты). Правило задано ЗДЕСЬ, а не в
+   двух оркестраторах: пока сортировка была литералом в installSheetForProject, экспликации
+   пришлось бы её копировать — и два документа об одном проекте пошли бы комнатами вразнобой. */
+function postsByRooms(posts,rooms){
+  const roomIndex=new Map((rooms||[]).map((r,i)=>[r.id,i]));
+  const groups=(rooms||[]).map(room=>({room,posts:[]}));
+  const rest=[];
+  (posts||[]).forEach(p=>{
+    const i=roomIndex.has(p.roomId)?roomIndex.get(p.roomId):-1;
+    (i>=0?groups[i].posts:rest).push(p);
+  });
+  const byNumber=(a,b)=>(Number(a.number)||0)-(Number(b.number)||0);
+  groups.forEach(g=>g.posts.sort(byNumber));
+  rest.sort(byNumber);
+  if(rest.length)groups.push({room:null,posts:rest});
+  return groups;
+}
 /* Лист монтажника на весь проект: лист на каждый пост, сгруппировано по помещениям
-   (порядок помещений — как в state.rooms, «Без помещения» в конце; внутри — по номеру). */
+   (порядок помещений — как в state.rooms, «Без помещения» в конце; внутри — по номеру).
+   Порядок постов задаёт postsByRooms (то же правило, что у экспликации); здесь — flatten,
+   группировку в <h2> делает сам EPInstallSheet по имени комнаты. */
 function installSheetForProject(){
   if(!state.posts.length){toast("В проекте нет постов");return}
-  const roomIndex=new Map(state.rooms.map((r,i)=>[r.id,i]));
-  const ordered=state.posts.slice().sort((a,b)=>{
-    const ra=roomIndex.has(a.roomId)?roomIndex.get(a.roomId):Infinity;
-    const rb=roomIndex.has(b.roomId)?roomIndex.get(b.roomId):Infinity;
-    return ra-rb||(Number(a.number)||0)-(Number(b.number)||0);
-  });
+  const ordered=postsByRooms(state.posts,state.rooms).flatMap(g=>g.posts);
   const light=projectLighting();
   /* Галочки листа (К11-3в): берём их ИЗ ОКНА ВЫБОРА через общий accessor installSheetOptions() —
      свойство проекта, нет поля → migrate (лист как сегодня). Считаем ЗДЕСЬ, чтобы теми же галочками
@@ -650,6 +677,41 @@ function installSheetForProject(){
        имён — тем же showArticles/itemText, что в КП (packMultiple листу не передаём — свод «по факту»). */
     supplierSpecHtml:supplierSpecHtml({
       note:"Все одинаковые позиции проекта сведены по артикулам — этот лист отправляется поставщику."},light,options)});
+}
+
+/* Экспликация по комнатам (Б7): по каждой комнате таблица её постов (№, наполнение, накладка,
+   модульность, высота, назначение, цена) с итогом по комнате, «Без помещения» в конце и общий итог.
+   Строки постов — ТЕ ЖЕ, что в раскладке КП (buildPostLayout: наполнение словами с подсветкой и
+   датчиками, цена postTotalCost, §7.1 — второй копии наполнения и цены нет); группировка по
+   комнатам — тем же postsByRooms, что лист монтажника. Вёрстку собирает чистый EPRoomSheet. */
+function roomSheetForProject(){
+  if(!state.posts.length&&!state.rooms.length){toast("В проекте нет ни постов, ни комнат — экспликация пуста");return}
+  const light=projectLighting();
+  /* Опции КП — только для buildPostLayout (артикулы в картинках, которые экспликация не печатает);
+     сам документ галочек не имеет (решение плана Б7: без отдельного окна настроек). */
+  const options=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
+  const layoutById=new Map(buildPostLayout(options,light).map(r=>[r.id,r]));
+  const groups=postsByRooms(state.posts,state.rooms).map(g=>({
+    name:g.room?g.room.name:"Без помещения",
+    /* Площадь комнаты — тем же roomDisplayArea, что на плане (ручное значение приоритетнее
+       авторасчёта); второй копии правила «что показывать» не заводим. */
+    areaText:g.room?roomDisplayArea(g.room):"",
+    posts:g.posts.map(p=>{
+      const r=layoutById.get(p.id);
+      /* Наполнение — строкой «слово — N» из того же fill, что печатает КП; строки-пробелы
+         (noCount: «подсветка не подобрана») идут словами без количества, как в КП. */
+      const fillText=(r.fill||[]).map(f=>f.noCount?f.word:`${f.word} — ${f.count}`).join(", ");
+      return {number:r.number,fillText,frameName:r.frameName,modules:r.modules,
+        height:r.height,purpose:r.purpose,price:r.price};
+    })
+  }));
+  const win=window.open("","_blank");
+  if(!win){toast("Разрешите всплывающие окна для экспликации");return}
+  const h=docHeader();
+  win.document.write(EPRoomSheet.buildHtml(
+    {header:{project:h.project,developer:h.developer,date:h.date},groups},
+    {esc,moneyShown,logo:companyLogo()}));
+  win.document.close();
 }
 
 /* Оркестратор КП: считаем ту же смету, что и панель справа (единый buildEstimate —
@@ -764,6 +826,7 @@ function exportSpecExcel(){
 /* «Лист монтажника» в шапке (К11-3в): кнопка ОТКРЫВАЕТ окно выбора галочек, печатает — «Открыть лист» в
    окне (installSheetForProject передаётся печатью проекта). То же окно открывает кнопка в окне поста. */
 $("installSheetBtn").onclick=()=>openInstallSheetWindow({target:"project",print:installSheetForProject});
+$("roomSheetBtn").onclick=roomSheetForProject;   /* Б7: экспликация по комнатам */
 $("pdfBtn").onclick=generateCommercialOffer;
 $("xlsxBtn").onclick=exportSpecExcel;
 

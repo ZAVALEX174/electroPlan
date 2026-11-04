@@ -73,7 +73,7 @@ function projectRun() {
     companyLogo: () => "", esc,
     EPInstallSheet, EPInstallSheetOptions, EP_DATA: { settings: { assemblyView: "exploded" } }
   };
-  stand.run(["openInstallSheet", "installSheetForProject"], ctx)();
+  stand.run(["postsByRooms", "openInstallSheet", "installSheetForProject"], ctx)();
   return { written, rec };
 }
 

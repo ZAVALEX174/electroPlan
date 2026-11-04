@@ -3164,7 +3164,10 @@ async function restoreProject(){
    (settings.docHeader, см. projectSnapshot/restoreProject). Возвращаем готовый к печати
    вид: дата форматируется ГГГГ-ММ-ДД → ДД.ММ.ГГГГ, пустая дата → сегодня. Пустые поля
    отдаём как есть — offerPdf/installSheet сами их не печатают. */
-const DOC_FIELDS={docProject:"project",docAddress:"address",docDeveloper:"developer",docDate:"date",docNumber:"number"};
+/* Б6: адрес объекта — структурированные поля (улица/дом/квартира/этаж); печатная строка address
+   собирается из них одним правилом в docHeader() ниже. Старого единого docAddress/address больше
+   нет: старые проекты перекладывает миграция EPDocRequisites.migrateDocHeader (address→addrStreet). */
+const DOC_FIELDS={docProject:"project",docAddrStreet:"addrStreet",docAddrHouse:"addrHouse",docAddrFlat:"addrFlat",docAddrFloor:"addrFloor",docDeveloper:"developer",docDate:"date",docNumber:"number"};
 function docHeader(){
   const d=EP_DATA.settings.docHeader||{};
   const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(d.date||"");
@@ -3174,8 +3177,18 @@ function docHeader(){
      fill/apply ниже. «Реквизиты заказчика» — в проекте (d.customer), форма {values, show}. */
   const my=EPPrefs.get("myRequisites",{})||{};
   const cust=d.customer||{};
+  /* Адрес объекта (Б6) — ОДНА собранная строка для печати: «ул. X, д. Y, кв. Z, этаж N», пустые
+     части пропускаются (висячих запятых нет). Документы (КП/лист монтажника/экспликация) печатают
+     address как раньше — правило сборки живёт ЗДЕСЬ одно (§7.1). Собираем литералами, а не
+     helper'ом: docHeader исполняется в vm-стенде offerNumberWiring, куда top-level const и соседние
+     функции не попадают (как и «Мои реквизиты» выше). */
+  const street=String(d.addrStreet||"").trim(),house=String(d.addrHouse||"").trim(),
+    flat=String(d.addrFlat||"").trim(),floor=String(d.addrFloor||"").trim();
+  const address=[
+    street?`ул. ${street}`:"",house?`д. ${house}`:"",flat?`кв. ${flat}`:"",floor?`этаж ${floor}`:""
+  ].filter(Boolean).join(", ");
   return {
-    project:d.project||"",address:d.address||"",
+    project:d.project||"",address,
     developer:d.developer||"",number:d.number||"",
     date:m?`${m[3]}.${m[2]}.${m[1]}`:(d.date||new Date().toLocaleDateString("ru-RU")),
     /* галочка «показывать Разработчика в шапке КП»: по умолчанию включена (undefined → true).
@@ -3194,14 +3207,18 @@ function applyDocHeader(){
 }
 function fillDocHeaderInputs(){
   /* A5-миграция: старый проект нёс ФИО заказчика в поле «Клиент» (docHeader.client) — переносим в
-     customer.fio, чтобы данные не потерялись и строка «Клиент» не осталась в шапке КП. Делаем здесь
+     customer.fio, чтобы данные не потерялись и строка «Клиент» не осталась в шапке КП. Б6-миграция
+     там же: старый единый «Адрес объекта» (address) перекладывается в addrStreet. Делаем здесь
      (а не в restoreProject): функция зовётся на ОБОИХ путях загрузки (init и restoreProject), а её
      vm-стенды restoreProject стабят — так EPDocRequisites не требуется им в контекст. Снимок проекта
      берёт settings.docHeader уже перенесённым. Идемпотентна. */
   EP_DATA.settings.docHeader=EPDocRequisites.migrateDocHeader(EP_DATA.settings.docHeader);
   const d=EP_DATA.settings.docHeader||{};
   $("docProject").value=d.project||"";
-  $("docAddress").value=d.address||"";$("docDeveloper").value=d.developer||"";
+  /* Б6: четыре структурированных поля адреса вместо одного (DOC_FIELDS) */
+  $("docAddrStreet").value=d.addrStreet||"";$("docAddrHouse").value=d.addrHouse||"";
+  $("docAddrFlat").value=d.addrFlat||"";$("docAddrFloor").value=d.addrFloor||"";
+  $("docDeveloper").value=d.developer||"";
   $("docNumber").value=d.number||"";
   /* дата по умолчанию — сегодня (ISO для input[type=date]); значение можно изменить */
   $("docDate").value=d.date||new Date().toISOString().slice(0,10);
@@ -4356,7 +4373,7 @@ const {buildPostSheet,openInstallSheet}=EPDocs.attach({
   $,STANDARD_LABEL,assembledPostHtml,assembledPostSpec,buildEstimate,canvas,companyLogo,companySignature,
   companyStamp,companyTerms,displayCurrency,displayRate,docHeader,esc,frameProduct,installSheetOptions,
   keySlotKind,lightingHtml,lightingRowsFor,mechanismSpan,money,moneyShown,openInstallSheetWindow,postComposition,
-  postCost,postTotalCost,postsForGroupLinks,product,productImage,projectLighting,roomNamePoint,scheduleSave,spanForFrame,state,toast
+  postCost,postTotalCost,postsForGroupLinks,product,productImage,projectLighting,roomDisplayArea,roomNamePoint,scheduleSave,spanForFrame,state,toast
 });
 /* Автономер КП выдаётся ВНУТРИ generateCommercialOffer (docs.js) при первой печати пустого номера —
    это ещё один путь, которым меняется docHeader.number (пишется в поле программно, без события). Следом

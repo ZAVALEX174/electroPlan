@@ -206,7 +206,7 @@ function projectSheetHtml(lightingPlan) {
     installSheetOptions: () => EPInstallSheetOptions.migrate({}),   /* К11-3в: галочки листа accessor'ом */
     EPInstallSheet, EPOfferOptions, EPInstallSheetOptions, EP_DATA: { settings: {} }
   };
-  stand.run(["openInstallSheet", "installSheetForProject"], ctx)();
+  stand.run(["postsByRooms", "openInstallSheet", "installSheetForProject"], ctx)();
   return written;
 }
 
@@ -247,7 +247,7 @@ test("К11-3б: лист монтажника на проект отдаёт г�
     installSheetOptions: () => EPInstallSheetOptions.migrate({ assemblyView: "exploded" }),
     EPInstallSheet, EPOfferOptions, EPInstallSheetOptions, EP_DATA: { settings: { assemblyView: "exploded" } }
   };
-  stand.run(["openInstallSheet", "installSheetForProject"], ctx)();
+  stand.run(["postsByRooms", "openInstallSheet", "installSheetForProject"], ctx)();
   assert.ok(gotOptions && typeof gotOptions === "object",
     "галочки переданы в lightingHtml — иначе суммы печатались бы при любых настройках");
   assert.equal(typeof gotOptions.prices, "boolean", "есть флаг «Цены», которым гейтятся суммы");

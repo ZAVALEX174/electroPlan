@@ -53,7 +53,7 @@
   await setVal(reqField("my", "phone"), "+7 900 111-22-33");
   await setVal(reqField("my", "email"), "master@electro.pro");
   await setVal($("docProject"), "Квартира на Светлой");
-  await setVal($("docAddress"), "Москва, ул. Светлая, 1");
+  await setVal($("docAddrStreet"), "Светлая"); await setVal($("docAddrHouse"), "1");   // Б6: адрес структурировано
   await setVal(reqField("customer", "fio"), "Петрова А.С.");
   await setVal(reqField("customer", "phone"), "+7 921 555-44-33");
   await setVal(reqField("customer", "email"), "petrova@mail.ru");
@@ -73,6 +73,8 @@
   assertOk(kp.length > 0, "КП сгенерировано (в проекте есть пост)");
   assertOk(/Петрова/.test(kp), "КП содержит введённого заказчика");
   assertOk(/Мастеров/.test(kp), "КП содержит мои реквизиты (исполнитель)");
+  // Б6: печатная строка адреса собирается из структурированных полей (шаг 1 ввёл «Светлая» + «1»).
+  assertOk(/ул\. Светлая, д\. 1/.test(kp), "КП содержит собранный адрес «ул. Светлая, д. 1» (Б6)");
 
   // --- 2. «Новый проект»: проект изменён (не скачан) → подтверждение → без скачивания → перезагрузка ---
   await click($("newProjectBtn")); await sleep(400);
@@ -86,7 +88,7 @@
   await shot("kpsetup-3-autoopen", [$("kpSetupModal")]);
   const myFio = await val(reqField("my", "fio"));
   const custFio = await val(reqField("customer", "fio"));
-  const addr = await val($("docAddress"));
+  const addr = await val($("docAddrStreet"));
   const proj = await val($("docProject"));
   log.push("новый проект: myFio=" + JSON.stringify(myFio) + " custFio=" + JSON.stringify(custFio) + " addr=" + JSON.stringify(addr) + " proj=" + JSON.stringify(proj));
   assertOk(myFio === "Иван Мастеров", "мои реквизиты подставлены из прошлого (ep_prefs)");
@@ -95,7 +97,7 @@
 
   // --- 4. Заполнить заказчика/объект заново, «Готово» ---
   await setVal($("docProject"), "Дом в Твери");
-  await setVal($("docAddress"), "Тверь, пр. Мира, 10");
+  await setVal($("docAddrStreet"), "Мира"); await setVal($("docAddrHouse"), "10"); await setVal($("docAddrFloor"), "2");
   await setVal(reqField("customer", "fio"), "Сидоров В.В.");
   await setVal(reqField("customer", "phone"), "+7 930 777-88-99");
   await setVal(reqField("customer", "email"), "sidorov@mail.ru");

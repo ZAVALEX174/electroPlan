@@ -135,3 +135,43 @@ test("миграция client→ФИО стоит на боевом пути з�
   assert.match(stand.functionSource("fillDocHeaderInputs"), /EPDocRequisites\.migrateDocHeader/,
     "fillDocHeaderInputs (зовётся и из init, и из restoreProject) выполняет миграцию");
 });
+
+/* ── Б6: структурированный адрес объекта (улица/дом/квартира/этаж → одна печатная строка) ── */
+
+test("Б6: миграция — старый address перекладывается в addrStreet целиком, ключ убирается", () => {
+  const m = R.migrateDocHeader({ address: "Москва, ул. Светлая, 1", project: "П" });
+  assert.equal(m.addrStreet, "Москва, ул. Светлая, 1", "данные не потеряны — адрес целиком в addrStreet");
+  assert.ok(!("address" in m), "старого поля address в снимке больше нет");
+});
+
+test("Б6: миграция не затирает заполненные addr*, но старый ключ всё равно убирает", () => {
+  const m = R.migrateDocHeader({ address: "Старое", addrStreet: "Новая" });
+  assert.equal(m.addrStreet, "Новая", "структурированное поле важнее старого address");
+  assert.ok(!("address" in m), "address удалён и при заполненных addr*");
+});
+
+test("Б6: миграция адреса идемпотентна", () => {
+  const once = R.migrateDocHeader({ address: "Тверь, пр. Мира, 10" });
+  const twice = R.migrateDocHeader(once);
+  assert.deepEqual(twice, once, "повторный прогон ничего не меняет");
+  assert.equal(twice.addrStreet, "Тверь, пр. Мира, 10");
+});
+
+test("Б6: docHeader().address — «ул. X, д. Y, кв. Z, этаж N», пустые части пропускаются", () => {
+  const full = docHeaderWith({ addrStreet: "Светлая", addrHouse: "1", addrFlat: "12", addrFloor: "3" }, {});
+  assert.equal(full.address, "ул. Светлая, д. 1, кв. 12, этаж 3", "все четыре части с префиксами");
+  const partial = docHeaderWith({ addrStreet: " Мира ", addrFloor: "2" }, {});
+  assert.equal(partial.address, "ул. Мира, этаж 2", "пропуск пустых — без висячих запятых, края обрезаны");
+  const empty = docHeaderWith({}, {});
+  assert.equal(empty.address, "", "без addr* адрес пустой строкой");
+});
+
+test("Б6: поля адреса провязаны в DOC_FIELDS и заполняются fillDocHeaderInputs", () => {
+  /* Структурная страховка связки (поведение адреса выше — через docHeader): поля формы должны
+     писаться в addr* (applyDocHeader идёт по DOC_FIELDS) и читаться обратно из них. */
+  assert.match(stand.SRC, /docAddrStreet:"addrStreet"/, "DOC_FIELDS: поле «Улица» → addrStreet");
+  assert.match(stand.SRC, /docAddrFloor:"addrFloor"/, "DOC_FIELDS: поле «Этаж» → addrFloor");
+  const fill = stand.functionSource("fillDocHeaderInputs");
+  assert.match(fill, /\$\("docAddrStreet"\)\.value=d\.addrStreet/, "форма читает addrStreet из проекта");
+  assert.ok(!/\$\("docAddress"\)/.test(fill), "старого поля docAddress в форме нет");
+});

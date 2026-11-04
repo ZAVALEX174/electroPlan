@@ -85,6 +85,9 @@
         <button class="tb-btn" id="docsBtn" type="button" title="Документы" aria-label="Документы"><svg class="i"><use href="#i-doc"/></svg><span class="tb-label">Документы</span><svg class="i i-chev"><use href="#i-chev"/></svg></button>
         <div class="dd-menu" role="menu">
           <button class="dd-item" id="installSheetBtn" type="button" role="menuitem"><svg class="i"><use href="#i-wrench"/></svg><span>Лист монтажника<small>PDF для бригады</small></span></button>
+          <!-- Экспликация по комнатам (Б7): посты и цены с итогами по помещениям. Печатный
+               HTML-документ собирает EPRoomSheet (js/roomSheet.js), провязка — EPDocs.attach. -->
+          <button class="dd-item" id="roomSheetBtn" type="button" role="menuitem"><svg class="i"><use href="#i-room"/></svg><span>Экспликация по комнатам<small>посты и цены по помещениям</small></span></button>
           <button class="dd-item" id="xlsxBtn" type="button" role="menuitem"><svg class="i"><use href="#i-xls"/></svg><span>Спецификация Excel<small>по артикулам и по помещениям</small></span></button>
           <!-- Кол-во в упаковке (К6): по умолчанию снята; хранится в проекте (переживает перезагрузку и
                файл проекта). Включённая считает лист «По артикулам» кратно упаковке. -->
@@ -659,7 +662,13 @@
     <div class="kp-setup-body">
       <div class="doc-header-form">
         <label>Проект<input id="docProject" autocomplete="off" placeholder="Название проекта"></label>
-        <label>Адрес объекта<input id="docAddress" autocomplete="off" placeholder="Адрес"></label>
+        <!-- Адрес объекта (Б6) — структурировано: улица/дом/квартира/этаж. В docHeader хранятся
+             addrStreet/addrHouse/addrFlat/addrFloor; печатная строка «ул. …, д. …, кв. …, этаж …»
+             собирается одним правилом в docHeader() (app.js), документы печатают её как раньше. -->
+        <label>Улица<input id="docAddrStreet" autocomplete="off" placeholder="Светлая"></label>
+        <label>Дом<input id="docAddrHouse" autocomplete="off" placeholder="1"></label>
+        <label>Квартира/офис<input id="docAddrFlat" autocomplete="off" placeholder="12"></label>
+        <label>Этаж<input id="docAddrFloor" autocomplete="off" placeholder="3"></label>
         <label>Разработчик<input id="docDeveloper" autocomplete="off" placeholder="Кто составил"></label>
         <label class="doc-req-check"><input type="checkbox" id="docDeveloperShow">показывать «Разработчик» в шапке КП</label>
         <label>Дата<input id="docDate" type="date"></label>
@@ -824,11 +833,11 @@
 <div class="toast" id="toast"></div>
 <!-- Сообщения с крестиком, не гаснущие сами (Б9/2б): стоят над toast, одно над другим. Наполняет EPNotices. -->
 <div class="notices" id="notices"></div>
-  <script src="js/catalog-vimar.js?v=20261103.1"></script>
+  <script src="js/catalog-vimar.js?v=20261104.2"></script>
   <script src="js/catalog-vimar-attrs.js?v=20261031.3"></script>
   <script src="js/catalog-vimar-openings.js?v=20260920.1"></script>
   <script src="js/catalog-vimar-faces.js?v=20260801.2"></script>
-  <script src="js/catalog-vimar-discontinued.js?v=20261019.1"></script>
+  <script src="js/catalog-vimar-discontinued.js?v=20261104.2"></script>
   <script src="js/data.js?v=20261031.2"></script>
 <script src="js/store.js?v=20260723"></script>
 <script src="js/config.js?v=20261005.1"></script>
@@ -877,7 +886,7 @@
      наборы и свои слоты. Своя у листа, не общая с КП. Грузится ДО app.js, который поднимает её
      EPInstallSheetWindow.create(...) и даёт открывалку кнопкам «Лист монтажника» (шапка и окно поста). -->
 <script src="js/installSheetWindow.js?v=20261028.2"></script>
-<script src="js/docRequisites.js?v=20261003.1"></script>
+<script src="js/docRequisites.js?v=20261104.1"></script>
 <script src="js/estimate.js?v=20261102.1"></script>
 <!-- Единое правило «какая это картинка» (формат по сигнатуре первых байтов, MIME для data-URL).
      Грузится ДО planImport.js и docImages.js, которые оба к нему обращаются (§7.1). -->
@@ -890,6 +899,7 @@
 <script src="js/heicImport.js?v=20261025.1"></script>
 <script src="js/offerPdf.js?v=20261102.1"></script>
 <script src="js/installSheet.js?v=20261028.3"></script>
+<script src="js/roomSheet.js?v=20261104.1"></script>
 <script src="js/supplierSpec.js?v=20261024.2"></script>
 <script src="js/packRound.js?v=20261022.1"></script>
 <!-- Добор до целых упаковок (К6б): чистый модуль (ни DOM, ни state) — единая карта «артикул → упаковка»
@@ -949,7 +959,7 @@
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
-<script src="js/docs.js?v=20261101.1"></script>
+<script src="js/docs.js?v=20261104.1"></script>
 <!-- Ввод на холсте (клики, перенос объектов, панорама, зум колесом): trackDrag, makeDraggable,
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него
@@ -998,6 +1008,6 @@
 <!-- Левая панель (Редизайн, часть 4): сворачиваемые секции (память в EPPrefs), статус/автосворачивание
      «Исходного плана», горячие клавиши инструментов V/W/L/R/E. До app.js, который зовёт EPLeftPanel.attach(ctx). -->
 <script src="js/leftPanel.js?v=20261030.2"></script>
-<script src="js/app.js?v=20261102.1"></script>
+<script src="js/app.js?v=20261104.2"></script>
 </body>
 </html>
