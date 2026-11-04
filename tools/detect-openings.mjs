@@ -149,12 +149,17 @@ async function fetchRetry(url, tries = 3) {
 }
 
 /* Кэш скачанного фото по базе (расширение из URL). Есть в кэше — сети не касаемся (повтор
-   прогона детерминирован и быстр). */
+   прогона детерминирован и быстр).
+   04.11: url теперь чаще ЛОКАЛЬНЫЙ путь (img/catalog/<артикул>.jpg — картинки переехали в программу,
+   конвертер ставит свой файл первым). Тогда сети нет вовсе: копируем файл в кэш с диска. */
 async function cachedImage(base, url) {
   await fsp.mkdir(CACHE, { recursive: true });
-  const ext = (path.extname(new URL(url).pathname) || ".jpg").split("?")[0];
-  const file = path.join(CACHE, base + ext);
-  if (!fs.existsSync(file)) await fsp.writeFile(file, await fetchRetry(url));
+  const isHttp = /^https?:\/\//i.test(url);
+  const ext = (isHttp ? path.extname(new URL(url).pathname) : path.extname(url)) || ".jpg";
+  const file = path.join(CACHE, base + ext.split("?")[0]);
+  if (fs.existsSync(file)) return file;
+  if (isHttp) await fsp.writeFile(file, await fetchRetry(url));
+  else await fsp.copyFile(path.join(projectRoot, url), file);
   return file;
 }
 
