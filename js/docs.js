@@ -679,37 +679,85 @@ function installSheetForProject(){
       note:"Все одинаковые позиции проекта сведены по артикулам — этот лист отправляется поставщику."},light,options)});
 }
 
-/* Экспликация по комнатам (Б7): по каждой комнате таблица её постов (№, наполнение, накладка,
-   модульность, высота, назначение, цена) с итогом по комнате, «Без помещения» в конце и общий итог.
+/* Экспликация по комнатам (Б7): по каждой комнате таблица её строк — постов И одиночных изделий
+   (№, наполнение, накладка, модульность, высота, назначение, цена) с итогом по комнате, «Без помещения»
+   в конце и БЛОКОМ ИТОГОВ КАК В КП внизу (решение владельца 05.11 «считать как в КП»).
    Строки постов — ТЕ ЖЕ, что в раскладке КП (buildPostLayout: наполнение словами с подсветкой и
-   датчиками, цена postTotalCost, §7.1 — второй копии наполнения и цены нет); группировка по
-   комнатам — тем же postsByRooms, что лист монтажника. Вёрстку собирает чистый EPRoomSheet. */
+   датчиками, цена postTotalCost, §7.1 — второй копии наполнения и цены нет); пометка личной скидки —
+   тем же правилом, что layoutDisc КП (EPEstimate.discountOf → discountMark). Группировка по комнатам —
+   тем же postsByRooms, что лист монтажника. Блок итогов (EPDocTotals.footerHtml) и цена/имя изделия
+   (EPEstimate.specShown) берутся из ТОЙ ЖЕ сметы buildEstimate, что КП, — цифры совпадают по построению.
+   Вёрстку собирает чистый EPRoomSheet. */
 function roomSheetForProject(){
-  if(!state.posts.length&&!state.rooms.length){toast("В проекте нет ни постов, ни комнат — экспликация пуста");return}
+  const devices=state.devices||[];
+  if(!state.posts.length&&!state.rooms.length&&!devices.length){toast("В проекте нет ни постов, ни комнат — экспликация пуста");return}
   const light=projectLighting();
   /* Опции КП — только для buildPostLayout (артикулы в картинках, которые экспликация не печатает);
      сам документ галочек не имеет (решение плана Б7: без отдельного окна настроек). */
   const options=EPOfferOptions.normalize(EP_DATA.settings.offerOptions);
+  const rate=displayRate(),currency=displayCurrency();
+  const general=EP_DATA.settings.discountPercent;
+  /* Смета — ТА ЖЕ, что у КП (buildEstimate): из неё блок итогов (EPDocTotals) и цена/имя изделия
+     (specShown). «Как в КП» = те же цифры тем же кодом (§7.1). */
+  const est=buildEstimate(light);
+  const spec=EPEstimate.specShown(est,rate,currency);
+  /* Цена и имя каждого изделия — из строки спецификации его группы: members держат сам объект изделия,
+     поэтому берём ТО ЖЕ число, что печатает КП, без второй копии подбора. */
+  const byMember=new Map();
+  est.groups.forEach((g,i)=>(g.members||[]).forEach(m=>{
+    if(!byMember.has(m))byMember.set(m,{price:(spec.rows[i]||{}).price||0,name:g.name});
+  }));
+  /* Пометка личной скидки — ОДНО правило, что layoutDisc в КП (discountOf → discountMark, §7.1). */
+  const markOf=ref=>{const dd=EPEstimate.discountOf(ref.discount,general);return EPEstimate.discountMark(dd.personal,dd.percent);};
   const layoutById=new Map(buildPostLayout(options,light).map(r=>[r.id,r]));
-  const groups=postsByRooms(state.posts,state.rooms).map(g=>({
+  const postRow=p=>{
+    const r=layoutById.get(p.id);
+    /* Наполнение — строкой «слово — N» из того же fill, что печатает КП; строки-пробелы
+       (noCount: «подсветка не подобрана») идут словами без количества, как в КП. */
+    const fillText=(r.fill||[]).map(f=>f.noCount?f.word:`${f.word} — ${f.count}`).join(", ");
+    return {number:r.number,fillText,frameName:r.frameName,modules:r.modules,
+      height:r.height,purpose:r.purpose,price:r.price,discountMark:markOf(p)};
+  };
+  /* Одиночное изделие строкой В СВОЕЙ комнате: № «—», в «Наполнении» имя из спецификации, накладка/
+     модульность/высота/назначение пустые («—» в документе), цена и пометка скидки — как в КП. */
+  const deviceRow=d=>{
+    const info=byMember.get(d)||{price:0,name:(product(d.productId)||{}).name||`Товар не найден (арт. ${d.productId})`};
+    return {number:"—",fillText:info.name,frameName:"",modules:"",height:"",purpose:"",
+      price:info.price,discountMark:markOf(d)};
+  };
+  /* Группировка постов по комнатам — тем же postsByRooms, что лист монтажника; изделия раскладываем
+     по roomId в те же группы, изделие без комнаты / в удалённой комнате — в «Без помещения» (её
+     создаём, если постов-сирот не было, а изделия-сироты есть). */
+  const groups=postsByRooms(state.posts,state.rooms);
+  const byRoomId=new Map();
+  groups.forEach(g=>{if(g.room)byRoomId.set(g.room.id,g);});
+  let orphan=groups.find(g=>!g.room)||null;
+  devices.forEach(d=>{
+    const g=byRoomId.get(d.roomId);
+    if(g){(g.devices||(g.devices=[])).push(d);return;}
+    if(!orphan){orphan={room:null,posts:[],devices:[]};groups.push(orphan);}
+    (orphan.devices||(orphan.devices=[])).push(d);
+  });
+  const dataGroups=groups.map(g=>({
     name:g.room?g.room.name:"Без помещения",
     /* Площадь комнаты — тем же roomDisplayArea, что на плане (ручное значение приоритетнее
        авторасчёта); второй копии правила «что показывать» не заводим. */
     areaText:g.room?roomDisplayArea(g.room):"",
-    posts:g.posts.map(p=>{
-      const r=layoutById.get(p.id);
-      /* Наполнение — строкой «слово — N» из того же fill, что печатает КП; строки-пробелы
-         (noCount: «подсветка не подобрана») идут словами без количества, как в КП. */
-      const fillText=(r.fill||[]).map(f=>f.noCount?f.word:`${f.word} — ${f.count}`).join(", ");
-      return {number:r.number,fillText,frameName:r.frameName,modules:r.modules,
-        height:r.height,purpose:r.purpose,price:r.price};
-    })
+    posts:g.posts.map(postRow).concat((g.devices||[]).map(deviceRow))
   }));
+  /* Раздел «Добор до целых упаковок» и блок итогов + оговорка — ГОТОВЫМИ строками из общей с КП
+     EPDocTotals на той же смете (§7.1, решение владельца 05.11 «добор разделом, как в КП»; prices:true —
+     экспликация всегда с ценами). Столбцы добора — по тем же опциям проекта (offerOptions), что КП; itemText
+     чистит код из имени при выключенных артикулах, как в КП. Добора нет (галка выключена / добирать
+     нечего) → topUpHtml пустой, раздела нет. */
+  const itemText=(name,code)=>EPOfferOptions.itemText(name,options.articles,code);
+  const topUpHtml=EPDocTotals.topUpSectionHtml(est,{esc,moneyShown,rate,currency,options,itemText});
+  const totalsHtml=EPDocTotals.footerHtml(est,{moneyShown,esc,rate,currency,prices:true});
   const win=window.open("","_blank");
   if(!win){toast("Разрешите всплывающие окна для экспликации");return}
   const h=docHeader();
   win.document.write(EPRoomSheet.buildHtml(
-    {header:{project:h.project,developer:h.developer,date:h.date},groups},
+    {header:{project:h.project,developer:h.developer,date:h.date},groups:dataGroups,topUpHtml,totalsHtml},
     {esc,moneyShown,logo:companyLogo()}));
   win.document.close();
 }

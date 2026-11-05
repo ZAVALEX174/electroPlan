@@ -40,6 +40,15 @@ function packTopUpApi() {
   return null;
 }
 
+/* Блок денежных итогов + оговорка — ОДНА вёрстка на КП и экспликацию (EPDocTotals, §7.1, решение
+   владельца 05.11 «экспликация считает как в КП»). Резолвим как EPEstimate: в браузере namespace уже
+   загружен (docTotals.js подключён раньше offerPdf.js), в Node — через require. */
+function docTotalsApi() {
+  if (typeof window !== "undefined" && window.EPDocTotals) return window.EPDocTotals;
+  if (typeof require !== "undefined") return require("./docTotals.js");
+  return { footerHtml: () => "" };
+}
+
 /* Предел длины редактируемых условий сделки. «Соглашение сторон» — это несколько абзацев (условия
    оплаты, поставка до 180 дней, претензии, срок действия цен), а не документ: 2000 символов — это
    ~30–40 строк, с большим запасом на любые разумные условия. Больше почти наверняка не условия КП,
@@ -155,39 +164,27 @@ function compose(est, deps) {
   const itemText = (value, code) => config.itemText(value, options.articles, code);
   const estimate = deps.EPEstimate || defaultEstimate();
 
-  /* ВЕСЬ блок итогов — из ОДНОЙ функции EPEstimate.totalsShown (Б): «Оборудование», «Скидка»,
-     «Монтажные материалы», «Работы», «Итого без НДС», «НДС» и «Итого с НДС» приходят уже в валюте
-     показа и округлёнными так, что сумма ПЕЧАТНЫХ строк выше НДС сходится с «Итого без НДС», а он плюс
-     НДС — с итогом. Курс (rate) и формат УЖЕ-показанного числа приходят зависимостями: moneyShown
-     форматирует число без повторного умножения на курс (money() умножил бы второй раз). Без зависимостей
-     (старый вызов на rate=1) moneyShown == money, числа те же. */
+  /* Курс и валюта показа питают и строки спецификации (specShown ниже), и блок итогов (EPDocTotals —
+     ВЕСЬ блок «Оборудование…Итого с НДС» вынесен в общую с экспликацией вёрстку, §7.1). moneyShown
+     форматирует уже-показанное число без повторного умножения на курс (money() умножил бы второй раз);
+     без зависимостей (старый вызов на rate=1) moneyShown == money, числа те же. */
   const rate = deps.displayRate ? deps.displayRate() : 1;
   /* Валюта показа (К7): в рублях ядро округляет суммы до целого рубля (скидка вниз, прочее вверх),
      в евро — до копейки. moneyShown форматирует эти уже-целые числа; старый вызов без displayCurrency
      даёт "EUR" — поведение евро, числа прежние. */
   const currency = deps.displayCurrency ? deps.displayCurrency() : "EUR";
   const moneyShown = deps.moneyShown || money;
-  const totals = estimate.totalsShown(est, rate, currency);
   /* Печатные «Цена» и «Сумма» КАЖДОЙ строки спецификации — из ОДНОЙ EPEstimate.specShown (В26):
      цена строки собрана по изделиям состава, сумма = цена × количество, и Σ сумм = «Оборудование»
      (totals.equipment тоже отсюда). Числа приходят УЖЕ в валюте показа и округлёнными — печатаем их
      moneyShown (без повторного ×курс), второй копии арифметики у КП нет (§7.1). rows[i] ↔ est.groups[i]. */
   const spec = estimate.specShown(est, rate, currency);
 
-  /* Проценты в КП — с ДЕСЯТИЧНОЙ ЗАПЯТОЙ (русский документ), как курс в rateFooter: «12,5%», а не
-     «12.5%». Целое остаётся целым. */
-  const pct = n => String(n).replace(".", ",");
-  /* Пометка личной скидки строки/поста — ОДНА формулировка на спецификацию и раскладку. Печатаем
-     ТОЛЬКО когда процент строки отличается от общего (personal); своя 0% при общей >0 — «без скидки».
-     Пусто, когда цены в КП выключены (options.prices): в документе без цен скидке взяться неоткуда. */
-  const discMark = (personal, percent) => (!options.prices || !personal) ? ""
-    : (Number(percent) === 0 ? "без скидки" : "скидка " + pct(percent) + "%");
-
-  /* Оговорка о позициях без цены — ОДНОЙ строкой с экраном (см. defaultEstimate выше). Считает по
-     тому же est.missing, что и панель «Стоимость проекта»; печатается прямо под «Итого», иначе КП
-     выглядел бы окончательной суммой, хотя часть позиций вошла в неё нулём. deps.EPEstimate — точка
-     подмены для теста; в приложении её не передают. */
-  const pricelessNote = estimate.pricelessNote(est);
+  /* Пометка личной скидки строки/поста — ОДНА формулировка на КП, спецификацию, раскладку и экспликацию
+     (EPEstimate.discountMark, §7.1: текст пометки живёт в одном месте, у копии правка имела края). Здесь
+     остаётся только гейт «цены включены»: в документе без цен (options.prices=false) скидке взяться
+     неоткуда. Своя 0% при общей >0 → «без скидки», иначе «скидка N%» с десятичной запятой. */
+  const discMark = (personal, percent) => !options.prices ? "" : estimate.discountMark(personal, percent);
 
   /* Подвал с курсом печатаем честно. Суммы в КП уже пересчитаны money() по
      эффективному курсу; здесь важно не выдать курс с надбавкой за официальный
@@ -361,36 +358,12 @@ function compose(est, deps) {
     : `<td>${key === "name" ? `<b>${esc(r.name)}</b>${r.discountMark ? ` <span class="disc-mark">${esc(r.discountMark)}</span>` : ""}` : esc(key === "number" ? i + 1 : r[key])}</td>`).join("")}</tr>`).join("")}
   </tbody></table>` : "";
 
-  /* Раздел «Добор до целых упаковок» (К6б, решение владельца 22–23.10): поставщик отгружает целыми
-     упаковками, и разницу «упаковка − потребность» заказчик хочет видеть ОТДЕЛЬНО. Печатается, КОГДА
-     строки добора есть, НЕЗАВИСИМО от options.sections.specification (в т.ч. набор «Для клиента» —
-     решение владельца 23.10 п.2): это не часть спецификации, а приложение к ней. Колонки и их гейты —
-     как у спецификации: № (options.specification.number, но нумерация СВОЯ, с 1), «Артикул» только при
-     options.articles, «Цена»/«Сумма» при options.prices И соответствующем столбце настройки
-     спецификации (options.specification.price/.sum — решение владельца 23.10: снял столбец в
-     спецификации, он пропадает и в доборе); «Добавлено» (сколько доложено до упаковки) — всегда.
-     Цена/сумма — ПЕЧАТНЫЕ числа spec.rows[i] (валюта показа, К7), своего счёта денег у раздела нет
-     (§7.1). Имя — через itemText (при скрытых артикулах код из имени вычищается). Набор столбцов —
-     ЕДИНОЕ правило EPPackTopUp.topUpColumns (то же, что у Excel); нет модуля — прежний набор. */
-  const topUpColumns = topUp && topUp.topUpColumns ? topUp.topUpColumns(options) : [
-    ...(options.specification.number ? [["number", "№"]] : []),
-    ...(options.articles ? [["article", "Артикул"]] : []),
-    ["name", "Наименование"], ["added", "Добавлено"],
-    ...(options.prices ? [["price", "Цена"], ["sum", "Сумма"]] : [])
-  ];
-  const topUpRow = ({ g, i }, n) => {
-    const code = (g.items && g.items[0] && g.items[0].code) || "";
-    const r = spec.rows[i] || {};
-    const cell = {
-      number: n + 1, article: esc(code), name: `<b>${esc(itemText(g.name, code || null))}</b>`,
-      added: `${Number(g.count) || 0} ${esc(g.unit)}`, price: moneyShown(r.price), sum: moneyShown(r.sum)
-    };
-    return `<tr>${topUpColumns.map(([key]) => `<td class="${["price", "sum"].includes(key) ? "right" : ""}">${cell[key]}</td>`).join("")}</tr>`;
-  };
-  const topUpSection = split.topUp.length ? `<h2 class="section-title">Добор до целых упаковок</h2>
-  <table class="specification"><thead><tr>${topUpColumns.map(([key, label]) => `<th${["price", "sum"].includes(key) ? ' class="right"' : ""}>${esc(label)}</th>`).join("")}</tr></thead><tbody>
-  ${split.topUp.map((e, n) => topUpRow(e, n)).join("")}
-  </tbody></table>` : "";
+  /* Раздел «Добор до целых упаковок» (К6б) — ОДНА вёрстка на КП и экспликацию (EPDocTotals, §7.1,
+     решение владельца 05.11 «добор разделом, как в КП»). Печатается, КОГДА строки добора есть,
+     НЕЗАВИСИМО от options.sections.specification (в т.ч. набор «Для клиента»): это приложение к ней, не
+     часть. Набор столбцов, гейты (№/артикулы/цены), печатные цены spec.rows[i] — внутри общей функции
+     тем же правилом, что было здесь; итог раздела у экспликации и КП совпадает по построению. */
+  const topUpSection = docTotalsApi().topUpSectionHtml(est, { esc, moneyShown, rate, currency, options, itemText, EPEstimate: estimate });
 
   /* Секции-строки, приходящие оркестратором готовыми, — ОТДЕЛЬНЫМИ const: их же читает страж
      пустого КП (hasContent), поэтому «раздел включён, но печатать нечего» не размазано по шаблону. */
@@ -429,13 +402,7 @@ function compose(est, deps) {
   ${specSection}
   ${lightingSection}
   ${topUpSection}
-  ${options.prices ? `<div class="totals"><div><span>Оборудование</span><b>${moneyShown(totals.equipment)}</b></div>
-  ${estimate.discountShown(est, rate, currency) > 0 ? `<div><span>${estimate.discountLabel(est.discountMixed, est.discountPercent)}</span><b>−${moneyShown(totals.discount)}</b></div>` : ""}
-  <div><span>Монтажные материалы</span><b>${moneyShown(totals.materials)}</b></div><div><span>Работы</span><b>${moneyShown(totals.work)}</b></div>
-  ${est.vat && !est.vatIncluded ? `<div><span>Итого без НДС</span><b>${moneyShown(totals.subtotal)}</b></div><div><span>${esc(est.vatLabel || "НДС")} ${est.vatPercent}%</span><b>${moneyShown(totals.amount)}</b></div>` : ""}
-  <div class="grand"><span>Итого${est.vat && !est.vatIncluded ? " с НДС" : ""}</span><b>${moneyShown(totals.total)}</b></div>
-  ${est.vat && est.vatIncluded ? `<div><span>${esc(est.vatLabel || "в т.ч. НДС")} ${est.vatPercent}%</span><b>${moneyShown(totals.amount)}</b></div>` : ""}</div>` : ""}
-  ${pricelessNote ? `<div class="priceless">${options.prices ? esc(pricelessNote) : `Позиций без товара в каталоге: ${est.missing.length}. Проверьте состав проекта перед передачей документа.`}</div>` : ""}
+  ${docTotalsApi().footerHtml(est, { moneyShown, esc, rate, currency, prices: options.prices, EPEstimate: estimate })}
   ${options.prices && displayCurrency() === "RUB" ? rateFooter() : ""}
   ${options.prices ? `<div class="footer">Цены являются ориентировочными и могут быть уточнены после согласования бренда, серии оборудования и условий монтажа.</div>` : ""}
   ${termsFooter}

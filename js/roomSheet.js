@@ -1,8 +1,8 @@
 /* Экспликация по комнатам (Б7, §1.4 опросника) — сборка HTML-документа для печати/PDF.
    ОТДЕЛЬНЫЙ документ, не КП и не лист монтажника: по каждой комнате заголовок «Название — площадь»
-   и таблица её постов (№, наполнение словами, накладка, модульность, высота, назначение, цена)
-   с итогом по комнате; в конце — посты «Без помещения» (отдельной группой, её собирает
-   оркестратор) и общий итог по проекту. Пустые комнаты (без постов) показываем с площадью
+   и таблица её строк (посты И одиночные изделия: №, наполнение словами, накладка, модульность, высота,
+   назначение, цена) с итогом по комнате; в конце — «Без помещения» (отдельной группой, её собирает
+   оркестратор) и блок денежных ИТОГОВ КАК В КП. Пустые комнаты (без строк) показываем с площадью
    и пометкой «постов нет» — площадь комнаты нужна и без постов, а пропавшая комната читалась
    бы как потерянные данные.
 
@@ -11,27 +11,32 @@
    на выход строка HTML. Ни state, ни DOM, ни window.open — открытие окна остаётся в оркестраторе.
    Так документ можно проверить автотестом, не поднимая браузер (PLAN 7.1).
 
-   Итог по комнате и общий итог считаются ЗДЕСЬ (сумма price постов группы / всех групп) —
-   правило суммирования живёт одним местом рядом с таблицей, которая его печатает. Цены приходят
-   УЖЕ в валюте показа (postTotalCost → EPEstimate.postPriceShown), форматирует их deps.moneyShown
-   — та же точка округления, что у КП и сметы (§7.1: второй копии roundShown здесь нет).
+   ИТОГ ПО КОМНАТЕ считается ЗДЕСЬ (сумма price строк группы) — правило суммирования живёт рядом с
+   таблицей, которая его печатает. А БЛОК ОБЩИХ ИТОГОВ («Оборудование… Итого с НДС», оговорка о
+   неполноте) приходит ГОТОВОЙ СТРОКОЙ data.totalsHtml: его собирает EPDocTotals из той же сметы и тем
+   же кодом, что КП (решение владельца 05.11 «считать как в КП», §7.1 — второй копии арифметики и
+   вёрстки итогов здесь нет). Цены строк приходят УЖЕ в валюте показа, форматирует их deps.moneyShown
+   — та же точка округления, что у КП и сметы.
 
    Интерфейс приложению — window.EPRoomSheet.buildHtml(data, deps).
 
    data = {
      title?, subtitle?,
      header?: { project?, developer?, date? },   // пустые поля не печатаются
+     topUpHtml?,                                 // ГОТОВЫЙ раздел «Добор до целых упаковок» (EPDocTotals.topUpSectionHtml); перед итогами; пусто — нет
+     totalsHtml?,                                // ГОТОВЫЙ блок итогов+оговорка (EPDocTotals.footerHtml); пусто — не печатаем
      groups: [ {
        name,                                     // имя комнаты; «Без помещения» — тоже группа (room:null в оркестраторе)
        areaText?,                                // площадь готовой строкой («12,5 м²»), пусто — не печатаем
-       posts: [ {
-         number,                                 // № поста (как на плане и в других документах)
-         fillText,                               // наполнение словами («Розетка — 2, Выключатель — 1»)
-         frameName,                              // накладка
-         modules,                                // модульность (число модулей накладки)
-         height,                                 // высота установки
-         purpose,                                // назначение
-         price                                   // цена поста ЧИСЛОМ, в валюте показа (для итогов)
+       posts: [ {                                // строки комнаты: посты И одиночные изделия
+         number,                                 // № поста; у одиночного изделия — «—»
+         fillText,                               // наполнение словами («Розетка — 2»); у изделия — его название (как в спецификации КП)
+         frameName,                              // накладка; у изделия — пусто («—»)
+         modules,                                // модульность; у изделия — пусто («—»)
+         height,                                 // высота установки; у изделия — пусто
+         purpose,                                // назначение; у изделия — пусто
+         price,                                  // цена ЧИСЛОМ, в валюте показа (для итога по комнате)
+         discountMark?                           // пометка личной скидки («скидка 10%»), как в КП; пусто — нет
        } ]
      } ]
    }
@@ -91,7 +96,7 @@ function buildHtml(data, deps) {
       return `${head}<table class="room-table">${thead}<tbody><tr><td colspan="7" class="empty">постов нет</td></tr></tbody></table>`;
     }
     const rows = posts.map(p => `<tr>`
-      + `<td class="num">${esc(p.number)}</td>`
+      + `<td class="num">${esc(p.number)}${p.discountMark ? `<div class="pl-disc">${esc(p.discountMark)}</div>` : ""}</td>`
       + textCell(p.fillText)
       + textCell(p.frameName)
       + `<td class="right">${esc(p.modules != null && p.modules !== "" ? p.modules : "—")}</td>`
@@ -103,11 +108,6 @@ function buildHtml(data, deps) {
     const totalRow = `<tr class="room-total"><td colspan="6">Итого по комнате</td>${moneyCell(total)}</tr>`;
     return `${head}<table class="room-table">${thead}<tbody>${rows}${totalRow}</tbody></table>`;
   };
-
-  /* Общий итог — сумма по всем группам (включая «Без помещения»): то же правило, что итог
-     комнаты, применённое ко всему списку, — расхождению «комнаты сошлись, проект нет» негде жить. */
-  const grandTotal = groups.reduce((s, g) =>
-    s + (Array.isArray(g.posts) ? g.posts : []).reduce((x, p) => x + (Number(p.price) || 0), 0), 0);
 
   const title = esc(data.title || "Экспликация по комнатам");
   const subtitle = esc(data.subtitle || "Посты и стоимость по помещениям проекта");
@@ -127,7 +127,13 @@ function buildHtml(data, deps) {
   td.price{white-space:nowrap}
   td.empty{color:#687f94;font-style:italic}
   tr.room-total td{background:#f0f7ff;color:#185d96;font-weight:bold}
-  .grand-total{margin-top:6px;padding:10px 12px;background:#1675c8;color:#fff;font-weight:bold;border-radius:10px;font-size:14px;text-align:right;break-inside:avoid;page-break-inside:avoid}
+  /* Пометка личной скидки под номером поста и блок итогов — КЛАССЫ КАК В КП (EPDocTotals печатает
+     ту же разметку, §7.1): экспликация обязана показать итоги тем же блоком и теми же цифрами. */
+  .pl-disc{color:#9b3f2b;font-size:9px;font-weight:normal;margin-top:2px}
+  .section-title{font-size:15px;color:#185d96;margin:18px 0 6px}
+  .totals{width:340px;margin:22px 0 0 auto}.totals div{display:flex;justify-content:space-between;padding:7px}
+  .grand{font-size:16px;font-weight:bold;color:white;background:#1675c8;border-radius:8px}
+  .priceless{width:340px;margin:8px 0 0 auto;color:#9b3f2b;font-size:11px;font-weight:bold;line-height:1.3;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   @media print{button{display:none}}
   </style></head><body>
   <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -136,7 +142,8 @@ function buildHtml(data, deps) {
   </div>
   ${headerRows ? `<div class="doc-head">${headerRows}</div>` : ""}
   ${groups.map(renderGroup).join("")}
-  <div class="grand-total">Итого по проекту: ${esc(moneyShown(grandTotal))}</div>
+  ${data.topUpHtml || ""}
+  ${data.totalsHtml || ""}
   ${printScript}</body></html>`;
 }
 

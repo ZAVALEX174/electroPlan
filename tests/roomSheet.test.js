@@ -3,16 +3,18 @@
 
    Слои под тестом:
    1. Чистый модуль js/roomSheet.js (EPRoomSheet.buildHtml) — через require, как installSheet.test.js:
-      группы комнат, итоги, «Без помещения», пустые комнаты, шапка, esc.
-   2. Обвязка js/docs.js — настоящие postsByRooms и roomSheetForProject, вырезанные поведенческим
-      стендом (helpers/appStand.js, docs.js есть в SOURCE_FILES): порядок комнат = порядку на плане,
-      строки постов берутся из buildPostLayout (как в КП), печать — настоящим EPRoomSheet.
+      группы комнат, итог ПО КОМНАТЕ, блок итогов ГОТОВОЙ строкой (data.totalsHtml), «Без помещения»,
+      пустые комнаты, пометка скидки, шапка, esc.
+   2. Обвязка js/docs.js — настоящий postsByRooms (порядок комнат = порядку на плане).
+
+   Экспликация «как в КП» целиком (roomSheetForProject на РЕАЛЬНОЙ смете/каталоге, блок итогов, изделия
+   в комнатах, пометка скидки, оговорка) проверяется сквозным tests/roomSheetTotals.test.js.
 
    Каждый тест обязан КРАСНЕТЬ на своей мутации (§7.1 HANDOFF, зелёный ≠ проверенное правило):
-     - итог по комнате/проекту не считается → суммы не сойдутся;
-     - «Без помещения» не в конце / комнаты не в порядке state.rooms → порядок заголовков разойдётся;
-     - пустая комната пропущена → нет пометки «постов нет»;
-     - roomSheetForProject игнорирует postsByRooms → посты сели не в те комнаты. */
+     - итог по комнате не считается → сумма не сойдётся;
+     - блок итогов (data.totalsHtml) не выводится → цифр КП в документе нет;
+     - «Без помещения» не в конце / комнаты не в порядке → порядок заголовков разойдётся;
+     - пустая комната пропущена → нет пометки «постов нет». */
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -56,18 +58,41 @@ test("документ: заголовок, шапка реквизитов, т�
   assert.match(html, /42,50 €/, "цена поста отформатирована moneyShown");
 });
 
-test("итоги: по комнате — сумма её постов, общий итог — сумма по всем группам", () => {
-  /* Мутация «итог = цена первого поста»/«нет общего итога» краснит этот тест: 10+20=30,
-     5+30=35 — числа подобраны различимыми. */
+test("итог по комнате = сумма её строк; блок общих итогов приходит готовой строкой (totalsHtml)", () => {
+  /* Мутация «итог комнаты = цена первого поста» краснит первую проверку: 10+20=30. Блок ОБЩИХ итогов
+     модуль НЕ считает — вставляет data.totalsHtml как есть (его собирает EPDocTotals из сметы, §7.1). */
   const html = EPRoomSheet.buildHtml({
+    totalsHtml: '<div class="totals"><div><span>Итого с НДС</span><b>99,00 €</b></div></div>',
     groups: [
       { name: "Кухня", posts: [post(1, 10), post(2, 20)] },
       { name: "Без помещения", posts: [post(3, 5)] }
     ]
   }, deps);
   const kitchenTotal = html.slice(html.indexOf("Итого по комнате"));
-  assert.match(kitchenTotal, /30,00 €/, "итог по комнате = сумма цен её постов");
-  assert.match(html, /Итого по проекту: 35,00 €/, "общий итог = сумма по всем группам");
+  assert.match(kitchenTotal, /30,00 €/, "итог по комнате = сумма цен её строк");
+  assert.match(html, /Итого с НДС<\/span><b>99,00 €<\/b>/, "блок итогов выведен из data.totalsHtml");
+  assert.ok(!html.includes("Итого по проекту"), "своего общего итога модуль больше не печатает");
+});
+
+test("пометка личной скидки печатается под номером поста (pl-disc); без неё — нет", () => {
+  const html = EPRoomSheet.buildHtml({
+    groups: [{ name: "Кухня", posts: [post(1, 10, { discountMark: "скидка 10%" }), post(2, 20)] }]
+  }, deps);
+  assert.match(html, /<div class="pl-disc">скидка 10%<\/div>/, "пометка под номером поста со скидкой");
+  assert.equal((html.match(/class="pl-disc"/g) || []).length, 1, "ровно у одного поста — у второго пометки нет");
+});
+
+test("строка изделия: № «—», наполнение — имя изделия, прочие поля прочерками", () => {
+  const html = EPRoomSheet.buildHtml({
+    groups: [{ name: "Гостиная", posts: [
+      { number: "—", fillText: "Розетка SCHUKO", frameName: "", modules: "", height: "", purpose: "", price: 7.5 }
+    ] }]
+  }, deps);
+  const row = html.slice(html.indexOf('<td class="num">'), html.indexOf("Итого по комнате"));
+  assert.match(row, /<td class="num">—<\/td>/, "№ изделия — прочерк");
+  assert.match(row, /Розетка SCHUKO/, "имя изделия в «Наполнении»");
+  assert.ok((row.match(/<td>—<\/td>/g) || []).length >= 3, "накладка/высота/назначение — прочерки");
+  assert.match(row, /7,50 €/, "цена изделия");
 });
 
 test("порядок комнат — как в data.groups; «Без помещения» приходит последней от оркестратора", () => {
@@ -90,7 +115,6 @@ test("пустая комната: заголовок с площадью и п�
   assert.match(html, /постов нет/, "пометка «постов нет»");
   /* «Итого по комнате» ровно одна — у Кухни; у пустой Кладовой итога быть не должно. */
   assert.equal((html.match(/Итого по комнате/g) || []).length, 1, "у пустой комнаты итог не печатается");
-  assert.match(html, /Итого по проекту: 7,00 €/, "общий итог не пострадал от пустой комнаты");
 });
 
 test("пустые поля поста печатаются прочерком; ввод экранируется", () => {
@@ -138,73 +162,3 @@ test("postsByRooms: пустые комнаты сохраняются (эксп
   assert.equal(byRooms([], []).length, 0, "совсем пустой проект → ни одной группы");
 });
 
-/* ─────────── 3. roomSheetForProject (docs.js) — обвязка: state → EPRoomSheet → окно печати ─────────── */
-
-/* Настоящая roomSheetForProject поверх стабов приложения: buildPostLayout стабим (его самого
-   покрывают docsMoneyCoverage/backlightPostLayout — предмет здесь: группировка, площадь,
-   передача в настоящий EPRoomSheet и открытие окна). Посты в state стоят НАРОЧИТО не в
-   порядке комнат — иначе мутация «без postsByRooms» не покраснела бы. */
-function roomSheetRun() {
-  let written = "";
-  const toasted = [];
-  const ctx = {
-    Object, Array, Number, String, RegExp, JSON, Map, Infinity, Set,
-    window: { open: () => ({ document: { write: s => { written += s; }, close() {} } }) },
-    state: {
-      rooms: [{ id: "r1", name: "Кухня", area: "12,5 м²" }, { id: "r2", name: "Кладовая", area: "2,0 м²" }],
-      posts: [
-        { id: "p2", number: 2, roomId: null },
-        { id: "p1", number: 1, roomId: "r1" }
-      ]
-    },
-    toast: m => toasted.push(m),
-    projectLighting: () => null,
-    EPOfferOptions, EP_DATA: { settings: {} },
-    /* строки раскладки — как их отдаёт настоящий buildPostLayout (id/roomId/height/purpose добавлены Б7) */
-    buildPostLayout: () => [
-      { id: "p2", number: 2, roomId: null, height: "", purpose: "Розетки у двери",
-        fill: [{ word: "Розетка", count: 1 }], frameName: "Накладка Plana 1М", modules: 1, price: 5 },
-      { id: "p1", number: 1, roomId: "r1", height: "30 см", purpose: "",
-        fill: [{ word: "Выключатель", count: 1 }, { word: "подсветка не подобрана", noCount: true }],
-        frameName: "Накладка Plana 2М", modules: 2, price: 42.5 }
-    ],
-    roomDisplayArea: r => r.area || "",
-    docHeader: () => ({ project: "П", developer: "Р", date: "04.11.2026" }),
-    companyLogo: () => "",
-    esc, moneyShown,
-    EPRoomSheet   /* печать — НАСТОЯЩИЙ модуль: так тест видит итоговый HTML целиком */
-  };
-  stand.run(["postsByRooms", "roomSheetForProject"], ctx)();
-  return { written, toasted };
-}
-
-test("roomSheetForProject: комнаты в порядке плана, пустая — с пометкой, «Без помещения» в конце", () => {
-  const { written, toasted } = roomSheetRun();
-  assert.deepEqual(toasted, [], "без тостов — документ открыт");
-  assert.ok(written.length > 0, "документ записан в окно печати");
-  assert.deepEqual(headingsOf(written), ["Кухня — 12,5 м²", "Кладовая — 2,0 м²", "Без помещения"],
-    "порядок комнат = state.rooms (postsByRooms), «Без помещения» последней");
-  assert.match(written, /постов нет/, "пустая Кладовая показана с пометкой");
-  assert.match(written, /Выключатель — 1, подсветка не подобрана/,
-    "наполнение из buildPostLayout: количество есть, пробел — словами без числа (как в КП)");
-  assert.match(written, /Итого по комнате/, "итог по комнате");
-  assert.match(written, /Итого по проекту: 47,50 €/, "общий итог по проекту (42,50 + 5,00)");
-  assert.match(written, /Проект:<\/b> П/, "шапка из docHeader");
-});
-
-test("roomSheetForProject: совсем пустой проект → тост, окно не открывается", () => {
-  let opened = false;
-  const toasted = [];
-  const ctx = {
-    Object, Array, Number, String, RegExp, JSON, Map, Infinity,
-    window: { open: () => { opened = true; return { document: { write() {}, close() {} } }; } },
-    state: { rooms: [], posts: [] },
-    toast: m => toasted.push(m),
-    projectLighting: () => null, EPOfferOptions, EP_DATA: { settings: {} },
-    buildPostLayout: () => [], roomDisplayArea: () => "",
-    docHeader: () => ({}), companyLogo: () => "", esc, moneyShown, EPRoomSheet
-  };
-  stand.run(["postsByRooms", "roomSheetForProject"], ctx)();
-  assert.equal(opened, false, "окно печати не открыто");
-  assert.equal(toasted.length, 1, "показан тост о пустом проекте");
-});

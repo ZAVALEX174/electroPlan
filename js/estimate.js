@@ -552,6 +552,18 @@ function discountLabel(mixed, generalPercent) {
     : `Скидка ${pct}%`;
 }
 
+/* ⚠️ ПОМЕТКА ЛИЧНОЙ СКИДКИ ПОЗИЦИИ — ОДНА формулировка на спецификацию/раскладку КП и экспликацию
+   по комнатам (§7.1). personal/percent — из discountOf (у строки/поста/изделия свой процент ОТЛИЧАЕТСЯ
+   от общего). Не личная → "" (пустая строка — пометки нет). Своя 0% при общей >0 — «без скидки»; иначе
+   «скидка N%» с ДЕСЯТИЧНОЙ ЗАПЯТОЙ (русский документ, как курс в rateFooter), целое остаётся целым.
+   Гейт по «цены включены» (options.prices) живёт у ВЫЗЫВАЮЩЕГО: в документе без цен скидке взяться
+   неоткуда, а это правило — только о ТЕКСТЕ пометки, не о том, показывать ли её. Прежде текст был
+   скопирован в offerPdf.discMark и specExcel.discMark — у двух копий правка имела края. */
+function discountMark(personal, percent) {
+  if (!personal) return "";
+  return Number(percent) === 0 ? "без скидки" : "скидка " + String(percent).replace(".", ",") + "%";
+}
+
 /* input = {
      devices:[{productId,discount?}], posts:[{name,frameId,mechanismIds,discount?}],
        // discount — ЛИЧНАЯ скидка позиции (% на самом объекте, см. discountOf). Нет поля → действует
@@ -973,7 +985,7 @@ function isEmptyProject(est, supplier) {
 /* postPrice отдан наружу вместе с build: цену поста показывают ЧЕТЫРЕ места (панель свойств,
    подсказка на плане, конструктор и строка сметы), и все четыре обязаны звать одну функцию.
    pricelessNote — по той же причине: оговорку о неполноте итога печатают экран и КП. */
-const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, roundShown, vatBreakdown, vatShown, pricedUnit, shownSum, lightingSumShown, lightingPlanSumShown, specShown, postPriceShown, totalsShown, discountShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel };
+const api = { build, postPrice, billableLighting, separateLighting, effectiveMechanismIds, lightingCounts, pricelessNote, renderItem, round2, roundShown, vatBreakdown, vatShown, pricedUnit, shownSum, lightingSumShown, lightingPlanSumShown, specShown, postPriceShown, totalsShown, discountShown, isEmptyProject, vatModeOf, discountOf, discountBreakdown, discountLabel, discountMark };
 if (typeof window !== "undefined") window.EPEstimate = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
