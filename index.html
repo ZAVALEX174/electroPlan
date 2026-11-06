@@ -887,7 +887,10 @@
      EPInstallSheetWindow.create(...) и даёт открывалку кнопкам «Лист монтажника» (шапка и окно поста). -->
 <script src="js/installSheetWindow.js?v=20261028.2"></script>
 <script src="js/docRequisites.js?v=20261104.1"></script>
-<script src="js/estimate.js?v=20261102.1"></script>
+<script src="js/estimate.js?v=20261105.1"></script>
+<!-- Блок денежных итогов + оговорка о неполноте — ОДНА вёрстка на КП и экспликацию (§7.1, владелец 05.11
+     «экспликация считает как в КП»). Чистый модуль над EPEstimate; грузится ДО offerPdf/roomSheet/docs. -->
+<script src="js/docTotals.js?v=20261105.2"></script>
 <!-- Единое правило «какая это картинка» (формат по сигнатуре первых байтов, MIME для data-URL).
      Грузится ДО planImport.js и docImages.js, которые оба к нему обращаются (§7.1). -->
 <script src="js/imageFormats.js?v=20261025.2"></script>
@@ -897,9 +900,9 @@
 <!-- Конвертация HEIC/HEIF (айфон, мессенджеры) в JPEG — ОДНО место на план и бланк КП (§7.1).
      Декодер vendor/heic-to подключается лениво, только когда реально пришёл HEIC. -->
 <script src="js/heicImport.js?v=20261025.1"></script>
-<script src="js/offerPdf.js?v=20261102.1"></script>
+<script src="js/offerPdf.js?v=20261105.2"></script>
 <script src="js/installSheet.js?v=20261028.3"></script>
-<script src="js/roomSheet.js?v=20261104.1"></script>
+<script src="js/roomSheet.js?v=20261105.2"></script>
 <script src="js/supplierSpec.js?v=20261024.2"></script>
 <script src="js/packRound.js?v=20261022.1"></script>
 <!-- Добор до целых упаковок (К6б): чистый модуль (ни DOM, ни state) — единая карта «артикул → упаковка»
@@ -959,7 +962,7 @@
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
-<script src="js/docs.js?v=20261104.1"></script>
+<script src="js/docs.js?v=20261105.2"></script>
 <!-- Ввод на холсте (клики, перенос объектов, панорама, зум колесом): trackDrag, makeDraggable,
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него
