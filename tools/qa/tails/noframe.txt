@@ -1,14 +1,50 @@
-  // --- В2: плашка «Под эту комнату накладок нет» — совет один раз, без «Механизмы сохранены» у нового ---
-  n = 500;
+  // --- В12: комната без накладок под отбор — совет «измените отбор» РОВНО раз, «выберите накладку» нигде ---
+  // Пустой пул НЕЛЬЗЯ собрать селекторами: смена верхнего поля каскада стирает нижние (roomVariants.
+  // dependentFields), поэтому любой свежий выбор совместим. Пустой пул бывает только у СОХРАНЁННЫХ
+  // данных — старый проект + перезалитый прайс (это и есть сценарий В12). Воспроизводим именно это:
+  // патчим проект в localStorage — у комнаты немецкий стандарт + серия Arke + цвет, которого в Arke под
+  // немецкий стандарт в текущем каталоге нет («Reflex Серый Дым» — он только итальянский), и перезагружаем.
+  n = 700;
+  const KEY = "electroplan_current_project";
+  const seeded = await ev(`
+    const raw=localStorage.getItem(${JSON.stringify(KEY)});
+    if(!raw) throw new Error("нет проекта в localStorage");
+    const proj=JSON.parse(raw);
+    const room=(proj.rooms||[]).find(r=>(r.name||"").includes("Кухня"))||proj.rooms[0];
+    if(!room) throw new Error("нет комнаты для посева");
+    room.standard="DE"; room.collection="Arke"; room.frameColor="Reflex Серый Дым";
+    delete room.frameMaterial; delete room.frameShape;
+    localStorage.setItem(${JSON.stringify(KEY)},JSON.stringify(proj));
+    return room.name||room.id;
+  `);
+  log.push("засеяна комната: " + seeded + " (DE + Arke + «Reflex Серый Дым» — пустой пул)");
+  // Перезагрузка — чтобы приложение прочитало несовместимую отделку из localStorage (как у заказчика).
+  await c.send("Page.reload"); await sleep(5000);
+  await ev('const m=document.getElementById("kpSetupModal");if(m)m.classList.remove("open");return 1;');
+
+  // Выбираем засеянную комнату и открываем в ней новый пост.
   const kl = `Array.from(document.querySelectorAll(".room-label")).find(e=>e.textContent.includes("Кухня"))`;
   const k = await rect(kl);
+  if (!k) throw new Error("после перезагрузки не нашлась комната «Кухня»");
   await clickAt(k.x + 12, k.y + k.h / 2); await sleep(500);
-  await setVal($("roomCollectionSelect"), "Arke");
-  await setVal($("room_frameColorSelect"), "Антрацит");
-  log.push("комната: стандарт=" + await ev(`return document.getElementById("roomStandardSelect").value`) + " серия=" + await ev(`return document.getElementById("roomCollectionSelect").value`) + " цвет=" + await ev(`return document.getElementById("room_frameColorSelect").value`));
+  log.push("комната: стандарт=" + await ev(`return document.getElementById("roomStandardSelect").value`)
+    + " серия=" + await ev(`return document.getElementById("roomCollectionSelect").value`)
+    + " цвет=" + await ev(`return (document.getElementById("room_frameColorSelect")||{}).value`));
   await click($("newPostBtn")); await sleep(900);
+
+  // Что на экране: плашка (единственное место совета), поле, подсказка, правая колонка.
   const plate = `document.querySelector(".builder-error")`;
-  log.push("плашка (новый пост): " + await ev(`return (${plate})?.textContent`));
+  const txt = async sel => (await ev(`return (${sel}||{}).textContent`)) || "";
+  const windowText = [await txt(`document.getElementById("postFrameSelect")`), await txt(`document.getElementById("builderFrameFacingHint")`),
+    await txt(plate), await txt(`document.getElementById("builderTarget")`), await txt(`document.getElementById("builderCatalog")`)].join(" ||| ");
+  const adviceCount = (windowText.match(/измените отбор в свойствах комнаты/g) || []).length;
+  log.push("плашка: " + await txt(plate));
+  log.push("поле: " + await txt(`document.getElementById("postFrameSelect")`));
+  log.push("подсказка: " + await txt(`document.getElementById("builderFrameFacingHint")`));
+  log.push("правая колонка (шапка): " + await txt(`document.getElementById("builderTarget")`));
+  log.push("правая колонка (тело): " + await txt(`document.getElementById("builderCatalog")`));
+  log.push("совет «измените отбор» встречается раз: " + adviceCount + " (ожидается 1)");
+  log.push("есть ли ложное «выберите накладку»: " + /выберите накладку/i.test(windowText) + " (ожидается false)");
   await ev(`(${plate})?.scrollIntoView({block:"center"});return 1;`);
-  await shot("noframe-newpost", [plate]);
+  await shot("noframe-newpost", [plate, `document.getElementById("builderFrameFacingHint")`, `document.getElementById("builderTarget")`]);
   await click($("cancelPost")); await sleep(400);
