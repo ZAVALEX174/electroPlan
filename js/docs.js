@@ -747,11 +747,16 @@ function roomSheetForProject(){
   }));
   /* Раздел «Добор до целых упаковок» и блок итогов + оговорка — ГОТОВЫМИ строками из общей с КП
      EPDocTotals на той же смете (§7.1, решение владельца 05.11 «добор разделом, как в КП»; prices:true —
-     экспликация всегда с ценами). Столбцы добора — по тем же опциям проекта (offerOptions), что КП; itemText
-     чистит код из имени при выключенных артикулах, как в КП. Добора нет (галка выключена / добирать
-     нечего) → topUpHtml пустой, раздела нет. */
+     экспликация всегда с ценами). itemText чистит код из имени при выключенных артикулах, как в КП.
+     Добора нет (галка выключена / добирать нечего) → topUpHtml пустой, раздела нет. */
   const itemText=(name,code)=>EPOfferOptions.itemText(name,options.articles,code);
-  const topUpHtml=EPDocTotals.topUpSectionHtml(est,{esc,moneyShown,rate,currency,options,itemText});
+  /* У добора «Цена»/«Сумма» ВСЕГДА, независимо от набора КП (решение владельца 06.11): строки комнат и блок
+     итогов экспликации всегда с ценами, а сумма добора входит в «Оборудование» — скрой её, и деньги добора
+     нигде не видны. Поэтому форсируем денежные гейты (prices + specification.price/sum), а прочие столбцы
+     добора (№, Артикул) оставляем по настройкам КП. КП при этом не трогаем — там свои опции. */
+  const topUpOptions=Object.assign({},options,{prices:true,
+    specification:Object.assign({},options.specification,{price:true,sum:true})});
+  const topUpHtml=EPDocTotals.topUpSectionHtml(est,{esc,moneyShown,rate,currency,options:topUpOptions,itemText});
   const totalsHtml=EPDocTotals.footerHtml(est,{moneyShown,esc,rate,currency,prices:true});
   const win=window.open("","_blank");
   if(!win){toast("Разрешите всплывающие окна для экспликации");return}

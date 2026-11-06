@@ -94,7 +94,9 @@ function explicationHtml(currency, rate, opts) {
     docHeader: () => ({ project: "П", developer: "Р", date: "05.11.2026" }),
     companyLogo: () => "",
     EPEstimate, EPPosts, EPOfferOptions, EPDocTotals, EPRoomSheet,
-    EP_DATA: { settings: SETTINGS }
+    /* Набор столбцов КП (offerOptions) берётся документом из EP_DATA.settings — даём тесту подменить
+       его, чтобы проверить экспликацию при сохранённом «Строителю» / снятой «Сумме». */
+    EP_DATA: { settings: o.offerOptions ? Object.assign({}, SETTINGS, { offerOptions: o.offerOptions }) : SETTINGS }
   };
   const run = stand.run(["postTotalCost", "postPricedItems", "buildPostLayout", "postsByRooms", "roomSheetForProject"], ctx);
   run();
@@ -268,10 +270,11 @@ function buildEstTopUp(packMultiple) {
     postCost, postComposition, lightingOf: () => [], settings: SETTINGS,
     packMultiple, packs: TU_PACKS });
 }
-function tuExplication(currency, rate, packMultiple) {
+function tuExplication(currency, rate, packMultiple, offerOptions) {
   return explicationHtml(currency, rate, {
     state: { posts: TU_POSTS, rooms: TU_ROOMS, devices: TU_DEVICES },
-    buildEstimate: () => buildEstTopUp(packMultiple)
+    buildEstimate: () => buildEstTopUp(packMultiple),
+    offerOptions
   }).written;
 }
 
@@ -316,3 +319,23 @@ for (const { currency, rate } of [{ currency: "EUR", rate: 1 }, { currency: "RUB
       `Σ(комнаты ${roomSum}) + добор (${topUpSum}) == Оборудование (${totals.equipment})`);
   });
 }
+
+/* ─────────── Добор в экспликации ВСЕГДА с «Ценой» и «Суммой» (решение владельца 06.11) ───────────
+   Комнаты и блок итогов экспликации печатаются всегда с ценами, а сумма добора входит в «Оборудование».
+   Значит у добора цена/сумма должны быть ВИДНЫ независимо от набора КП — иначе 7×2,42 € = 16,94 € есть
+   в «Оборудовании», но нигде не показаны. Независимый литерал: 14021 стоит 2,42 €, добор 7 шт → 16,94 €.
+   Красный на текущем коде (добор берёт столбцы по настройкам КП: «Строителю»/снятая «Сумма» → без денег). */
+test("экспликация: добор печатает «Цену»/«Сумму» даже при наборе «Строителю» (prices:false)", () => {
+  const written = tuExplication("EUR", 1, true, EPOfferOptions.preset("builder"));
+  const tuRow = rowContaining(written, "7 шт.");
+  assert.ok(tuRow.includes("2,42 €"), "цена штуки добора видна (14021 = 2,42 €)");
+  assert.ok(tuRow.includes("16,94 €"), "сумма добора видна (7 × 2,42 € = 16,94 €)");
+});
+
+test("экспликация: добор печатает «Сумму» даже при снятой «Сумме» в составе КП (specification.sum:false)", () => {
+  const written = tuExplication("EUR", 1, true,
+    EPOfferOptions.normalize({ specification: { sum: false } }));
+  const tuRow = rowContaining(written, "7 шт.");
+  assert.ok(tuRow.includes("16,94 €"), "сумма добора видна (7 × 2,42 € = 16,94 €)");
+  assert.ok(tuRow.includes("2,42 €"), "цена штуки добора видна");
+});
