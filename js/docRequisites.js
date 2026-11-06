@@ -84,9 +84,58 @@ function migrateDocHeader(docHeader) {
   return dh;
 }
 
+/* Б6, хвост: ОДНА печатная строка адреса объекта «ул. X, д. Y, кв. Z, этаж N» (КП, лист монтажника,
+   экспликация берут её из docHeader). Правило здесь одно (§7.1): префикс рода («ул.»/«д.»/«кв.»/
+   «этаж») добавляем, ТОЛЬКО когда человек сам его не написал. Старый проект после миграции несёт
+   весь единый адрес в addrStreet («г. Челябинск, ул. Ленина, 5») — в нём обозначение уже есть,
+   печатаем как ввели, без «ул. ул. …».
+
+   Граница «отдельного слова/сокращения»: штатные \b и \w в JS считают словом только ASCII, а у нас
+   кириллица — поэтому границу задаём явно через look-behind/ahead по классу «буква или цифра» (W).
+   Так «Улитина» не ловится на «ул» (после «ул» идёт буква), а «ул.» ловится (после — точка), и
+   номер дома «5д» не считается уже снабжённым обозначением (перед «д» цифра). Флаг i даёт
+   нечувствительность к регистру и для кириллицы. test() без флага g не хранит состояние. */
+const W = "0-9A-Za-zА-Яа-яЁё_";
+/* Обозначение как отдельный токен В ЛЮБОМ месте значения: этаж люди пишут и «3 этаж», и «этаж 3». */
+function token(words) {
+  return new RegExp("(?<![" + W + "])(?:" + words + ")(?![" + W + "])", "i");
+}
+/* Населённый пункт в НАЧАЛЕ значения улицы — это уже полный адрес, печатаем целиком, без «ул.». */
+function headToken(words) {
+  return new RegExp("^\\s*(?:" + words + ")(?![" + W + "])", "i");
+}
+const STREET_RE = token("улица|ул|проспект|пр-т|пр|переулок|пер|шоссе|ш|бульвар|б-р|набережная|наб|площадь|пл|проезд|тупик|аллея|микрорайон|мкр|тракт");
+const CITY_RE = headToken("город|посёлок|поселок|пос|г|п|с|д");
+const HOUSE_RE = token("дом|д");
+const FLAT_RE = token("квартира|кв|офис|оф");
+const FLOOR_RE = token("этаж|эт");
+
+/* Одна часть адреса: пусто → пропускаем (висячих запятых нет); обозначение уже есть → как ввели;
+   нет — добавляем префикс. Края обрезаем, как делал прежний docHeader. */
+function part(value, prefix, re) {
+  const v = String(value == null ? "" : value).trim();
+  if (v === "") return "";
+  return re.test(v) ? v : prefix + " " + v;
+}
+/* Улица — особый случай: обозначение рода (ул./пр./…) ИЛИ населённый пункт в начале (полный адрес). */
+function streetPart(value) {
+  const v = String(value == null ? "" : value).trim();
+  if (v === "") return "";
+  return STREET_RE.test(v) || CITY_RE.test(v) ? v : "ул. " + v;
+}
+function addressLine(d) {
+  d = d || {};
+  return [
+    streetPart(d.addrStreet),
+    part(d.addrHouse, "д.", HOUSE_RE),
+    part(d.addrFlat, "кв.", FLAT_RE),
+    part(d.addrFloor, "этаж", FLOOR_RE)
+  ].filter(Boolean).join(", ");
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { MY_FIELDS, CUSTOMER_FIELDS, isChecked, shouldPrint, printedFields, migrateDocHeader };
+const api = { MY_FIELDS, CUSTOMER_FIELDS, isChecked, shouldPrint, printedFields, migrateDocHeader, addressLine };
 if (typeof window !== "undefined") window.EPDocRequisites = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

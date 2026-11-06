@@ -26,6 +26,7 @@ const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
 const EPOfferNumber = require("../js/offerNumber.js");
 const EPEstimate = require("../js/estimate.js");
+const EPDocRequisites = require("../js/docRequisites.js");
 
 /* EPPrefs-шим: единственное хранилище счётчика (бланк компании), общий на «все проекты» прогона. */
 function makePrefs(init) {
@@ -49,7 +50,7 @@ const captured = { toasts: [], opened: 0 };
 function makeCtx(EP_DATA, EPPrefs, dom, hasContent, empty) {
   const noop = () => "";
   return {
-    EP_DATA, EPPrefs, EPOfferNumber, EPEstimate, $: dom.$, scheduleSave: () => { scheduleSave.calls++; },
+    EP_DATA, EPPrefs, EPOfferNumber, EPEstimate, EPDocRequisites, $: dom.$, scheduleSave: () => { scheduleSave.calls++; },
     JSON,
     EPOfferOptions: { normalize: () => ({ sections: {} }) },
     projectLighting: () => ({}), buildEstimate: () => ({ missing: [], groups: empty ? [] : [{}] }),

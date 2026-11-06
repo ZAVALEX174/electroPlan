@@ -3177,16 +3177,12 @@ function docHeader(){
      fill/apply ниже. «Реквизиты заказчика» — в проекте (d.customer), форма {values, show}. */
   const my=EPPrefs.get("myRequisites",{})||{};
   const cust=d.customer||{};
-  /* Адрес объекта (Б6) — ОДНА собранная строка для печати: «ул. X, д. Y, кв. Z, этаж N», пустые
-     части пропускаются (висячих запятых нет). Документы (КП/лист монтажника/экспликация) печатают
-     address как раньше — правило сборки живёт ЗДЕСЬ одно (§7.1). Собираем литералами, а не
-     helper'ом: docHeader исполняется в vm-стенде offerNumberWiring, куда top-level const и соседние
-     функции не попадают (как и «Мои реквизиты» выше). */
-  const street=String(d.addrStreet||"").trim(),house=String(d.addrHouse||"").trim(),
-    flat=String(d.addrFlat||"").trim(),floor=String(d.addrFloor||"").trim();
-  const address=[
-    street?`ул. ${street}`:"",house?`д. ${house}`:"",flat?`кв. ${flat}`:"",floor?`этаж ${floor}`:""
-  ].filter(Boolean).join(", ");
+  /* Адрес объекта (Б6, хвост) — ОДНА собранная строка для печати: «ул. X, д. Y, кв. Z, этаж N»,
+     пустые части пропускаются, а префикс рода не дублируется, если человек его уже написал (старый
+     проект несёт весь адрес в addrStreet). Правило живёт ОДНО, в EPDocRequisites (§7.1); документы
+     (КП/лист монтажника/экспликация) печатают address как раньше. EPDocRequisites проброшен в
+     vm-стенд offerNumberWiring так же, как EPPrefs — docHeader туда соседние функции не видит. */
+  const address=EPDocRequisites.addressLine(d);
   return {
     project:d.project||"",address,
     developer:d.developer||"",number:d.number||"",

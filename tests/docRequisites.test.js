@@ -101,7 +101,8 @@ test("КП: пустой блок не печатается вовсе (без �
 function docHeaderWith(settingsDocHeader, prefsStore) {
   const EP_DATA = { settings: { docHeader: settingsDocHeader } };
   const EPPrefs = { get: (k, fb) => (k in prefsStore ? prefsStore[k] : fb), set: (k, v) => { prefsStore[k] = v; } };
-  return stand.run(["docHeader"], { EP_DATA, EPPrefs })();
+  /* EPDocRequisites проброшен в контекст так же, как EPPrefs: docHeader берёт из него addressLine. */
+  return stand.run(["docHeader"], { EP_DATA, EPPrefs, EPDocRequisites: R })();
 }
 test("docHeader: «мои реквизиты» одни на два проекта (EPPrefs), «заказчик» — свой у каждого", () => {
   const prefs = { myRequisites: { values: { fio: "Исполнитель", phone: "", email: "" }, show: {} } };
@@ -174,4 +175,41 @@ test("Б6: поля адреса провязаны в DOC_FIELDS и запол�
   const fill = stand.functionSource("fillDocHeaderInputs");
   assert.match(fill, /\$\("docAddrStreet"\)\.value=d\.addrStreet/, "форма читает addrStreet из проекта");
   assert.ok(!/\$\("docAddress"\)/.test(fill), "старого поля docAddress в форме нет");
+});
+
+/* ── Б6, хвост: адрес без повторов обозначений (утверждено владельцем 06.11) ── */
+test("addressLine: префикс рода добавляется, только когда человек сам его не написал", () => {
+  /* Старый проект (весь адрес в addrStreet) печатается ровно как введён — без «ул. ул. …». */
+  assert.equal(R.addressLine({ addrStreet: "г. Челябинск, ул. Ленина, 5" }), "г. Челябинск, ул. Ленина, 5",
+    "полный адрес из addrStreet — как ввели");
+  assert.equal(R.addressLine({ addrStreet: "ул. Мира" }), "ул. Мира", "«ул.» уже есть — не дублируем");
+  assert.equal(R.addressLine({ addrStreet: "Мира" }), "ул. Мира", "обозначения нет — добавляем «ул.»");
+  assert.equal(R.addressLine({ addrStreet: "проспект Ленина" }), "проспект Ленина", "«проспект» — не ставим «ул.»");
+  assert.equal(R.addressLine({ addrHouse: "дом 5" }), "дом 5", "«дом» уже есть");
+  assert.equal(R.addressLine({ addrHouse: "5" }), "д. 5", "голый номер дома → «д.»");
+  assert.equal(R.addressLine({ addrFlat: "офис 12" }), "офис 12", "«офис» уже есть");
+  assert.equal(R.addressLine({ addrFlat: "12" }), "кв. 12", "голый номер квартиры → «кв.»");
+  assert.equal(R.addressLine({ addrFloor: "3 этаж" }), "3 этаж", "«этаж» уже есть (после числа)");
+  assert.equal(R.addressLine({ addrFloor: "3" }), "этаж 3", "голый этаж → «этаж»");
+});
+
+test("addressLine: обозначение ловится как отдельное слово, а не как подстрока", () => {
+  /* «Улитина» содержит «ул» ВНУТРИ слова — это не обозначение, «ул.» всё равно нужен. */
+  assert.equal(R.addressLine({ addrStreet: "Улитина" }), "ул. Улитина", "«ул» внутри названия — не обозначение");
+  /* «Этажная» — улица: род улицы не распознан, «этаж» внутри слова не мешает. */
+  assert.equal(R.addressLine({ addrStreet: "Этажная" }), "ул. Этажная", "«этаж» внутри названия улицы не мешает");
+});
+
+test("addressLine: пустые части пропускаются; полная строка — как в КП", () => {
+  assert.equal(R.addressLine({ addrStreet: "Мира", addrHouse: "5", addrFlat: "12", addrFloor: "3" }),
+    "ул. Мира, д. 5, кв. 12, этаж 3", "четыре голых поля — КП байт-в-байт");
+  assert.equal(R.addressLine({ addrStreet: " Мира ", addrFloor: "2" }), "ул. Мира, этаж 2",
+    "пропуск пустых, без висячих запятых, края обрезаны");
+  assert.equal(R.addressLine({}), "", "без addr* — пустая строка");
+});
+
+test("Б6: сквозной — старый проект после migrateDocHeader печатает адрес как ввели", () => {
+  const migrated = R.migrateDocHeader({ address: "г. Челябинск, ул. Ленина, 5" });
+  const h = docHeaderWith(migrated, {});
+  assert.equal(h.address, "г. Челябинск, ул. Ленина, 5", "docHeader().address старого проекта — без повторов «ул.»");
 });
