@@ -19,13 +19,26 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { parseArgs } from "node:util";
+import { Jimp } from "jimp";
 import { readNomenclature2026, DEFAULT_NOMENCLATURE_2026 } from "./lib/nomenclature2026.mjs";
 import { collectDiscontinued } from "./lib/discontinued.mjs";
 import { localImagePaths, isDeadImageUrl } from "./lib/catalog-images.mjs";
+import { buildContentMask, labelComponents, chooseFace } from "./lib/faces.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(here, "..");
+
+/* Снятые механизмы, чьё лицо (faceRect) в снимке 732ae3a снято со СТАРОГО фото и расходится с
+   нынешним ЛОКАЛЬНЫМ фото настолько, что режет не лицо модуля, а середину кадра. Для них лицо
+   пересчитываем ТЕМ ЖЕ детектором, что активные механизмы (tools/lib/faces.mjs по локальному фото),
+   а не правим цифрой руками. Список узкий и ЯВНЫЙ намеренно: снимок заморожен на 732ae3a (до
+   переезда картинок в программу), а детектор по текущим фото дал бы и у остальных снятых сдвиг лица
+   на доли процента — их менять без решения владельца нельзя (§7.1: обратная совместимость уже
+   сохранённых проектов). Сейчас в списке только 19345.M (USB, Metal): его прежняя разметка width
+   42.2% вырезала середину, детектор по локальному фото даёт лицо во всю ширину модуля. */
+const REFACE_FROM_LOCAL = new Set(["19345.M"]);
 
 const { values: args } = parseArgs({
   options: { nom: { type: "string" }, snapshot: { type: "string" }, ids: { type: "string" }, out: { type: "string" } },
@@ -37,6 +50,30 @@ const OUT = args.out ? path.resolve(args.out) : path.join(projectRoot, "js/catal
 
 async function readJson(file) {
   return JSON.parse((await fs.readFile(file, "utf8")).replace(/^﻿/, ""));
+}
+
+/* EPCatalog (js/catalog.js) — чтобы span и выбор фото совпадали с рантаймом и с detect-faces (та же
+   пара mechanismSpan/productImage). catalog.js — обычный window-скрипт, как остальной tooling. */
+function loadEPCatalog() {
+  globalThis.window = globalThis.window || {};
+  createRequire(import.meta.url)(path.join(projectRoot, "js/catalog.js"));
+  return globalThis.window.EPCatalog;
+}
+
+/* Лицо механизма по его ЛОКАЛЬНОМУ фото — тот же путь, что в tools/detect-faces.mjs для активных:
+   маска содержимого → связные компоненты → выбор компонента-модуля и прямоугольник лица (faces.mjs).
+   Возвращает faceRect-ОБЪЕКТ {left,top,width,height} (в снятых faceRect хранится объектом), или null,
+   если детектор не выделил модуль (составная позиция / пустой кадр) — тогда зовущий остановит сборку. */
+async function faceFromLocalPhoto(product, EPCatalog) {
+  const url = EPCatalog.productImage(product, { detail: true });
+  if (!url || /^https?:\/\//i.test(url)) return null; // нужен локальный файл, а не ссылка на сайт
+  const img = await Jimp.read(path.join(projectRoot, url));
+  const { width: w, height: h } = img.bitmap;
+  const comps = labelComponents(buildContentMask(img.bitmap), w, h);
+  const dec = chooseFace(comps, EPCatalog.mechanismSpan(product), w, h);
+  if (dec.decision !== "face") return null;
+  const [left, top, width, height] = dec.face;
+  return { left, top, width, height };
 }
 
 async function main() {
@@ -61,6 +98,15 @@ async function main() {
       if (isDeadImageUrl(p.imageUrl)) delete p.imageUrl;
       if (isDeadImageUrl(p.previewImageUrl)) delete p.previewImageUrl;
     }
+  }
+  // Пересчёт лица по локальному фото для узкого списка (REFACE_FROM_LOCAL) — detect-faces активных их
+  // не трогает (их уже нет в catalog-vimar.js), а снимок несёт прежнюю разметку со старого фото.
+  const EPCatalog = loadEPCatalog();
+  for (const p of products) {
+    if (!REFACE_FROM_LOCAL.has(p.code)) continue;
+    const rect = await faceFromLocalPhoto(p, EPCatalog);
+    if (!rect) throw new Error(`Лицо ${p.code}: детектор не выделил модуль по локальному фото (нет файла / составная позиция)`);
+    p.faceRect = rect;
   }
   if (idWarnings.length) {
     // Прежний id из снимка и из catalog-ids.json обязаны совпадать — иначе сохранённый проект
