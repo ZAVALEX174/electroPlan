@@ -115,6 +115,82 @@ function poleOfInaccessibility(poly, precision) {
    центроидом бит-в-бит (иначе привычные таблички «поедут»). */
 const LABEL_ANCHOR_DX = 10, LABEL_ANCHOR_DY = 2;
 
+/* Полуразмеры реально рисуемой таблички в px: app.js кладёт её ВИДИМЫЙ центр в room.x+55 / room.y+18
+   (seedX/seedY, app.js:929/1243), а CSS `.room-label { min-width:110px }` даёт ширину 110 → половины
+   55×18 (т.е. 110×36). Нужны, чтобы у ВОГНУТОЙ комнаты искать точку, где ВЕСЬ прямоугольник таблички
+   помещается в контур (В14), а не только её центр. Выдумывать константу нельзя — это те же числа, что
+   app.js использует для позиционирования и клика. */
+const LABEL_HALF_W = 55, LABEL_HALF_H = 18;
+
+/* Помещается ли ОСЕВОЙ прямоугольник таблички (центр cx,cy, полуразмеры hw×hh) ЦЕЛИКОМ в контур poly.
+   Два условия: (1) все четыре угла внутри; (2) ни одно ребро контура не пересекает стороны
+   прямоугольника — иначе вырез/выступ, вдающийся в бок между углами, остался бы незамеченным.
+   Вся математика — через pointInPolygon / segmentsIntersection этого модуля, второй копии нет. */
+function labelRectFits(cx, cy, hw, hh, poly) {
+  const cs = [{ x: cx - hw, y: cy - hh }, { x: cx + hw, y: cy - hh }, { x: cx + hw, y: cy + hh }, { x: cx - hw, y: cy + hh }];
+  for (const c of cs) if (!pointInPolygon(c.x, c.y, poly)) return false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[j], b = poly[i];
+    for (let k = 0; k < 4; k++) if (segmentsIntersection(cs[k], cs[(k + 1) % 4], a, b)) return false;
+  }
+  return true;
+}
+
+/* Точка ВИДИМОГО ЦЕНТРА таблички для ВОГНУТОЙ комнаты, в которой её прямоугольник (hw×hh) помещается
+   ЦЕЛИКОМ, — или null, если не помещается нигде. Среди подходящих точек берём ту, где БОЛЬШЕ запас до
+   стен: максимизируем минимальную знак-дистанцию четырёх углов прямоугольника до контура. Это
+   отодвигает табличку от концов узкого плеча и прижимает к его середине (в длинном плече Г-коридора),
+   а не оставляет на полюсе-углу, где край вылезает (мотив В14).
+     Поиск — то же квадродерево polylabel, что и у poleOfInaccessibility (детерминирован при фиксированной
+   precision): очередь ячеек по верхней оценке; счёт ячейки — min по углам signedPolygonDist (функция
+   1-Липшицева, поэтому верхняя оценка center+h·√2 корректна для отсечения). «Лучшей» делаем ТОЛЬКО
+   ячейку, чей прямоугольник реально помещается (labelRectFits) — так среди вписанных берём максимум
+   запаса; остальные дробим, пока их оценка выше найденного максимума. Те же защиты от вырожденной
+   геометрии, что в poleOfInaccessibility (битый bbox, кап числа ячеек, страховочный guard). */
+function labelFitPoint(poly, hw, hh, precision) {
+  precision = precision > 0 ? precision : 1;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of poly) {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+  }
+  const width = maxX - minX, height = maxY - minY;
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
+  let cellSize = Math.min(width, height);
+  if (cellSize === 0) return null; // вырожденный контур — прямоугольник не вписать
+  const MAX_CELLS = 100000;
+  if ((width / cellSize) * (height / cellSize) > MAX_CELLS)
+    cellSize = Math.max(width, height) / Math.sqrt(MAX_CELLS);
+  // счёт ячейки — минимальная знак-дистанция углов прямоугольника до контура (запас до стен)
+  const cornerClear = (x, y) => Math.min(
+    signedPolygonDist(x - hw, y - hh, poly), signedPolygonDist(x + hw, y - hh, poly),
+    signedPolygonDist(x + hw, y + hh, poly), signedPolygonDist(x - hw, y + hh, poly));
+  const makeCell = (x, y, h) => { const d = cornerClear(x, y); return { x, y, h, d, max: d + h * Math.SQRT2 }; };
+  const heap = [];
+  const up = i => { while (i > 0) { const p = (i - 1) >> 1; if (heap[p].max >= heap[i].max) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const push = c => { heap.push(c); up(heap.length - 1); };
+  const pop = () => {
+    const top = heap[0], last = heap.pop();
+    if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = 2 * i + 2; let m = i; if (l < heap.length && heap[l].max > heap[m].max) m = l; if (r < heap.length && heap[r].max > heap[m].max) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } }
+    return top;
+  };
+  const h0 = cellSize / 2;
+  for (let x = minX; x < maxX; x += cellSize) for (let y = minY; y < maxY; y += cellSize) push(makeCell(x + h0, y + h0, h0));
+  let best = null, bestClear = -Infinity;   // лучшей делаем ТОЛЬКО ячейку, где прямоугольник помещается целиком
+  let guard = 200000;
+  while (heap.length && guard-- > 0) {
+    const cell = pop();
+    if (cell.d > bestClear && labelRectFits(cell.x, cell.y, hw, hh, poly)) { best = cell; bestClear = cell.d; }
+    if (cell.max - bestClear <= precision) continue; // выше найденного запаса эта ветка уже не даст
+    const h = cell.h / 2;
+    push(makeCell(cell.x - h, cell.y - h, h));
+    push(makeCell(cell.x + h, cell.y - h, h));
+    push(makeCell(cell.x - h, cell.y + h, h));
+    push(makeCell(cell.x + h, cell.y + h, h));
+  }
+  return best ? { x: best.x, y: best.y } : null;
+}
+
 /* ЕДИНЫЙ критерий положения подписи комнаты (В10). Прежде подпись позиционировалась по среднему
    вершин (polygonCentroid), но у Г/П-образных и вогнутых комнат в контуре должны лежать ОБЕ точки,
    которыми пользуются потребители: сам центроид (planLabels центрирует имя в документе translate(−50%)
@@ -132,7 +208,12 @@ function roomLabelDecision(poly) {
   if (!poly.every(p => p && Number.isFinite(p.x) && Number.isFinite(p.y))) return { keep: true, centroid: c, pole: c };
   if (pointInPolygon(c.x, c.y, poly) && pointInPolygon(c.x + LABEL_ANCHOR_DX, c.y + LABEL_ANCHOR_DY, poly))
     return { keep: true, centroid: c, pole: c };
-  return { keep: false, centroid: c, pole: poleOfInaccessibility(poly) };
+  /* Вогнутая комната. Если есть точка, где ВЕСЬ прямоугольник таблички влезает в контур, — садим центр
+     туда (в длинном плече Г-коридора, не на угол-полюс, где край вылезает, В14). Не влезает нигде
+     (узкий коридор) — как раньше, полюс недоступности: хотя бы центр гарантированно внутри. Обе точки
+     подписи (экранный якорь и имя в документе) читают это одно поле `pole`, второй копии правила нет. */
+  const fit = labelFitPoint(poly, LABEL_HALF_W, LABEL_HALF_H);
+  return { keep: false, centroid: c, pole: fit || poleOfInaccessibility(poly) };
 }
 
 /* Точка ЯКОРЯ ЭКРАННОЙ таблички (её кладут в room.x=точка.x−45, room.y=точка.y−16). У «прежних»

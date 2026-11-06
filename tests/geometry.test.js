@@ -418,6 +418,47 @@ test("вырожденно-плоский контур 1000×0.001: poleOfInacce
   assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y), "точка числовая");
 });
 
+/* ---- В14: табличка вогнутой комнаты ЦЕЛИКОМ внутри стен (в длинном плече, а не углом «Г») ----
+   До В14 подпись садилась на полюс недоступности — самое просторное место, у Г-коридора это УГОЛ,
+   где прямоугольник таблички краем вылезает за стену. Теперь, если есть точка, в которой весь
+   прямоугольник таблички помещается в контур, берём её; если нигде не влезает — как раньше, полюс. */
+const GAMMA60 = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 60 }, { x: 60, y: 60 }, { x: 60, y: 300 }, { x: 0, y: 300 }];
+/* Полуширина/полувысота реально рисуемой таблички: app.js кладёт видимый центр в room.x+55/room.y+18
+   (seedX/seedY, строки 929/1243), CSS .room-label min-width:110px — значит 110×36, половины 55×18. */
+const LBL_HW = 55, LBL_HH = 18;
+function labelRectInside(center, poly) {
+  const cs = [[center.x - LBL_HW, center.y - LBL_HH], [center.x + LBL_HW, center.y - LBL_HH],
+    [center.x + LBL_HW, center.y + LBL_HH], [center.x - LBL_HW, center.y + LBL_HH]];
+  for (const [x, y] of cs) if (!pointInPolygon(x, y, poly)) return false; // угол наружу
+  const re = [[cs[0], cs[1]], [cs[1], cs[2]], [cs[2], cs[3]], [cs[3], cs[0]]];
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { // ребро контура, вдающееся в бок
+    const a = poly[j], b = poly[i];
+    for (const [u, v] of re) if (segmentsIntersection({ x: u[0], y: u[1] }, { x: v[0], y: v[1] }, a, b)) return false;
+  }
+  return true;
+}
+test("В14: Г-комната с плечом 60 — прямоугольник таблички ЦЕЛИКОМ внутри контура (не углом в коридор)", () => {
+  // на полюсе (углу «Г») прямоугольник 110×36 вылезает за стену — это и есть дефект; мутация «вернуть полюс» краснит тут
+  assert.equal(labelRectInside(poleOfInaccessibility(GAMMA60), GAMMA60), false, "на полюсе прямоугольник таблички вылезает за стену");
+  const nm = roomNamePoint(GAMMA60);
+  assert.equal(labelRectInside(nm, GAMMA60), true, "прямоугольник таблички вокруг точки имени — целиком внутри Г-контура");
+  const a = roomLabelPoint(GAMMA60), v = { x: a.x + 10, y: a.y + 2 };
+  assert.equal(labelRectInside(v, GAMMA60), true, "прямоугольник вокруг видимого центра экранной таблички — целиком внутри");
+});
+test("В14: выпуклая (прямоугольная) комната — точка подписи прежняя бит-в-бит (не трогаем выпуклые)", () => {
+  const c = polygonCentroid(RECT);
+  assert.equal(roomNamePoint(RECT).x, c.x, "имя = центроид по X, как было");
+  assert.equal(roomNamePoint(RECT).y, c.y, "имя = центроид по Y, как было");
+  assert.equal(roomLabelPoint(RECT).x, c.x, "якорь = центроид по X");
+  assert.equal(roomLabelPoint(RECT).y, c.y, "якорь = центроид по Y");
+});
+test("В14: узкий Г-коридор 30 px — прямоугольник таблички не влезает нигде, остаётся полюс (как раньше)", () => {
+  const GAMMA30 = [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 30 }, { x: 30, y: 30 }, { x: 30, y: 300 }, { x: 0, y: 300 }];
+  const nm = roomNamePoint(GAMMA30), pole = poleOfInaccessibility(GAMMA30);
+  assert.equal(nm.x, pole.x, "плечо 30<36 — таблица 36px по высоте нигде не влезает, имя = полюс (X)");
+  assert.equal(nm.y, pole.y, "и по Y");
+});
+
 /* ---- Точка СОПОСТАВЛЕНИЯ комнаты при пересборке (В13, EPGeom.roomMatchPoint) ------------------
    Отдельная от точки подписи: гарантирована ВНУТРИ контура и НЕ завязана на смещение таблички.
    На ней держится перенос полей Г/П-комнат (EPRoomCarry.carry). */
