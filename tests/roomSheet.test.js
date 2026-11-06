@@ -21,6 +21,8 @@ const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
 const EPRoomSheet = require("../js/roomSheet.js");
 const EPOfferOptions = require("../js/offerOptions.js");
+const EPEstimate = require("../js/estimate.js");
+const EPDocTotals = require("../js/docTotals.js");
 
 /* esc как в приложении — чтобы проверить экранирование пользовательского ввода. */
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -160,5 +162,64 @@ test("postsByRooms: пустые комнаты сохраняются (эксп
   assert.equal(groups.length, 1, "комната без постов не потерялась");
   assert.equal(groups[0].posts.length, 0, "и она пустая");
   assert.equal(byRooms([], []).length, 0, "совсем пустой проект → ни одной группы");
+});
+
+/* ─────────── 3. roomSheetForProject (docs.js) — обвязка оркестратора через НАСТОЯЩИЙ roomSheetForProject ───────────
+   Предмет: группировка по комнатам (порядок, площадь, пустая комната, «Без помещения» последней) и
+   склейка наполнения со строкой-пробелом (noCount). buildPostLayout СТАБИМ, чтобы подать фикстурный fill
+   с noCount (его реальные деньги покрывает сквозной roomSheetTotals.test.js на настоящем каталоге);
+   buildEstimate — минимальный (предмет не итоги). Печать — НАСТОЯЩИЕ EPRoomSheet/EPDocTotals.
+   Должны КРАСНЕТЬ мутации docs.js: fillText без ветки noCount; areaText:""; postsByRooms(...).reverse();
+   .filter(g=>g.room) (посты без комнаты пропадают); «Без помещения» первой. */
+function roomSheetRun() {
+  let written = "";
+  const toasted = [];
+  const ctx = {
+    Object, Array, Number, String, RegExp, JSON, Map, Set, Infinity,
+    window: { open: () => ({ document: { write: s => { written += s; }, close() {} } }) },
+    state: {
+      rooms: [{ id: "r1", name: "Кухня", area: "12,5 м²" }, { id: "r2", name: "Кладовая", area: "2,0 м²" }],
+      posts: [
+        { id: "p2", number: 2, roomId: null },   /* сирота → «Без помещения» */
+        { id: "p1", number: 1, roomId: "r1" }    /* нарочно не в порядке комнат */
+      ],
+      devices: []
+    },
+    toast: m => toasted.push(m),
+    projectLighting: () => null,
+    displayRate: () => 1, displayCurrency: () => "EUR",
+    product: id => ({ id }),
+    buildEstimate: () => ({ groups: [], missing: [] }),
+    EPOfferOptions, EPEstimate, EPDocTotals, EP_DATA: { settings: {} },
+    /* строки раскладки — как их отдаёт настоящий buildPostLayout (id/roomId/height/purpose/fill есть) */
+    buildPostLayout: () => [
+      { id: "p2", number: 2, roomId: null, height: "", purpose: "Розетки у двери",
+        fill: [{ word: "Розетка", count: 1 }], frameName: "Накладка Plana 1М", modules: 1, price: 5 },
+      { id: "p1", number: 1, roomId: "r1", height: "30 см", purpose: "",
+        fill: [{ word: "Выключатель", count: 1 }, { word: "подсветка не подобрана", noCount: true }],
+        frameName: "Накладка Plana 2М", modules: 2, price: 42.5 }
+    ],
+    roomDisplayArea: r => r.area || "",
+    docHeader: () => ({ project: "П", developer: "Р", date: "05.11.2026" }),
+    companyLogo: () => "",
+    esc, moneyShown,
+    EPRoomSheet   /* печать — НАСТОЯЩИЙ модуль: тест видит итоговый HTML целиком */
+  };
+  stand.run(["postsByRooms", "roomSheetForProject"], ctx)();
+  return { written, toasted };
+}
+
+test("roomSheetForProject: комнаты в порядке плана, площадь в заголовке, пустая — с пометкой, «Без помещения» последней", () => {
+  const { written, toasted } = roomSheetRun();
+  assert.deepEqual(toasted, [], "без тостов — документ открыт");
+  assert.ok(written.length > 0, "документ записан в окно печати");
+  assert.deepEqual(headingsOf(written), ["Кухня — 12,5 м²", "Кладовая — 2,0 м²", "Без помещения"],
+    "порядок комнат = state.rooms, площадь в заголовке, «Без помещения» последней (reverse/filter/area/unshift краснят)");
+  assert.match(written, /постов нет/, "пустая Кладовая показана с пометкой");
+  /* Якорь </td>: без ветки noCount пробел печатался бы как «подсветка не подобрана — undefined»,
+     и проверка по подстроке прошла бы молча — поэтому сверяем точное содержимое ячейки. */
+  assert.match(written, /<td>Выключатель — 1, подсветка не подобрана<\/td>/,
+    "наполнение: количество есть, пробел подсветки — словами без числа (ветка noCount)");
+  assert.match(written, /Проект:<\/b> П/, "шапка из docHeader");
 });
 

@@ -20,6 +20,7 @@ const EPOfferPdf = require("../js/offerPdf.js");
 const EPDocTotals = require("../js/docTotals.js");
 const EPRoomSheet = require("../js/roomSheet.js");
 const EPOfferOptions = require("../js/offerOptions.js");
+const EPPackTopUp = require("../js/packTopUp.js");
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 /* moneyShown как в приложении по валюте показа: числа приходят из totalsShown УЖЕ округлёнными. */
@@ -53,7 +54,16 @@ const POSTS = [
 ];
 const DEV_IN_CATALOG = { productId: idByCode("14021"), roomId: "r2" };
 const DEV_PRICELESS = { productId: "ARTX-404", roomId: "r2" };   // нет в каталоге → est.missing
-const DEVICES = [DEV_IN_CATALOG, DEV_PRICELESS];
+/* Один артикул (20021) в РАЗНЫХ комнатах: в смете сливаются в одну группу count 2 (цена per-unit ≠ sum) —
+   ловит мутацию «цена изделия из .sum вместо .price». */
+const DEV_SAME1 = { productId: idByCode("20021"), roomId: "r1" };
+const DEV_SAME2 = { productId: idByCode("20021"), roomId: "r2" };
+/* Изделие с ЛИЧНОЙ скидкой → пометка «скидка 15%» (общая 0). */
+const DEV_DISC = { productId: idByCode("19021"), roomId: "r2", discount: 15 };
+/* Без комнаты и в УДАЛЁННОЙ комнате → оба в «Без помещения» (один артикул 19021 без скидки → count 2). */
+const DEV_NOROOM = { productId: idByCode("19021"), roomId: null };
+const DEV_DEAD = { productId: idByCode("19021"), roomId: "ghost-room" };
+const DEVICES = [DEV_IN_CATALOG, DEV_PRICELESS, DEV_SAME1, DEV_SAME2, DEV_DISC, DEV_NOROOM, DEV_DEAD];
 
 function buildEst() {
   return EPEstimate.build({ devices: DEVICES, posts: POSTS,
@@ -63,20 +73,23 @@ function buildEst() {
 
 /* Экспликация НАСТОЯЩИМ roomSheetForProject поверх НАСТОЯЩИХ buildPostLayout/postTotalCost/postPricedItems
    (в одном vm-контексте), buildEstimate — тот же EPEstimate.build, что у КП. Возвращает записанный HTML. */
-function explicationHtml(currency, rate) {
+function explicationHtml(currency, rate, opts) {
+  const o = opts || {};
+  const state = o.state || { posts: POSTS, rooms: ROOMS, devices: DEVICES };
+  const buildEstimate = o.buildEstimate || (() => buildEst());
   const m = mkMoney(currency);
   let written = "";
   const toasted = [];
   const ctx = {
     Object, Array, Number, String, RegExp, JSON, Map, Set, Infinity,
     window: { open: () => ({ document: { write: s => { written += s; }, close() {} } }) },
-    state: { posts: POSTS, rooms: ROOMS, devices: DEVICES },
+    state,
     toast: msg => toasted.push(msg),
     product: id => realById.get(id), frameProduct: id => realById.get(id),
     postComposition, postCost, lightingRowsFor: () => [], projectLighting: () => null,
     assembledPostHtml: () => "",
     displayRate: () => rate, displayCurrency: () => currency, moneyShown: m, esc,
-    buildEstimate: () => buildEst(),
+    buildEstimate,
     roomDisplayArea: r => r.area || "",
     docHeader: () => ({ project: "П", developer: "Р", date: "05.11.2026" }),
     companyLogo: () => "",
@@ -109,6 +122,23 @@ function roomSection(html, name) {
   return rest.slice(0, end);
 }
 
+/* Строка таблицы <tr>…</tr>, содержащая заданный текст (чтобы проверять цену именно в строке изделия). */
+function rowContaining(html, text) {
+  const i = html.indexOf(text);
+  assert.ok(i >= 0, `текст найден: ${text}`);
+  const start = html.lastIndexOf("<tr>", i);
+  const end = html.indexOf("</tr>", i);
+  return html.slice(start, end);
+}
+/* Цена строки спецификации (per-unit, валюта показа) для изделия по его члену-группе. */
+function unitPriceOf(dev, rate, currency) {
+  const est = buildEst();
+  const spec = EPEstimate.specShown(est, rate, currency);
+  let price = null;
+  est.groups.forEach((g, i) => (g.members || []).forEach(mref => { if (mref === dev) price = spec.rows[i].price; }));
+  return price;
+}
+
 for (const { currency, rate } of [{ currency: "EUR", rate: 1 }, { currency: "RUB", rate: 92.5 }]) {
   test(`экспликация: блок итогов — ТОТ ЖЕ, что в КП, теми же цифрами (${currency})`, () => {
     const est = buildEst();
@@ -131,10 +161,15 @@ for (const { currency, rate } of [{ currency: "EUR", rate: 1 }, { currency: "RUB
   });
 }
 
-test("экспликация: у поста со скидкой пометка «скидка 10%», ровно у одного поста (M2)", () => {
+test("экспликация: пометка личной скидки поста «скидка 10%» ровно у поста с личной скидкой (M2)", () => {
   const { written } = explicationHtml("EUR", 1);
   assert.match(written, /скидка 10%/, "пометка личной скидки поста");
-  assert.equal((written.match(/class="pl-disc"/g) || []).length, 1, "пометка ровно у поста с личной скидкой");
+  const kitchen = roomSection(written, "Кухня (немецкий)");
+  assert.equal((kitchen.match(/class="pl-disc"/g) || []).length, 1, "в Кухне пометка ровно у поста p1 (его личная скидка)");
+  /* p2 в Гостиной — по общей скидке (личной нет) → пометки у него быть не должно; у Гостиной пометка
+     только у изделия DEV_DISC (15%), а не у поста. */
+  const guestPostRow = (() => { const s = roomSection(written, "Гостиная"); return s.slice(0, s.indexOf("—")); })();
+  assert.ok(!/скидка 10%/.test(guestPostRow), "у поста без личной скидки пометки нет");
 });
 
 test("экспликация: отдельное изделие появляется в СВОЕЙ комнате строкой (M3)", () => {
@@ -167,6 +202,37 @@ test("экспликация: цена изделия — та же, что в �
   assert.ok(guest.includes(mkMoney("EUR")(unit)), "цена изделия в экспликации = цене строки спецификации КП");
 });
 
+test("экспликация: один артикул в двух комнатах — у каждого строка с per-unit ценой, не .sum (EUR+RUB)", () => {
+  /* 20021 в Кухне и Гостиной сливаются в группу count 2: цена строки (per-unit) ≠ сумме группы (2×).
+     Мутация «цена изделия из .sum» покажет удвоенную — строка изделия покраснеет (и в EUR, и в RUB). */
+  const dev = realById.get(DEV_SAME1.productId);
+  for (const { currency, rate } of [{ currency: "EUR", rate: 1 }, { currency: "RUB", rate: 92.5 }]) {
+    const unit = unitPriceOf(DEV_SAME1, rate, currency);
+    assert.ok(unit > 0, `есть per-unit цена (${currency})`);
+    const { written } = explicationHtml(currency, rate);
+    for (const roomName of ["Кухня (немецкий)", "Гостиная"]) {
+      const sec = roomSection(written, roomName);
+      const row = rowContaining(sec, esc(dev.name));
+      assert.ok(row.includes(mkMoney(currency)(unit)), `цена изделия = per-unit в «${roomName}» (${currency})`);
+      assert.ok(!row.includes(mkMoney(currency)(unit * 2)), `не удвоенная (.sum) в «${roomName}» (${currency})`);
+    }
+  }
+});
+
+test("экспликация: у изделия с личной скидкой пометка «скидка 15%» (M2 для изделия)", () => {
+  const { written } = explicationHtml("EUR", 1);
+  const guest = roomSection(written, "Гостиная");
+  assert.match(guest, /скидка 15%/, "пометка личной скидки изделия в его комнате");
+});
+
+test("экспликация: изделие без комнаты и в удалённой комнате → «Без помещения» (ветка orphan)", () => {
+  const { written } = explicationHtml("EUR", 1);
+  assert.match(written, /Без помещения/, "группа «Без помещения» есть");
+  const orphan = roomSection(written, "Без помещения");
+  const dev = realById.get(DEV_NOROOM.productId);
+  assert.ok(orphan.includes(esc(dev.name)), "изделия-сироты (без комнаты / удалённая) — в «Без помещения»");
+});
+
 test("экспликация: совсем пустой проект → тост, окно не открывается", () => {
   let opened = false;
   const toasted = [];
@@ -186,3 +252,67 @@ test("экспликация: совсем пустой проект → тос�
   assert.equal(opened, false, "окно печати не открыто");
   assert.equal(toasted.length, 1, "показан тост о пустом проекте");
 });
+
+/* ─────────── Добор до целых упаковок в экспликации (решение владельца 05.11 «разделом, как в КП») ───────────
+   Сценарий: пост 2×14021 + изделие 14021, упаковка 10 → потребность 3, добор 7 шт. Раздел — та же функция
+   EPDocTotals.topUpSectionHtml, что в КП; сумма по комнатам + добор == «Оборудование».
+   Мутации (краснеют?): раздел добора не печатается; добор не входит в сумму; строка добора с другой ценой. */
+const TU_ROOMS = [{ id: "r1", name: "Кухня" }, { id: "r2", name: "Гостиная" }];
+const TU_POSTS = [{ id: "tp1", number: 1, name: "Пост", frameId: idByCode("14931"),
+  mechanismIds: [idByCode("14021"), idByCode("14021")], roomId: "r1" }];
+const TU_DEVICES = [{ productId: idByCode("14021"), roomId: "r2" }];
+const TU_PACKS = { [EPPackTopUp.codeKey("14021")]: 10 };
+function buildEstTopUp(packMultiple) {
+  return EPEstimate.build({ devices: TU_DEVICES, posts: TU_POSTS,
+    product: id => realById.get(id), frameProduct: id => realById.get(id),
+    postCost, postComposition, lightingOf: () => [], settings: SETTINGS,
+    packMultiple, packs: TU_PACKS });
+}
+function tuExplication(currency, rate, packMultiple) {
+  return explicationHtml(currency, rate, {
+    state: { posts: TU_POSTS, rooms: TU_ROOMS, devices: TU_DEVICES },
+    buildEstimate: () => buildEstTopUp(packMultiple)
+  }).written;
+}
+
+test("экспликация: добор есть → раздел печатается; добора нет → раздела нет (как в КП)", () => {
+  const withTU = tuExplication("EUR", 1, true);
+  const noTU = tuExplication("EUR", 1, false);
+  assert.match(withTU, /Добор до целых упаковок/, "раздел добора печатается, когда добор есть");
+  assert.match(withTU, /7 шт\./, "добор 7 шт. (упаковка 10, потребность 3)");
+  assert.doesNotMatch(noTU, /Добор до целых упаковок/, "без добора раздела нет (как в КП)");
+});
+
+for (const { currency, rate } of [{ currency: "EUR", rate: 1 }, { currency: "RUB", rate: 92.5 }]) {
+  test(`экспликация: раздел добора — ТОТ ЖЕ, что в КП; Σ(комнаты)+добор == «Оборудование» (${currency})`, () => {
+    const est = buildEstTopUp(true);
+    const m = mkMoney(currency);
+    const section = EPDocTotals.topUpSectionHtml(est, { esc, moneyShown: m, rate, currency,
+      options: EPOfferOptions.normalize({}), itemText: (name) => name });
+    const written = tuExplication(currency, rate, true);
+    const kp = EPOfferPdf.buildHtml(est, { money: m, moneyShown: m, esc,
+      displayCurrency: () => currency, displayRate: () => rate, settings: SETTINGS,
+      options: EPOfferOptions.normalize({}), header: { project: "П" }, postLayout: [] });
+    assert.ok(section && section.includes("Добор"), "раздел добора непуст");
+    assert.ok(kp.includes(section), "КП печатает этот раздел добора");
+    assert.ok(written.includes(section), "экспликация печатает ТОТ ЖЕ раздел добора");
+
+    /* Инвариант «считать как в КП»: сумма «Итого по комнате» всех комнат + сумма добора == «Оборудование». */
+    const totals = EPEstimate.totalsShown(est, rate, currency);
+    const spec = EPEstimate.specShown(est, rate, currency);
+    let topUpSum = 0, topUpUnit = 0;
+    est.groups.forEach((g, i) => { if (g.topUp) { topUpSum += spec.rows[i].sum; topUpUnit = spec.rows[i].price; } });
+    /* Строка добора в экспликации печатает ПРАВИЛЬНЫЕ цену и сумму (независимые числа из specShown) —
+       мутация «строка добора с другой ценой» покраснеет здесь. */
+    const tuRow = rowContaining(written, "7 шт.");
+    assert.ok(tuRow.includes(m(topUpUnit)), `цена штуки добора = ${m(topUpUnit)}`);
+    assert.ok(tuRow.includes(m(topUpSum)), `сумма добора = ${m(topUpSum)}`);
+    const roomTotals = [...written.matchAll(/room-total[^>]*><td colspan="6">Итого по комнате<\/td><td class="right price">([^<]+)</g)]
+      .map(mm => Number(mm[1].replace(/[^\d.,]/g, "").replace(",", ".")));
+    const roomSum = roomTotals.reduce((s, x) => s + x, 0);
+    assert.ok(roomTotals.length >= 2, "итоги по комнатам извлечены");
+    assert.ok(topUpSum > 0, "добор входит в оборудование (сумма добора > 0)");
+    assert.ok(Math.abs(roomSum + topUpSum - totals.equipment) < (currency === "RUB" ? 1.5 : 0.005),
+      `Σ(комнаты ${roomSum}) + добор (${topUpSum}) == Оборудование (${totals.equipment})`);
+  });
+}
