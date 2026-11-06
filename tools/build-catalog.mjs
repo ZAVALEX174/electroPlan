@@ -27,7 +27,6 @@
  */
 
 import fs from "node:fs/promises";
-import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -35,6 +34,7 @@ import { createRequire } from "node:module";
 import { applyKindOverrides, resolveCatalogPrice } from "./lib/nomenclature.mjs";
 import { readNomenclature2026, DEFAULT_NOMENCLATURE_2026 } from "./lib/nomenclature2026.mjs";
 import { assignStableIds, assertUniqueIds } from "./lib/stable-ids.mjs";
+import { localImagePaths, isDeadImageUrl } from "./lib/catalog-images.mjs";
 
 const require = createRequire(import.meta.url);
 const XLSX = require("xlsx");
@@ -68,26 +68,14 @@ const OUT = resolveArg(args.out, path.join(projectRoot, "js/catalog-vimar.js"));
 // Локальные картинки каталога (img/catalog/<артикул>.jpg / .webp) скачивает
 // tools/download-catalog-images.mjs. Если файл есть — каталог ссылается на него
 // (относительный путь от index.html, работает и по file://), сайт VIMAR — запасной.
+// Правила localImagePaths/isDeadImageUrl общие с build-discontinued.mjs (tools/lib/catalog-images.mjs).
 const IMG_DIR = path.join(projectRoot, "img", "catalog");
-const imgSafe = code => String(code).replace(/[\\/:*?"<>|]/g, "_");
-function localImagePaths(code) {
-  const base = imgSafe(code);
-  const full = existsSync(path.join(IMG_DIR, base + ".jpg")) ? `img/catalog/${base}.jpg` : "";
-  const prev = existsSync(path.join(IMG_DIR, base + ".webp")) ? `img/catalog/${base}.webp` : full;
-  return { full, preview: prev };
-}
 
 const PRICE_DATE_ISO = "2026-07-01";
 const CURRENCY = "EUR";
 const UNIT = "шт.";
 
 const norm = (v) => String(v ?? "").trim();
-
-// Заглушка «нет фото» из выгрузки vimar.ru (…/no_photo.png). ЕДИНСТВЕННОЕ место, где каталог
-// решает «это не фотография»: дальше поле фото просто не выводится, и все потребители видят
-// товар как «без фото». Тот же критерий, что у детекторов лица/окон (tools/detect-*.mjs) и у
-// рантайм-фильтра productImage — чтобы источник данных и читатель понимали заглушку одинаково.
-const isPlaceholderImageUrl = (u) => /no_photo/i.test(String(u || ""));
 
 async function readJson(file, fallback) {
   try {
@@ -221,19 +209,19 @@ async function main() {
     // от того, что говорит индекс vimar.ru — даже когда индекса/ссылки вообще не было или там была
     // заглушка no_photo (реальные фото таких позиций скачаны с vimar.com по артикулу). Ссылка на
     // сайт VIMAR — только запасная, когда своего файла (ещё) нет.
-    const local = localImagePaths(rec.code);
+    const local = localImagePaths(IMG_DIR, rec.code);
     if (local.full) {
       product.imageUrl = local.full;
       product.previewImageUrl = local.preview;
     } else if (image) {
-      // Заглушка сайта «нет фото» (…/no_photo.png) — это НЕ фотография: индекс vimar.ru отдаёт её
-      // для позиций без снимка. Пишем такой URL как «фото нет» (поле не выводим вовсе), чтобы КАЖДЫЙ
-      // потребитель — и productImage, и сырой EPPostImage.photoReady накладки — вёл себя ровно как с
-      // товаром без фото: обычная заглушка программы у механизмов, нарисованная схема у накладок.
-      // Признак заглушки живёт ОДНИМ местом в источнике данных (§7.1), а не размножается по читателям.
-      // Реальные фото монтажных коробок уже победили no_photo выше через image-overrides.json.
-      const preview = isPlaceholderImageUrl(image.preview_image_url) ? "" : (image.preview_image_url || "");
-      const full = isPlaceholderImageUrl(image.image_url) ? "" : (image.image_url || "");
+      // Своего файла нет — остаётся ссылка из индекса. Непригодную отбрасываем (isDeadImageUrl):
+      // заглушку сайта …/no_photo.png и любой URL на vimar.ru (сайт лёг 03.11 — у заказчика такая
+      // ссылка = пустой квадрат). Поле просто не выводим, чтобы КАЖДЫЙ потребитель — productImage и
+      // сырой EPPostImage.photoReady накладки — вёл себя как с товаром без фото: своя заглушка у
+      // механизмов, нарисованная схема у накладок. Признак «мёртвой» ссылки живёт ОДНИМ местом (§7.1).
+      // Живой vimar.com (image-overrides.json у монтажных коробок) — не трогаем.
+      const preview = isDeadImageUrl(image.preview_image_url) ? "" : (image.preview_image_url || "");
+      const full = isDeadImageUrl(image.image_url) ? "" : (image.image_url || "");
       if (preview) product.previewImageUrl = preview;
       if (full) product.imageUrl = full;
     }

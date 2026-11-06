@@ -17,12 +17,12 @@
  */
 
 import fs from "node:fs/promises";
-import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { readNomenclature2026, DEFAULT_NOMENCLATURE_2026 } from "./lib/nomenclature2026.mjs";
 import { collectDiscontinued } from "./lib/discontinued.mjs";
+import { localImagePaths, isDeadImageUrl } from "./lib/catalog-images.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(here, "..");
@@ -46,17 +46,21 @@ async function main() {
   const idMap = (await readJson(IDS)).ids || {};
 
   const { products, idWarnings } = collectDiscontinued(snapshot.products || [], activeCodes, idMap);
-  // Локальные картинки (img/catalog/, tools/download-catalog-images.mjs) — первым делом,
-  // как и в основном каталоге (build-catalog.mjs); ссылка на сайт VIMAR — только запасная.
-  // 04.11, решение владельца: свой файл ставится ВСЕГДА, когда он есть на диске — даже если
-  // у позиции раньше внешней ссылки не было вовсе (поле просто не выводилось).
+  // Картинки — ОДНО правило с основным каталогом (tools/lib/catalog-images.mjs): свой файл
+  // (img/catalog/, tools/download-catalog-images.mjs) первым ВСЕГДА — .jpg, а если его нет, то
+  // .webp (решение владельца 04.11); ссылка на сайт VIMAR — только запасная. Своего файла нет —
+  // мёртвую ссылку из снимка (vimar.ru лёг 03.11 / заглушку no_photo) убираем, чтобы рантайм
+  // показал свою заглушку «нет фото», а не пустой квадрат. Живой vimar.com не трогаем.
   const IMG_DIR = path.join(projectRoot, "img", "catalog");
-  const imgSafe = (code) => String(code).replace(/[\\/:*?"<>|]/g, "_");
-  const localImg = (code, ext) => existsSync(path.join(IMG_DIR, imgSafe(code) + ext)) ? `img/catalog/${imgSafe(code)}${ext}` : "";
   for (const p of products) {
-    const full = localImg(p.code, ".jpg");
-    const prev = localImg(p.code, ".webp") || full;
-    if (full) { p.imageUrl = full; p.previewImageUrl = prev; }
+    const local = localImagePaths(IMG_DIR, p.code);
+    if (local.full) {
+      p.imageUrl = local.full;
+      p.previewImageUrl = local.preview;
+    } else {
+      if (isDeadImageUrl(p.imageUrl)) delete p.imageUrl;
+      if (isDeadImageUrl(p.previewImageUrl)) delete p.previewImageUrl;
+    }
   }
   if (idWarnings.length) {
     // Прежний id из снимка и из catalog-ids.json обязаны совпадать — иначе сохранённый проект
