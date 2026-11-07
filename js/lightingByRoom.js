@@ -106,6 +106,17 @@ function planByRooms(input) {
      подписи нет ("") и ранги равны — тогда порядок задаёт строковый ключ, как было до дефекта 3. */
   const labelForPartition = typeof o.labelForPartition === "function" ? o.labelForPartition : () => "";
   const orderForPartition = typeof o.orderForPartition === "function" ? o.orderForPartition : () => 0;
+  /* Проходная (crossNo) — связь СКВОЗНАЯ по проекту (владелец 13.09): её места обязаны лечь в ОДНУ
+     партицию, иначе номер, связавший РАЗНЫЕ комнаты, распадётся по комнатам на два одиночных «пары
+     нет» (В21, замер 10.10: 263,24 € вместо 314,82 €). crossKeyOf(place) → ключ проходной
+     (EPLightingGroups.crossGroupKey) либо "" у обычной клавиши; пусто → партиционируем по комнате,
+     как раньше. По умолчанию "" — старый вызов без этого dep режет по комнатам по-прежнему. */
+  const crossKeyOf = typeof o.crossKeyOf === "function" ? o.crossKeyOf : () => "";
+  /* Предупреждение для проходной, чьи комнаты имеют РАЗНЫЕ схемы: механизмы считаем по схеме ПРОЕКТА
+     (решение владельца 08.11), но человека предупреждаем. {kind, text} приходят из EPLightingGroups
+     (GAPS/GAP_TEXTS) — второй копии текста здесь нет. Не передан → предупреждение не добавляем
+     (расчёт по схеме проекта всё равно идёт). */
+  const crossMixedGap = o.crossMixedGap || null;
   const runPlan = typeof o.plan === "function" ? o.plan : null;
   const planDeps = o.planDeps || {};
   const projectScheme = o.projectScheme;
@@ -118,35 +129,66 @@ function planByRooms(input) {
      схемы нет. */
   if (!sources.length) return runPlan({ scheme: projectScheme, places: [] }, planDeps);
 
-  /* Партиционирование: входные индексы мест по ключу комнаты, в порядке ВОЗРАСТАНИЯ индекса —
-     порядок state.posts на состав партиции не влияет, а plan внутри всё равно канонизирует. */
+  /* Партиционирование. Обычная клавиша — в партицию СВОЕЙ КОМНАТЫ (partitionKeyOf). Клавиша проходной
+     (crossKeyOf непуст) — в партицию СВОЕЙ ПРОХОДНОЙ (сквозной по проекту), а не комнаты: номер
+     связывает места в разных комнатах в одну группу, и резать их по комнатам нельзя (В21). Партиции
+     проходных живут в своём пространстве ключей ("x:"), отдельном от комнат ("r:"/"no-room"), —
+     номер «5» и комната с id "5" не столкнутся.
+     Обход по ИНДЕКСУ, а не forEach: forEach проскакивает дыры разреженного массива (приложение отдаёт
+     такой после delete places[i]), и место-дыра не попало бы НИ В ОДНУ партицию — слитый план вернулся
+     бы с дырой. sources[index] || {}: у дыры (undefined) partitionKeyOf/crossKeyOf приложения читают
+     поля места и упали бы TypeError'ом; так дыра уходит в свою комнатную партицию и честно становится
+     там пробелом (crossKeyOf пустой строки → по комнате). */
   const buckets = new Map();
-  /* Обход по ИНДЕКСУ, а не forEach: forEach проскакивает дыры разреженного массива (приложение
-     отдаёт такой после delete places[i] — удалили клавишу, индексы прочих сохранились), и место с
-     индексом-дырой не попало бы НИ В ОДНУ партицию — слитый план вернулся бы с дырой, как это уже
-     ловил одиночный plan (см. canonicalOrder в lightingGroups). sources[index] || {} на входе:
-     у дыры (undefined) partitionKeyOf приложения читает place.postId и упал бы TypeError'ом, роняя
-     перерисовку через lightingFor→projectLighting→renderSummary; одиночный plan разбирает такое
-     место как честный пробел (raw || {}) — здесь то же, дыра уходит в свою партицию и там честно
-     становится пробелом «группа не назначена». */
   for (let index = 0; index < sources.length; index++) {
-    const key = partitionKeyOf(sources[index] || {}, index);
-    const norm = partitionNorm(key == null ? null : key);
-    let bucket = buckets.get(norm);
-    if (!bucket) { bucket = { key: key == null ? null : key, norm, indices: [] }; buckets.set(norm, bucket); }
+    const place = sources[index] || {};
+    const crossKey = crossKeyOf(place, index) || "";
+    let norm, bucket;
+    if (crossKey) {
+      norm = "x:" + crossKey;
+      bucket = buckets.get(norm);
+      if (!bucket) { bucket = { cross: crossKey, norm, indices: [] }; buckets.set(norm, bucket); }
+    } else {
+      const key = partitionKeyOf(place, index);
+      norm = partitionNorm(key == null ? null : key);
+      bucket = buckets.get(norm);
+      if (!bucket) { bucket = { key: key == null ? null : key, norm, indices: [] }; buckets.set(norm, bucket); }
+    }
     bucket.indices.push(index);
   }
 
-  /* Детерминированный порядок партиций. Сначала по РАНГУ комнаты (orderForPartition) — чтобы блок
-     групп света шёл в том же порядке, что помещения в листе монтажника (комнаты в порядке
-     state.rooms, «без комнаты» рангом Infinity уходит в конец, дефект 3). Сравнение через < / >,
-     а не вычитание: Infinity - Infinity = NaN сломал бы сортировку. При равных рангах (в т.ч.
-     дефолт, где ранги равны, и комнаты вне переданного порядка — им приложение даёт Infinity)
-     тайбрейк по строковому ключу держит детерминизм при любом порядке входа. */
+  /* Схема, подпись и ранг каждой партиции — ОДНИМ местом (их читают и сортировка, и расчёт).
+     Комнатная партиция: всё берётся по её комнате, как раньше. Партиция проходной: её места лежат в
+     РАЗНЫХ комнатах — схему берём их ОБЩУЮ, если она одна; если схемы комнат разошлись (mixed) —
+     считаем по СХЕМЕ ПРОЕКТА и предупреждаем (ниже, решение владельца 08.11). Подпись комнаты у
+     проходной ставится, ТОЛЬКО когда все её места в одной комнате (иначе единой комнаты нет — как у
+     склеенного пробела, roomLabel гасим). Ранг проходной — минимальный ранг её комнат, чтобы её блок
+     встал рядом с первой из них, а не всегда в конце. */
+  const roomKeyOf = i => partitionKeyOf(sources[i] || {}, i);
+  buckets.forEach(bucket => {
+    if (bucket.cross) {
+      const roomKeys = bucket.indices.map(roomKeyOf);
+      const schemes = [...new Set(roomKeys.map(k => schemeForPartition(k)))];
+      const roomNorms = [...new Set(roomKeys.map(k => partitionNorm(k == null ? null : k)))];
+      bucket.mixed = schemes.length > 1;
+      bucket.scheme = bucket.mixed ? projectScheme : schemes[0];
+      bucket.roomLabel = roomNorms.length === 1 ? labelForPartition(roomKeys[0]) : "";
+      bucket.rank = roomKeys.reduce((m, k) => { const r = orderForPartition(k); return r < m ? r : m; }, Infinity);
+    } else {
+      bucket.scheme = schemeForPartition(bucket.key);
+      bucket.roomLabel = labelForPartition(bucket.key);
+      bucket.rank = orderForPartition(bucket.key);
+    }
+  });
+
+  /* Детерминированный порядок партиций. Сначала по РАНГУ (orderForPartition, у проходной —
+     минимальный ранг её комнат) — чтобы блок групп света шёл в том же порядке, что помещения в листе
+     монтажника («без комнаты» рангом Infinity уходит в конец, дефект 3). Сравнение через < / >, а не
+     вычитание: Infinity - Infinity = NaN сломал бы сортировку. При равных рангах тайбрейк по
+     строковому ключу держит детерминизм при любом порядке входа. */
   const ordered = [...buckets.values()].sort((a, b) => {
-    const ra = orderForPartition(a.key), rb = orderForPartition(b.key);
-    if (ra < rb) return -1;
-    if (ra > rb) return 1;
+    if (a.rank < b.rank) return -1;
+    if (a.rank > b.rank) return 1;
     return a.norm < b.norm ? -1 : (a.norm > b.norm ? 1 : 0);
   });
 
@@ -178,9 +220,9 @@ function planByRooms(input) {
   ordered.forEach(bucket => {
     const idx = bucket.indices;                 /* входные индексы этой партиции, по возрастанию */
     const remap = j => idx[j];                   /* индекс внутри подплана → индекс входного списка */
-    const roomLabel = labelForPartition(bucket.key);   /* подпись комнаты для групп/реле/пробелов */
+    const roomLabel = bucket.roomLabel;          /* подпись комнаты для групп/реле/пробелов (у проходной — см. выше) */
     const subPlaces = idx.map(i => sources[i]);
-    const sub = runPlan({ scheme: schemeForPartition(bucket.key), places: subPlaces }, planDeps) || {};
+    const sub = runPlan({ scheme: bucket.scheme, places: subPlaces }, planDeps) || {};
     usedSchemes.add(sub.scheme);
     uniformSchemeLabel = sub.schemeLabel || uniformSchemeLabel;
 
@@ -219,6 +261,16 @@ function planByRooms(input) {
        не «всё ли посчитано». (Все три штатные схемы, включая «Звонковые кнопки», сейчас поддержаны;
        ветка ждёт будущую схему без правил расчёта.) */
     merged.supported = merged.supported || !!sub.supported;
+
+    /* Проходная через комнаты с РАЗНЫМИ схемами (mixed): механизмы уже подобраны по схеме проекта
+       (bucket.scheme) этим же sub, но человека предупреждаем — тем же списком gaps, что и «пары нет».
+       groupLabel берём у самой группы проходной подплана («Проходная № N» или её имя), places —
+       глобальные индексы мест проходной (idx уже глобальные); единой комнаты у неё нет (roomLabel null). */
+    if (bucket.cross && bucket.mixed && crossMixedGap) {
+      const cg = (Array.isArray(sub.groups) ? sub.groups : []).find(g => g && g.cross);
+      mergeGap(merged.gaps, { kind: crossMixedGap.kind, text: crossMixedGap.text,
+        groupKey: bucket.cross, groupLabel: cg ? cg.label : "", places: idx.slice(), roomLabel: null });
+    }
   });
 
   /* Шапка документа (дефект 1). Все партиции посчитаны ОДНОЙ схемой → печатаем её подпись, как

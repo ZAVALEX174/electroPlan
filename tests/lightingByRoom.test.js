@@ -50,6 +50,9 @@ function planByRoomsFor(posts, rooms, projectScheme) {
     schemeForPartition: key => key == null ? scheme : Room.roomLightingScheme(roomById.get(key), scheme, LG.SCHEMES),
     labelForPartition: key => key == null ? "Без помещения" : ((roomById.get(key) || {}).name || ""),
     orderForPartition: key => key == null ? Infinity : (roomOrder.has(key) ? roomOrder.get(key) : Infinity),
+    /* проходная (crossNo) — сквозная по проекту: её места в одну партицию, не по комнатам (В21) */
+    crossKeyOf: place => LG.crossGroupKey(place.crossNo),
+    crossMixedGap: { kind: LG.GAPS.CROSS_MIXED_SCHEMES, text: LG.GAP_TEXTS[LG.GAPS.CROSS_MIXED_SCHEMES] },
     plan: LG.plan,
     planDeps: { seriesOf, findMechanism }
   });
@@ -265,6 +268,105 @@ test("ручной выбор механизма клавиши сразу пе�
 
   const htmlAfter = LP.buildHtml(projectLighting(withMech(CHANGEOVER.controlRole)), {});
   assert.match(htmlAfter, /Переключатель/, "ручной выбор переключателя виден сразу, без стороннего действия");
+});
+
+/* ── В21: проходная ЧЕРЕЗ ГРАНИЦУ комнат связывается номером, а не режется по комнатам ──────
+   Дефект (замер 10.10 на стенде): проходная из коридора в спальню с одним номером у двух клавиш
+   разных комнат давала в смете обе «пары нет» — расчёт резал места по комнатам, и номер, связавший
+   комнаты, распадался на два одиночных. Проходная сквозная по проекту (владелец 13.09), и её места
+   обязаны считаться вместе независимо от комнат. */
+
+test("В21: один номер в РАЗНЫХ комнатах (одна схема) — пара переключателей, «пары нет» нет", () => {
+  const rooms = [{ id: "K", name: "Коридор" }, { id: "S", name: "Спальня" }];   /* обе classic */
+  const posts = [postCross("p1", "K", "7"), postCross("p2", "S", "7")];
+  const plan = planByRoomsFor(posts, rooms, "classic");
+  const at = byAddress(plan);
+  assert.equal(at.get("p1#0").role, "changeover", "коридор — переключатель");
+  assert.equal(at.get("p2#0").role, "changeover", "спальня — переключатель");
+  assert.equal(plan.totals.changeover, 2, "две переключателя — одна проходная из двух мест");
+  assert.ok(!plan.gaps.some(g => g.kind === LG.GAPS.CROSS_LONELY), "ни одной «пары нет»");
+  /* Сумма = как у ТОЙ ЖЕ пары в одной комнате и = двум переключателям каталога (не меньше). */
+  const sum = pl => (pl.places || []).reduce((s, p) => s + (p && p.product ? p.product.price : 0), 0);
+  const sameRoom = planByRoomsFor([postCross("p1", "K", "7"), postCross("p2", "K", "7")], rooms, "classic");
+  assert.equal(sum(plan), sum(sameRoom), "межкомнатная проходная стоит ровно как внутрикомнатная пара");
+  assert.equal(sum(plan), CHANGEOVER.price * 2, "два переключателя каталога (25.79 × 2)");
+});
+
+test("В21: две «Кухни» БЕЗ номера в разных комнатах — остаются двумя обычными выключателями", () => {
+  const rooms = [{ id: "A" }, { id: "B" }];
+  const posts = [post("a1", "A", "Кухня"), post("b1", "B", "Кухня")];   /* без crossNo */
+  const plan = planByRoomsFor(posts, rooms, "classic");
+  const at = byAddress(plan);
+  assert.equal(at.get("a1#0").role, "switch");
+  assert.equal(at.get("b1#0").role, "switch");
+  assert.equal(plan.totals.switch, 2, "имя без номера комнаты не связывает (решение 09.09)");
+  assert.equal(plan.totals.changeover, 0);
+});
+
+test("В21: проходная через комнаты с РАЗНЫМИ схемами — по схеме проекта + предупреждение", () => {
+  const rooms = [{ id: "K", name: "Коридор", lightingScheme: "classic" },
+                 { id: "S", name: "Спальня", lightingScheme: "relay" }];
+  const posts = [postCross("p1", "K", "7"), postCross("p2", "S", "7")];
+  const plan = planByRoomsFor(posts, rooms, "classic");   /* схема проекта — classic */
+  const at = byAddress(plan);
+  assert.equal(at.get("p1#0").role, "changeover", "считается по схеме ПРОЕКТА (classic), N=2");
+  assert.equal(at.get("p2#0").role, "changeover");
+  assert.ok(plan.gaps.some(g => g.kind === LG.GAPS.CROSS_MIXED_SCHEMES), "предупреждение о разных схемах");
+  assert.ok(!plan.gaps.some(g => g.kind === LG.GAPS.CROSS_LONELY), "это НЕ «пары нет»");
+  const h = LP.buildHtml(plan, {});
+  assert.ok(h.includes(LG.GAP_TEXTS[LG.GAPS.CROSS_MIXED_SCHEMES]), "текст предупреждения напечатан в блоке");
+});
+
+test("В21: mixed-проходная считается по СХЕМЕ ПРОЕКТА, а не по схеме крайней комнаты", () => {
+  /* Край правила bucket.scheme = bucket.mixed ? projectScheme : schemes[0] (lightingByRoom.js).
+     Прежний тест mixed-схем брал проект classic и первую комнату classic — там projectScheme и
+     schemes[0] СОВПАДАЛИ, и подмена «scheme = schemes[0]» оставалась зелёной. Здесь схема проекта
+     (relay) не равна НИ ОДНОЙ из схем комнат проходной (classic и bell), поэтому любой выбор по
+     краю массива схем (schemes[0]=classic, schemes[последняя]=bell) меняет наблюдаемое:
+       • schemes[0]=classic → места станут переключателями (не кнопками) — ловит проверка ролей;
+       • schemes[последняя]=bell → кнопки те же, но реле bell не считает — ловит relayTotal.
+     Верно (по схеме ПРОЕКТА relay): обе клавиши — кнопки, на группу одно импульсное реле. */
+  const rooms = [{ id: "K", name: "Коридор", lightingScheme: "classic" },
+                 { id: "S", name: "Спальня", lightingScheme: "bell" }];
+  const posts = [postCross("p1", "K", "5"), postCross("p2", "S", "5")];   /* входной порядок: classic, bell */
+  const plan = planByRoomsFor(posts, rooms, "relay");   /* схема проекта — relay */
+  const at = byAddress(plan);
+  assert.equal(at.get("p1#0").role, "button", "считается по схеме ПРОЕКТА (relay) — кнопка, не переключатель");
+  assert.equal(at.get("p2#0").role, "button");
+  assert.equal(plan.relayTotal, 1, "relay считает реле на группу проходной — schemes[последняя]=bell дал бы 0");
+  assert.ok(plan.gaps.some(g => g.kind === LG.GAPS.CROSS_MIXED_SCHEMES), "предупреждение о разных схемах");
+  assert.ok(!plan.gaps.some(g => g.kind === LG.GAPS.CROSS_LONELY), "это НЕ «пары нет»");
+});
+
+test("В21: три поста в трёх комнатах с одним номером — два переключателя + инвертор", () => {
+  const rooms = [{ id: "A" }, { id: "B" }, { id: "C" }];
+  const posts = [postCross("p1", "A", "9"), postCross("p2", "B", "9"), postCross("p3", "C", "9")];
+  const plan = planByRoomsFor(posts, rooms, "classic");
+  assert.equal(plan.totals.changeover, 2, "два первых места — переключатели");
+  assert.equal(plan.totals.inverter, 1, "третье место — инвертор");
+  assert.ok(!plan.gaps.some(g => g.kind === LG.GAPS.CROSS_LONELY));
+});
+
+test("В21: межкомнатная проходная не зависит от порядка постов на входе", () => {
+  const rooms = [{ id: "A" }, { id: "B" }, { id: "C" }];
+  const posts = [postCross("p1", "A", "9"), postCross("p2", "B", "9"), postCross("p3", "C", "9")];
+  const straight = byAddress(planByRoomsFor(posts, rooms, "classic"));
+  const shuffled = byAddress(planByRoomsFor([posts[2], posts[0], posts[1]], rooms, "classic"));
+  straight.forEach((p, key) => {
+    const q = shuffled.get(key);
+    assert.equal(q.role, p.role, "роль места " + key);
+    assert.equal(q.code, p.code, "артикул места " + key);
+  });
+});
+
+test("В21: проходная ВНУТРИ одной комнаты считается как раньше — пара переключателей", () => {
+  const rooms = [{ id: "A", name: "Зал" }];
+  const posts = [postCross("p1", "A", "5"), postCross("p2", "A", "5")];
+  const plan = planByRoomsFor(posts, rooms, "classic");
+  const at = byAddress(plan);
+  assert.equal(at.get("p1#0").role, "changeover");
+  assert.equal(at.get("p2#0").role, "changeover");
+  assert.ok(!plan.gaps.some(g => g.kind === LG.GAPS.CROSS_MIXED_SCHEMES), "одна комната — схемы не расходятся, предупреждения нет");
 });
 
 /* ── склейка пробелов подпланов (дефект: planByRooms конкатенировал gaps вместо склейки) ── */

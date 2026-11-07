@@ -1822,19 +1822,19 @@ function lightingFor(posts){
      чтобы он остался детерминированным (см. planByRooms). */
   const roomOrder=new Map(state.rooms.map((r,i)=>[r.id,i]));
   const plan=EPLightingByRoom.planByRooms({
-    places,
-    projectScheme:projScheme,
+    places,projectScheme:projScheme,
     projectSchemeLabel:(EPLightingGroups.SCHEMES.find(s=>s.id===projScheme)||{}).label||"",
-    /* пост без комнаты (roomId пустой) → отдельная партиция со схемой проекта */
-    partitionKeyOf:place=>{const rid=roomOfPost.get(place.postId);return rid==null?null:rid;},
+    partitionKeyOf:place=>{const rid=roomOfPost.get(place.postId);return rid==null?null:rid;}, /* пост без комнаты → партиция схемы проекта */
+    /* проходная (crossNo) СКВОЗНАЯ — её места в ОДНУ партицию, не по комнатам (В21); схема/предупреждение — см. lightingByRoom */
+    crossKeyOf:place=>EPLightingGroups.crossGroupKey(place.crossNo),
+    crossMixedGap:{kind:EPLightingGroups.GAPS.CROSS_MIXED_SCHEMES,text:EPLightingGroups.GAP_TEXTS[EPLightingGroups.GAPS.CROSS_MIXED_SCHEMES]},
     /* нераспознанный/отсутствующий id схемы у комнаты откатывается на проект — EPRoom.roomLightingScheme */
     schemeForPartition:key=>key==null?projScheme:EPRoom.roomLightingScheme(roomById.get(key),projScheme,EPLightingGroups.SCHEMES),
     /* подпись комнаты у группы/реле/пробела в документе; «без комнаты» — как в листе монтажника */
     labelForPartition:key=>key==null?"Без помещения":((roomById.get(key)||{}).name||""),
     /* порядок партиций = порядок помещений в листе монтажника; неизвестная/«без комнаты» — в конец */
     orderForPartition:key=>key==null?Infinity:(roomOrder.has(key)?roomOrder.get(key):Infinity),
-    plan:EPLightingGroups.plan,
-    planDeps
+    plan:EPLightingGroups.plan,planDeps
   });
   return {plan,places,
     rows:EPLightingPlan.rowsByPost(plan,places,EPLightingGroups.GAP_TEXTS),

@@ -709,7 +709,8 @@ const GAPS = {
   SCHEME_UNKNOWN: "scheme-unknown",       /* идентификатор схемы не распознан вовсе */
   RELAY_ARTICLE: "relay-article-unknown", /* реле посчитано числом, артикул не определён */
   CROSS_DUP_IN_POST: "cross-duplicate-in-post", /* один проходной номер на двух клавишах одного поста — ошибка */
-  CROSS_LONELY: "cross-single-place"      /* проходной номер встречается в проекте один раз — пары нет */
+  CROSS_LONELY: "cross-single-place",     /* проходной номер встречается в проекте один раз — пары нет */
+  CROSS_MIXED_SCHEMES: "cross-mixed-schemes" /* проходная соединяет комнаты с разными схемами — считаем по схеме проекта, предупреждаем */
 };
 const GAP_TEXTS = {
   [GAPS.NO_SERIES]: "У клавиши не определена серия — механизм не подобрать",
@@ -725,7 +726,8 @@ const GAP_TEXTS = {
   [GAPS.SCHEME_UNKNOWN]: "Схема электрики не распознана — расчёт недоступен",
   [GAPS.RELAY_ARTICLE]: "Импульсное реле: артикул не определён (в каталоге и номенклатуре VIMAR отсутствует)",
   [GAPS.CROSS_DUP_IN_POST]: "Один проходной номер стоит на двух клавишах одного поста — это ошибка; механизм не подобран",
-  [GAPS.CROSS_LONELY]: "Проходной номер встречается в проекте только раз — второго места нет; проверьте связь"
+  [GAPS.CROSS_LONELY]: "Проходной номер встречается в проекте только раз — второго места нет; проверьте связь",
+  [GAPS.CROSS_MIXED_SCHEMES]: "Проходная соединяет комнаты с разными схемами электрики — рассчитана по схеме проекта"
 };
 
 /* ⚠️ ПРОБЕЛ ПРОЕКТА ≠ ПРОБЕЛ ПОСТАВКИ, И РАЗЛИЧАЕТ ИХ ОДИН СПИСОК НА ВСЕ ДОКУМЕНТЫ.
@@ -743,7 +745,7 @@ const GAP_TEXTS = {
 /* Проходные пробелы (нет пары у номера; один номер на двух клавишах поста) — это НЕДОЗАПОЛНЕННЫЙ
    ЗАМЫСЕЛ, а не пробел поставки: заказать тут нечего, человек не достроил связь. Место таких строк —
    в блоке «Группы света» с причиной, а не в накладной поставщика и обвязке монтажника. */
-const PROJECT_GAPS = [GAPS.SCHEME_NOT_READY, GAPS.SCHEME_UNKNOWN, GAPS.CROSS_DUP_IN_POST, GAPS.CROSS_LONELY];
+const PROJECT_GAPS = [GAPS.SCHEME_NOT_READY, GAPS.SCHEME_UNKNOWN, GAPS.CROSS_DUP_IN_POST, GAPS.CROSS_LONELY, GAPS.CROSS_MIXED_SCHEMES];
 const isProjectGap = reason => PROJECT_GAPS.indexOf(reason) >= 0;
 const isSupplyGap = reason => !!reason && !isProjectGap(reason);
 
