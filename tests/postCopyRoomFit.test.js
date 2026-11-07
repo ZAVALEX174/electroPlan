@@ -91,6 +91,31 @@ test("★ roomOf передан, база свободна → координа�
   assert.equal(c.noFit, undefined, "массив копий без noFit — всё разместилось");
 });
 
+/* ─────────── КРАЙ 1: без точки, оригинал у стены — комната базы по ОРИГИНАЛУ, не по base0 ───────────
+   Ctrl+V без мыши над холстом (point=null, mStart=1): стартовое размещение base0=shifted(1) сдвинуто на
+   шаг по диагонали. Если оригинал у правой/нижней стены, центр base0 попадает в СОСЕДНЮЮ комнату (или за
+   стену) — раньше «комнату базы» брали по base0 и копию держали не там / выбрасывали в «Без помещения».
+   Комната базы обязана считаться по ОРИГИНАЛУ (base, m=0). */
+
+test("★ КРАЙ1: без точки, оригинал у стены — копия в комнате ОРИГИНАЛА (с соседней B и без неё)", () => {
+  /* A=[0,120)×[0,120), B=[120,240)×[0,120). Оригинал (90,40), центр (102,52) в A, у правой стены.
+     base0=shifted(1)=(114,64), центр (126,76) — в B (или вне комнат, если B нет). Комнату базы берём по
+     оригиналу (A) → копию держим в A; поиск кольцами находит боковое место (90,64), центр (102,76) в A. */
+  const buf = EPPostCopy.snapshot([samplePost({ x: 90, y: 40 })]);
+  const existing = [{ x: 90, y: 40 }];
+  const roomAB = c => (c.y < 0 || c.y >= 120) ? null : (c.x >= 0 && c.x < 120 ? "A" : (c.x < 240 ? "B" : null));
+  const [cAB] = EPPostCopy.buildCopies(buf, opts({ existingPosts: existing, roomOf: roomAB }));   /* без точки */
+  assert.equal(roomAB(centerOf(cAB)), "A", "с соседней комнатой B копия всё равно в комнате оригинала A");
+  assert.ok(Math.abs(cAB.x - 90) >= 24 || Math.abs(cAB.y - 40) >= 24, "копия не перекрывает оригинал");
+  assert.deepEqual([cAB.x, cAB.y], [90, 64], "боковое кольцо (−1,0): угол (90,64), центр (102,76) в A; по base0 было бы (114,64) в B");
+  /* Без B: справа — вне комнат. По base0 комната базы = null → все null → диагональ → «Без помещения».
+     По оригиналу — A → копия удержана в A. */
+  const roomAonly = c => (c.x >= 0 && c.x < 120 && c.y >= 0 && c.y < 120) ? "A" : null;
+  const [cA] = EPPostCopy.buildCopies(buf, opts({ existingPosts: existing, roomOf: roomAonly }));
+  assert.equal(roomAonly(centerOf(cA)), "A", "без B копия удержана в комнате оригинала A, не «Без помещения»");
+  assert.deepEqual([cA.x, cA.y], [90, 64]);
+});
+
 /* ─────────── ВНЕ КОМНАТ: раскладка БАЙТ-В-БАЙТ прежняя (решение основного агента, утв. владельцем) ───────────
    Когда ВСЕ копии пачки имеют базу вне комнат (проект без комнат / вставка вне комнат), roomOf возвращает
    null для всех — и видимую раскладку менять нельзя: должен работать прежний диагональный цикл, тот же, что
@@ -151,4 +176,38 @@ test("★ pastePosts: места в комнате нет → state.posts не �
   assert.match(msg, /в помещении «Кухня»/, "названо помещение, где нет места");
   assert.match(msg, /нет свободного места/, "сказано, что места нет");
   assert.equal(toasts.length, 0, "гаснущего toast нет");
+});
+
+/* ─────────── КРАЙ 2: карта пространства строится ОДИН раз на вставку (grid-комната, нет 28-с зависания) ───────────
+   getRoomForPoint без готовой карты строит buildSpaceComponents на КАЖДЫЙ вызов; поиск размещения зовёт
+   roomOf до ~тысяч раз → на проекте с «T»-комнатой вставка зависала на ~28 с. pastePosts обязан строить
+   карту один раз и передавать её в getRoomForPoint(x,y,map). Меряем СЧЁТЧИКОМ, не временем. */
+
+test("★ КРАЙ2: при grid-комнате buildSpaceComponents вызван ≤1 раза на вставку (карта переиспользуется)", () => {
+  const src = mkPost({ x: 0, y: 0 });
+  let bsc = 0;
+  const buildSpaceComponents = () => { bsc++; return { grid: true }; };
+  /* Мимикрия настоящего getRoomForPoint (app.js:1028): без готовой карты он строит её КАЖДЫЙ раз. */
+  const getRoomForPoint = (x, y, map) => { if (!map) buildSpaceComponents();
+    return (x >= 0 && x < 24 && y >= 0 && y < 24) ? { id: "G", name: "Зал" } : null; };
+  const notices = { calls: [], show(k, t) { this.calls.push({ kind: k, text: t }); }, dismiss() {}, prune() {} };
+  const counts = { renderAll: 0 };
+  const ctx = {
+    _copyBuffer: EPPostCopy.snapshot([src]),
+    /* grid-комната G ровно в один значок [0,24): без polygon → карта нужна; стоящий пост занял её → места нет. */
+    state: { posts: [src], selected: null, rooms: [{ id: "G", name: "Зал" }], devices: [] },
+    EPPostCopy, EPPosts, EPLightingGroups, EPSelection, EPNotices, notices,
+    uid: p => p + "1",
+    buildSpaceComponents,
+    clientToWorld: (x, y) => ({ x, y }),
+    canvasPointer: () => ({ overCanvas: true, clientX: 12, clientY: 12 }),
+    frameForRoomPlacement: () => ({ frameId: null }),
+    getRoomForPoint,
+    renderAll: () => { counts.renderAll++; }, renderSummary: () => {}, renderProperties: () => {},
+    toast: () => {}
+  };
+  const pastePosts = stand.run(["copyPosts", "pastePosts"], ctx);
+  pastePosts();
+  assert.ok(bsc <= 1, `buildSpaceComponents вызван ${bsc} раз — карта строится один раз, а не на каждый из ~тысяч roomOf`);
+  assert.equal(ctx.state.posts.length, 1, "места нет (grid-комната занята) → ничего не вставлено");
 });

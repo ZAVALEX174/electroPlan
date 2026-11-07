@@ -4453,7 +4453,7 @@ const {frameForRoomPlacement}=EPPostVariant.attach({
    моменту уже объявлены. Возвращённые copyPosts/pastePosts/copyBufferFilled зовёт document.onkeydown выше:
    он — отложенный обработчик, на момент его присваивания эти const ещё в TDZ, но вызывается он уже после. */
 const {copyPosts,pastePosts,copyBufferFilled}=EPPostCopyUi.attach({
-  canvasPointer,clientToWorld,frameForRoomPlacement,getRoomForPoint,notices,renderAll,renderProperties,renderSummary,state,toast,uid,warnWallMismatch
+  buildSpaceComponents,canvasPointer,clientToWorld,frameForRoomPlacement,getRoomForPoint,notices,renderAll,renderProperties,renderSummary,state,toast,uid,warnWallMismatch
 });
 
 /* Слой комнат (таблички, контуры, правка вершин) вынесен в js/rooms.js (И1, кусок 2). Поднимаем его

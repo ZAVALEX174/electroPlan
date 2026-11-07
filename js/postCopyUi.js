@@ -27,7 +27,7 @@
    возвращает то, что app.js продолжает звать из document.onkeydown. Вызывается один раз из app.js. */
 function attach(ctx){
 const {
-  canvasPointer,clientToWorld,frameForRoomPlacement,getRoomForPoint,notices,renderAll,renderProperties,renderSummary,state,toast,uid,warnWallMismatch
+  buildSpaceComponents,canvasPointer,clientToWorld,frameForRoomPlacement,getRoomForPoint,notices,renderAll,renderProperties,renderSummary,state,toast,uid,warnWallMismatch
 }=ctx;
 
 /* ---- Копирование и вставка постов (Б9). Владелец: «вставить те же посты в соседний номер — отели».
@@ -70,13 +70,20 @@ function pastePosts(){
   /* Посты проекта ДО вставки — их занятые имена групп нужны правилу имени ниже. Снимок берём ДО push:
      копии одной пачки «уже стоящими» не считаются (пара может остаться парой между собой). */
   const existingBefore=state.posts.slice();
+  /* Карту пространства (флуд-фолл для grid-комнат без контура) строим ОДИН раз на вставку и переиспользуем:
+     поиск размещения зовёт roomOf до ~тысяч раз, а getRoomForPoint без готовой карты строил бы её на КАЖДЫЙ
+     вызов (buildSpaceComponents) — на проекте с хоть одной «T»-комнатой вставка зависала на ~28 с. Карта
+     нужна только при наличии комнаты без контура; иначе null (контурные комнаты карту не используют). Та же
+     карта идёт и в подбор накладки ниже — стены/комнаты за вставку не меняются, решение то же. */
+  const roomMap=(typeof buildSpaceComponents==="function"&&state.rooms.some(r=>!(r.polygon&&r.polygon.length>2)))
+    ?buildSpaceComponents():null;
   /* В22 (решение владельца 07.11): buildCopies держит пачку в КОМНАТЕ, куда её вставили, и не выталкивает
      копию за стену в «Без помещения». Комнату копии он узнаёт тем же ЦЕНТРОМ значка, что и подбор накладки
      ниже (центр считает сам buildCopies через POST_ICON_HALF — одно определение); roomOf отдаёт id комнаты
      под точкой или null. */
   const copies=EPPostCopy.buildCopies(buf,{existingPosts:state.posts,point,genId:()=>uid("post_"),
     nextPostNumber:EPPosts.nextPostNumber,crossKey:EPLightingGroups.crossGroupKey,
-    roomOf:center=>{const r=getRoomForPoint(center.x,center.y);return r?r.id:null}});
+    roomOf:center=>{const r=getRoomForPoint(center.x,center.y,roomMap);return r?r.id:null}});
   /* Места в комнате базы нет ни при каком смещении → пачку не вставляем ЦЕЛИКОМ (частичная вставка
      разорвала бы пары проходных — деньги). Проект не меняем, шага истории нет; сообщение — тем же видом
      "unplaced" (второго вида не заводим). Имя — комнаты базы первой ограниченной копии; нет имени — без. */
@@ -90,7 +97,7 @@ function pastePosts(){
   copies.forEach((copy,i)=>{
     /* Комнату копии определяем ОДИН раз по центру её значка — ею и накладку подбираем, и правило имени
        применяем (второго определения «куда попала копия» не заводим). */
-    const room=getRoomForPoint(copy.x+12,copy.y+12);
+    const room=getRoomForPoint(copy.x+12,copy.y+12,roomMap);
     const swap=frameForRoomPlacement(copy,room);
     if(swap.blocked){blocked.push({number:buf.items[i].post.number,message:swap.message});return}
     if(swap.frameId!=null)copy.frameId=swap.frameId;

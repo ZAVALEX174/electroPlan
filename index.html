@@ -977,12 +977,12 @@
 <!-- Копирование постов (Ctrl+C/Ctrl+V): чистый модуль (ни DOM, ни state) — снимок выделенного для
      буфера, сборка копий с новыми id/номерами/координатами и новыми номерами проходных. Грузится ДО
      app.js, который держит буфер, ловит хоткеи и кладёт готовые посты в state. -->
-<script src="js/postCopy.js?v=20261107.1"></script>
+<script src="js/postCopy.js?v=20261107.2"></script>
 <!-- Копирование постов — оркестровка (Ctrl+C/Ctrl+V): буфер в памяти страницы, copyPosts/pastePosts,
      ответ «буфер не пуст?». Вынесено из app.js (Б9, И2). Грузится ДО app.js, который зовёт
      EPPostCopyUi.attach(ctx) ПОСЛЕ EPCanvasInput.attach (оттуда приходит canvasPointer). -->
 <script src="js/notices.js?v=20261018.1"></script>
-<script src="js/postCopyUi.js?v=20261107.1"></script>
+<script src="js/postCopyUi.js?v=20261107.2"></script>
 <script src="js/projectFile.js?v=20261028.1"></script>
 <!-- Окно «Данные проекта и КП» (#kpSetupModal): открыть/закрыть, авто-открытие на чистом старте
      (решение владельца 20.10). Чистая функция shouldOpenOnLoad + тонкий attach. До app.js. -->
@@ -1011,6 +1011,6 @@
 <!-- Левая панель (Редизайн, часть 4): сворачиваемые секции (память в EPPrefs), статус/автосворачивание
      «Исходного плана», горячие клавиши инструментов V/W/L/R/E. До app.js, который зовёт EPLeftPanel.attach(ctx). -->
 <script src="js/leftPanel.js?v=20261030.2"></script>
-<script src="js/app.js?v=20261108.1"></script>
+<script src="js/app.js?v=20261108.2"></script>
 </body>
 </html>
