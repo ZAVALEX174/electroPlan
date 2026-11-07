@@ -705,6 +705,11 @@ function build(input) {
       ? frameInfo.displayName
       : (frame ? frame.name : `Накладка не найдена (арт. ${po.frameId})`);
     if (frameMissing) missing.push(po.frameId);
+    /* Пометка «снята с производства» для строки спецификации НА ЭКРАНЕ (В29): берём ГОТОВЫЙ текст из
+       того же единого состояния накладки (frameAvailability.statusText), не сочиняя вторую
+       формулировку. Пусто, если накладка активна/не снята. Документы (КП/Excel) это поле не читают —
+       у них пометка живёт в ИМЕНИ накладки состава (frameName выше); имя строки сметы не меняем. */
+    const discontinuedText = frameInfo && frameInfo.discontinued ? frameInfo.statusText : "";
     /* Накладки в посте может не быть вовсе (frameId пуст) — тогда называть нечего, и строка
        состава остаётся без неё, как и раньше. Пробел каталога и снятая позиция получают
        готовую подпись единого состояния. */
@@ -853,6 +858,7 @@ function build(input) {
       key,
       name: po.name,
       items,
+      discontinuedText,
       discount: po.discount, ref: po,
       /* Печатная строка — ПРОИЗВОДНАЯ от items, а не вторая их сборка (см. renderItem). */
       composition: items.map(renderItem).filter(Boolean).join(", "),
@@ -880,7 +886,10 @@ function build(input) {
     /* В группе храним: key (устойчивость строки), discount (своя скидка — одна на строку, т.к.
        разные скидки не сливаются) и members (сами объекты строки — их правит поле панели ЦЕЛИКОМ). */
     const g = groups.get(l.key) || { key: l.key, name: l.name, composition: l.composition,
-      items: l.items, unit: l.unit, count: 0, sum: 0, discount: l.discount, members: [] };
+      items: l.items, unit: l.unit, count: 0, sum: 0, discount: l.discount, members: [],
+      /* Пометка «снята с производства» строки спецификации (В29). Группировка идёт по составу
+         (накладка в ключе), поэтому у всех строк группы она одна; у строки-изделия поля нет → "". */
+      discontinuedText: l.discontinuedText || "" };
     g.count++; g.sum += l.price; if (l.ref) g.members.push(l.ref); groups.set(l.key, g);
   });
   const groupList = [...groups.values()];

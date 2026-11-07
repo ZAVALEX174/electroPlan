@@ -37,6 +37,15 @@ function filterOptions(options, query){
   });
 }
 
+/* Пометка «снята с производства» рядом с названием — ОДНО место на свёрнутую кнопку и строку
+   раскрытого списка (§7.1): текст пометки готовит оркестратор (pickerMeta берёт его из единого
+   EPPosts.frameAvailability) и кладёт в meta — виджет про каталог не знает и лишь рисует. Активный
+   товар (discontinued ложно) или отсутствие текста → пустая строка: разметка кнопки/строки прежняя. */
+function discontinuedMark(m, esc){
+  const e = esc || (s => String(s == null ? "" : s));
+  return m && m.discontinued && m.statusText ? ` — ${e(m.statusText)}` : "";
+}
+
 /* ——— Ниже DOM-виджет. Одновременно открыт только один список: держим ссылку,
    чтобы открытие нового и клик мимо надёжно закрывали предыдущий. ——— */
 let openInstance = null;
@@ -131,7 +140,7 @@ function enhance(selectEl, config){
     if(m){
       button.innerHTML =
         `<span class="epk-thumb">${m.picture}</span>` +
-        `<span class="epk-btn-label">${esc("[" + m.code + "] " + m.name)}</span>` +
+        `<span class="epk-btn-label">${esc("[" + m.code + "] " + m.name)}${discontinuedMark(m, esc)}</span>` +
         `<span class="epk-caret" aria-hidden="true"></span>`;
     } else {
       button.innerHTML =
@@ -155,7 +164,7 @@ function enhance(selectEl, config){
       ` aria-selected="${selected ? "true" : "false"}">` +
         `<span class="epk-thumb">${m.picture}</span>` +
         `<span class="epk-otext"><span class="epk-ocode">${esc("[" + m.code + "]")}</span>` +
-          `<span class="epk-oname">${esc(m.name)}</span></span>` +
+          `<span class="epk-oname">${esc(m.name)}${discontinuedMark(m, esc)}</span></span>` +
         `<span class="epk-ometa"><span class="epk-oprice">${esc(m.priceText)}</span>${modules}</span>` +
       `</div>`;
   }
@@ -425,7 +434,7 @@ function enhance(selectEl, config){
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов чистой filterOptions (PLAN 7.1). */
-const api = { enhance, filterOptions };
+const api = { enhance, filterOptions, discontinuedMark };
 if(typeof window !== "undefined") window.EPPicker = api;
 if(typeof module !== "undefined" && module.exports) module.exports = api;
 })();

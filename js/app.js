@@ -185,15 +185,15 @@ function bindProductPictureFallbacks(root){
    готовые куски. meta возвращает null для пустой опции («Убрать элемент»/плейсхолдер) —
    её виджет рисует простой строкой без картинки. */
 function pickerMeta(value){
-  const item=product(value);
-  if(!item)return null;
-  return{
+  const item=product(value);if(!item)return null;
+  /* Снятую с производства позицию помечаем ТЕМ ЖЕ правилом EPPosts.frameAvailability, что кормит документы и поле «Накладка»: текст пометки готовит оркестратор, виджет про каталог не знает. Активный товар — discontinued:false, строка/кнопка прежние. */
+  const av=EPPosts.frameAvailability(item.id,item);return{
     picture:productPicture(item,{label:item.name}),
     code:item.code||"без артикула",
     name:item.name||"Без названия",
     priceText:productMoney(item),
     metaText:item.kind==="mechanism"?moduleWord(mechanismSpan(item)):"",
-    searchText:`${item.code||""} ${item.name||""}`
+    searchText:`${item.code||""} ${item.name||""}`,discontinued:av.discontinued,statusText:av.discontinued?av.statusText:""
   };
 }
 /* opts = {emptyContext, resolveMissing} — доменный контекст пустого поиска (что искали
@@ -2069,7 +2069,7 @@ function renderSummary(){
   $("specList").innerHTML=est.groups.length
     ?EPPackTopUp.splitRows(est,spec).normal.map(({g,i})=>{
       const val=(g.discount!=null&&g.discount!=="")?esc(g.discount):"";
-      return `<div class="spec-item"><div><strong>${esc(g.name)}</strong><span>${g.count} ${esc(g.unit)}</span></div><b>${moneyShown(spec.rows[i].sum)}</b>`
+      return `<div class="spec-item"><div><strong>${esc(g.name)}${g.discontinuedText?` — ${esc(g.discontinuedText)}`:""}</strong><span>${g.count} ${esc(g.unit)}</span></div><b>${moneyShown(spec.rows[i].sum)}</b>`
         +`<label class="spec-disc" title="Своя скидка на позицию. Пусто — действует общая скидка ${est.discountPercent}%">`
         +`<input type="number" min="0" max="100" step="1" inputmode="numeric" data-disc-row="${i}" value="${val}" placeholder="${est.discountPercent}"><span>%</span></label></div>`;
     }).join("")+EPPackTopUp.panelHtml(est,spec,{esc,moneyShown})
