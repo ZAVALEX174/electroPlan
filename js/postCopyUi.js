@@ -70,8 +70,22 @@ function pastePosts(){
   /* Посты проекта ДО вставки — их занятые имена групп нужны правилу имени ниже. Снимок берём ДО push:
      копии одной пачки «уже стоящими» не считаются (пара может остаться парой между собой). */
   const existingBefore=state.posts.slice();
+  /* В22 (решение владельца 07.11): buildCopies держит пачку в КОМНАТЕ, куда её вставили, и не выталкивает
+     копию за стену в «Без помещения». Комнату копии он узнаёт тем же ЦЕНТРОМ значка, что и подбор накладки
+     ниже (центр считает сам buildCopies через POST_ICON_HALF — одно определение); roomOf отдаёт id комнаты
+     под точкой или null. */
   const copies=EPPostCopy.buildCopies(buf,{existingPosts:state.posts,point,genId:()=>uid("post_"),
-    nextPostNumber:EPPosts.nextPostNumber,crossKey:EPLightingGroups.crossGroupKey});
+    nextPostNumber:EPPosts.nextPostNumber,crossKey:EPLightingGroups.crossGroupKey,
+    roomOf:center=>{const r=getRoomForPoint(center.x,center.y);return r?r.id:null}});
+  /* Места в комнате базы нет ни при каком смещении → пачку не вставляем ЦЕЛИКОМ (частичная вставка
+     разорвала бы пары проходных — деньги). Проект не меняем, шага истории нет; сообщение — тем же видом
+     "unplaced" (второго вида не заводим). Имя — комнаты базы первой ограниченной копии; нет имени — без. */
+  if(copies.noFit){
+    const room=copies.noFit.roomId!=null?state.rooms.find(r=>String(r.id)===String(copies.noFit.roomId)):null;
+    const where=room&&room.name?`в помещении «${room.name}» `:"";
+    notices.show("unplaced",`Ничего не вставлено: ${where}нет свободного места для копии. Освободите место или вставьте в другое место.`);
+    return;
+  }
   const placed=[],blocked=[],placedRooms=[];
   copies.forEach((copy,i)=>{
     /* Комнату копии определяем ОДИН раз по центру её значка — ею и накладку подбираем, и правило имени
