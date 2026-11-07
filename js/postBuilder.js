@@ -676,7 +676,9 @@ function renderBuilder(){
     frameSelect.innerHTML=frameList.length
       ?frameOptions(frameList,selectedFrameId)
       :(allFrames.length
-        ?'<option value="">Под эту комнату накладок нет — измените отбор в свойствах комнаты</option>'
+        /* В12: поле лишь КОНСТАТИРУЕТ «накладок нет» — без совета «измените отбор»: совет звучит
+           РОВНО раз, в красной плашке; повтор в поле/подсказке/правой колонке убран. */
+        ?'<option value="">Под эту комнату накладок нет</option>'
         :'<option value="">Рамки не загружены</option>');
     frameSelect.value=selectedFrameId==null?"":String(selectedFrameId);
   }
@@ -759,7 +761,7 @@ function renderBuilder(){
         :`<div class="builder-error" role="alert"><strong>Накладка поста не выбрана</strong><span>У этого поста нет накладки. Чтобы собрать и сохранить пост, выберите накладку в поле «Накладка» — без неё не определить ни ёмкость рамки, ни совместимые механизмы.${mechSaved}</span></div>`;
     /* frameMissing:true — внутренний флаг «накладка непригодна» (артикула нет ИЛИ не выбрана):
        по нему renderBuilderCatalog не фильтрует каталог и не обещает свободное место. */
-    builderCtx={mechs:[],keepMechs:[],addMax:0,maxPostCap:0,remaining:0,frame:null,errorHtml:frameErrorHtml,frameMissing:true};
+    builderCtx={mechs:[],keepMechs:[],addMax:0,maxPostCap:0,remaining:0,frame:null,errorHtml:frameErrorHtml,frameMissing:true,framePoolEmpty:roomFilterLabels!==null};
     renderBuilderCatalog();
     /* Причину печатает composition-хост из builderCtx.errorHtml — тем же путём, что и ошибки
        раскладки в нормальной ветке: refreshBuilderLighting перерисует состав, не потеряв её. */
@@ -1091,6 +1093,15 @@ function renderBuilderCatalog(){
      та же — недоступная накладка — и она уже названа баннером в composition-хосте; здесь лишь
      тихо разъясняем, почему добавлять нечего, без вымышленных чисел. */
   if(builderCtx.frameMissing){
+    /* В12: под эту комнату накладок нет ВОВСЕ (framePoolEmpty) — выбирать не из чего, поэтому «выберите
+       накладку» было бы ложью; совет «измените отбор» уже звучит РОВНО раз в красной плашке, здесь лишь
+       нейтрально поясняем, что добавлять некуда. frameMissing без пустого пула (артикул пропал ЛИБО
+       накладку просто не выбрали) — прежнее «выберите накладку в поле»: выбор там реально есть. */
+    if(builderCtx.framePoolEmpty){
+      $("builderTarget").innerHTML=`Накладок под эту комнату нет<small>Добавлять механизмы некуда, пока в каталоге нет накладки под отбор комнаты.</small>`;
+      host.innerHTML='<div class="catalog-empty">Под эту комнату накладок нет — добавлять механизмы некуда.</div>';
+      return;
+    }
     $("builderTarget").innerHTML=`Накладка не выбрана<small>Выберите накладку в поле «Накладка» — без неё каталог механизмов не отфильтровать.</small>`;
     host.innerHTML='<div class="catalog-empty">Пока накладка поста не выбрана, добавлять механизмы некуда — выберите накладку.</div>';
     return;

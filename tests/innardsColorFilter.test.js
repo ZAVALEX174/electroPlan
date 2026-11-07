@@ -95,7 +95,7 @@ const PRODUCTS = [FRAME, M_WHITE, M_BLACK, M_NONE];
 const product = id => PRODUCTS.find(p => Number(p.id) === Number(id));
 
 const CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "builderInnardsFilter",
-  "collectionFramePool", "frameFacingLabels", "frameFacingHintText", "frameFacingEmptyText", "frameOptions",
+  "collectionFramePool", "frameFacingLabels", "frameFacingSelectionLabels", "frameFacingHintText", "frameFacingEmptyText", "frameOptions",
   "builderCapacity", "renderBuilder"];
 
 function makeCtx(state, dom) {

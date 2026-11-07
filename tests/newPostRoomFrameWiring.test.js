@@ -272,9 +272,10 @@ test("★ ИНТЕГРАЦИЯ: пустой пул комнаты — «Сох�
   assert.ok(dom.els.savePost.disabled, "без накладки «Сохранить» заблокировано — пост без накладки сохранить нельзя (требование п.2)");
   assert.ok(dom.els.builderInstallSheet.disabled, "лист монтажника тоже заблокирован");
   assert.equal(dom.els.postFrameSelect.value, "", "поле накладки пусто — чужая (frames[0]) молча НЕ подставлена");
-  /* ПОЛЕ: не лживое «Рамки не загружены» (каталог на месте!), а «под эту комнату накладок нет» + куда идти. */
+  /* ПОЛЕ (В12): не лживое «Рамки не загружены» (каталог на месте!), а нейтральное «под эту комнату
+     накладок нет» — БЕЗ совета «измените отбор»: совет звучит РОВНО раз, в красной плашке. */
   assert.match(dom.els.postFrameSelect.innerHTML, /Под эту комнату накладок нет/, "поле: под эту комнату накладок нет");
-  assert.match(dom.els.postFrameSelect.innerHTML, /свойствах комнаты/, "поле направляет в свойства комнаты");
+  assert.doesNotMatch(dom.els.postFrameSelect.innerHTML, /измените отбор в свойствах комнаты/, "В12: поле нейтрально — совет не повторяет (он один раз в плашке)");
   assert.doesNotMatch(dom.els.postFrameSelect.innerHTML, /Рамки не загружены/, "не лживое «Рамки не загружены» — каталог загружен");
   /* ПЛАШКА: не «выберите накладку в поле» (выбирать не из чего), а «под эту комнату накладок нет» + ВСЕ условия. */
   assert.match(dom.els.builderComposition.innerHTML, /Под эту комнату накладок нет/, "плашка: под эту комнату накладок нет");
@@ -287,6 +288,54 @@ test("★ ИНТЕГРАЦИЯ: пустой пул комнаты — «Сох�
   assert.match(hint, /серия «Arke»/, "подсказка называет серию");
   assert.match(hint, /цвет «Антрацит»/, "подсказка называет цвет");
   assert.match(hint, /стандарт «немецкий»/, "подсказка называет стандарт (а не только материал/форму/цвет)");
+});
+
+/* ── 2б. В12: в комнате без накладок совет «измените отбор» звучит РОВНО раз во всём окне, а ложного
+   «выберите накладку» нет НИГДЕ ─────────────────────────────────────────────────────────────────────
+   До В12 совет стоял ТРИЖДЫ (поле, подсказка, плашка), а правая колонка (builderTarget/builderCatalog)
+   звала «выберите накладку» — ложь, выбирать не из чего. Гоняем НАСТОЯЩИЙ renderBuilder + НАСТОЯЩИЙ
+   renderBuilderCatalog (НЕ заглушка — иначе правую колонку не проверить), собираем ВСЕ узлы окна и
+   считаем. */
+const W12_CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter",
+  "builderRoomFilter", "collectionFramePool", "frameFacingLabels", "frameFacingSelectionLabels", "frameFacingEmptyText", "frameFacingHintText",
+  "builderCapacity", "renderBuilderCatalog", "renderBuilder"];
+
+test("★ В12: совет «измените отбор» — РОВНО раз в окне; «выберите накладку» — нигде (выбирать не из чего)", () => {
+  const dom = stand.makeDom({ selects: ["postFrameSelect", "postSlotCount"] });
+  const state = { products: PRODUCTS,
+    rooms: [{ id: "r1", name: "Спальня", standard: "DE", collection: "Arke", frameColor: "Антрацит" }],
+    posts: [], builder: { slots: [], target: { mode: "add" }, query: "", openSections: new Set(), roomId: "r1", editingPlacedId: null, frameAuto: true } };
+  dom.$("postFrameSelect").dataset.preferredFrameId = "";
+  dom.$("postSlotCount").value = "3";
+  const ctx = {
+    state, $: dom.$, esc: s => String(s == null ? "" : s),
+    byKind: kind => state.products.filter(x => x.kind === kind && x.active),
+    frameProduct: product, product, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, EPPosts, EPBuilderSlots,
+    frameSlotCount: EPCatalog.frameSlotCount, frameSlotOptions: EPCatalog.frameSlotOptions,
+    compatibleMechanisms: EPCatalog.compatibleMechanisms, mechanismSpan: EPCatalog.mechanismSpan,
+    productSeries: EPCatalog.productSeries, moduleWord: EPCatalog.moduleWord,
+    frameOptions: (items, selId) => (items || []).map(i => `<option value="${i.id}" ${Number(i.id) === Number(selId) ? "selected" : ""}>${i.id}</option>`).join(""),
+    enhancePicker: () => {}, resolveMissingFrame: () => null,
+    lightingFor: () => ({}), projectPostsWithBuilder: () => [], builderPostDraft: () => ({ mechanismIds: [] }),
+    moduleLayout: () => [], lightingRowsFor: () => [], retargetBuilderSlot: () => {},
+    renderBuilderSlots: () => {},
+    renderBuilderComposition: (frame, errorHtml) => { dom.$("builderComposition").innerHTML = frame ? "<comp>" : (errorHtml || ""); },
+    builderInnardsFilter: () => ({}), frameFacingList: () => EPCatalog.productFacingValues(activeFrames, "frameColor"),
+    builderCtx: {}
+  };
+  stand.run(W12_CUT, ctx)();
+  const windowText = [
+    dom.els.postFrameSelect.innerHTML,                 // поле «Накладка»
+    dom.$("builderFrameFacingHint").textContent,       // подсказка под полем
+    dom.els.builderComposition.innerHTML,              // красная плашка
+    dom.els.builderTarget.innerHTML,                   // шапка правой колонки
+    dom.els.builderCatalog.innerHTML                   // тело правой колонки
+  ].join("\n|||\n");
+  const adviceCount = (windowText.match(/измените отбор в свойствах комнаты/g) || []).length;
+  assert.equal(adviceCount, 1, "совет «измените отбор в свойствах комнаты» во всём окне РОВНО один раз (красная плашка)");
+  assert.doesNotMatch(windowText, /выберите накладку/i, "ложного «выберите накладку» нет нигде в окне — выбирать не из чего");
+  /* Плашка — именно то место, где совет остаётся (а не поле/подсказка/правая колонка). */
+  assert.match(dom.els.builderComposition.innerHTML, /измените отбор в свойствах комнаты/, "совет живёт в красной плашке");
 });
 
 /* ── 3. applyAutoDefaultFrame — единая точка правила, уважает ручной выбор ───────────────────────────
