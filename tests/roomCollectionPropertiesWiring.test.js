@@ -107,6 +107,7 @@ function renderRoom(room, opts) {
   const ctx = {
     state, props, $: dom.$, esc: opts.esc || String,
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
+    byKindOff: kind => state.products.filter(x => x.kind === kind && x.active === false),
     flushRoomDraft: spy(),
     updateSelectionCount: () => {},   /* Б5: «Выделено: N» — здесь не проверяется */
     renderTemplates: () => {},   /* renderProperties синхронит библиотеку готовых постов; здесь не проверяется */

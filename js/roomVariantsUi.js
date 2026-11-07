@@ -243,19 +243,78 @@ function facingValuesOf(pool, prop){
   return prop === "standard" ? C.productStandards(pool)
     : prop === "collection" ? C.productCollections(pool) : C.productFacingValues(pool, prop);
 }
+/* EPRoom — чистое правило отделки комнаты (валидация + «снято ли значение», В27). Резолвим как
+   Catalog()/V(): браузер — namespace, Node — require (автотесты модуля без window-шима). */
+function Room() {
+  if (typeof window !== "undefined" && window.EPRoom) return window.EPRoom;
+  if (typeof require !== "undefined") return require("./room.js");
+  return null;
+}
+/* В27: пометка рода и подсказка «снято с производства» по признаку отделки. Весь текст — ЗДЕСЬ, у
+   остальных подписей отделки (владелец: «в app.js только подключение»); второй формулировки нет (§7.1).
+   И опция селектора, и подсказка под ним, и сводка вида «С картинками» берут отсюда. */
+const DISCONTINUED = {
+  standard:     { suffix: " — снят с производства",  hint: "Накладок этого стандарта больше не выпускают — выберите другой стандарт." },
+  collection:   { suffix: " — снята с производства", hint: "Накладок этой серии больше не выпускают — выберите другую серию." },
+  frameMaterial:{ suffix: " — снят с производства",  hint: "Накладок этого материала больше не выпускают — выберите другой материал." },
+  frameShape:   { suffix: " — снята с производства", hint: "Накладок этой формы больше не выпускают — выберите другую форму." },
+  frameColor:   { suffix: " — снят с производства",  hint: "Накладок этого цвета больше не выпускают — выберите другой цвет." }
+};
+/* Снятое с производства значение признака prop варианта: строка, если в поле есть сохранённое значение,
+   которого нет у ВЫПУСКАЕМЫХ накладок (frames), но есть у СНЯТЫХ (offFrames); иначе null. Правило «снято
+   ли» — в EPRoom.discontinuedFacing (чистая, room.js); здесь выводим списки значений из пулов той же
+   диспетчеризацией, что facingValuesOf (стандарт раскрывает BOTH, серия — массив). Каталог снятых
+   сканируем ТОЛЬКО когда поле заполнено — у незаданного снятому взяться неоткуда. offFrames не передан
+   → снятых нет → null (прежнее поведение вызывающих без этого аргумента). */
+function facingDiscontinued(frames, offFrames, variant, prop) {
+  const raw = variant && variant[prop];
+  if (typeof raw !== "string" || !raw) return null;
+  return Room().discontinuedFacing(raw, facingValuesOf(frames, prop), facingValuesOf(offFrames || [], prop));
+}
+/* {value, suffix} снятого значения для опции селектора, либо null. */
+function facingDiscOption(frames, offFrames, variant, prop) {
+  const d = facingDiscontinued(frames, offFrames, variant, prop);
+  return d ? { value: d, suffix: DISCONTINUED[prop].suffix } : null;
+}
+/* Значение с пометкой рода для сводки вида «С картинками» (напр. «Reflex лед — снят с производства»).
+   disc=false → значение как есть (выпускаемое). */
+function facingValueMark(prop, value, disc) {
+  return disc ? value + DISCONTINUED[prop].suffix : value;
+}
+/* Подсказка под селектором признака (ОДНА сборка на все поля, §7.1): снятое значение → предупреждение
+   «больше не выпускают…» и класс discontinued; иначе прежний текст on (задано) / off (не задано) и класс
+   own при заданном. cur — валидированное значение, disc — снятое (или null). on/off — формулировки
+   вызывающего (род/текст пофильдно). Возвращает {cls, text}: cls добавляется к prop-collection-source. */
+function facingHint(prop, cur, disc, on, off) {
+  if (disc) return { cls: " discontinued", text: DISCONTINUED[prop].hint };
+  return { cls: cur ? " own" : "", text: cur ? on : off };
+}
+/* Готовый <small> подсказки под селектором — чтобы app.js звал одним выражением (владелец: «в app.js
+   только подключение») и не собирал класс/текст сам. Текст статичен, но esc держим единообразно. */
+function facingHintHtml(prop, cur, disc, on, off) {
+  const h = facingHint(prop, cur, disc, on, off);
+  return '<small class="prop-hint prop-collection-source' + h.cls + '">' + esc(h.text) + '</small>';
+}
 /* <option>ы одного поля отделки для вида «Списком». Значения сужены верхними полями. Решение владельца
    (А): сохранённое значение, выпавшее из суженного списка, но валидное по каталогу, ОСТАЁТСЯ выбранным
    отдельной опцией «<значение> (не подходит)» — данные проекта не трогаем ни при открытии, ни при
    сохранении. emptyLabel — текст пункта «не задано». Подпись стандарта — словом (standardLabel),
-   прочие признаки человеческие как есть. Значения серии/цвета из файла проекта — в HTML через esc. */
-function facingFieldOptionsHtml(frames, variant, prop, emptyLabel, validate){
+   прочие признаки человеческие как есть. Значения серии/цвета из файла проекта — в HTML через esc.
+   В27: offFrames — пул СНЯТЫХ накладок (byKindOff у app.js); когда валидатор вернул null, но значение
+   снятое, добавляем ВЫБРАННУЮ опцию «<значение> — снят/снята с производства» (facingDiscOption). Приоритет
+   у cur (выпускаемое); снятое появляется ТОЛЬКО у той комнаты, где оно сохранено. offFrames не передан —
+   поведение прежнее. */
+function facingFieldOptionsHtml(frames, variant, prop, emptyLabel, validate, offFrames){
   const values = facingValuesOf(facingUpperPool(frames, variant, prop, validate), prop);
   const cur = validate(variant, prop);
+  const off = cur ? null : facingDiscOption(frames, offFrames, variant, prop);
   const label = v => prop === "standard" ? Catalog().standardLabel(v) : v;
-  let html = '<option value=""' + (cur ? '' : ' selected') + '>' + esc(emptyLabel) + '</option>'
+  let html = '<option value=""' + (cur || off ? '' : ' selected') + '>' + esc(emptyLabel) + '</option>'
     + values.map(v => '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(label(v)) + '</option>').join("");
   if (cur && values.indexOf(cur) === -1)
     html += '<option value="' + esc(cur) + '" selected>' + esc(label(cur)) + ' (не подходит)</option>';
+  else if (off)
+    html += '<option value="' + esc(off.value) + '" selected>' + esc(label(off.value)) + esc(off.suffix) + '</option>';
   return html;
 }
 /* EPFramePicker — чистое правило «какие шаги отделки видны в текущем отборе» (К12 ч.1). Резолвим как
@@ -274,11 +333,17 @@ function FramePicker() {
    что у списка-вида и мастера — второго правила нет (§7.1). selection строим из валидированных полей
    варианта (validate: мёртвое/снятое → null, шаг не сужает и не «висит»). Для подсказки конструктора,
    где на входе уже готовый плоский фильтр, validate = (v,p)=>v[p]. */
-function visibleFacingProps(frames, variant, validate) {
+function visibleFacingProps(frames, variant, validate, offFrames) {
   const sel = {};
   V().FIELDS.forEach(p => { const v = validate(variant, p); if (v) sel[p] = v; });
   const deps = { match: (f, c) => Catalog().productsForRoom(f, c), valuesOf: facingValuesOf };
-  return new Set(FramePicker().visibleSteps(frames, sel, deps).map(s => s.prop));
+  const set = new Set(FramePicker().visibleSteps(frames, sel, deps).map(s => s.prop));
+  /* В27, решение по приёмке: признак со СНЯТЫМ сохранённым значением показываем, даже если правило
+     видимости спрятало его (напр. «Форма» с одним выпускаемым значением) — иначе фраза владельца «вы
+     видите это значение с пометкой» не выполнилась бы для снятой «Скруглённой». Расширение — тем же
+     правилом (facingDiscontinued), не второй копией. offFrames не передан → набор как прежде. */
+  if (offFrames) V().FIELDS.forEach(p => { if (facingDiscontinued(frames, offFrames, variant, p)) set.add(p); });
+  return set;
 }
 
 /* EPMechColor — чистое правило «цвет механизмов» (К12 ч.3). Резолвим как Catalog()/FramePicker():
@@ -361,6 +426,7 @@ function applyBuilderVariantChange(d){
 const api = { roomLabel, facingTitle, activeIndex, setActiveIndex, applyResult, writeField, writeSelection, tabsHtml, removeBtnHtml, bindTabs,
   builderIndex, builderInitialIndex, builderVariantLabel, renderBuilderVariantSelect,
   facingFieldOptionsHtml, visibleFacingProps, variantHasNoFrames, builderVariantResetMessage, applyBuilderVariantChange,
+  facingDiscontinued, facingDiscOption, facingValueMark, facingHintHtml,
   mechColorValue, mechColorVisible, mechColorFieldOptionsHtml };
 if (typeof window !== "undefined") window.EPRoomVariantsUi = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;

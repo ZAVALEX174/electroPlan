@@ -69,9 +69,33 @@ function roomFrameFacing(room, prop, values) {
   return values.indexOf(own) !== -1 ? own : null;                /* мёртвое (нет в каталоге) написание → не задан */
 }
 
+/* --- СНЯТОЕ С ПРОИЗВОДСТВА ЗНАЧЕНИЕ ОТДЕЛКИ (В27) ---------------------------------------
+   roomCollection/roomFrameFacing валидируют признак по ВЫПУСКАЕМЫМ накладкам: мёртвое значение → null
+   («не задан»), и подбор от этого НЕ меняется (решение владельца 07.11, вариант 1 «как сейчас»). Но
+   «мёртвое» бывает двух родов: (а) значение СНЯТОЙ с производства накладки — комнату настраивали, пока
+   её ещё выпускали, и человеку в свойствах комнаты надо показать это значение с пометкой «снят с
+   производства», а не «Не задан»; (б) настоящий мусор (правленный вручную проект, переименование) —
+   его показываем «Не задан», как раньше. discontinuedFacing отличает (а) от (б) и нужен ТОЛЬКО для
+   ПОКАЗА: критерий подбора (roomCatalogFilter) по-прежнему идёт через roomCollection/roomFrameFacing и
+   остаётся null для снятого значения — отбор накладок не сужается.
+
+   Правило ОДНО на все признаки отделки, валидируемые по списку из выпускаемых (цвет/форма/материал/
+   серия/стандарт, §7.1): значение снято ⇔ его НЕТ среди activeValues (выпускаемые написания), но ЕСТЬ
+   среди offValues (те же написания из снятых накладок, byKindOff). activeValues имеет приоритет: если
+   написание встречается и у выпускаемой накладки — это живое значение, а не снятое. Сравнение
+   регистрозависимо и без trim — как в roomCollection/roomFrameFacing, иначе правленный вручную проект
+   выдал бы ложное совпадение. offValues не передан — null: без списка снятых утверждать «снято» нельзя,
+   трактуем консервативно как не-снятое (вызывающий покажет «Не задан»). */
+function discontinuedFacing(value, activeValues, offValues) {
+  if (typeof value !== "string" || !value) return null;          /* нет / пусто / не-строка — не снято */
+  if (activeValues && activeValues.indexOf(value) !== -1) return null; /* выпускается — обычное значение */
+  if (!offValues) return null;                                   /* список снятых не задан — утверждать не можем */
+  return offValues.indexOf(value) !== -1 ? value : null;         /* есть только у снятых → снято; иначе мусор */
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
-const api = { roomLightingScheme, roomCollection, roomFrameFacing };
+const api = { roomLightingScheme, roomCollection, roomFrameFacing, discontinuedFacing };
 if (typeof window !== "undefined") window.EPRoom = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -1557,17 +1557,23 @@ function renderProperties(){
        варианта (правило «нельзя собрать несовместимое» в facingFieldOptionsHtml поверх того же
        productsForRoom, что у мастера): несовместимые скрыты, сохранённое несовместимое (А) — «(не подходит)». */
     const facingValidate=(v,p)=>p==="collection"?EPRoom.roomCollection(v,frameCollectionList()):EPRoom.roomFrameFacing(v,p,p==="standard"?frameStandardList():frameFacingList(p));
+    /* В27: снятое значение показываем с пометкой — правило и текст в EPRoomVariantsUi/EPRoom, здесь пул
+       снятых (byKindOff) и проводка. roomCatalogFilter не трогаем: facingValidate → null, подбор не сужается. */
     const roomFrames=byKind("frame");
+    const roomFramesOff=byKindOff("frame");
+    const facingDisc=p=>EPRoomVariantsUi.facingDiscontinued(roomFrames,roomFramesOff,facingEntity,p);
     const roomStd=facingValidate(facingEntity,"standard");
-    const standardOptions=EPRoomVariantsUi.facingFieldOptionsHtml(roomFrames,facingEntity,"standard","Не задан — накладки любого стандарта",facingValidate);
+    const roomStdDisc=facingDisc("standard");
+    const standardOptions=EPRoomVariantsUi.facingFieldOptionsHtml(roomFrames,facingEntity,"standard","Не задан — накладки любого стандарта",facingValidate,roomFramesOff);
     const roomColl=facingValidate(facingEntity,"collection");
-    const collectionOptions=EPRoomVariantsUi.facingFieldOptionsHtml(roomFrames,facingEntity,"collection","Не задана — предлагать все накладки",facingValidate);
+    const roomCollDisc=facingDisc("collection");
+    const collectionOptions=EPRoomVariantsUi.facingFieldOptionsHtml(roomFrames,facingEntity,"collection","Не задана — предлагать все накладки",facingValidate,roomFramesOff);
     /* К12 ч.1: шаг отделки с одним значением в текущем отборе не показываем — то же правило, что в
        окне подбора (EPRoomVariantsUi.visibleFacingProps → EPFramePicker.visibleSteps, §7.1: одна
        функция «когда прятать»). Для каталога VIMAR это убирает «Форму» и из селекторов списка, и из
        сводки вида «С картинками» (facingChosen строится из этого же facingSpecs). Сохранённое
        frameShape в данных остаётся (поле не трогаем) и продолжает сужать отбор. */
-    const visibleFacingProps=EPRoomVariantsUi.visibleFacingProps(roomFrames,facingEntity,facingValidate);
+    const visibleFacingProps=EPRoomVariantsUi.visibleFacingProps(roomFrames,facingEntity,facingValidate,roomFramesOff);   /* В27: признак со снятым значением показываем, даже если правило видимости его прячет */
     /* Отделка (E14): материал, форма, цвет. Плейсхолдер/подсказку держим ПОФИЛЬДНО из-за рода слова
        (материал «задан», форма «задана»). Опции — тот же facingFieldOptionsHtml. id room_<признак>Select. */
     const facingSpecs=[
@@ -1576,12 +1582,13 @@ function renderProperties(){
       {prop:"frameColor",label:"Цвет накладки",empty:"Не задан — любой цвет",on:"Предлагаются накладки только этого цвета",off:"Цвет не задан — не сужается"}
     ].filter(spec=>visibleFacingProps.has(spec.prop)).map(spec=>{
       const cur=facingValidate(facingEntity,spec.prop);
-      const options=EPRoomVariantsUi.facingFieldOptionsHtml(roomFrames,facingEntity,spec.prop,spec.empty,facingValidate);
-      return {...spec,cur,options};
+      const disc=facingDisc(spec.prop);   /* В27: снятое значение — показать с пометкой, не «не задан» */
+      const options=EPRoomVariantsUi.facingFieldOptionsHtml(roomFrames,facingEntity,spec.prop,spec.empty,facingValidate,roomFramesOff);
+      return {...spec,cur,disc,options};
     });
     const facingFieldsHtml=facingSpecs.map(spec=>
       `<label class="room-facing-field">${esc(spec.label)}<select id="room_${spec.prop}Select">${spec.options}</select></label>`
-      +`<small class="prop-hint prop-collection-source${spec.cur?" own":""}">${esc(spec.cur?spec.on:spec.off)}</small>`).join("");
+      +EPRoomVariantsUi.facingHintHtml(spec.prop,spec.cur,spec.disc,spec.on,spec.off)).join("");
     /* К12 ч.3: шаг «Цвет механизмов» в списке — над МЕХАНИЗМАМИ (EPMechColor), видимость тем же правилом,
        что в окне подбора (§7.1). Значения/опции/видимость даёт EPRoomVariantsUi, app.js — только склейка. */
     const roomMechs=byKind("mechanism");
@@ -1597,20 +1604,26 @@ function renderProperties(){
        месте селекторов — сводка выбранного (чтобы «что выбрано в одном виде, видно в другом») и
        кнопка мастера. Значения сводки — те же валидированные roomColl/facingSpecs, что и у списка. */
     const facingView=frameFacingView();
+    const stdHint=EPRoomVariantsUi.facingHint("standard",roomStd,roomStdDisc,"Конструктор поста в этой комнате предлагает накладки только этого монтажного стандарта","Стандарт не задан — предлагаются накладки любого стандарта");
     const standardFieldHtml=`<label class="room-standard-field">Стандарт монтажа<select id="roomStandardSelect">${standardOptions}</select></label>
-    <small class="prop-hint prop-collection-source${roomStd?" own":""}">${roomStd?"Конструктор поста в этой комнате предлагает накладки только этого монтажного стандарта":"Стандарт не задан — предлагаются накладки любого стандарта"}</small>`;
+    <small class="prop-hint prop-collection-source${stdHint.cls}">${esc(stdHint.text)}</small>`;
+    const collHint=EPRoomVariantsUi.facingHint("collection",roomColl,roomCollDisc,"Конструктор поста в этой комнате предлагает накладки только этой коллекции","Коллекция не задана — предлагаются все накладки каталога");
     const collectionFieldHtml=`<label class="room-collection-field">Коллекция накладок<select id="roomCollectionSelect">${collectionOptions}</select></label>
-    <small class="prop-hint prop-collection-source${roomColl?" own":""}">${roomColl?"Конструктор поста в этой комнате предлагает накладки только этой коллекции":"Коллекция не задана — предлагаются все накладки каталога"}</small>`;
+    <small class="prop-hint prop-collection-source${collHint.cls}">${esc(collHint.text)}</small>`;
     /* Стандарт монтажа — первый критерий отделки, но пока он не выбран, сводка о нём молчала и человек
        не находил слово «Стандарт» (В3). Поэтому в виде «С картинками» у него СВОЯ строка над кнопкой
        мастера, видимая ВСЕГДА: «не задан» или название (тот же EPCatalog.standardLabel, что в селекторе
        списка). Значение — тот же валидированный roomStd (мёртвый → «не задан»). Из общей сводки
        стандарт убран, чтобы не показываться дважды; и пустой текст сводки зависит от него: при
        заданном стандарте «предлагаются все накладки каталога» было бы неправдой. */
-    const facingChosen=[roomColl?`Серия: ${roomColl}`:null].concat(facingSpecs.filter(s=>s.cur).map(s=>`${s.label}: ${s.cur}`)).concat(mechColorCur?[`Цвет механизмов: ${mechColorCur}`]:[]).filter(Boolean);
+    /* В27: снятое значение попадает в сводку вида «С картинками» тоже — с той же пометкой (facingValueMark),
+       что в селекторе списка, иначе «С картинками» показывал бы «не задано». */
+    const facingChosen=[roomColl||roomCollDisc?`Серия: ${EPRoomVariantsUi.facingValueMark("collection",roomColl||roomCollDisc,!!roomCollDisc)}`:null]
+      .concat(facingSpecs.filter(s=>s.cur||s.disc).map(s=>`${s.label}: ${EPRoomVariantsUi.facingValueMark(s.prop,s.cur||s.disc,!!s.disc)}`))
+      .concat(mechColorCur?[`Цвет механизмов: ${mechColorCur}`]:[]).filter(Boolean);
     const facingBody=facingView==="list"
       ?standardFieldHtml+collectionFieldHtml+facingFieldsHtml+mechColorFieldHtml
-      :`<div class="room-facing-summary room-facing-standard${roomStd?" own":""}">Стандарт: ${esc(roomStd?EPCatalog.standardLabel(roomStd):"не задан")}</div>
+      :`<div class="room-facing-summary room-facing-standard${roomStd?" own":""}">Стандарт: ${esc(roomStd?EPCatalog.standardLabel(roomStd):roomStdDisc?EPRoomVariantsUi.facingValueMark("standard",EPCatalog.standardLabel(roomStdDisc),true):"не задан")}</div>
         <div class="room-facing-summary${facingChosen.length?" own":""}">${facingChosen.length?esc(facingChosen.join(" · ")):(roomStd?"Серия, материал, форма и цвет не заданы":"Отделка не задана — предлагаются все накладки каталога")}</div>
         <button type="button" class="btn ghost room-facing-pick-btn" id="roomFramePickerBtn">Подобрать накладку</button>`;
     /* К8г, решение владельца (Б): под полями отделки ВЫБРАННОГО варианта — строка, когда под него нет
