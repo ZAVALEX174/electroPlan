@@ -211,11 +211,76 @@ test("правка телефона того же клиента НИЧЕГО н
   assert.equal(S.applied.length, appliedBeforeRetouch, "то же ФИО — подстановки нет, смета не пересчитана");
 });
 
-test("загрузка проекта (поля заполняются БЕЗ событий) список не пополняет", () => {
+test("настоящий путь загрузки (fillReqBlock из app.js) НЕ пополняет книгу — он без событий", () => {
   const S = makeStand();
-  /* имитация fillDocHeaderInputs: пишем .value напрямую, событий не шлём */
-  S.reqInputs.fio.value = "Сидоров"; S.reqInputs.phone.value = "+7-555";
-  assert.equal((clients(S) || []).length, 0, "без change список пуст");
+  /* прогоняем НАСТОЯЩИЙ app.js-fill реквизитов заказчика (как fillRequisitesInputs при загрузке проекта):
+     он пишет .value/.checked напрямую, change не шлёт — attach-слушатели (на change) сработать не должны.
+     Тавтологии нет: исполняется реальный fillReqBlock, и если он когда-нибудь начнёт слать change, этот
+     тест покраснеет (container.onchange → rememberCurrent пополнит книгу). */
+  S.appctx.fillReqBlock("customer", EPDocRequisites.CUSTOMER_FIELDS, { values: { fio: "Сидоров", phone: "+7-555" }, show: {} });
+  assert.equal(S.reqInputs.fio.value, "Сидоров", "реальный fill действительно заполнил поле");
+  assert.equal((clients(S) || []).length, 0, "книга не пополнена — путь загрузки событий не шлёт");
+});
+
+test("правка реквизитов существующего клиента НЕ меняет его скидку в книге (денежный дефект р.2)", () => {
+  const S = makeStand();
+  S.prefs.set("clients", EPClientBook.remember([], { values: { fio: "Иванов", phone: "+7-999" }, show: {}, discountPercent: 10 }, 500));
+  /* открыли старый проект Иванова со скидкой 5: поля и EP_DATA заполнены БЕЗ событий */
+  S.reqInputs.fio.value = "Иванов"; S.reqInputs.phone.value = "+7-999";
+  S.EP_DATA.settings.docHeader.customer = { values: { fio: "Иванов", phone: "+7-999" }, show: {} };
+  S.EP_DATA.settings.discountPercent = 5;
+  /* поправили ТОЛЬКО телефон */
+  fireEvent(S.reqInputs.phone, "focusin");
+  S.reqInputs.phone.value = "+7-000";
+  fireEvent(S.reqInputs.phone, "change");
+  const rec = clients(S)[0];
+  assert.equal(rec.discountPercent, 10, "скидка клиента в книге прежняя (10), правка реквизитов её не трогает");
+  assert.equal(rec.values.phone, "+7-000", "реквизиты в книге обновлены");
+});
+
+test("щелчок галочки «показывать в КП» в проекте со скидкой 0 НЕ обнуляет скидку клиента в книге", () => {
+  const S = makeStand();
+  S.prefs.set("clients", EPClientBook.remember([], { values: { fio: "Иванов", legal: "ООО" }, show: { legal: true }, discountPercent: 10 }, 500));
+  S.reqInputs.fio.value = "Иванов"; S.reqInputs.legal.value = "ООО";
+  S.EP_DATA.settings.docHeader.customer = { values: { fio: "Иванов", legal: "ООО" }, show: { legal: true } };
+  S.EP_DATA.settings.discountPercent = 0;
+  /* сняли галочку legal (change на чекбоксе блока заказчика) */
+  S.reqChecks.legal.checked = false;
+  fireEvent(S.reqChecks.legal, "change");
+  assert.equal(clients(S)[0].discountPercent, 10, "скидка клиента не обнулена правкой галочки при проекте 0");
+  assert.equal((clients(S)[0].show || {}).legal, false, "галочка show обновлена в книге");
+});
+
+test("новый клиент создаётся со скидкой текущего проекта (keepDiscount действует только на существующих)", () => {
+  const S = makeStand();
+  S.nodes.discountInput.value = "7"; fireEvent(S.nodes.discountInput, "input");   // settings=7
+  typeFio(S, "Новиков");   // новый ФИО, change
+  assert.equal(clients(S)[0].discountPercent, 7, "новому клиенту записана скидка проекта");
+});
+
+test("change скидки в проекте Иванова с 5 на 8 → в книге 8 (change скидки пишет полностью)", () => {
+  const S = makeStand();
+  S.prefs.set("clients", EPClientBook.remember([], { values: { fio: "Иванов" }, show: {}, discountPercent: 5 }, 500));
+  S.reqInputs.fio.value = "Иванов";
+  S.EP_DATA.settings.docHeader.customer = { values: { fio: "Иванов" }, show: {} };
+  S.EP_DATA.settings.discountPercent = 5;
+  S.nodes.discountInput.value = "8"; fireEvent(S.nodes.discountInput, "input");   // applyTerms → settings=8
+  fireEvent(S.nodes.discountInput, "change");
+  assert.equal(clients(S)[0].discountPercent, 8, "скидка в книге обновлена до 8");
+});
+
+test("галочки show держатся: подстановка применяет show клиента, запоминание его сохраняет", () => {
+  const S = makeStand();
+  /* книга: у Иванова галочка legal СНЯТА (show.legal=false) */
+  S.prefs.set("clients", EPClientBook.remember([], { values: { fio: "Иванов", legal: "ООО" }, show: { legal: false }, discountPercent: 10 }, 500));
+  fireEvent(S.reqInputs.fio, "focusin");
+  S.reqInputs.fio.value = "Иванов";
+  fireEvent(S.reqInputs.fio, "input", { inputType: "insertReplacementText" });   // выбор клиента
+  /* show клиента применён к галочке (ловит fillCustomer({show:{}}) — иначе была бы checked по умолчанию) */
+  assert.equal(S.reqChecks.legal.checked, false, "галочка show применена из книги при подстановке");
+  /* запоминание на change сохраняет show (ловит show:{} в remember) */
+  fireEvent(S.reqInputs.fio, "change");
+  assert.equal((clients(S)[0].show || {}).legal, false, "show сохранён в книге");
 });
 
 test("пустое ФИО не пишется; скидка 0 пишется", () => {

@@ -62,14 +62,23 @@ function suggest(raw, query) {
    НЕ запоминаем (возвращаем нормализованный список как есть). Одинаковое ФИО (по ключу) = тот же
    клиент: старую запись убираем, новую кладём В НАЧАЛО (последние значения побеждают, свежий — первым
    в подсказке). Значения КОПИРУЕМ, а не держим ссылку. Лимит: самые старые (в хвосте) выпадают.
-   Скидку сохраняем числом, в т.ч. 0 («скидку сняли») — именно поэтому не `|| пропуск`, а Number. */
-function remember(raw, client, limit) {
+   Скидку сохраняем числом, в т.ч. 0 («скидку сняли») — именно поэтому не `|| пропуск`, а Number.
+
+   opts.keepDiscount (денежный дефект р.2): «скидка в книге меняется, только когда её ПОМЕНЯЛИ». Правка
+   реквизитов (ФИО/телефон/галочки) не должна переписывать запомненную скидку скидкой открытого проекта
+   — иначе открытый проект Иванова со скидкой 5 после правки телефона затёр бы книжные 10. Поэтому при
+   keepDiscount у УЖЕ ИЗВЕСТНОГО клиента скидку берём из книги, а не из проекта; у НОВОГО клиента
+   (в книге нет) — из проекта (ту, что он видит в своём КП). Правило — здесь, в одном месте. */
+function remember(raw, client, limit, opts) {
   const list = normalizeList(raw);
   const values = (client && client.values) || {};
   const key = normFio(values.fio);
   if (key === "") return list;
+  const prev = list.find(c => normFio(c.values.fio) === key);
   const rest = list.filter(c => normFio(c.values.fio) !== key);
-  const d = Number(client && client.discountPercent);
+  /* keepDiscount действует только на существующем клиенте: у нового скидку взять неоткуда, кроме проекта */
+  const keep = !!(opts && opts.keepDiscount) && !!prev;
+  const d = Number(keep ? prev.discountPercent : (client && client.discountPercent));
   const record = {
     values: Object.assign({}, values),
     show: Object.assign({}, (client && client.show) || {}),
@@ -104,9 +113,11 @@ function attach(ctx) {
     return { values: cust.values || {}, show: cust.show || {}, discountPercent: (EP_DATA.settings || {}).discountPercent };
   }
 
-  /* Запомнить текущее состояние проекта как клиента (пустое ФИО remember сам пропустит). */
-  function rememberCurrent() {
-    EPPrefs.set(LIST_KEY, remember(EPPrefs.get(LIST_KEY, []), currentClient(), LIMIT));
+  /* Запомнить текущее состояние проекта как клиента (пустое ФИО remember сам пропустит). keepDiscount
+     различает два источника: правка РЕКВИЗИТОВ (keepDiscount=true — скидку известного не трогаем) и
+     правка самой СКИДКИ (keepDiscount=false — пишем её целиком). */
+  function rememberCurrent(keepDiscount) {
+    EPPrefs.set(LIST_KEY, remember(EPPrefs.get(LIST_KEY, []), currentClient(), LIMIT, { keepDiscount: keepDiscount }));
   }
 
   /* Подсказка: datalist по ФИО-полю. Создаём один раз и держим в <body>, а НЕ в контейнере заказчика:
@@ -163,10 +174,11 @@ function attach(ctx) {
   container.addEventListener("input", e => { if (e.inputType === "insertReplacementText") trySubstitute(e.target); }, true);
 
   /* ЗАПОМИНАНИЕ — на bubble (после applyCustomerRequisites/applyTerms зафиксировали значения). change,
-     а НЕ input: промежуточные посимвольные значения запоминаться не должны. Скидка меняется в своём
-     поле (#discountInput вне контейнера) — свой слушатель change там же. */
-  container.addEventListener("change", rememberCurrent, false);
-  if (discountEl) discountEl.addEventListener("change", rememberCurrent, false);
+     а НЕ input: промежуточные посимвольные значения запоминаться не должны.
+     - правка РЕКВИЗИТОВ (блок заказчика): keepDiscount=true — скидку известного клиента не трогаем;
+     - правка СКИДКИ (#discountInput вне контейнера): keepDiscount=false — пишем её целиком. */
+  container.addEventListener("change", () => rememberCurrent(true), false);
+  if (discountEl) discountEl.addEventListener("change", () => rememberCurrent(false), false);
 
   /* Подсказка строится при вводе в ФИО-поле: вешаем list и наполняем из актуального списка. */
   container.addEventListener("input", e => {

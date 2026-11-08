@@ -99,3 +99,21 @@ test("remember копирует значения, не держит ссылку
   src.values.phone = "подменили";
   assert.equal(list[0].values.phone, "+7", "запись не зависит от последующей правки источника");
 });
+
+test("remember keepDiscount: у существующего клиента скидка в книге сохраняется, реквизиты обновляются", () => {
+  let list = CB.remember([], client("Иванов", { values: { fio: "Иванов", phone: "старый" }, discountPercent: 10 }), 500);
+  /* правка реквизитов (keepDiscount) проекта со скидкой 5 — скидка клиента остаётся 10 */
+  list = CB.remember(list, { values: { fio: "Иванов", phone: "новый" }, show: {}, discountPercent: 5 }, 500, { keepDiscount: true });
+  assert.equal(list[0].discountPercent, 10, "скидка существующего не перезаписана скидкой проекта");
+  assert.equal(list[0].values.phone, "новый", "реквизиты обновлены");
+});
+
+test("remember keepDiscount: НОВЫЙ клиент получает скидку из проекта (keepDiscount действует только на существующих)", () => {
+  const list = CB.remember([], { values: { fio: "Петров" }, show: {}, discountPercent: 7 }, 500, { keepDiscount: true });
+  assert.equal(list[0].discountPercent, 7, "нового клиента keepDiscount не обнуляет — берётся проектная");
+});
+
+test("remember сохраняет галочки show клиента (не затирает пустым объектом)", () => {
+  const list = CB.remember([], { values: { fio: "Иванов" }, show: { legal: false, address: true }, discountPercent: 0 }, 500);
+  assert.deepEqual(list[0].show, { legal: false, address: true });
+});
