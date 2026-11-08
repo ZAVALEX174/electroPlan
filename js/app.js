@@ -4508,5 +4508,12 @@ const {close:closePriceCheck}=EPPriceCheckUi.attach({$,esc,openBtnId:"priceTempl
    Логики округления тут нет — она в EPPackRound/specExcel; attach лишь связывает галку с настройкой. */
 const {syncPackMultiple}=EPPackMultiple.attach({$,EP_DATA,scheduleSave,renderSummary});
 
+/* Книга клиентов (А7, EPClientBook.attach). Запоминает заказчика (реквизиты + общая скидка) по ФИО в
+   EPPrefs и при выборе из прошлых подставляет его данные. Логика — в модуле; сюда передаём прежние
+   двери: applyTerms (скидка → поле+settings+смета) и fillCustomer (реквизиты заказчика из {values,show}),
+   чтобы второй копии правил не завелось. */
+EPClientBook.attach({$,EP_DATA,EPPrefs,applyTerms,esc,
+  fillCustomer:src=>fillReqBlock("customer",EPDocRequisites.CUSTOMER_FIELDS,src)});
+
 init().catch(e=>reportFailure("Инициализация не завершилась:",e));
 })();
