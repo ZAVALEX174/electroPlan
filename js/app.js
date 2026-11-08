@@ -1557,16 +1557,13 @@ function renderProperties(){
        варианта (правило «нельзя собрать несовместимое» в facingFieldOptionsHtml поверх того же
        productsForRoom, что у мастера): несовместимые скрыты, сохранённое несовместимое (А) — «(не подходит)». */
     const facingValidate=(v,p)=>p==="collection"?EPRoom.roomCollection(v,frameCollectionList()):EPRoom.roomFrameFacing(v,p,p==="standard"?frameStandardList():frameFacingList(p));
-    /* В27: снятое значение показываем с пометкой — правило и текст в EPRoomVariantsUi/EPRoom, здесь пул
-       снятых (byKindOff) и проводка. roomCatalogFilter не трогаем: facingValidate → null, подбор не сужается. */
+    /* В27: снятое значение показываем с пометкой; правило/текст — в EPRoomVariantsUi/EPRoom, здесь пул снятых (byKindOff) и проводка. roomCatalogFilter не трогаем: facingValidate → null, подбор не сужается. */
     const roomFrames=byKind("frame");
     const roomFramesOff=byKindOff("frame");
     const facingDisc=p=>EPRoomVariantsUi.facingDiscontinued(roomFrames,roomFramesOff,facingEntity,p);
-    const roomStd=facingValidate(facingEntity,"standard");
-    const roomStdDisc=facingDisc("standard");
+    const roomStd=facingValidate(facingEntity,"standard"),roomStdDisc=facingDisc("standard");
     const standardOptions=EPRoomVariantsUi.facingFieldOptionsHtml(roomFrames,facingEntity,"standard","Не задан — накладки любого стандарта",facingValidate,roomFramesOff);
-    const roomColl=facingValidate(facingEntity,"collection");
-    const roomCollDisc=facingDisc("collection");
+    const roomColl=facingValidate(facingEntity,"collection"),roomCollDisc=facingDisc("collection");
     const collectionOptions=EPRoomVariantsUi.facingFieldOptionsHtml(roomFrames,facingEntity,"collection","Не задана — предлагать все накладки",facingValidate,roomFramesOff);
     /* К12 ч.1: шаг отделки с одним значением в текущем отборе не показываем — то же правило, что в
        окне подбора (EPRoomVariantsUi.visibleFacingProps → EPFramePicker.visibleSteps, §7.1: одна
@@ -1604,20 +1601,18 @@ function renderProperties(){
        месте селекторов — сводка выбранного (чтобы «что выбрано в одном виде, видно в другом») и
        кнопка мастера. Значения сводки — те же валидированные roomColl/facingSpecs, что и у списка. */
     const facingView=frameFacingView();
-    const stdHint=EPRoomVariantsUi.facingHint("standard",roomStd,roomStdDisc,"Конструктор поста в этой комнате предлагает накладки только этого монтажного стандарта","Стандарт не задан — предлагаются накладки любого стандарта");
-    const standardFieldHtml=`<label class="room-standard-field">Стандарт монтажа<select id="roomStandardSelect">${standardOptions}</select></label>
-    <small class="prop-hint prop-collection-source${stdHint.cls}">${esc(stdHint.text)}</small>`;
-    const collHint=EPRoomVariantsUi.facingHint("collection",roomColl,roomCollDisc,"Конструктор поста в этой комнате предлагает накладки только этой коллекции","Коллекция не задана — предлагаются все накладки каталога");
-    const collectionFieldHtml=`<label class="room-collection-field">Коллекция накладок<select id="roomCollectionSelect">${collectionOptions}</select></label>
-    <small class="prop-hint prop-collection-source${collHint.cls}">${esc(collHint.text)}</small>`;
+    /* В27: подсказку под селектором (снятое → предупреждение, иначе задано/не задано) собирает модуль одним выражением (facingHintHtml), как поля материал/форма/цвет выше — в app.js только склейка. */
+    const standardFieldHtml=`<label class="room-standard-field">Стандарт монтажа<select id="roomStandardSelect">${standardOptions}</select></label>`
+      +EPRoomVariantsUi.facingHintHtml("standard",roomStd,roomStdDisc,"Конструктор поста в этой комнате предлагает накладки только этого монтажного стандарта","Стандарт не задан — предлагаются накладки любого стандарта");
+    const collectionFieldHtml=`<label class="room-collection-field">Коллекция накладок<select id="roomCollectionSelect">${collectionOptions}</select></label>`
+      +EPRoomVariantsUi.facingHintHtml("collection",roomColl,roomCollDisc,"Конструктор поста в этой комнате предлагает накладки только этой коллекции","Коллекция не задана — предлагаются все накладки каталога");
     /* Стандарт монтажа — первый критерий отделки, но пока он не выбран, сводка о нём молчала и человек
        не находил слово «Стандарт» (В3). Поэтому в виде «С картинками» у него СВОЯ строка над кнопкой
        мастера, видимая ВСЕГДА: «не задан» или название (тот же EPCatalog.standardLabel, что в селекторе
        списка). Значение — тот же валидированный roomStd (мёртвый → «не задан»). Из общей сводки
        стандарт убран, чтобы не показываться дважды; и пустой текст сводки зависит от него: при
        заданном стандарте «предлагаются все накладки каталога» было бы неправдой. */
-    /* В27: снятое значение попадает в сводку вида «С картинками» тоже — с той же пометкой (facingValueMark),
-       что в селекторе списка, иначе «С картинками» показывал бы «не задано». */
+    /* В27: снятое значение попадает и в сводку вида «С картинками» — с той же пометкой (facingValueMark), что в селекторе списка, иначе показал бы «не задано». */
     const facingChosen=[roomColl||roomCollDisc?`Серия: ${EPRoomVariantsUi.facingValueMark("collection",roomColl||roomCollDisc,!!roomCollDisc)}`:null]
       .concat(facingSpecs.filter(s=>s.cur||s.disc).map(s=>`${s.label}: ${EPRoomVariantsUi.facingValueMark(s.prop,s.cur||s.disc,!!s.disc)}`))
       .concat(mechColorCur?[`Цвет механизмов: ${mechColorCur}`]:[]).filter(Boolean);

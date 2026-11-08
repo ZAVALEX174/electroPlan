@@ -146,6 +146,41 @@ test("§pictures: в виде «С картинками» снятый цвет 
   assert.match(html, /Цвет накладки: Reflex лед\s*— снят с производства/, "сводка показывает снятый цвет с пометкой");
 });
 
+/* --- СКРЫТОЕ ПОЛЕ «ФОРМА» со снятым значением (В27, требование #2) ------------------------------
+   Правило видимости (visibleFacingProps→EPFramePicker.visibleSteps, К12 ч.1) прячет признак, у
+   которого в текущем отборе одно выпускаемое значение. У каталога VIMAR «Форма» такова: активная
+   форма одна — «Классическая» (замер: productFacingValues(active,"frameShape")===["Классическая"]),
+   «Скруглённая» есть ТОЛЬКО у снятых. Значит без снятого значения селектора «Форма» в панели НЕТ.
+   В27: если у комнаты сохранена СНЯТАЯ форма «Скруглённая» — поле показываем ВОПРЕКИ правилу
+   видимости, с пометкой и подсказкой (иначе фраза владельца «вы видите это значение» не сбылась бы).
+   Мутация: убрать из visibleFacingProps строку `if (offFrames) …set.add(p)` → §shape-reveal краснеет. */
+test("предпосылка: активная «Форма» одна («Классическая»), «Скруглённая» — только у снятых", () => {
+  assert.deepEqual(EPCatalog.productFacingValues(byKindOf("frame"), "frameShape"), ["Классическая"],
+    "выпускаемая форма одна — поэтому поле «Форма» по умолчанию скрыто правилом видимости");
+  assert.ok(EPCatalog.productFacingValues(byKindOffOf("frame"), "frameShape").includes("Скруглённая"),
+    "«Скруглённая» есть у снятых накладок");
+});
+
+test("§shape-hidden: у комнаты без снятой формы селектора «Форма» в панели нет (правило видимости)", () => {
+  const html = renderPanel({ id: "r1", name: "Гостиная", polygon: null });
+  assert.ok(!/<select id="room_frameShapeSelect">/.test(html),
+    "«Форма» с единственным выпускаемым значением скрыта — без снятого значения поля нет");
+});
+
+test("§shape-reveal: комната со снятой формой «Скруглённая» — поле «Форма» ПОКАЗАНО, значение выбрано с пометкой, подсказка", () => {
+  const html = renderPanel({ id: "r1", name: "Гостиная", polygon: null, frameShape: "Скруглённая" });
+  assert.ok(/<select id="room_frameShapeSelect">/.test(html),
+    "скрытое правилом видимости поле «Форма» раскрыто, потому что у комнаты снятое значение");
+  const opts = options(html, "room_frameShapeSelect");
+  const off = opts.find(o => o.value === "Скруглённая");
+  assert.ok(off, "снятая форма присутствует отдельной опцией");
+  assert.match(off.text, /Скруглённая\s*— снята с производства/, "род слова: форма «снята»");
+  assert.ok(off.selected, "именно снятая форма ВЫБРАНА, а не «Не задана»");
+  const hint = hintAfter(html, "room_frameShapeSelect");
+  assert.match(hint.cls, /discontinued/, "подсказка помечена discontinued");
+  assert.match(hint.text, /выберите другую форму/, "подсказка зовёт выбрать другую форму");
+});
+
 /* --- Подбор НЕ изменился: критерий по снятому значению остаётся null (главное «нельзя сломать») --- */
 test("§filter-unchanged: roomCatalogFilter комнаты со снятым цветом/серией даёт null по этим признакам (как до правки)", () => {
   const rf = stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "roomCatalogFilter"],

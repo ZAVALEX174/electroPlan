@@ -79,7 +79,8 @@ function renderPanel(room, activeIdx) {
   const spy = () => { const f = () => { f.calls++; }; f.calls = 0; return f; };
   const ctx = {
     state, props, $: dom.$, esc: String,
-    byKind: byKindOf, flushRoomDraft: spy(), updateSelectionCount: () => {}, renderTemplates: () => {},
+    byKind: byKindOf, byKindOff: k => PRODUCTS.filter(x => x.kind === k && x.active === false),   /* В27: пул снятых для пометки в renderProperties */
+    flushRoomDraft: spy(), updateSelectionCount: () => {}, renderTemplates: () => {},
     findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
     applySelectionClasses: spy(), getObjectsInRoom: () => [], roomAutoAreaText: () => "",
     polygonAreaPx: () => 0, lightingScheme: () => "classic",

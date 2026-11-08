@@ -256,6 +256,10 @@ input[type=checkbox],input[type=radio]{width:auto;flex:none;margin:0;padding:0;b
 .scale-row .hint-line.is-set{color:#14713b;font-weight:800}
 .canvas.measuring{cursor:crosshair}
 .prop-hint{display:block;margin:-4px 0 8px;color:var(--muted);font-size:var(--fs-xs);line-height:1.45}
+/* В27: подсказка под признаком отделки комнаты со СНЯТЫМ с производства значением — та же янтарная
+   палитра предупреждений (#7a5a12), что у .builder-notice/.slot-off «снят с производства»; без новых
+   оттенков. Сообщает «выберите другое», а не блокирует (сохранённое значение комнаты не трогаем). */
+.prop-hint.discontinued{color:#7a5a12;font-weight:700}
 /* Источник типа стены поста: «унаследован от проекта» — приглушённо (обычный prop-hint),
    «свой» — выделено цветом акцента, чтобы два состояния нельзя было спутать глазом. */
 .prop-wall-source.own{color:var(--blue-dark);font-weight:700}

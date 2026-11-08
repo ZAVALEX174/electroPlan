@@ -45,6 +45,7 @@ function renderRoom(room, activeIdx) {
   const ctx = {
     state, props, $: dom.$, esc: String,
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
+    byKindOff: kind => state.products.filter(x => x.kind === kind && x.active === false),   /* В27: пул снятых для пометки в renderProperties */
     flushRoomDraft: spy(), updateSelectionCount: () => {}, renderTemplates: () => {},
     findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
     applySelectionClasses: spy(), getObjectsInRoom: () => [], roomAutoAreaText: () => "",

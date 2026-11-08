@@ -53,6 +53,7 @@ test("§1 селектор «Коллекция комнаты» (renderProperti
     state: { selected: { kind: "room", id: "r1" }, rooms: [room], products: PRODUCTS, pxPerMeter: 100 },
     props,
     byKind,
+    byKindOff: kind => PRODUCTS.filter(x => x.kind === kind && x.active === false),   /* В27: пул снятых для пометки в renderProperties */
     EPCatalog,
     EPRoom, EPRoomVariants, EPRoomVariantsUi,
     EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),

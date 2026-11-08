@@ -62,6 +62,7 @@ function renderRoom(room) {
   const ctx = {
     state, props, $: dom.$, esc: String,
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
+    byKindOff: kind => state.products.filter(x => x.kind === kind && x.active === false),   /* В27: пул снятых для пометки в renderProperties */
     flushRoomDraft: spy(), updateSelectionCount: () => {}, renderTemplates: () => {},
     findSelectedEntity: (k, id) => state.rooms.find(r => r.id === id),
     applySelectionClasses: spy(), getObjectsInRoom: () => [], roomAutoAreaText: () => "",
@@ -100,6 +101,7 @@ function renameRoomLive(room, newName) {
   const ctx = {
     state, props, $: dom.$, esc: String,
     byKind: kind => state.products.filter(x => x.kind === kind && x.active),
+    byKindOff: kind => state.products.filter(x => x.kind === kind && x.active === false),   /* В27: пул снятых для пометки в renderProperties */
     updateRoomLabelText: spy(), persistProject: spy(),   /* flushRoomDraft НАСТОЯЩИЙ — spy'ем лишь его соседей */
     EPRoomDraft: require("../js/roomDraft.js"),
     updateSelectionCount: () => {}, renderTemplates: () => {},
