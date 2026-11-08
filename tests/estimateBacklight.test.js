@@ -5,14 +5,14 @@
      · ключ группировки различает посты по подсветке — иначе два поста, отличающиеся только
        цветом/наличием подсветки, схлопнутся в одну строку и смета соврёт;
      · выключенная подсветка оставляет смету байт в байт как до правки.
-   Часть тестов — на ЖИВЫХ EPPosts/EPPostFit (сумма обязана вырасти ровно на подобранные LED),
+   Часть тестов — на ЖИВЫХ EPPosts/EPBacklightPick (сумма обязана вырасти ровно на подобранные LED),
    часть — на рукотворном comp (ключ группировки не зависит от того, как приложение сейчас умеет
    задавать цвет; per-post цвет — задача B2, но ключ обязан быть готов уже сейчас). */
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { build } = require("../js/estimate.js");
 const EPPosts = require("../js/posts.js");
-const EPPostFit = require("../js/postfit.js");
+const EPBacklightPick = require("../js/backlightPick.js");
 
 const settings = { workPercent: 0, materialsPercent: 0, discountPercent: 0, vatPercent: 0, vatEnabled: false };
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 0.005, `${msg}: получено ${a}, ожидалось ${b}`);
@@ -97,12 +97,12 @@ test("подсветка стоит СРАЗУ ЗА механизмами, до
 /* --- Живая интеграция: сумма сметы растёт РОВНО на подобранные LED ------------------------ */
 const CAT = {
   14653: { id: 14653, code: "14653", name: "Накладка Plana 3М", price: 3.0, standard: "IT", series: "Plana", slotCount: 3 },
-  1: { id: 1, code: "09021.N", name: "Клавиша 1M", price: 4.3, moduleSpan: 1, askBacklight: true, backlightPosition: 3 },
+  1: { id: 1, code: "09021.N", name: "Клавиша 1M", kind: "mechanism", price: 4.3, moduleSpan: 1, askBacklight: true, backlightPosition: 3 },
   71001: { id: 71001, code: "V71001", name: "Коробка ø60", price: 0.85, kind: "socket_box", wallType: "solid" }
 };
 const ACC = [{ id: 610, code: "00936.250.W", price: 9.6, kind: "accessory", askBacklight: true, backlightPosition: 3, backlightColor: "Белая" }];
 const iprod = id => CAT[id];
-const blFind = opts => EPPostFit.findBacklight(Object.assign({ accessories: ACC }, opts));
+const blFind = opts => EPBacklightPick.pick(Object.assign({ accessories: ACC }, opts));
 const ideps = bl => ({ product: iprod, frameProduct: iprod, socketBox: () => CAT[71001],
   mechanismSpan: it => (it && it.moduleSpan) || 1, findBacklight: blFind, backlight: bl });
 const ipost = { name: "Пост", frameId: 14653, mechanismIds: [1, 1, 1] };

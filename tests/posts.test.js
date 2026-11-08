@@ -619,21 +619,22 @@ test("placementFields: шаблон с wallType solid → пост получа�
 });
 
 /* --- Подсветка клавиш в составе и цене поста ---------------------------------------
-   Подбор аксессуара делает настоящий EPPostFit.findBacklight (не заглушка) — так тест
-   ловит и попадание в состав/цену (posts.js), и правило совместимости (postfit.js).
-   Механизмы двух позиций и пять семейств LED — как в каталоге VIMAR. */
-const { findBacklight } = require("../js/postfit.js");
+   Подбор аксессуара делает настоящий EPBacklightPick.pick (как в приложении) — так тест
+   ловит и попадание в состав/цену (posts.js), и правило «по типу клавиши» (backlightPick.js).
+   Коды механизмов и LED — настоящие: 09021.N обычная (→00936.250), 20101 осевая (→00938),
+   09001 подсветку не принимает. */
+const EPBacklightPick = require("../js/backlightPick.js");
 const BL_CAT = {
-  501: { id: 501, code: "09021.N", name: "Клавиша 1M", price: 4.30, moduleSpan: 1, askBacklight: true, backlightPosition: 3 },
-  502: { id: 502, code: "19101", name: "Выключатель 1P осевой", price: 4.30, moduleSpan: 1, askBacklight: true, backlightPosition: 2 },
-  503: { id: 503, code: "09000", name: "Механизм без подсветки", price: 4.30, moduleSpan: 1 },
-  // аксессуары-подсветки (kind accessory, askBacklight)
+  501: { id: 501, code: "09021.N", name: "Клавиша 1M", kind: "mechanism", price: 4.30, moduleSpan: 1, askBacklight: true, backlightPosition: 3 },
+  502: { id: 502, code: "20101", name: "Выключатель 1P осевой", kind: "mechanism", price: 4.30, moduleSpan: 1, askBacklight: true, backlightPosition: 2 },
+  503: { id: 503, code: "09001", name: "Механизм без подсветки", kind: "mechanism", price: 4.30, moduleSpan: 1 },
+  // аксессуары-подсветки (kind accessory); EPBacklightPick ищет по точному артикулу класса
   610: { id: 610, code: "00936.250.A", price: 9.6, kind: "accessory", askBacklight: true, backlightPosition: 3, backlightColor: "Янтарная" },
   611: { id: 611, code: "00938.A", price: 10.15, kind: "accessory", askBacklight: true, backlightPosition: 2, backlightColor: "Янтарная" }
 };
 const blProduct = id => BL_CAT[id] || CATALOG[id];
 const blAccessories = Object.values(BL_CAT).filter(p => p.kind === "accessory");
-const blFind = opts => findBacklight(Object.assign({ accessories: blAccessories }, opts));
+const blFind = opts => EPBacklightPick.pick(Object.assign({ accessories: blAccessories }, opts));
 const blDeps = backlight => baseDeps({ product: blProduct, frameProduct: blProduct, findBacklight: blFind, backlight });
 
 test("подсветка ВЫКЛЮЧЕНА (нет настройки) → состав и цена как прежде", () => {

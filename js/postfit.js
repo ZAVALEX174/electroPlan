@@ -395,35 +395,15 @@ function backlightVoltage(code) {
   return BACKLIGHT_VOLTAGE[parts[0]] || "";
 }
 
-/* Механизм принимает подсветку? Признак — askBacklight из номенклатуры (см. коммент выше:
-   роль детали для этого не годится). */
-const acceptsBacklight = mech => !!(mech && mech.askBacklight);
-
-/* Подбор аксессуара-подсветки под механизм. Жёсткие фильтры (все обязательны):
-   kind==="accessory" + askBacklight, совпадение backlightPosition механизма, напряжения и
-   цвета. Нет совместимого (или не заданы желаемые цвет/напряжение) → null, без подмены.
-   opts = { mechanism, color, voltage, accessories:[…товары] }. */
-function findBacklight(opts) {
-  const o = opts || {};
-  const mech = o.mechanism;
-  if (!acceptsBacklight(mech)) return null;   // механизм подсветку не принимает
-  const pos = num(mech.backlightPosition);
-  if (!pos) return null;                       // позиция неизвестна — подбирать не по чему
-  const color = o.color, voltage = o.voltage;
-  if (!color || !voltage) return null;         // без желаемых цвета/напряжения выбор недостоверен
-  const list = o.accessories || [];
-  return list.find(a =>
-    a && a.kind === "accessory" && a.askBacklight &&
-    num(a.backlightPosition) === pos &&
-    a.backlightColor === color &&
-    backlightVoltage(a.code) === voltage
-  ) || null;
-}
+/* Класс клавиши и подбор аксессуара-подсветки вынесены целиком в EPBacklightPick
+   (js/backlightPick.js, ОЗ-1): правило «по типу клавиши» живёт в одном месте, и приложение
+   считает только через него (app.js findBacklight/acceptsBacklight → EPBacklightPick.pick/accepts).
+   Здесь остаётся backlightVoltage — его читает app.js (напряжение по семейству артикула LED). */
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
 const api = { boxFitsStandard, selectBox, findBox, fallbackBox, socketBox, findSupport, resolveSupport, supportRequired,
-  findBacklight, backlightVoltage, acceptsBacklight };
+  backlightVoltage };
 if (typeof window !== "undefined") window.EPPostFit = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

@@ -172,3 +172,45 @@ test("120 В только у обычных клавиш: осевая/LINEA н�
   assert.equal(pickPooled("14131", "Белая", "120V"), null, "осевая 120 В — нет семейства");
   assert.equal(pickPooled("31000.B", "Белая", "120V"), null, "LINEA 120 В — нет семейства");
 });
+
+/* --- 7. Фолбэк по backlightPosition и приоритет исключений (ОЗ-1в) ---------------------
+   СИНТЕТИЧЕСКИЕ механизмы: код не распознаётся ни одним явным правилом (99999 — несуществующее
+   семейство), подсветку определяет только фолбэк по askBacklight/backlightPosition. Проверяем,
+   что фолбэк различает позиции (3 — обычная, 2 — осевая) и что явные исключения (22751.0, 22751.RN,
+   31506, прочие LINEA кроме 31000*) главнее фолбэка. Цель — убить мутации, переживающие разделы 1–6:
+     · «удалить ветку pos 3» — тест A краснеет (ordinary → none);
+     · «любая позиция → ordinary» — тест B краснеет (axial → ordinary);
+     · «фолбэк в начало classify» — тест C краснеет (исключения получили бы подсветку по позиции). */
+const mk = (code, extra) => Object.assign({ kind: "mechanism", code }, extra || {});
+
+test("фолбэк (A): нераспознанная клавиша askBacklight + позиция 3 → ordinary, 00936.250 230 В", () => {
+  const m = mk("99999", { askBacklight: true, backlightPosition: 3 });  // явных правил для 99999 нет
+  assert.equal(BP.classify(m), "ordinary");
+  assert.equal(BP.pick({ mechanism: m, color: "Белая", voltage: "110-250V", accessories: ACCESSORIES }).code, "00936.250.W");
+});
+
+test("фолбэк (B): нераспознанная клавиша askBacklight + позиция 2 → axial, 00937 12-24 В", () => {
+  const m = mk("99999", { askBacklight: true, backlightPosition: 2 });
+  assert.equal(BP.classify(m), "axial");
+  assert.equal(BP.pick({ mechanism: m, color: "Белая", voltage: "12-24V", accessories: ACCESSORIES }).code, "00937.W");
+});
+
+test("фолбэк НЕ срабатывает без askBacklight: позиция одна, признака нет → none", () => {
+  assert.equal(BP.classify(mk("99999", { backlightPosition: 3 })), "none");
+  assert.equal(BP.classify(mk("99999", { backlightPosition: 2 })), "none");
+});
+
+test("исключения (C) главнее фолбэка: askBacklight + позиция 3 подсветку НЕ дают", () => {
+  /* У каждого — askBacklight:true и backlightPosition:3; если бы фолбэк стоял раньше явных правил,
+     все получили бы ordinary. Правильный порядок оставляет их none. */
+  const cases = [
+    mk("22751.0.01", { askBacklight: true, backlightPosition: 3 }),                          // Flat без символов
+    mk("22751.RN.01", { askBacklight: true, backlightPosition: 3 }),                          // Flat KNX/автоматика
+    mk("31506.B", { series: "Linea Due", askBacklight: true, backlightPosition: 3 }),         // LINEA для кнопок
+    mk("31999.B", { series: "Linea Due", askBacklight: true, backlightPosition: 3 })          // прочая LINEA кроме 31000*
+  ];
+  cases.forEach(m => {
+    assert.equal(BP.classify(m), "none", m.code);
+    assert.equal(BP.pick({ mechanism: m, color: "Белая", voltage: "110-250V", accessories: ACCESSORIES }), null, m.code);
+  });
+});

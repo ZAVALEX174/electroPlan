@@ -4,7 +4,7 @@
      · ДЕНЬГИ: два поста с ОДИНАКОВЫМИ механизмами, но РАЗНОЙ подсветкой обязаны дать РАЗНЫЕ
        строки сметы (иначе подсветка первого поста напечатается как подсветка обоих — у строки
        одна цена на все её посты). Идентичная подсветка — одна строка. Считаем на ЖИВЫХ
-       EPPosts.postComposition + EPPostFit.findBacklight → estimate.build, а не на рукотворном
+       EPPosts.postComposition + EPBacklightPick.pick → estimate.build, а не на рукотворном
        comp: доказываем, что переопределение поста доходит до ключа сметы через настоящий расчёт.
      · ПЕРЕЖИВАНИЕ СОХРАНЕНИЯ: projectSnapshot обязан унести post.backlight дословно (JSON-круг),
        иначе «сохранить → загрузить» тихо теряет переопределение (тот же класс, что забытый
@@ -17,11 +17,11 @@ const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
 const { build } = require("../js/estimate.js");
 const EPPosts = require("../js/posts.js");
-const EPPostFit = require("../js/postfit.js");
+const EPBacklightPick = require("../js/backlightPick.js");
 
 /* Мини-каталог как в posts.test: клавиша pos 3 (принимает подсветку) + два LED разных цветов. */
 const CAT = {
-  501: { id: 501, code: "09021.N", name: "Клавиша 1M", price: 4.30, moduleSpan: 1, askBacklight: true, backlightPosition: 3 },
+  501: { id: 501, code: "09021.N", name: "Клавиша 1M", kind: "mechanism", price: 4.30, moduleSpan: 1, askBacklight: true, backlightPosition: 3 },
   14653: { id: 14653, code: "14653", name: "Накладка Plana 3М", price: 3.0, standard: "IT", series: "Plana", slotCount: 3 },
   610: { id: 610, code: "00936.250.A", price: 9.6, kind: "accessory", askBacklight: true, backlightPosition: 3, backlightColor: "Янтарная" },
   611: { id: 611, code: "00936.250.W", price: 9.6, kind: "accessory", askBacklight: true, backlightPosition: 3, backlightColor: "Белая" }
@@ -29,7 +29,7 @@ const CAT = {
 const product = id => CAT[id] || null;
 const frameProduct = id => CAT[id] || null;
 const accessories = Object.values(CAT).filter(p => p.kind === "accessory");
-const findBacklight = opts => EPPostFit.findBacklight(Object.assign({ accessories }, opts));
+const findBacklight = opts => EPBacklightPick.pick(Object.assign({ accessories }, opts));
 /* Проект подсветку ВКЛЮЧАЕТ (янтарная): переопределения постов проверяются поверх включённого
    проекта — тогда «выключить у поста» и «сменить цвет» действительно спорят с настройкой. */
 const projectBacklight = { enabled: true, color: "Янтарная", voltage: "110-250V" };

@@ -12,7 +12,7 @@
 
    Часть тестов — на чистых модулях с рукотворным составом (быстро, детерминированно, краснеют
    на мутации самого модуля), часть — ЖИВАЯ: настоящий пост дефекта (механизмы 19021+19101,
-   накладка 14931, подсветка 110-250V «Белая») собирается настоящими EPPosts/EPPostFit на
+   накладка 14931, подсветка 110-250V «Белая») собирается настоящими EPPosts/EPBacklightPick на
    отгружаемом каталоге и прогоняется через НАСТОЯЩИЕ app.js-функции (стенд). Сверка денег —
    количество LED в своде поставщику == количеству LED в смете КП для одного проекта. */
 const test = require("node:test");
@@ -24,7 +24,7 @@ const EPSupplierSpec = require("../js/supplierSpec.js");
 const EPInstallSheet = require("../js/installSheet.js");
 const EPEstimate = require("../js/estimate.js");
 const EPPosts = require("../js/posts.js");
-const EPPostFit = require("../js/postfit.js");
+const EPBacklightPick = require("../js/backlightPick.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -169,8 +169,10 @@ const realProducts = (() => {
 })();
 const realById = new Map(realProducts.map(p => [p.id, p]));
 const idByCode = code => (realProducts.find(p => p.code === code) || {}).id;
-const ACCESSORIES = realProducts.filter(p => p.kind === "accessory" && p.askBacklight);
-const findBacklight = opts => EPPostFit.findBacklight(Object.assign({ accessories: ACCESSORIES }, opts));
+/* Пул — ВСЕ аксессуары каталога, как byKind("accessory") в app.js: EPBacklightPick.pick ищет
+   LED по точному артикулу класса, фильтровать по askBacklight не нужно (у LED LINEA его нет). */
+const ACCESSORIES = realProducts.filter(p => p.kind === "accessory");
+const findBacklight = opts => EPBacklightPick.pick(Object.assign({ accessories: ACCESSORIES }, opts));
 /* Коробку/суппорт намеренно не подбираем: на количество LED они не влияют, а тест держит именно
    подсветку. Тип стены задан, чтобы postComposition не спотыкался. */
 const realDeps = bl => ({

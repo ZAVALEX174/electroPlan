@@ -318,7 +318,8 @@ function makeWorld() {
   const PRODUCTS = win.EP_DATA.products;
   const J = f => require(path.join(JS, f));
   const EPLightingPlan = J("lightingPlan.js"), LG = J("lightingGroups.js"), EPLightingByRoom = J("lightingByRoom.js"),
-    EPEstimate = J("estimate.js"), EPCatalog = J("catalog.js"), Posts = J("posts.js"), EPPostFit = J("postfit.js"), Room = J("room.js");
+    EPEstimate = J("estimate.js"), EPCatalog = J("catalog.js"), Posts = J("posts.js"), EPPostFit = J("postfit.js"),
+    EPBacklightPick = J("backlightPick.js"), Room = J("room.js");
   const controlPlaceKind = vm.runInNewContext(stand.constSource("controlPlaceKind") + "\n;controlPlaceKind;", {});
   const product = id => PRODUCTS.find(x => Number(x.id) === Number(id));
   const byKind = k => PRODUCTS.filter(x => x.kind === k && x.active);
@@ -328,7 +329,7 @@ function makeWorld() {
   const findBox = ({ frame, standard, modules, wallType } = {}) => EPPostFit.findBox({ boxes: byKind("socket_box"), frame, standard, modules, frameModules: frameSlotCount(frame), wantedWall: wallType || "solid" });
   const fallbackBox = ({ frame, standard, modules, wallType } = {}) => EPPostFit.fallbackBox({ boxes: byKind("socket_box"), frame, standard, modules, frameModules: frameSlotCount(frame), wantedWall: wallType || "solid" });
   const resolveSupport = ({ frame, standard, modules, box } = {}) => EPPostFit.resolveSupport({ supports: byKind("support"), frame, standard, modules, frameModules: frameSlotCount(frame), seriesOf: productSeries, box });
-  const findBacklight = o => EPPostFit.findBacklight(Object.assign({ accessories: byKind("accessory") }, o || {}));
+  const findBacklight = o => EPBacklightPick.pick(Object.assign({ accessories: byKind("accessory") }, o || {}));
   const postDeps = () => ({ product, frameProduct: product, socketBox: () => EPPostFit.socketBox(byKind("socket_box")), mechanismSpan, findBox, fallbackBox, resolveSupport, supportRequired: EPPostFit.supportRequired, wallType: settings.wallType, findBacklight, backlight: settings.backlight });
   const postCost = p => Posts.postCost(p, postDeps());
   const postComposition = p => Posts.postComposition(p, postDeps());

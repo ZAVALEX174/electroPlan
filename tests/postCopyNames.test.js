@@ -23,6 +23,7 @@ const EPLightingPlan = require("../js/lightingPlan.js");
 const EPLightingByRoom = require("../js/lightingByRoom.js");
 const EPEstimate = require("../js/estimate.js");
 const EPPostFit = require("../js/postfit.js");
+const EPBacklightPick = require("../js/backlightPick.js");
 const EPSelection = require("../js/selection.js");
 const EPCatalog = require("../js/catalog.js");
 const EPRoom = require("../js/room.js");
@@ -54,7 +55,7 @@ const findBox = o => EPPostFit.findBox({ boxes: byKind("socket_box"), frame: o.f
 const fallbackBox = o => EPPostFit.fallbackBox({ boxes: byKind("socket_box"), frame: o.frame, standard: o.standard, modules: o.modules, frameModules: frameSlotCount(o.frame), wantedWall: o.wallType || "solid" });
 const findSupport = o => EPPostFit.findSupport({ supports: byKind("support"), frame: o.frame, standard: o.standard, modules: o.modules, frameModules: frameSlotCount(o.frame), seriesOf: productSeries, box: o.box });
 const resolveSupport = o => EPPostFit.resolveSupport({ supports: byKind("support"), frame: o.frame, standard: o.standard, modules: o.modules, frameModules: frameSlotCount(o.frame), seriesOf: productSeries, box: o.box });
-const findBacklight = o => EPPostFit.findBacklight(Object.assign({ accessories: byKind("accessory") }, o || {}));
+const findBacklight = o => EPBacklightPick.pick(Object.assign({ accessories: byKind("accessory") }, o || {}));
 const postDeps = () => ({ product, frameProduct: product, socketBox: () => EPPostFit.socketBox(byKind("socket_box")), mechanismSpan, findBox, fallbackBox, findSupport, resolveSupport, supportRequired: EPPostFit.supportRequired, wallType: settings.wallType, findBacklight, backlight: settings.backlight });
 const postCost = p => EPPosts.postCost(p, postDeps());
 const postComposition = p => EPPosts.postComposition(p, postDeps());
