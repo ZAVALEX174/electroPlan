@@ -112,7 +112,7 @@ test("applyFramePicker пишет заданные признаки и СНИМ�
   const ctx = {
     framePickerRoomId: "r1",
     framePickerSel: { collection: "Arke", frameMaterial: "Металл" },
-    framePickerStep: 2,
+    framePickerStep: 2, framePickerDisc: {},
     EPFramePicker, EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
     state: { rooms: [{ id: "r0", name: "Другая" }, room] },
     persistProject, renderProperties,
@@ -132,7 +132,7 @@ test("applyFramePicker бьёт по ВЫДЕЛЕННОЙ комнате мас�
   const target = { id: "r1", name: "Цель" };
   const dom = stand.makeDom();
   const ctx = {
-    framePickerRoomId: "r1", framePickerSel: { collection: "Plana" }, framePickerStep: 0,
+    framePickerRoomId: "r1", framePickerSel: { collection: "Plana" }, framePickerStep: 0, framePickerDisc: {},
     EPFramePicker, EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"), state: { rooms: [decoy, target] },
     persistProject: spy(), renderProperties: spy(), $: dom.$
   };

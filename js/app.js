@@ -2316,7 +2316,7 @@ function frameFacingView(){
    deps подставляют каталожные функции чистому EPFramePicker (своего фильтра/списка/счётчика у него
    нет). valuesOf различает стандарт (productStandards — BOTH раскрывается в оба варианта), серию
    (productCollections — серия у товара массив) и отделку (productFacingValues — скаляр). */
-let framePickerRoomId=null,framePickerSel=null,framePickerStep=0;
+let framePickerRoomId=null,framePickerSel=null,framePickerStep=0,framePickerDisc={};
 const framePickerDeps={
   match:(frames,criteria)=>EPCatalog.productsForRoom(frames,criteria),
   valuesOf:(pool,prop)=>prop==="standard"?EPCatalog.productStandards(pool):prop==="collection"?EPCatalog.productCollections(pool):EPCatalog.productFacingValues(pool,prop),
@@ -2368,6 +2368,7 @@ function openFramePicker(room){
      несовместимый renderFramePicker покажет видимым шагом для правки — stepVisible, край совместимости). */
   if(typeof facingEntity.mechColor==="string"&&facingEntity.mechColor)sel.mechColor=facingEntity.mechColor;
   framePickerSel=sel;
+  framePickerDisc=EPRoomVariantsUi.facingPickerDisc(byKind("frame"),byKindOff("frame"),facingEntity);   /* В27 край2: снятые значения варианта — показать в крошке шага и не стереть при «Применить» без касания шага */
   /* Открываемся на первом НЕзаполненном шаге (продолжаем там, где человек остановился); всё задано —
      на первом, чтобы можно было пересмотреть с начала. Если шаг окажется скрытым (например «Форма»),
      renderFramePicker перескочит на ближайший видимый вперёд. */
@@ -2391,10 +2392,11 @@ function renderFramePicker(){
   /* Крошки: что уже выбрано и возврат на любой шаг (data-step — индекс в steps). Значения каноничны
      из каталога, но через esc — они уходят в HTML. */
   $("framePickerCrumbs").innerHTML=visible.map(s=>{
-    const i=steps.indexOf(s),val=framePickerSel[s.prop];
-    return `<button type="button" class="frame-picker-crumb${i===framePickerStep?" active":""}${val?" is-set":""}" data-step="${i}">
+    const i=steps.indexOf(s),val=framePickerSel[s.prop],disc=val?null:framePickerDisc[s.prop];   /* В27 край2: снятое показываем, только пока шаг не переопределён живым выбором */
+    const crumbVal=val?esc(frameStepValueLabel(s.prop,val)):disc?esc(EPRoomVariantsUi.facingValueMark(s.prop,frameStepValueLabel(s.prop,disc),true)):"—";
+    return `<button type="button" class="frame-picker-crumb${i===framePickerStep?" active":""}${val||disc?" is-set":""}" data-step="${i}">
       <span class="frame-picker-crumb-title">${esc(s.title)}</span>
-      <span class="frame-picker-crumb-value">${val?esc(frameStepValueLabel(s.prop,val)):"—"}</span>
+      <span class="frame-picker-crumb-value">${crumbVal}</span>
     </button>`;
   }).join("");
   const step=steps[framePickerStep];
@@ -2438,7 +2440,7 @@ function pickFrameStep(value){
      нижележащие признаки накладки; смена стандарта/серии стирает и цвет механизмов, смена самого цвета
      механизмов не стирает ничего. Сначала РУЧНОЕ поле (с каскадом), потом автозаполнение — порядок
      важен, иначе автоподстановка цеплялась бы за уже снятые поля. */
-  EPRoomVariants.dependentFields(step.prop).forEach(p=>{delete framePickerSel[p];});
+  EPRoomVariants.dependentFields(step.prop).forEach(p=>{delete framePickerSel[p];delete framePickerDisc[p];});   /* В27 край2: смена шага инвалидирует снятые нижележащих — их не сохраняем */
   /* К12 ч.2: единственный оставшийся вариант каждого пустого шага НАКЛАДКИ (кроме стандарта) подставляем
      сам (слова заказчика 15.10: «Eikon Flat → „Металл“ встал сам»). */
   framePickerSel=EPFramePicker.autoFill(byKind("frame"),framePickerSel,framePickerDeps,{skip:["standard"]});
@@ -2462,7 +2464,7 @@ function applyFramePicker(){
   if(room){
     const variants=EPRoomVariants.list(room);
     const idx=EPRoomVariantsUi.activeIndex(room.id,variants.length);
-    EPRoomVariantsUi.writeSelection(room,idx,framePickerSel);
+    EPRoomVariantsUi.writeSelection(room,idx,framePickerSel,framePickerDisc);
     persistProject();
   }
   closeFramePicker();

@@ -143,8 +143,9 @@ test("§list-write: change по селектору пишет room.standard и �
 test("§picker-read: openFramePicker сеет sel.standard из room.standard (мастер ЧИТАЕТ ту же настройку)", () => {
   const stub = () => ({ classList: { add() {}, remove() {} }, querySelector: () => null });
   const ctx = {
-    framePickerRoomId: null, framePickerSel: null, framePickerStep: 0,
-    byKind: byKindOf, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPFramePicker, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
+    framePickerRoomId: null, framePickerSel: null, framePickerStep: 0, framePickerDisc: {},
+    byKind: byKindOf, byKindOff: k => PRODUCTS.filter(x => x.kind === k && x.active === false),   /* В27 край2: openFramePicker собирает карту снятых */
+    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPFramePicker, EPRoomWalls: require("../js/roomWalls.js"), EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"),
     renderFramePicker: () => {}, $: stub, setTimeout: () => 0
   };
   stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "openFramePicker"], ctx)(
@@ -157,7 +158,7 @@ test("§picker-read: openFramePicker сеет sel.standard из room.standard (�
 test("§picker-write: applyFramePicker пишет room.standard и снимает его пустым — ТА ЖЕ настройка, что у списка", () => {
   const room = { id: "r1", name: "Гостиная", standard: "IT" };
   const ctx = {
-    framePickerRoomId: "r1", framePickerSel: { standard: "DE", collection: "Arke" }, framePickerStep: 0,
+    framePickerRoomId: "r1", framePickerSel: { standard: "DE", collection: "Arke" }, framePickerStep: 0, framePickerDisc: {},
     EPFramePicker, EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"), state: { rooms: [room] }, persistProject: spy(), renderProperties: spy(), $: stand.makeDom().$
   };
   stand.run(["closeFramePicker", "applyFramePicker"], ctx)();
@@ -165,7 +166,7 @@ test("§picker-write: applyFramePicker пишет room.standard и снимае�
   // а пустой выбор стандарта СНИМАЕТ поле
   const room2 = { id: "r2", name: "Кухня", standard: "IT" };
   const ctx2 = {
-    framePickerRoomId: "r2", framePickerSel: { collection: "Arke" }, framePickerStep: 0,
+    framePickerRoomId: "r2", framePickerSel: { collection: "Arke" }, framePickerStep: 0, framePickerDisc: {},
     EPFramePicker, EPRoomVariants: require("../js/roomVariants.js"), EPRoomVariantsUi: require("../js/roomVariantsUi.js"), state: { rooms: [room2] }, persistProject: spy(), renderProperties: spy(), $: stand.makeDom().$
   };
   stand.run(["closeFramePicker", "applyFramePicker"], ctx2)();

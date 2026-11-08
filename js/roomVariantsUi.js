@@ -105,8 +105,15 @@ function writeField(room, index, prop, value) {
    Идём по FIELDS тем же каскадом setVariantField, что и список-вид, — чтобы у записи варианта не было
    второй трактовки (§7.1). sel — черновик мастера (framePickerSel), прошедший каскад pickFrameStep,
    поэтому в нём нет «дыр»; незаданный признак снимается (value undefined → setVariantField СНИМАЕТ). */
-function writeSelection(room, index, sel) {
-  V().FIELDS.forEach(prop => { writeField(room, index, prop, sel ? sel[prop] : undefined); });
+function writeSelection(room, index, sel, disc) {
+  V().FIELDS.forEach(prop => {
+    const v = sel ? sel[prop] : undefined;
+    /* В27 край2: шаг, которого человек в мастере не менял (и не менял шаг выше), сохраняет СНЯТОЕ
+       значение (disc), а не стирает его. Выпускаемый выбор sel[prop] всегда главнее; disc содержит
+       только НЕинвалидированные снятые (app.js чистит их каскадом при смене шага). disc не передан —
+       прежнее поведение (незаданное снимается). */
+    writeField(room, index, prop, (typeof v === "string" && v) ? v : (disc && disc[prop]) || undefined);
+  });
 }
 
 /* Полоса вкладок «Отделка: [Вариант 1] … [+ вариант]». Подписи статичны («Вариант N», N — номер),
@@ -269,7 +276,21 @@ const DISCONTINUED = {
 function facingDiscontinued(frames, offFrames, variant, prop) {
   const raw = variant && variant[prop];
   if (typeof raw !== "string" || !raw) return null;
-  return Room().discontinuedFacing(raw, facingValuesOf(frames, prop), facingValuesOf(offFrames || [], prop));
+  /* Край: ДРУГОЕ написание того же выпускаемого значения — не снято. Для цвета склеиваем написания тем
+     же facingColorKey, что и отбор начинки/механизмов (§7.1): «Латунь Зачищенная Щеткой» = выпускаемая
+     «Латунь зачищенная щеткой». У прочих признаков нормализатора нет → точное сравнение. */
+  const normalize = prop === "frameColor" ? Catalog().facingColorKey : null;
+  return Room().discontinuedFacing(raw, facingValuesOf(frames, prop), facingValuesOf(offFrames || [], prop), normalize);
+}
+/* Карта снятых значений {prop: значение} по всем признакам НАКЛАДКИ варианта (FRAME_FIELDS) — для окна
+   «Подобрать накладку» (В27 край2). Мастер строит выбор из ВАЛИДНЫХ значений, снятое туда не попадает,
+   поэтому «Применить» без изменений стёр бы его; эта карта позволяет и показать снятое в крошке шага, и
+   сохранить его при записи (app.js удаляет из неё инвалидированные при смене шага). FRAME_FIELDS берём
+   из EPRoomVariants — второго списка признаков не заводим (§7.1). */
+function facingPickerDisc(frames, offFrames, variant) {
+  const out = {};
+  V().FRAME_FIELDS.forEach(prop => { const d = facingDiscontinued(frames, offFrames, variant, prop); if (d) out[prop] = d; });
+  return out;
 }
 /* {value, suffix} снятого значения для опции селектора, либо null. */
 function facingDiscOption(frames, offFrames, variant, prop) {
@@ -426,7 +447,7 @@ function applyBuilderVariantChange(d){
 const api = { roomLabel, facingTitle, activeIndex, setActiveIndex, applyResult, writeField, writeSelection, tabsHtml, removeBtnHtml, bindTabs,
   builderIndex, builderInitialIndex, builderVariantLabel, renderBuilderVariantSelect,
   facingFieldOptionsHtml, visibleFacingProps, variantHasNoFrames, builderVariantResetMessage, applyBuilderVariantChange,
-  facingDiscontinued, facingDiscOption, facingValueMark, facingHintHtml,
+  facingDiscontinued, facingDiscOption, facingValueMark, facingHintHtml, facingPickerDisc,
   mechColorValue, mechColorVisible, mechColorFieldOptionsHtml };
 if (typeof window !== "undefined") window.EPRoomVariantsUi = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;

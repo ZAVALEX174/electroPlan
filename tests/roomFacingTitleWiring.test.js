@@ -145,7 +145,8 @@ function openPicker(room) {
     frameStandardList: () => [], frameCollectionList: () => [], frameFacingList: () => [],
     EPFramePicker: { STEPS: [{ prop: "standard" }, { prop: "collection" }, { prop: "frameMaterial" }, { prop: "frameShape" }, { prop: "frameColor" }] },
     renderFramePicker: spy(), setTimeout: () => {},
-    framePickerRoomId: null, framePickerSel: null, framePickerStep: 0
+    byKind: () => [], byKindOff: () => [],   /* В27 край2: openFramePicker собирает карту снятых; тут вариант пуст → disc пуст */
+    framePickerRoomId: null, framePickerSel: null, framePickerStep: 0, framePickerDisc: {}
   };
   stand.run("openFramePicker", ctx)(room);
   return dom.els.framePickerTitle;

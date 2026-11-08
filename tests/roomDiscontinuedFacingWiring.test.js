@@ -140,6 +140,22 @@ test("§garbage: мусорное значение (нет ни у выпуск�
   assert.doesNotMatch(hint.cls, /discontinued/, "подсказки «снят с производства» для мусора нет");
 });
 
+test("§norm-not-dead: цвет «Латунь Зачищенная Щеткой» (есть выпускаемая «Латунь зачищенная щеткой») НЕ помечается снятым", () => {
+  /* Край раунда 2: у снятых накладок написание отличается регистром от выпускаемого того же цвета.
+     facingColorKey их склеивает → это живой цвет, в свойствах показываем как до В27 (без пометки). */
+  const activeColors = EPCatalog.productFacingValues(byKindOf("frame"), "frameColor");
+  const offColors = EPCatalog.productFacingValues(byKindOffOf("frame"), "frameColor");
+  assert.ok(activeColors.includes("Латунь зачищенная щеткой"), "предпосылка: выпускаемая «Латунь зачищенная щеткой» есть");
+  assert.ok(offColors.includes("Латунь Зачищенная Щеткой"), "предпосылка: снятое написание «Латунь Зачищенная Щеткой» есть");
+  const html = renderPanel({ id: "r1", name: "Гостиная", polygon: null, frameColor: "Латунь Зачищенная Щеткой" });
+  const opts = options(html, "room_frameColorSelect");
+  assert.ok(!opts.some(o => /снят с производства/.test(o.text)), "пометки «снят с производства» нет");
+  const emptyOpt = opts.find(o => o.value === "");
+  assert.ok(emptyOpt && emptyOpt.selected, "показывается как до В27 — «Не задан» выбран");
+  const hint = hintAfter(html, "room_frameColorSelect");
+  assert.doesNotMatch(hint.cls, /discontinued/, "подсказка не помечена discontinued");
+});
+
 test("§pictures: в виде «С картинками» снятый цвет виден в сводке с пометкой (а не «не задано»)", () => {
   const html = renderPanel({ id: "r1", name: "Гостиная", polygon: null, frameColor: "Reflex лед" }, "pictures");
   assert.ok(!/<select id="room_frameColorSelect">/.test(html), "в виде «С картинками» селекторов нет");
