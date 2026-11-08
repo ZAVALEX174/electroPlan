@@ -137,21 +137,30 @@ function attach(ctx) {
   let editStartFio = "";
   container.addEventListener("focusin", e => { if (isFioTarget(e.target)) editStartFio = e.target.value; });
 
-  /* ПОДСТАНОВКА — на CAPTURE, ДО applyCustomerRequisites (у контейнера он на bubble): меняем поля и
-     скидку прежде, чем прежняя дверь зафиксирует заказчика из полей. Условие (решение владельца):
-     поменяли именно ФИО (editStart ≠ новое) И новое совпадает с ИЗВЕСТНЫМ клиентом. Тогда все поля
-     заказчика заменяются его данными целиком (чего нет — очистится, галочки — его), а общая скидка
-     становится его: ставим в поле и прогоняем applyTerms (та же дверь — поле, settings, смета/КП).
-     То же ФИО (правка телефона и т.п.) под условие не попадает: заказчик не подставляется. */
-  container.addEventListener("change", e => {
-    if (!isFioTarget(e.target)) return;
-    if (normFio(e.target.value) === normFio(editStartFio)) return;
-    const hit = find(EPPrefs.get(LIST_KEY, []), e.target.value);
+  /* ПОДСТАНОВКА (одна функция на оба источника — change и выбор из datalist, второй копии нет).
+     Условие (решение владельца): цель — ФИО-поле, поменяли именно ФИО (editStart ≠ новое) И новое
+     совпадает с ИЗВЕСТНЫМ клиентом. Тогда все поля заказчика заменяются его данными целиком (чего нет —
+     очистится, галочки — его), а общая скидка становится его: ставим в поле и прогоняем applyTerms (та
+     же дверь — поле, settings, смета/КП). То же ФИО (правка телефона и т.п. или повторное подтверждение)
+     под условие не попадает — заказчик не подставляется и ручные правки не затираются. */
+  function trySubstitute(target) {
+    if (!isFioTarget(target)) return;
+    if (normFio(target.value) === normFio(editStartFio)) return;
+    const hit = find(EPPrefs.get(LIST_KEY, []), target.value);
     if (!hit) return;                               // новый клиент — подставлять нечего
     fillCustomer({ values: hit.values, show: hit.show });
-    editStartFio = e.target.value;                  // подстановка завершила правку этого поля
+    editStartFio = target.value;                    // подстановка завершила правку этого поля
     if (discountEl) { discountEl.value = hit.discountPercent; applyTerms(); }
-  }, true);
+  }
+
+  /* На CAPTURE, ДО applyCustomerRequisites (он у контейнера на bubble): меняем поля и скидку прежде,
+     чем прежняя дверь зафиксирует заказчика из полей. Два источника выбора клиента:
+     - change: человек дописал ФИО целиком и ушёл из поля (Tab/клик мимо);
+     - input с inputType "insertReplacementText": так Chrome и Firefox сообщают о ВЫБОРЕ из datalist —
+       подставляем СРАЗУ, не дожидаясь ухода из поля (владелец: «выбрали — реквизиты заполнились сами»).
+     Обычный посимвольный набор (insertText/deleteContentBackward…) под ветку не попадает — не подставляет. */
+  container.addEventListener("change", e => trySubstitute(e.target), true);
+  container.addEventListener("input", e => { if (e.inputType === "insertReplacementText") trySubstitute(e.target); }, true);
 
   /* ЗАПОМИНАНИЕ — на bubble (после applyCustomerRequisites/applyTerms зафиксировали значения). change,
      а НЕ input: промежуточные посимвольные значения запоминаться не должны. Скидка меняется в своём

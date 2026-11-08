@@ -47,10 +47,10 @@ function listenersOf(node, type, capture) {
 }
 /* Диспетчер события: capture (предки сверху вниз) → target → bubble (предки снизу вверх; у каждого
    предка сначала on<type>-свойство, затем bubble-слушатели — как порядок регистрации в браузере). */
-function fireEvent(target, type) {
+function fireEvent(target, type, props) {
   const path = [];
   for (let n = target.parentNode; n; n = n.parentNode) path.push(n);
-  const event = { type, target };
+  const event = Object.assign({ type, target }, props);   // props: {inputType} для выбора из datalist
   for (let i = path.length - 1; i >= 0; i--) listenersOf(path[i], type, true).forEach(l => l.fn.call(path[i], event));
   listenersOf(target, type, true).forEach(l => l.fn.call(target, event));
   listenersOf(target, type, false).forEach(l => l.fn.call(target, event));
@@ -256,4 +256,50 @@ test("подсказка по ФИО: datalist наполняется из кн�
   assert.match(dl.innerHTML, /Петров/);
   assert.match(dl.innerHTML, /\+7-111/, "телефон показан для различения");
   assert.equal(S.reqInputs.fio.getAttribute("list"), dl.id, "поле ФИО ссылается на datalist");
+});
+
+/* Выбор из подсказки Chrome/Firefox сообщают как input с inputType "insertReplacementText". Подстановка
+   должна идти СРАЗУ на нём — человек выбрал и ждёт заполнения, а не после Tab. */
+test("выбор из datalist (input insertReplacementText) подставляет СРАЗУ: поле + settings + пересчёт", () => {
+  const S = makeStand();
+  S.prefs.set("clients", EPClientBook.remember([], {
+    values: { fio: "Иванов Иван", phone: "+7-999", email: "iv@x.ru" }, show: {}, discountPercent: 10
+  }, 500));
+  fireEvent(S.reqInputs.fio, "focusin");                  // editStartFio = ""
+  S.reqInputs.fio.value = "Иванов Иван";
+  fireEvent(S.reqInputs.fio, "input", { inputType: "insertReplacementText" });
+  assert.equal(S.reqInputs.phone.value, "+7-999", "телефон подставился сразу при выборе");
+  assert.equal(S.reqInputs.email.value, "iv@x.ru", "email подставился сразу");
+  assert.equal(S.nodes.discountInput.value, "10", "скидка в поле сразу");
+  assert.equal(S.EP_DATA.settings.discountPercent, 10, "и в settings (её читает смета)");
+  assert.ok(S.applied.includes(10), "applyProjectSettings вызван — смета/КП пересчитаны");
+  assert.equal((S.EP_DATA.settings.docHeader.customer.values || {}).phone, "+7-999", "заказчик проекта зафиксирован подставленным");
+});
+
+test("посимвольный ввод (input insertText) известного ФИО НЕ подставляет на input", () => {
+  const S = makeStand();
+  S.prefs.set("clients", EPClientBook.remember([], {
+    values: { fio: "Иванов Иван", phone: "+7-999" }, show: {}, discountPercent: 10
+  }, 500));
+  fireEvent(S.reqInputs.fio, "focusin");
+  S.reqInputs.fio.value = "Иванов Иван";
+  fireEvent(S.reqInputs.fio, "input", { inputType: "insertText" });
+  assert.equal(S.reqInputs.phone.value, "", "ручной набор на input ничего не подставляет");
+  assert.equal(S.EP_DATA.settings.discountPercent, 0, "скидка не тронута до change");
+});
+
+test("после подстановки на input повторный change того же значения не подставляет и не сбрасывает правки", () => {
+  const S = makeStand();
+  S.prefs.set("clients", EPClientBook.remember([], {
+    values: { fio: "Иванов Иван", phone: "+7-999" }, show: {}, discountPercent: 10
+  }, 500));
+  fireEvent(S.reqInputs.fio, "focusin");
+  S.reqInputs.fio.value = "Иванов Иван";
+  fireEvent(S.reqInputs.fio, "input", { inputType: "insertReplacementText" });   // подстановка сразу
+  S.reqInputs.phone.value = "+7-000";    // человек поправил телефон после выбора
+  const appliedBefore = S.applied.length;
+  fireEvent(S.reqInputs.fio, "change");  // уход из поля, ФИО не менялось
+  assert.equal(S.reqInputs.phone.value, "+7-000", "правка телефона не затёрта повторной подстановкой");
+  assert.equal(S.applied.length, appliedBefore, "повторной подстановки/пересчёта не было");
+  assert.equal(clients(S)[0].values.phone, "+7-000", "на change запомнен правленый телефон");
 });
