@@ -68,7 +68,7 @@ test("toggleFrameOrientation: отметка на LINEA 30643.01 перепис�
   const { dom, state, rendered } = runToggle(byCode("30643.01"), true);
   assert.equal(dom.$("postFrameSelect").dataset.preferredFrameId, String(byCode("30645.01").id),
     "renderBuilder получит вертикальный двойник через preferredFrameId — это ПЕРЕЗАПИСЬ frameId, а не вычисление на лету");
-  assert.equal(state.builder.frameAuto, false, "смена накладки отметкой — ручной выбор, frameAuto снят");
+  assert.equal(state.builder.frameAuto, true, "отметка меняет ТОЛЬКО ориентацию той же накладки — НЕ ручной выбор, frameAuto не трогаем (владелец 09.11: иначе смена комнаты у нового поста теряла бы вертикальный двойник нового цвета)");
   assert.equal(rendered, 1, "renderBuilder перерисован");
 });
 test("toggleFrameOrientation: снятие отметки на 30645.01 возвращает горизонтальный 30643.01", () => {

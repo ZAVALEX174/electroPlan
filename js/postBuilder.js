@@ -195,15 +195,17 @@ function renderFrameOrientation(frame,frames){
 }
 /* Переключение отметки «Расположить вертикально» (Б8). У накладки С ПАРОЙ переписываем frameId на
    двойник нужной ориентации (EPFrameOrientation.oriented) — документы читают накладку из frameId, и
-   это ПЕРЕЗАПИСЬ, а не вычисление на лету (иначе прямые чтения post.frameId разошлись бы с КП). Смена
-   накладки руками = ручной выбор, снимаем frameAuto (как postFrameSelect.onchange). У накладки БЕЗ
-   пары frameId не трогаем — отметка просто сохранится у поста (renderBuilder удержит её по флагу). */
+   это ПЕРЕЗАПИСЬ, а не вычисление на лету (иначе прямые чтения post.frameId разошлись бы с КП). У накладки
+   БЕЗ пары frameId не трогаем — отметка просто сохранится у поста (renderBuilder удержит её по флагу).
+   ⚠️ frameAuto НЕ ТРОГАЕМ (владелец 09.11): отметка меняет ТОЛЬКО ориентацию той же накладки, это НЕ
+   ручной выбор накладки. Иначе у нового поста смена комнаты/варианта (applyAutoDefaultFrame — no-op при
+   frameAuto=false) переставала бы давать вертикальный двойник ЦВЕТА НОВОЙ комнаты. Ручной выбор в поле
+   «Накладка» (postFrameSelect.onchange) frameAuto по-прежнему снимает — там действительно выбор изделия. */
 function toggleFrameOrientation(checked){
   state.builder.verticalFrame=checked;
   const cur=frameProduct($("postFrameSelect").value);
   const target=EPFrameOrientation.oriented(cur,byKind("frame"),checked);
   if(target&&cur&&Number(target.id)!==Number(cur.id)){
-    state.builder.frameAuto=false;
     $("postFrameSelect").dataset.preferredFrameId=String(target.id);
   }
   renderBuilder();
@@ -290,8 +292,13 @@ function defaultFrameForRoom(room,count,sample){
 function applyAutoDefaultFrame(count,sample){
   if(!state.builder.frameAuto)return null;
   const frame=defaultFrameForRoom(builderFilterRoom(),count,sample);
-  $("postFrameSelect").dataset.preferredFrameId=String(frame?frame.id:"");
-  return frame;
+  /* Б8: пост с отметкой «Расположить вертикально» получает ВЕРТИКАЛЬНЫЙ двойник подобранной накладки —
+     то же единственное правило ориентации EPFrameOrientation.oriented; двойника нет → та же накладка.
+     typeof-страховка, как у spanForFrame: стенд без модуля ориентации сохраняет прежнее поведение. */
+  const target=frame&&typeof EPFrameOrientation!=="undefined"
+    ?(EPFrameOrientation.oriented(frame,byKind("frame"),!!state.builder.verticalFrame)||frame):frame;
+  $("postFrameSelect").dataset.preferredFrameId=String(target?target.id:"");
+  return target;
 }
 /* Признак «имя поста человек не менял» (то же автоимя, что ставит defaultPostName) — ОДНА точка
    правила (§7.1), чтобы синхронизация имени при открытии, смене комнаты и смене числа модулей не
@@ -1453,7 +1460,19 @@ function changePostSlotCount(){
      оставляем модульность открытия приклеенной сверху списка через requestedFrame. 3→4 у белой
      итальянской Neve Up даёт 09674.01 (IT), а не 09664.01 (DE). Ручной выбор человека (frameAuto=false)
      и пост на плане/шаблон не трогаются — applyAutoDefaultFrame на них no-op. */
-  applyAutoDefaultFrame(count,frameProduct($("postFrameSelect").value));
+  const cur=frameProduct($("postFrameSelect").value);
+  const auto=applyAutoDefaultFrame(count,cur);
+  /* Б8: пост С ОТМЕТКОЙ «Расположить вертикально», где накладка выбрана РУКАМИ (отметка сняла frameAuto в
+     ч.1, поэтому applyAutoDefaultFrame выше — no-op, auto==null), держит ориентацию и при смене числа
+     модулей: под новый count берём накладку ТОЙ ЖЕ серии/цвета (defaultFrameForRoom с образцом) и приводим
+     к вертикали (EPFrameOrientation.oriented — то же единственное правило). Сужено до накладок С ПАРОЙ
+     (hasPair): обычную ручную накладку смена числа модулей НЕ трогает — прежнее поведение (ручной выбор
+     главнее, §7.1). Иначе 4М-вертикальная при выборе 6 осталась бы приклеенной 4М вместо 30646.*. */
+  if(!auto&&cur&&state.builder.verticalFrame&&typeof EPFrameOrientation!=="undefined"&&EPFrameOrientation.hasPair(cur,byKind("frame"))){
+    const base=defaultFrameForRoom(builderFilterRoom(),count,cur);
+    const target=base&&(EPFrameOrientation.oriented(base,byKind("frame"),true)||base);
+    if(target)$("postFrameSelect").dataset.preferredFrameId=String(target.id);
+  }
   renderBuilder();
 }
 /* Смена «Комнаты поста» в конструкторе (ОТДЕЛКА-ПОРЯДОК, п.3) — вынесено ФУНКЦИЕЙ, чтобы связку можно
@@ -1472,7 +1491,16 @@ function builderVariantSwitch(room,index,apply,restore){
 }
 function changeBuilderRoom(roomId){
   state.builder.roomId=roomId;
-  const auto=applyAutoDefaultFrame(null,null);
+  /* Б8 (владелец 09.11): пост С ОТМЕТКОЙ «Расположить вертикально» держит вертикальность И число модулей
+     при смене комнаты — в новой комнате вертикальная накладка ЕЁ цвета той же модульности. Образцом даём
+     текущую накладку: она задаёт МОДУЛЬНОСТЬ (у LINEA вертикальный двойник есть лишь на 4/6М — сбросься
+     модульность к ближайшей к 3, отметка потерялась бы), цвет берётся из новой комнаты (preferOwnFrame
+     откатится на её пул), ориентацию наводит applyAutoDefaultFrame (место 1). Пост БЕЗ отметки — прежнее
+     поведение (null,null): дефолт новой комнаты, ближайший к 3 (п.2). Сужено до накладок С ПАРОЙ, обычные
+     посты модульность по-прежнему не «запоминают». */
+  const cur=state.builder.verticalFrame&&typeof EPFrameOrientation!=="undefined"?frameProduct($("postFrameSelect").value):null;
+  const keepOrient=cur&&EPFrameOrientation.hasPair(cur,byKind("frame"));
+  const auto=keepOrient?applyAutoDefaultFrame(frameSlotCount(cur),cur):applyAutoDefaultFrame(null,null);
   const capacity=auto?frameSlotCount(auto):builderCapacity();
   renderPostSlotCountSelect(capacity);
   $("postSlotCount").value=String(capacity);

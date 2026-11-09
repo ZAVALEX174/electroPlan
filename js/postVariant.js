@@ -137,7 +137,16 @@ function frameForRoomPlacement(template,room){
   for(let i=0;i<variants.length;i++){
     const pool=EPCatalog.productsForRoom(byKind("frame"),roomCatalogFilter(variants[i]));
     const swap=preferOwnFrame(pool,ownCriteria,p=>EPPosts.pickRoomFrame(template.frameId,p,deps));
-    if(swap)return {frameId:swap.id};
+    if(swap){
+      /* Б8: пост/копия с отметкой «Расположить вертикально» получает ВЕРТИКАЛЬНЫЙ двойник подменной
+         накладки нужного цвета комнаты — то же единственное правило EPFrameOrientation.oriented; двойника
+         нет (не-LINEA) → сама подмена. Флаг template.verticalLayout доезжает сюда через placementFields
+         (размещение) и глубокую копию (вставка). EPFrameOrientation — window-глобал (сборщика нет, PLAN
+         2.2); в vm-вырезке стенда его может не быть → подмену не ориентируем (прежнее поведение). */
+      const FO=(typeof EPFrameOrientation!=="undefined"&&EPFrameOrientation)||(typeof window!=="undefined"&&window.EPFrameOrientation);
+      const oriented=(FO&&FO.oriented(swap,byKind("frame"),template.verticalLayout===true))||swap;
+      return {frameId:oriented.id};
+    }
   }
   /* не встаёт ни в один вариант → блок. Текст — от ПЕРВОГО варианта (как и раньше), не меняем. */
   return {blocked:true,message:frameSwapEmptyText(template,room,roomCatalogFilter(variants[0]))};
