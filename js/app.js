@@ -57,7 +57,7 @@ const state={
        ВКЛЮЧАЕТ ограничение начинки цветом накладки. По умолчанию ВЫКЛЮЧЕНА — начинка любого цвета
        (у 169 из 181 цвета накладок начинки того же цвета не существует, поэтому дефолт — без
        ограничения). Накладку галочка не трогает; это свойство поста, переживает сохранение. */
-    snapshot:null,escArmed:null,wallType:null,backlight:null,roomId:null,restrictInnardsColor:false}
+    snapshot:null,escArmed:null,wallType:null,backlight:null,roomId:null,restrictInnardsColor:false,verticalFrame:false}
 };
 const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));

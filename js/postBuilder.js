@@ -180,6 +180,34 @@ function renderPostThermoSensor(){
     ?"У этого поста термодатчик отключён — в состав и цену не входит."
     :"Терморегулятор требует выносной термодатчик 02965.1 — он добавлен в состав и цену. Можно отключить.";
 }
+/* Синхронизация отметки «Расположить вертикально» (Б8) с ВЫБРАННОЙ накладкой. Единая точка показа
+   состояния отметки: у накладки с парой отметка строго отражает ориентацию самой накладки (связь в
+   обе стороны — выбрал вертикальную руками, отметка загорелась; горизонтальную — погасла), у накладки
+   без пары хранится свободный флаг черновика. Правило — чистая EPFrameOrientation.checkboxChecked,
+   второй копии нет. Пишем обратно в черновик (verticalFrame), чтобы сохранение положило в пост именно
+   то, что видно. frame=null (накладка не разрешилась) → отметка = флаг. */
+function renderFrameOrientation(frame,frames){
+  const box=$("verticalFrameCheck");
+  if(!box)return;
+  const checked=EPFrameOrientation.checkboxChecked(frame,state.builder.verticalFrame,frames);
+  state.builder.verticalFrame=checked;
+  box.checked=checked;
+}
+/* Переключение отметки «Расположить вертикально» (Б8). У накладки С ПАРОЙ переписываем frameId на
+   двойник нужной ориентации (EPFrameOrientation.oriented) — документы читают накладку из frameId, и
+   это ПЕРЕЗАПИСЬ, а не вычисление на лету (иначе прямые чтения post.frameId разошлись бы с КП). Смена
+   накладки руками = ручной выбор, снимаем frameAuto (как postFrameSelect.onchange). У накладки БЕЗ
+   пары frameId не трогаем — отметка просто сохранится у поста (renderBuilder удержит её по флагу). */
+function toggleFrameOrientation(checked){
+  state.builder.verticalFrame=checked;
+  const cur=frameProduct($("postFrameSelect").value);
+  const target=EPFrameOrientation.oriented(cur,byKind("frame"),checked);
+  if(target&&cur&&Number(target.id)!==Number(cur.id)){
+    state.builder.frameAuto=false;
+    $("postFrameSelect").dataset.preferredFrameId=String(target.id);
+  }
+  renderBuilder();
+}
 /* Селектор «Количество модулей рамки» — НЕ константа в разметке, а производная модульностей
    накладок (EPCatalog.frameSlotOptions). ⚠️ СЧИТАЕМ ОТ ТОГО ЖЕ ПУЛА, ЧТО renderBuilder ФИЛЬТРУЕТ
    (collectionFramePool), а не от всего каталога: коллекция комнаты (E13) сужает список накладок
@@ -378,6 +406,11 @@ function openPostBuilder({templateId=null,placedId=null}={}){
      собранного поста это не меняет: placed-механизмы держит keepMechs, сужается лишь каталог карточек.
      Снимок «как было» берётся ПОСЛЕ renderBuilder (ниже), поэтому ложным «есть что терять» не станет. */
   state.builder.restrictInnardsColor=!!src.restrictInnardsColor||!!((builderFilterRoom()||{}).mechColor);
+  /* Отметка «Расположить вертикально» (Б8) — ЧЕРНОВИК окна, сохранённый у поста флаг. Старый пост,
+     собранный вертикальной накладкой РУКАМИ до Б8, поля не несёт (→ false), но renderFrameOrientation
+     ниже всё равно зажжёт отметку: у накладки с парой отметка строго следует ориентации самой
+     накладки (checkboxChecked), поэтому вертикальный frameId → горящая отметка без миграции. */
+  state.builder.verticalFrame=!!src.verticalLayout;
   /* Решение «термодатчик: с датчиком / без датчика» (К5б) — ЧЕРНОВИК окна. У поста хранится ТОЛЬКО
      явное «off» (src.thermoSensor==="off"); отсутствие поля = «с датчиком» (расчёт добавляет сам,
      EPThermoSensor.sensorsEnabled). Шаблон/новый пост поля не несут → "on". Второй трактовки
@@ -425,7 +458,7 @@ const builderWallType=()=>state.builder.wallType||"solid";
    кодируем JSON (как слоты), а не склейкой; термодатчик — строка "on"/"off"; галочка — булев флаг. */
 function builderSignature(){
   return JSON.stringify([$("postName").value,String($("postFrameSelect").value||""),
-    builderWallType(),state.builder.backlight,state.builder.thermoSensor,!!state.builder.restrictInnardsColor,EPBuilderSlots.signature(state.builder.slots)]);
+    builderWallType(),state.builder.backlight,state.builder.thermoSensor,!!state.builder.restrictInnardsColor,!!state.builder.verticalFrame,EPBuilderSlots.signature(state.builder.slots)]);
 }
 const builderDirty=()=>state.builder.snapshot!=null&&builderSignature()!==state.builder.snapshot;
 
@@ -766,6 +799,8 @@ function renderBuilder(){
     /* Причину печатает composition-хост из builderCtx.errorHtml — тем же путём, что и ошибки
        раскладки в нормальной ветке: refreshBuilderLighting перерисует состав, не потеряв её. */
     renderBuilderComposition(null,builderCtx.errorHtml,light,draft);
+    /* Накладка не разрешилась — отметку держим по сохранённому флагу (§7.1, та же точка показа). */
+    if(typeof renderFrameOrientation==="function")renderFrameOrientation(null,allFrames);
     $("savePost").disabled=true;
     $("builderInstallSheet").disabled=true;
     return;
@@ -776,6 +811,10 @@ function renderBuilder(){
      здесь обязательно снимаем его после осознанного выбора замены. */
   $("builderInstallSheet").disabled=false;
   const selectedFrame=frameProduct(frameSelect.value);
+  /* Отметка «Расположить вертикально» (Б8) синхронизируется с выбранной накладкой. typeof-страховка —
+     как у spanForFrame ниже: стенд вырезает функции по одной, renderFrameOrientation в вырезку
+     renderBuilder не попадает, и старые тесты без неё отметку не трогают. */
+  if(typeof renderFrameOrientation==="function")renderFrameOrientation(selectedFrame,allFrames);
   /* Ширина С УЧЁТОМ накладки для ёмкости/раскладки (К12 ч.4): spanForFrame — шов из app.js. typeof-
      страховка на случай стенда/теста без шва (его там нет → «голый» mechanismSpan, прежнее поведение):
      appStand вырезает функции по одной, модульный const сюда не попадает. */
@@ -1461,7 +1500,13 @@ async function savePostBuilder(){
        поста). В белом списке base, поэтому переживает сохранение и у поста на плане
        (Object.assign(post,base)), и у шаблона (template={...base}). Старый пост без поля читается
        как «ограничение выключено» (новый дефолт) — см. openPostBuilder. */
-    restrictInnardsColor:!!state.builder.restrictInnardsColor};
+    restrictInnardsColor:!!state.builder.restrictInnardsColor,
+    /* Отметка «Расположить вертикально» (Б8) — свойство поста в белом списке base: переживает
+       сохранение и у поста на плане (Object.assign(post,base)), и у шаблона (template={...base}).
+       У LINEA frameId уже указывает на вертикальный двойник (toggleFrameOrientation переписал его),
+       флаг хранится для ЧАСТИ 2 (перевыбор пары при смене модульности/комнаты/копировании). Старый
+       пост без поля читается как «не отмечено». */
+    verticalLayout:!!state.builder.verticalFrame};
   if(state.builder.editingPlacedId){
     const post=state.posts.find(x=>x.id===state.builder.editingPlacedId);
     /* ⚠️ ОХВАТ ПРАВКИ ТИПА СТЕНЫ СПРАШИВАЕМ ДО ЛЮБЫХ ЗАПИСЕЙ. Иначе отказ от вопроса (Esc,
@@ -1549,7 +1594,7 @@ async function savePostBuilder(){
 function closePostBuilder(){
   $("postModal").classList.remove("open");
   state.builder={editingTemplateId:null,editingPlacedId:null,slots:[],target:{mode:"add"},query:"",openSections:new Set(),
-    snapshot:null,escArmed:null,wallType:null,backlight:null,thermoSensor:"on",roomId:null,restrictInnardsColor:false};
+    snapshot:null,escArmed:null,wallType:null,backlight:null,thermoSensor:"on",roomId:null,restrictInnardsColor:false,verticalFrame:false};
 }
 /* СЛУЧАЙНОЕ закрытие (Esc, клик мимо окна) с потерей несохранённой работы просит подтверждения
    — повтором того же действия, а не системным confirm(): своих модальных диалогов в приложении
@@ -1627,6 +1672,10 @@ $("builderRoomSelect").onchange=e=>{const roomId=e.target.value||null;builderVar
    начинки — накладка и раскладка те же, достаточно перерисовать конструктор (renderBuilder
    пересчитает catalogMechs). */
 $("builderRestrictColor").onchange=e=>{state.builder.restrictInnardsColor=e.target.checked;renderBuilder()};
+/* Отметка «Расположить вертикально» (Б8) — вся логика в toggleFrameOrientation (переписывает frameId
+   на двойник нужной ориентации у накладки с парой; у остальных просто хранит флаг). Вынесена функцией,
+   чтобы связку проверял поведенческий тест (§7.2 «связки дают почти все дефекты»). */
+$("verticalFrameCheck").onchange=e=>toggleFrameOrientation(e.target.checked);
 /* Поиск по каталогу конструктора перерисовывает ТОЛЬКО карточки: поле ввода лежит снаружи
    #builderCatalog, поэтому фокус и каретка на месте, а раскладка по постам не пересчитывается. */
 $("builderSearch").oninput=e=>{state.builder.query=e.target.value;renderBuilderCatalog()};

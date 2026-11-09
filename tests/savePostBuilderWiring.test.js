@@ -46,7 +46,7 @@ assert.equal(EPCatalog.mechanismSpan(product(MECH_2M)), 2, "разведка: м
 /* Сборка стенда для savePostBuilder. Возвращает управляющие каналы: сохранённый шаблон (аргумент
    DataService.savePost), список тостов, флаг закрытия окна. НЕ стабим сборку base и адресацию —
    именно их проверяют находки. */
-function runSave({ slots, wallType = null, backlight = null, editingPlacedId = null, editingTemplateId = null, posts = [], templates = [], socketBoxId = "sb1", restrictInnardsColor = false }) {
+function runSave({ slots, wallType = null, backlight = null, editingPlacedId = null, editingTemplateId = null, posts = [], templates = [], socketBoxId = "sb1", restrictInnardsColor = false, verticalFrame = false }) {
   const dom = stand.makeDom();
   dom.$("postName").value = "Пост";
   dom.$("postFrameSelect").value = String(FRAME_2.id);
@@ -57,7 +57,9 @@ function runSave({ slots, wallType = null, backlight = null, editingPlacedId = n
     templates,
     // backlight — ЧЕРНОВИК подсветки поста (B2b-2): null = «как в проекте», объект = переопределение.
     // savePostBuilder переносит его в post.backlight поимённо, как keyGroups.
-    builder: { slots, wallType, backlight, editingPlacedId, editingTemplateId, restrictInnardsColor }
+    // verticalFrame — ЧЕРНОВИК отметки «Расположить вертикально» (Б8): savePostBuilder кладёт его в
+    // base как verticalLayout (белый список), поэтому доезжает и до поста, и до шаблона.
+    builder: { slots, wallType, backlight, editingPlacedId, editingTemplateId, restrictInnardsColor, verticalFrame }
   };
   const toasts = [];
   let savedTemplate; // аргумент DataService.savePost — по нему видно id (обновление vs дубль)
@@ -218,4 +220,24 @@ test("ОТДЕЛКА-ПОРЯДОК-save-b: галочка доезжает и �
     restrictInnardsColor: true, editingTemplateId: null
   });
   assert.equal(savedTemplate().restrictInnardsColor, true, "галочка сохранена в шаблоне — тот же base");
+});
+
+test("Б8-save-a: отметка «Расположить вертикально» доезжает до поста НА ПЛАНЕ", async () => {
+  /* verticalFrame — черновик окна; savePostBuilder кладёт его в base как verticalLayout (белый список).
+     Мутация «убрать verticalLayout из base» оставит пост без флага — этот тест краснеет (ЧАСТИ 2 нечем
+     будет восстанавливать вертикальность). */
+  const post = { id: "p1", roomId: "r1", frameId: FRAME_2.id };
+  const { state } = await runSave({
+    slots: [EPBuilderSlots.slot(MECH_2M, "")],
+    verticalFrame: true, editingPlacedId: "p1", posts: [post]
+  });
+  assert.equal(state.posts[0].verticalLayout, true, "флаг вертикальности сохранён у поста на плане");
+});
+
+test("Б8-save-b: отметка доезжает и до ШАБЛОНА (base общий)", async () => {
+  const { savedTemplate } = await runSave({
+    slots: [EPBuilderSlots.slot(MECH_2M, "")],
+    verticalFrame: true, editingTemplateId: null
+  });
+  assert.equal(savedTemplate().verticalLayout, true, "флаг вертикальности сохранён в шаблоне — тот же base");
 });
