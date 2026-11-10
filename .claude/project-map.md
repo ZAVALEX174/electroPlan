@@ -1,5 +1,5 @@
-<!-- mapped-at-commit: d6becb1e22265e522ee909587c039166c31e8a2f -->
-<!-- mapped-at: 2026-11-02 -->
+<!-- mapped-at-commit: 108cd08 -->
+<!-- mapped-at: 2026-11-10 (дополнено с d6becb1: Б8, А7, Б7; номера строк в 3.2/3.3 для затронутых файлов актуальны на 108cd08, в остальных могли сдвинуться) -->
 
 # Карта кода ElectroPlan Pro
 
@@ -126,7 +126,7 @@
 
 ## 3. Модуль → назначение (ключевые функции с :строкой)
 
-### 3.1 Оркестратор js/app.js (4489 строк, одна IIFE `(() => {…})()`; монолит state+DOM)
+### 3.1 Оркестратор js/app.js (4519 строк, одна IIFE `(() => {…})()`; монолит state+DOM)
 
 | строки | что |
 |--------|-----|
@@ -161,16 +161,17 @@
 
 ### 3.2 Вынесенные из app.js (attach-модули, DOM+state через ctx)
 
-- `js/postBuilder.js` (1687) — окно поста/конструктор (#postModal). `attach` 35; `openPostBuilder` 293, `builderSignature` 426, `builderPostDraft` 448, `projectPostsWithBuilder` 481,
+- `js/postBuilder.js` (1780; на 108cd08 — строки ниже по Б8 актуальны) — окно поста/конструктор (#postModal). `attach` 35; `openPostBuilder` 328, `builderSignature` 466, `builderPostDraft` 488, `projectPostsWithBuilder` 481,
   `builderCapacity` 496, `builderFilterRoom` 510, `builderInnardsFilter` 532, `renderBuilder` 565, `renderBuilderSlots` 950, `refreshBuilderLighting` 1058,
   `renderBuilderCatalog` 1086 (группы раздела «Клавиша»/«Клавиши с символами» через EPKeyKind, осевые через EPAxialCard.collapse), `productCardHtml` 1191 (бейдж «Осевой» по `builderAxialReps` 411), `pickBuilderProduct` 1220, `builderErrorHtml` 1264, `renderBuilderComposition` 1281, `savePostBuilder` 1432, `closePostBuilder` 1538,
-  `requestClosePostBuilder` 1556, `installSheetForBuilder` 1570; подбор накладки по умолчанию `pickDefaultFrame` 220, `defaultFrameForRoom` 246, `applyAutoDefaultFrame` 262;
+  `requestClosePostBuilder` 1556, `installSheetForBuilder` 1570; подбор накладки по умолчанию `pickDefaultFrame` 220, `defaultFrameForRoom` 246, `applyAutoDefaultFrame` 292 (pickDefaultFrame 250, defaultFrameForRoom 276 — после Б8 сдвиг);
+  **Б8 «Расположить вертикально»** (чекбокс `#verticalFrameCheck`, `state.builder.verticalFrame`): `renderFrameOrientation` 189 (галка по `EPFrameOrientation.checkboxChecked`), `toggleFrameOrientation` 204 (переписывает frameId на двойника через `oriented`), `applyAutoDefaultFrame` 292 (держит ориентацию), `changePostSlotCount` 1455 (`sameFacingAtCount` — та же накладка на другое число мест), `changeBuilderRoom` 1494, `savePostBuilder` 1515 (пишет `verticalLayout`, ~1542), загрузка флага из `src.verticalLayout` ~420;
   `resolveMissingFrame` 58 / `resolveMissingMechanism` 94 (пропавший артикул); подсветка/термодатчик в окне `renderPostBacklight` 124, `renderPostThermoSensor` 165.
 - `js/docs.js` (777) — сборка документов. `attach` 35; `postPricedItems` 51, `buildPostLayout` 60, `planLabelsSpec` 151, `planBlockHtml` 194, `supplierSpecData` 213,
   `supplierSpecHtml` 301, `buildExplodedSpec` 326, **`buildPostSheet` 439**, `openInstallSheet` 594, `installSheetForProject` 612, **`generateCommercialOffer` 658**, `exportSpecExcel` 731.
 - `js/rooms.js` (293) — слой комнат на плане, правка вершин (`attach` 34). `js/roomDetect.js` (465) — «Определить помещения»: линии → грани, ML, сегментация (`attach` 57).
 - `js/canvasInput.js` (527) — клики/жесты/панорама/зум (`attach` 52). `js/postCopyUi.js` (129) — Ctrl+C/V постов (`attach` 28).
-- `js/postVariant.js` (153) — готовый пост ↔ варианты отделки комнаты: `placementFits` 35, `attach` 45 (`frameForRoomPlacement`).
+- `js/postVariant.js` (165) — готовый пост ↔ варианты отделки комнаты: `placementFits` 35, `attach` 45 (`frameForRoomPlacement` 115; Б8: вертикальность поста (`template.verticalLayout` или сама накладка) → `EPFrameOrientation.isVerticalPost` + `oriented`, ~142–149).
 - `js/projectFile.js` (259) — файл проекта: `build` 50, `parse` 64, `signature` 89, `mergePrefs` 125, `attach` 146 (скачать/открыть/новый). `js/projectSetup.js` (58) — окно «Данные проекта и КП».
 - `js/topbar.js` (116) шапка, `js/rightPanel.js` (82) правая панель (`kpLine` 21), `js/leftPanel.js` (122) левая панель (`planStatusText` 22), `js/canvasBar.js` (42) строка под холстом (Орто/Сетка/шаг, F8/F9).
 - `js/installSheetWindow.js` (151) — окно состава листа монтажника (`create` 24; ключ prefs `installSheetPresets`). `js/wallScope.js` (63) — промис-модалка «этот пост / все однотипные».
@@ -195,9 +196,13 @@
 - `js/buttonFrame.js` (156) — кнопочные накладки Flat и двойная клавиша 22751 (К12 ч.4): `BUTTON_FRAME_BASES` 33, `isButtonFrame` 51, `buttonsOf` 59, `appliesTo` 66, **`spanIn` 78**, `orderWindows` 91, `faceParts` 110, `cellSlots` 141.
 
 Посты и конструктор
-- `js/posts.js` (828) — состав/цена/раскладка поста: `frameAvailability` 26, `mechanismAvailability` 70, `boxCount` 128, `postWallType` 152, `applyProjectWallToPosts` 168, `postTypeKey` 194, `wallTypeTargets` 220,
+- `js/frameOrientation.js` (146, Б8, window.EPFrameOrientation; script index.html:879) — правило пары накладки «горизонтальная ↔ вертикальная» (LINEA 30643↔30645, 30644↔30646; двойник ищется по базовому имени/серии/числу мест, нет двойника → null). `isVertical` 34, `pairOf` 69, `hasPair` 82, `verticalOf` 88, `horizontalOf` 94, `oriented(frame,frames,vertical)` 102, `isVerticalPost(frame,flag)` 112 (флаг поста ИЛИ сама накладка вертикальная), `sameFacingAtCount(frame,count,frames)` 124, `checkboxChecked(frame,flag,frames)` 138. Потребители: postBuilder.js (renderFrameOrientation 189, toggleFrameOrientation 204, applyAutoDefaultFrame 292, changePostSlotCount 1455, changeBuilderRoom 1494, savePostBuilder 1515 → поле `verticalLayout`), postVariant.js `frameForRoomPlacement` 115, posts.js `placementFields` 533 (перенос флага). Тесты: frameOrientation, frameOrientationPart2, frameOrientationPart3, frameOrientationWiring (.test.js).
+- `js/clientBook.js` (195, А7, EPClientBook; index.html:956) — книга клиентов (подсказки ФИО в окне «Данные проекта и КП»): чистые `normFio` 29, `normalizeList` 36, `find` 42, `suggest` 51, `remember` 72 (+`LIST_KEY`, `LIMIT`); `attach(ctx)` 96 — datalist, подстановка реквизитов клиента (`trySubstitute` 157, `rememberCurrent` 119). Тесты clientBook, clientBookWiring.
+- `js/docTotals.js` (119, Б7, EPDocTotals; index.html:901) — ОДИН блок денежных итогов для КП и экспликации: `footerHtml` 41, `topUpSectionHtml` 78 (поверх EPEstimate.totalsShown/discountShown). Потребители offerPdf.js, roomSheet.js.
+- `js/roomSheet.js` (155, Б7, EPRoomSheet; index.html:913) — «Экспликация по комнатам» (чистая сборка HTML, `buildHtml(data,deps)` 68); данные собирает `roomSheetForProject` в docs.js, кнопка `#roomSheetBtn`. Тесты roomSheet, roomSheetTotals.
+- `js/posts.js` (834) — состав/цена/раскладка поста: `frameAvailability` 26, `mechanismAvailability` 70, `boxCount` 128, `postWallType` 152, `applyProjectWallToPosts` 168, `postTypeKey` 194, `wallTypeTargets` 220,
   `normalizeBacklight` 249, `postBacklight` 276, `backlightPlan` 284, **`postComposition` 317**, **`postCost` 422**, `moduleLayout` 445, `fillSummary` 482, `nextPostNumber` 497, `ensurePostNumbers` 504,
-  `placementFields` 533, `templateFrameColor` 577, `templateFitsRoomColor(s)` 591/609, `pickRoomFrame` 626, `fitMechanismIds` 637, `fitMechanismIdsPreserving` 654, `frameLayout` 692, `packAll` 725, **`distributePosts` 756**, `maxFreeSpan` 802, `postModuleGroups` 811.
+  `placementFields` 533 (Б8: переносит `verticalLayout===true`, 566), `templateFrameColor` 577, `templateFitsRoomColor(s)` 591/609, `pickRoomFrame` 626, `fitMechanismIds` 637, `fitMechanismIdsPreserving` 654, `frameLayout` 692, `packAll` 725, **`distributePosts` 756**, `maxFreeSpan` 802, `postModuleGroups` 811.
 - `js/builderSlots.js` (253) — слоты окна поста «механизм+группа света»: `slot` 40, `fromPost` 72, `toPost` 89, `tokens` 102, `tokenDeps` 114, `allowedTokens` 137, `pick` 151, `replaceAt` 184, `setGroup` 192, `setCross` 198, `setMech` 203, `reindex` 232, `signature` 244.
 - `js/postImage.js` (791) — единая картинка собранного поста: `itemColor` 214, `pickIcon` 226, `faceSprite` 322, `splitOpening` 421, **`buildHtml` 451**, `photoReady` 494, `postWindows` 511, `windowsHoldModules` 547.
 - `js/postCopy.js` (307) — копирование постов: `newCrossNumbers` 68, `snapshot` 92, `buildCopies` 124, `copyHotkey` 215, `stripSharedGroupNames` 263. `js/selection.js` (117) — групповое выделение: `toggle` 54, `postsInRect` 105.
@@ -375,7 +380,7 @@ Undo/redo: `captureHistory` app.js:2897, `EPHistory` history.js (шаг = сни
 ## 7. Тесты (`tests/*.test.js`, раннер node:test; хелперы `tests/helpers/appStand.js`, `stripComments.js`)
 
 Чистые модули (по одному файлу на модуль):
-catalog (49) · seriesMatch · catalogSections, catalogSectionsOrder · catalogPoolFallback · posts (78) · postfit (57), postfitDeviceSupport, postfitSupportWallCatalog · estimate (63), estimateBacklight, specShown · lightingGroups (103) · lightingPlan (46) · lightingByRoom (37) · builderSlots (28) · buttonFrame, buttonFrameCapacity · mechColor · framePicker · thermoSensor, thermoSensorK5b · backlightPick (19) · confirmRepeat (24) · installSheet (56), installSheetOptions, installSheetWindow · offerPdf, offerOptions, offerNumber, offerTerms · supplierSpec (45) · specExcel · packRound, packTopUp · explodedView (38) · postImage (56) · planLabels (41) · postCopy (37) · geometry (54) · viewport · roomsFromLines · roomOverlap · roomCarry (66) · roomVariants (35), roomVariantsUi · roomWalls · room · roomDraft · selectionModule · drag · history · planImport, planRotate, planShrink · imageFormats, heicImport · docRequisites · priceSheet, priceTemplate (29), priceTemplateFile, priceCheckUi · projectFile, projectSetup · rates · notices · leftPanel, rightPanel, topbarProjectLabel · picker · placeDblClick · planDrop.
+frameOrientation(+Part2, Part3, Wiring) · clientBook, clientBookWiring · roomSheet, roomSheetTotals · lightingByRoomWiring · postCopyRoomFit · roomDiscontinuedFacing(+Wiring, FramePicker) · specRowDiscontinued · pickerDiscontinued · catalogImageRules · catalog (49) · seriesMatch · catalogSections, catalogSectionsOrder · catalogPoolFallback · posts (78) · postfit (57), postfitDeviceSupport, postfitSupportWallCatalog · estimate (63), estimateBacklight, specShown · lightingGroups (103) · lightingPlan (46) · lightingByRoom (37) · builderSlots (28) · buttonFrame, buttonFrameCapacity · mechColor · framePicker · thermoSensor, thermoSensorK5b · backlightPick (19) · confirmRepeat (24) · installSheet (56), installSheetOptions, installSheetWindow · offerPdf, offerOptions, offerNumber, offerTerms · supplierSpec (45) · specExcel · packRound, packTopUp · explodedView (38) · postImage (56) · planLabels (41) · postCopy (37) · geometry (54) · viewport · roomsFromLines · roomOverlap · roomCarry (66) · roomVariants (35), roomVariantsUi · roomWalls · room · roomDraft · selectionModule · drag · history · planImport, planRotate, planShrink · imageFormats, heicImport · docRequisites · priceSheet, priceTemplate (29), priceTemplateFile, priceCheckUi · projectFile, projectSetup · rates · notices · leftPanel, rightPanel, topbarProjectLabel · picker · placeDblClick · planDrop.
 
 Правила на данных/каталоге: nomenclature (33), nomenclature2026 (20) — чтение xls и классификация; catalogIdsUnique; catalogNoPlaceholderPhoto; catalogRuntimeEnrichment; discontinuedCatalog; packCatalogData; openingsKeyConsistency (ключ окон data.js ↔ tools); detectOpeningsSelection; faces; mountNote; elementColorFromArticle/FromName; siteGroups; backlightInherit.
 
