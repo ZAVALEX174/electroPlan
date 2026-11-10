@@ -93,8 +93,9 @@ test("★ место 1: нетронутый пост БЕЗ отметки, 4�
 });
 
 test("★ место 2 (changePostSlotCount, РУЧНАЯ накладка frameAuto=false): пост С ОТМЕТКОЙ, 4→6 → 30646.01", () => {
-  /* Так выглядит РЕАЛЬНЫЙ UI: отметка «Расположить вертикально» сняла frameAuto (ч.1), накладка стала
-     ручной. applyAutoDefaultFrame тут no-op — ориентацию держит отдельная ветка changePostSlotCount. */
+  /* Так выглядит РЕАЛЬНЫЙ UI: накладку выбрали РУКАМИ в поле (это сняло frameAuto — отметка frameAuto НЕ
+     трогает, решение владельца 09.11), а отметка «Расположить вертикально» стоит. applyAutoDefaultFrame
+     тут no-op — ориентацию держит отдельная ветка changePostSlotCount. */
   const chosen = runChangeSlot({ frameAuto: false, verticalFrame: true, count: 6, currentFrameId: V4.id });
   assert.equal(chosen, String(V6.id),
     "ручная вертикальная 30645.01 при 4→6 стала 30646.01 (мутация «убрать ветку hasPair в changePostSlotCount» оставила бы приклеенной 4М)");

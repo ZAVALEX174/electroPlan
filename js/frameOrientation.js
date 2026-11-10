@@ -104,6 +104,33 @@ function oriented(frame, frames, vertical) {
   return target || frame || null;
 }
 
+/* «Вертикален ли ПОСТ» — ОДНО место правила вопроса, который потребители раньше решали каждый по
+   своему признаку. Пост вертикален, если стоит отметка (flag) ИЛИ его собственная накладка уже
+   вертикальная. Второй признак обязателен для СТАРЫХ постов/шаблонов, собранных вертикальной накладкой
+   РУКАМИ до Б8: поля-флага у них нет, но вертикальность видна по самой накладке. frames не нужен —
+   ориентацию накладки читаем по имени (isVertical). */
+function isVerticalPost(frame, flag) {
+  return flag === true || isVertical(frame);
+}
+
+/* «Та же накладка на ДРУГОЕ число модулей» — для смены модульности у поста с РУЧНОЙ вертикальной
+   накладкой. Ищем изделие ТОЙ ЖЕ серии, с ТЕМ ЖЕ суффиксом отделки и ТОЙ ЖЕ ориентацией, но с нужным
+   числом прорезей (count). Поиск по ВСЕМУ переданному списку, НЕ по пулу комнаты: накладку могли выбрать
+   руками «чужую» комнате (LINEA-накладка в комнате Arke), и держать надо серию НАКЛАДКИ, а не комнаты —
+   иначе 4→6 подставит 6М-накладку чужой серии и перепишет состав и цену. Ровно один кандидат → он; ноль
+   или несколько (неоднозначность) → null: накладку НЕ трогаем, ручной выбор главнее выдуманной подмены
+   (§7.1). baseName не сверяем — у 4М и 6М двойников имена различаются числом модулей; ключ пары здесь —
+   серия + суффикс отделки + ориентация. */
+function sameFacingAtCount(frame, count, frames) {
+  if (!frame || (frame.kind && frame.kind !== "frame")) return null;
+  const vert = isVertical(frame), suf = facingSuffix(frame.code), sk = seriesKey(frame), want = Number(count) || 0;
+  const hits = (Array.isArray(frames) ? frames : []).filter(f =>
+    f && f !== frame && (!f.kind || f.kind === "frame") &&
+    isVertical(f) === vert && facingSuffix(f.code) === suf && seriesKey(f) === sk &&
+    slotCountOf(f) === want);
+  return hits.length === 1 ? hits[0] : null;
+}
+
 /* Состояние отметки «Расположить вертикально» для выбранной накладки. У накладки С ПАРОЙ отметка
    СТРОГО отражает ориентацию самой накладки (связь в обе стороны: выбрал вертикальную руками —
    загорелась, горизонтальную — погасла). У накладки БЕЗ пары (и когда накладка не разрешилась)
@@ -113,7 +140,7 @@ function checkboxChecked(frame, flag, frames) {
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для тестов. */
-const api = { isVertical, pairOf, hasPair, verticalOf, horizontalOf, oriented, checkboxChecked };
+const api = { isVertical, pairOf, hasPair, verticalOf, horizontalOf, oriented, checkboxChecked, isVerticalPost, sameFacingAtCount };
 if (typeof window !== "undefined") window.EPFrameOrientation = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

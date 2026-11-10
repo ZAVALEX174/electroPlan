@@ -1462,15 +1462,17 @@ function changePostSlotCount(){
      и пост на плане/шаблон не трогаются — applyAutoDefaultFrame на них no-op. */
   const cur=frameProduct($("postFrameSelect").value);
   const auto=applyAutoDefaultFrame(count,cur);
-  /* Б8: пост С ОТМЕТКОЙ «Расположить вертикально», где накладка выбрана РУКАМИ (отметка сняла frameAuto в
-     ч.1, поэтому applyAutoDefaultFrame выше — no-op, auto==null), держит ориентацию и при смене числа
-     модулей: под новый count берём накладку ТОЙ ЖЕ серии/цвета (defaultFrameForRoom с образцом) и приводим
-     к вертикали (EPFrameOrientation.oriented — то же единственное правило). Сужено до накладок С ПАРОЙ
-     (hasPair): обычную ручную накладку смена числа модулей НЕ трогает — прежнее поведение (ручной выбор
-     главнее, §7.1). Иначе 4М-вертикальная при выборе 6 осталась бы приклеенной 4М вместо 30646.*. */
+  /* Б8: пост С ОТМЕТКОЙ «Расположить вертикально», где накладка выбрана РУКАМИ (отметка не трогает frameAuto,
+     но ручной выбор поля его снял → applyAutoDefaultFrame выше no-op, auto==null), держит ориентацию и при
+     смене числа модулей: под новый count берём накладку ТОЙ ЖЕ СЕРИИ и ОТДЕЛКИ, что текущая, той же
+     ориентации (EPFrameOrientation.sameFacingAtCount — одно правило «та же накладка на другое число
+     модулей»). Ищем по серии НАКЛАДКИ, а не по пулу КОМНАТЫ: ручную накладку могли выбрать «чужую» комнате
+     (LINEA-накладка в комнате Arke), и defaultFrameForRoom дал бы 6М чужой серии — другой состав и цена.
+     Сужено до накладок С ПАРОЙ (hasPair): обычную ручную накладку смена числа модулей НЕ трогает — прежнее
+     поведение (ручной выбор главнее, §7.1). Нет такой накладки или кандидат не единственный → sameFacingAtCount
+     даёт null, накладку не трогаем. */
   if(!auto&&cur&&state.builder.verticalFrame&&typeof EPFrameOrientation!=="undefined"&&EPFrameOrientation.hasPair(cur,byKind("frame"))){
-    const base=defaultFrameForRoom(builderFilterRoom(),count,cur);
-    const target=base&&(EPFrameOrientation.oriented(base,byKind("frame"),true)||base);
+    const target=EPFrameOrientation.sameFacingAtCount(cur,count,byKind("frame"));
     if(target)$("postFrameSelect").dataset.preferredFrameId=String(target.id);
   }
   renderBuilder();
@@ -1500,7 +1502,10 @@ function changeBuilderRoom(roomId){
      посты модульность по-прежнему не «запоминают». */
   const cur=state.builder.verticalFrame&&typeof EPFrameOrientation!=="undefined"?frameProduct($("postFrameSelect").value):null;
   const keepOrient=cur&&EPFrameOrientation.hasPair(cur,byKind("frame"));
-  const auto=keepOrient?applyAutoDefaultFrame(frameSlotCount(cur),cur):applyAutoDefaultFrame(null,null);
+  /* Б8 D3: если у новой комнаты накладки ТОЙ ЖЕ модульности нет (пост на 6М переносят в Eikon Tactil, где
+     только 2/3/4М), подбор с сохранением модульности даёт null и поле «Накладка» осталось бы пустым. Тогда
+     идём обычным путём поста БЕЗ отметки — дефолт комнаты, ближайший к 3 (applyAutoDefaultFrame(null,null)). */
+  const auto=(keepOrient&&applyAutoDefaultFrame(frameSlotCount(cur),cur))||applyAutoDefaultFrame(null,null);
   const capacity=auto?frameSlotCount(auto):builderCapacity();
   renderPostSlotCountSelect(capacity);
   $("postSlotCount").value=String(capacity);

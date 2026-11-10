@@ -140,11 +140,14 @@ function frameForRoomPlacement(template,room){
     if(swap){
       /* Б8: пост/копия с отметкой «Расположить вертикально» получает ВЕРТИКАЛЬНЫЙ двойник подменной
          накладки нужного цвета комнаты — то же единственное правило EPFrameOrientation.oriented; двойника
-         нет (не-LINEA) → сама подмена. Флаг template.verticalLayout доезжает сюда через placementFields
-         (размещение) и глубокую копию (вставка). EPFrameOrientation — window-глобал (сборщика нет, PLAN
-         2.2); в vm-вырезке стенда его может не быть → подмену не ориентируем (прежнее поведение). */
+         нет (не-LINEA) → сама подмена. «Вертикален ли пост» решает ОДНА функция isVerticalPost: отметка
+         (флаг template.verticalLayout, доезжает через placementFields/глубокую копию) ИЛИ сама накладка
+         поста уже вертикальная — старый пост/шаблон с 30645.* собран вертикалью РУКАМИ до Б8, поля-флага
+         не несёт, но вертикальность видна по накладке. EPFrameOrientation — window-глобал (сборщика нет,
+         PLAN 2.2); в vm-вырезке стенда его может не быть → подмену не ориентируем (прежнее поведение). */
       const FO=(typeof EPFrameOrientation!=="undefined"&&EPFrameOrientation)||(typeof window!=="undefined"&&window.EPFrameOrientation);
-      const oriented=(FO&&FO.oriented(swap,byKind("frame"),template.verticalLayout===true))||swap;
+      const vertical=!!(FO&&FO.isVerticalPost(frame,template.verticalLayout===true));
+      const oriented=(FO&&FO.oriented(swap,byKind("frame"),vertical))||swap;
       return {frameId:oriented.id};
     }
   }
