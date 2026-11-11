@@ -210,6 +210,62 @@ function toggleFrameOrientation(checked){
   }
   renderBuilder();
 }
+/* Текст «почему позиция стандарта недоступна» (Б8-д). BOTH — обе позиции недоступны (годна обоим); иначе
+   у текущего IT/DE нет двойника противоположного стандарта в этой отделке. Родительный падеж «итальянской/
+   немецкой» отличается от именительного standardLabel («итальянский/немецкий») — поэтому отдельная мини-
+   карта форм; это ЕДИНСТВЕННОЕ место фразы, число модулей — moduleWord (§7.1). Накладки нет → пусто. */
+const STANDARD_GENITIVE={IT:"итальянской",DE:"немецкой"};
+function standardUnavailableText(frame,standard,cur){
+  if(!frame)return"";
+  if(cur==="BOTH")return"Накладка подходит для обоих стандартов.";
+  return `В этой отделке нет ${STANDARD_GENITIVE[standard]||standardLabel(standard)} накладки на ${moduleWord(frameSlotCount(frame))}.`;
+}
+/* Переключатели расположения И монтажного стандарта (Б8-д). Орган показа состояния — ЕДИНАЯ точка:
+   расположение берём из state.builder.verticalFrame (его уже привёл к ориентации накладки
+   renderFrameOrientation выше в renderBuilder), стандарт и доступность позиций — из чистой EPPostStandard.
+   Вызывается из renderBuilderComposition (как wall-type/подсветка), поэтому document здесь уместен. */
+function renderPostStandard(frame,frames){
+  if(typeof EPPostStandard==="undefined")return;
+  const vertical=!!state.builder.verticalFrame;
+  document.querySelectorAll("#postOrientMode .wall-type-option").forEach(b=>{
+    const on=(b.dataset.orient==="vertical")===vertical;   /* обе позиции всегда доступны: свободный флаг у накладки без пары */
+    b.classList.toggle("active",on);
+    b.setAttribute("aria-checked",on?"true":"false");
+  });
+  const cur=EPPostStandard.currentStandard(frame,frames);
+  /* Связь в обе стороны, как у расположения: если человек УЖЕ в режиме выбранного стандарта
+     (standardChoice задан) и выбрал накладку руками — переключатель следует её стандарту, и пул
+     остаётся согласован с ней. Пока не нажимал (null) — НЕ трогаем: старый пост поля не получает. */
+  if(state.builder.standardChoice!=null&&(cur==="IT"||cur==="DE"))state.builder.standardChoice=cur;
+  let reason="";
+  document.querySelectorAll("#postStandardMode .wall-type-option").forEach(b=>{
+    const std=b.dataset.standard;
+    const active=std===cur;
+    const reachable=active||!!EPPostStandard.frameForStandard(frame,std,frames,vertical);
+    b.classList.toggle("active",active);
+    b.setAttribute("aria-checked",active?"true":"false");
+    b.disabled=!reachable;
+    if(!reachable&&!reason)reason=standardUnavailableText(frame,std,cur);
+  });
+  const hint=$("postStandardHint");
+  if(hint)hint.textContent=reason;
+}
+/* Нажатие на позицию монтажного стандарта (Б8-д). Переписываем frameId на двойник нужного стандарта той
+   же отделки с текущим расположением (EPPostStandard.frameForStandard — одно правило двойника, §7.1).
+   Явный выбор стандарта = ручной выбор накладки → снимаем frameAuto (как postFrameSelect.onchange), иначе
+   смена комнаты/числа модулей пере-подобрала бы накладку по стандарту КОМНАТЫ и затёрла выбор. standardChoice
+   запоминаем в черновике — он задаёт пул окна и при сохранении уедет полем поста. Недоступная позиция
+   (двойника нет) → target null, ничего не меняем. */
+function toggleStandard(std){
+  if(std!=="IT"&&std!=="DE")return;
+  const cur=frameProduct($("postFrameSelect").value);
+  const target=EPPostStandard.frameForStandard(cur,std,byKind("frame"),!!state.builder.verticalFrame);
+  if(!target)return;
+  state.builder.standardChoice=std;
+  state.builder.frameAuto=false;
+  if(cur&&Number(target.id)!==Number(cur.id))$("postFrameSelect").dataset.preferredFrameId=String(target.id);
+  renderBuilder();
+}
 /* Селектор «Количество модулей рамки» — НЕ константа в разметке, а производная модульностей
    накладок (EPCatalog.frameSlotOptions). ⚠️ СЧИТАЕМ ОТ ТОГО ЖЕ ПУЛА, ЧТО renderBuilder ФИЛЬТРУЕТ
    (collectionFramePool), а не от всего каталога: коллекция комнаты (E13) сужает список накладок
@@ -418,6 +474,10 @@ function openPostBuilder({templateId=null,placedId=null}={}){
      ниже всё равно зажжёт отметку: у накладки с парой отметка строго следует ориентации самой
      накладки (checkboxChecked), поэтому вертикальный frameId → горящая отметка без миграции. */
   state.builder.verticalFrame=!!src.verticalLayout;
+  /* Выбранный РУКАМИ монтажный стандарт (Б8-д) — ЧЕРНОВИК окна. Поле есть ТОЛЬКО если человек нажимал
+     переключатель (savePostBuilder пишет его условно); у старых постов поля нет → null, и пул/поведение
+     как прежде (по стандарту комнаты). Пока null — переключатель лишь ОТРАЖАЕТ стандарт накладки. */
+  state.builder.standardChoice=(src.standardChoice==="IT"||src.standardChoice==="DE")?src.standardChoice:null;
   /* Решение «термодатчик: с датчиком / без датчика» (К5б) — ЧЕРНОВИК окна. У поста хранится ТОЛЬКО
      явное «off» (src.thermoSensor==="off"); отсутствие поля = «с датчиком» (расчёт добавляет сам,
      EPThermoSensor.sensorsEnabled). Шаблон/новый пост поля не несут → "on". Второй трактовки
@@ -462,10 +522,13 @@ const builderWallType=()=>state.builder.wallType||"solid";
    ТИП СТЕНЫ, ПОДСВЕТКА, РЕШЕНИЕ ПО ТЕРМОДАТЧИКУ И ГАЛОЧКА «ограничить цветом накладки» В ПОДПИСИ
    ОБЯЗАТЕЛЬНЫ: все они — черновик окна и свойство поста, и без них закрытие по Esc считало бы пост
    нетронутым и молча выбрасывало бы правку, о которой человек не предупреждён. Подсветка — объект/null,
-   кодируем JSON (как слоты), а не склейкой; термодатчик — строка "on"/"off"; галочка — булев флаг. */
+   кодируем JSON (как слоты), а не склейкой; термодатчик — строка "on"/"off"; галочка — булев флаг.
+   ВЫБРАННЫЙ МОНТАЖНЫЙ СТАНДАРТ (Б8-д, standardChoice "IT"/"DE"/null) — тоже черновик и свойство поста:
+   без него смена стандарта не грязнила бы подпись, и Esc молча выбросил бы выбор. Смена накладки через
+   стандарт меняет и postFrameSelect.value выше, но прямой выбор той же позиции — нет, поэтому поле отдельно. */
 function builderSignature(){
   return JSON.stringify([$("postName").value,String($("postFrameSelect").value||""),
-    builderWallType(),state.builder.backlight,state.builder.thermoSensor,!!state.builder.restrictInnardsColor,!!state.builder.verticalFrame,EPBuilderSlots.signature(state.builder.slots)]);
+    builderWallType(),state.builder.backlight,state.builder.thermoSensor,!!state.builder.restrictInnardsColor,!!state.builder.verticalFrame,state.builder.standardChoice||null,EPBuilderSlots.signature(state.builder.slots)]);
 }
 const builderDirty=()=>state.builder.snapshot!=null&&builderSignature()!==state.builder.snapshot;
 
@@ -554,7 +617,13 @@ function builderFilterRoom(){
   return room?EPRoomVariants.list(room)[EPRoomVariantsUi.builderIndex(room,state.builder.variantIndex)]||null:null;
 }
 function builderRoomFilter(){
-  return roomCatalogFilter(builderFilterRoom());
+  const base=roomCatalogFilter(builderFilterRoom());
+  /* Б8-д: человек нажал переключатель стандарта (state.builder.standardChoice) → пул накладок окна
+     строится по ВЫБРАННОМУ стандарту вместо стандарта комнаты; остальные критерии комнаты (коллекция,
+     цвет, материал/форма) — как были. Без выбора (null) — пул прежний. BOTH в пул попадает при любом
+     выборе: productsForRoom пускает «универсальную» накладку под IT и под DE. */
+  const sc=state.builder.standardChoice;
+  return (sc==="IT"||sc==="DE")?{...base,standard:sc}:base;
 }
 /* Критерий отбора НАЧИНКИ (клавиш/розеток/механизмов) под комнату — ПРОДОЛЖЕНИЕ того же
    productsForRoom, что сужает накладки (§7.1: правило «что подходит комнате» одно). У начинки
@@ -1362,6 +1431,9 @@ function renderBuilderComposition(selectedFrame,errorHtml="",light=null,draft=nu
   /* Орган «термодатчик с датчиком / без» синхронизируется рядом с подсветкой (К5б): решение уже
      участвует в comp/цене через builderPostDraft, здесь — только UI. */
   renderPostThermoSensor();
+  /* Переключатели расположения и монтажного стандарта (Б8-д). typeof-страховка — как у остальных:
+     стенд, вырезающий функции по одной, renderPostStandard в вырезку renderBuilderComposition не берёт. */
+  if(typeof renderPostStandard==="function")renderPostStandard(selectedFrame,byKind("frame"));
   const host=$("builderComposition");if(!host)return;
   if(!selectedFrame){host.innerHTML=errorHtml||"";return;}
   const post=draft||{frameId:Number($("postFrameSelect").value),

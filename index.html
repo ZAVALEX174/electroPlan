@@ -505,12 +505,27 @@
               <select id="postFrameSelect"></select>
             </label>
           </div>
-          <!-- Отметка «Расположить вертикально» (Б8): у поста LINEA на 4/6 модулей переключает накладку
-               на вертикальный двойник той же отделки (30645/30646) и обратно. Связана с полем «Накладка»
-               в обе стороны (renderFrameOrientation/toggleFrameOrientation). У остальных коллекций состав
-               не меняется — отметка просто сохраняется у поста. Видна у любого поста; на какие именно
-               накладки влияет, решает EPFrameOrientation (есть ли пара). -->
-          <label class="builder-vertical-frame"><input type="checkbox" id="verticalFrameCheck"> <span>Расположить вертикально</span></label>
+          <!-- Расположение и монтажный стандарт накладки (Б8 + Б8-д, заказчик 11.11: «у каждого блока
+               качелька расположения и рядом качелька итальянский/немецкий стандарт… поменять стандарт и
+               сделать вертикальным уже в нужном формате»). ДВА двухпозиционных переключателя вместо
+               прежней галочки «Расположить вертикально». Вид — как у «Тип стены»/«Подсветка» (wall-type-option).
+               Галочка #verticalFrameCheck ОСТАЁТСЯ СКРЫТЫМ носителем состояния расположения: логика Б8
+               (renderFrameOrientation/toggleFrameOrientation/checkboxChecked, §7.1) не меняется — меняется
+               только видимый орган. Кнопки расположения зовут ту же toggleFrameOrientation. Кнопки стандарта
+               (renderPostStandard/toggleStandard) заменяют накладку на двойник другого стандарта той же серии,
+               числа модулей и отделки; состав и цена пересчитываются сами (стандарт поста выводится из накладки). -->
+          <input type="checkbox" id="verticalFrameCheck" hidden>
+          <div class="builder-orient-standard">
+            <div class="wall-type-options" id="postOrientMode" role="radiogroup" aria-label="Расположение накладки">
+              <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-orient="horizontal">Горизонтально</button>
+              <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-orient="vertical">Вертикально</button>
+            </div>
+            <div class="wall-type-options" id="postStandardMode" role="radiogroup" aria-label="Монтажный стандарт накладки">
+              <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-standard="IT">Итальянский</button>
+              <button type="button" role="radio" aria-checked="false" class="wall-type-option" data-standard="DE">Немецкий</button>
+            </div>
+            <small class="wall-type-hint" id="postStandardHint"></small>
+          </div>
           <!-- Хинт отделки накладки (E14): «показано N из M · сузили: …» либо словами про пустое
                сочетание. Заполняет renderBuilder по критерию комнаты (frameFacingHintText); пусто,
                когда отделка комнаты не задана. Это <small>, а не <label> — на него не действует
@@ -877,6 +892,8 @@
 <script src="js/buttonFrame.js?v=20261101.3"></script>
 <!-- Ориентация накладки: горизонтальная ↔ вертикальная пара одной отделки (Б8), чистое правило, до postBuilder.js/app.js. -->
 <script src="js/frameOrientation.js?v=20261110.1"></script>
+<!-- Монтажный стандарт накладки: итальянский ↔ немецкий двойник одной отделки (Б8-д), чистое правило, после frameOrientation, до postBuilder.js/app.js. -->
+<script src="js/postStandard.js?v=20261111.1"></script>
 <script src="js/picker.js?v=20261107.1"></script>
 <!-- Вид клавиши: простая / с символом-диффузором (К14 ч.2) — делит раздел «Клавиша» каталога. -->
 <script src="js/keyKind.js?v=20261102.1"></script>
@@ -968,7 +985,7 @@
      «висящего» промиса и провязка кнопок. Вынесена из app.js (И1). Грузится ДО app.js, который
      подключает её через EPWallScope.create({$, WALL_STEP_LABEL}). -->
 <script src="js/wallScope.js?v=20260927.1"></script>
-<script src="js/postBuilder.js?v=20261110.1"></script>
+<script src="js/postBuilder.js?v=20261111.1"></script>
 <script src="js/rooms.js?v=20261101.1"></script>
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
@@ -1022,6 +1039,6 @@
 <!-- Левая панель (Редизайн, часть 4): сворачиваемые секции (память в EPPrefs), статус/автосворачивание
      «Исходного плана», горячие клавиши инструментов V/W/L/R/E. До app.js, который зовёт EPLeftPanel.attach(ctx). -->
 <script src="js/leftPanel.js?v=20261030.2"></script>
-<script src="js/app.js?v=20261108.6"></script>
+<script src="js/app.js?v=20261111.1"></script>
 </body>
 </html>
