@@ -125,6 +125,21 @@ test("неоднозначность: два неотличимых DE-канд�
   assert.equal(EPPostStandard.twinOf(base, [base, twinA]), twinA, "ровно один кандидат → он");
 });
 
+/* BOTH-накладка НЕ кандидат в двойники. На реальном каталоге это не проверить: BOTH бывает только на
+   1–2 модуля, а двойников ищем на 4/6/8 — slotCount не совпадёт, и неверная «BOTH как кандидат» прошла бы
+   зелёной. Держим КРАФТОВЫМ входом, где BOTH-декой совпадает с базисом по ВСЕМ сверяемым признакам (серия/
+   модули/цвет/суффикс): правильное правило берёт только «другой стандарт» (IT↔DE), BOTH универсальна и
+   двойником быть не может — иначе переключатель подменил бы накладку на универсальную и состав/цена уехали. */
+test("BOTH-декой совпадает по всем признакам, но двойником НЕ становится (только IT↔DE)", () => {
+  const base = { code: "AA.1", kind: "frame", standard: "IT", series: ["s"], slotCount: 4, frameColor: "c" };
+  const both = { code: "ZZ.1", kind: "frame", standard: "BOTH", series: ["s"], slotCount: 4, frameColor: "c" };
+  assert.equal(EPPostStandard.twinOf(base, [base, both]), null,
+    "BOTH как единственный кандидат → null (мутация «BOTH как кандидат» вернула бы ZZ.1)");
+  const twinDE = { code: "BB.1", kind: "frame", standard: "DE", series: ["s"], slotCount: 4, frameColor: "c" };
+  assert.equal(EPPostStandard.twinOf(base, [base, both, twinDE]), twinDE,
+    "при живом DE-двойнике BOTH-декой не создаёт неоднозначности и не перебивает его");
+});
+
 test("frameForStandard: позиция недоступна (нет двойника) → null; текущий стандарт → сам (oriented)", () => {
   const reflex = byCode("30654.40");   // IT, DE-двойника нет
   assert.equal(EPPostStandard.frameForStandard(reflex, "DE", FRAMES, false), null, "немецкой накладки нет → null");

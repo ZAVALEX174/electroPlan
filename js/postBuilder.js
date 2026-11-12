@@ -214,11 +214,14 @@ function toggleFrameOrientation(checked){
    у текущего IT/DE нет двойника противоположного стандарта в этой отделке. Родительный падеж «итальянской/
    немецкой» отличается от именительного standardLabel («итальянский/немецкий») — поэтому отдельная мини-
    карта форм; это ЕДИНСТВЕННОЕ место фразы, число модулей — moduleWord (§7.1). Накладки нет → пусто. */
-const STANDARD_GENITIVE={IT:"итальянской",DE:"немецкой"};
+/* Отдельная мини-карта: STANDARD_GENITIVE из ctx (app.js) — родительный к слову «стандарт»
+   («итальянского»); здесь нужна форма к слову «накладка» («итальянской»), и имя у ctx-поля уже занято
+   (деструктуризация в attach выше) — поэтому своя константа с другим именем. */
+const STANDARD_GENITIVE_FRAME={IT:"итальянской",DE:"немецкой"};
 function standardUnavailableText(frame,standard,cur){
   if(!frame)return"";
   if(cur==="BOTH")return"Накладка подходит для обоих стандартов.";
-  return `В этой отделке нет ${STANDARD_GENITIVE[standard]||standardLabel(standard)} накладки на ${moduleWord(frameSlotCount(frame))}.`;
+  return `В этой отделке нет ${STANDARD_GENITIVE_FRAME[standard]||standardLabel(standard)} накладки на ${moduleWord(frameSlotCount(frame))}.`;
 }
 /* Переключатели расположения И монтажного стандарта (Б8-д). Орган показа состояния — ЕДИНАЯ точка:
    расположение берём из state.builder.verticalFrame (его уже привёл к ориентации накладки
@@ -1612,6 +1615,13 @@ async function savePostBuilder(){
        флаг хранится для ЧАСТИ 2 (перевыбор пары при смене модульности/комнаты/копировании). Старый
        пост без поля читается как «не отмечено». */
     verticalLayout:!!state.builder.verticalFrame};
+  /* Выбранный РУКАМИ монтажный стандарт (Б8-д) — в белый список ТОЛЬКО если человек нажимал переключатель
+     (standardChoice "IT"/"DE"). У старого поста и у поста, где стандарт не трогали, поля нет → пул и
+     поведение по стандарту КОМНАТЫ, как прежде (openPostBuilder читает его обратно). Пишем условно, чтобы
+     не навешивать поле на посты, которых правка не касалась. frameId уже указывает на накладку нужного
+     стандарта (toggleStandard переписал его); standardChoice хранит сам выбор для пула окна при повторном
+     открытии и для частей 2 (перенос при размещении/копировании/смене комнаты). */
+  if(state.builder.standardChoice==="IT"||state.builder.standardChoice==="DE")base.standardChoice=state.builder.standardChoice;
   if(state.builder.editingPlacedId){
     const post=state.posts.find(x=>x.id===state.builder.editingPlacedId);
     /* ⚠️ ОХВАТ ПРАВКИ ТИПА СТЕНЫ СПРАШИВАЕМ ДО ЛЮБЫХ ЗАПИСЕЙ. Иначе отказ от вопроса (Esc,
@@ -1699,7 +1709,7 @@ async function savePostBuilder(){
 function closePostBuilder(){
   $("postModal").classList.remove("open");
   state.builder={editingTemplateId:null,editingPlacedId:null,slots:[],target:{mode:"add"},query:"",openSections:new Set(),
-    snapshot:null,escArmed:null,wallType:null,backlight:null,thermoSensor:"on",roomId:null,restrictInnardsColor:false,verticalFrame:false};
+    snapshot:null,escArmed:null,wallType:null,backlight:null,thermoSensor:"on",roomId:null,restrictInnardsColor:false,verticalFrame:false,standardChoice:null};
 }
 /* СЛУЧАЙНОЕ закрытие (Esc, клик мимо окна) с потерей несохранённой работы просит подтверждения
    — повтором того же действия, а не системным confirm(): своих модальных диалогов в приложении
@@ -1781,6 +1791,20 @@ $("builderRestrictColor").onchange=e=>{state.builder.restrictInnardsColor=e.targ
    на двойник нужной ориентации у накладки с парой; у остальных просто хранит флаг). Вынесена функцией,
    чтобы связку проверял поведенческий тест (§7.2 «связки дают почти все дефекты»). */
 $("verticalFrameCheck").onchange=e=>toggleFrameOrientation(e.target.checked);
+/* Переключатель РАСПОЛОЖЕНИЯ (Б8-д, заказчик 11.11) — видимый орган вместо скрытого #verticalFrameCheck.
+   Обе кнопки зовут ту же toggleFrameOrientation (логика Б8, §7.1 — одно место правила), «Вертикально» =
+   checked. Позиции расположения всегда доступны (свободный флаг у накладки без пары), поэтому disabled не
+   проверяем. */
+document.querySelectorAll("#postOrientMode .wall-type-option").forEach(b=>b.onclick=()=>{
+  toggleFrameOrientation(b.dataset.orient==="vertical");
+});
+/* Переключатель МОНТАЖНОГО СТАНДАРТА (Б8-д) — заменяет накладку на двойник другого стандарта той же
+   отделки (toggleStandard → EPPostStandard.frameForStandard, одно правило двойника). Недоступную позицию
+   (двойника в этой отделке нет, или накладка BOTH/не выбрана) renderPostStandard гасит через disabled —
+   нажатие по ней браузер не доставит, и toggleStandard к тому же сам выходит, если target null. */
+document.querySelectorAll("#postStandardMode .wall-type-option").forEach(b=>b.onclick=()=>{
+  toggleStandard(b.dataset.standard);
+});
 /* Поиск по каталогу конструктора перерисовывает ТОЛЬКО карточки: поле ввода лежит снаружи
    #builderCatalog, поэтому фокус и каретка на месте, а раскладка по постам не пересчитывается. */
 $("builderSearch").oninput=e=>{state.builder.query=e.target.value;renderBuilderCatalog()};
