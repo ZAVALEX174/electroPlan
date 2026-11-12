@@ -564,6 +564,13 @@ function placementFields(template) {
      отдельно для ЧАСТИ 2 (сохранение вертикальности при смене модульности/комнаты). Отсутствие/false →
      поля нет → «не отмечено», как у wallType/thermoSensor выше. */
   if (t.verticalLayout === true) fields.verticalLayout = true;
+  /* Выбранный РУКАМИ монтажный стандарт (Б8-д) переносим из шаблона в пост ТОЛЬКО как явное "IT"/"DE":
+     пост из шаблона с выбранным стандартом приходит с тем же выбором, и подмена накладки под комнату
+     размещения (postVariant.frameForRoomPlacement) ведёт пул по ЭТОМУ стандарту, а не по стандарту
+     комнаты (утверждённое правило: ручной стандарт главнее стандарта комнаты). Отсутствие/иное → поля
+     нет → стандарт комнаты, как прежде. Трактовка «валидности» ровно как у verticalLayout выше и как в
+     openPostBuilder/savePostBuilder — второй копии правила нет. */
+  if (t.standardChoice === "IT" || t.standardChoice === "DE") fields.standardChoice = t.standardChoice;
   return fields;
 }
 

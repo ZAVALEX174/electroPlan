@@ -125,8 +125,21 @@ function frameForStandard(frame, standard, frames, vertical) {
   return (EPFrameOrientation ? EPFrameOrientation.oriented(target, frames, !!vertical) : null) || target;
 }
 
+/* Критерий отбора накладок КОМНАТЫ с учётом выбранного РУКАМИ стандарта (Б8-д). Если у поста задан
+   standardChoice ("IT"/"DE"), он ПЕРЕБИВАЕТ поле standard в критерии комнаты — ручной выбор стандарта
+   главнее стандарта комнаты (утверждённое владельцем правило: стандарт комнаты — лишь умолчание). Нет
+   выбора (null/иное) → критерий комнаты возвращаем КАК ЕСТЬ (та же ссылка), поведение прежнее.
+   Это ОДНО место правила «выбранный стандарт замещает стандарт комнаты в пуле»: его зовут и пул окна
+   поста (postBuilder builderRoomFilter), и подмена накладки при размещении/копировании (postVariant
+   frameForRoomPlacement) — второй копии нет, у правки нет краёв (§7.1). Накладки другого стандарта в этой
+   отделке нет → productsForRoom вернёт пусто там, где зовут, и подбор поведёт себя как при «накладки нет»
+   (ничего нового не изобретаем). */
+function criteriaForChoice(criteria, choice) {
+  return (choice === "IT" || choice === "DE") ? { ...criteria, standard: choice } : criteria;
+}
+
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для тестов. */
-const api = { standardOf, currentStandard, twinOf, hasStandard, frameForStandard };
+const api = { standardOf, currentStandard, twinOf, hasStandard, frameForStandard, criteriaForChoice };
 if (typeof window !== "undefined") window.EPPostStandard = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

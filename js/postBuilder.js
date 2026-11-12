@@ -624,9 +624,11 @@ function builderRoomFilter(){
   /* Б8-д: человек нажал переключатель стандарта (state.builder.standardChoice) → пул накладок окна
      строится по ВЫБРАННОМУ стандарту вместо стандарта комнаты; остальные критерии комнаты (коллекция,
      цвет, материал/форма) — как были. Без выбора (null) — пул прежний. BOTH в пул попадает при любом
-     выборе: productsForRoom пускает «универсальную» накладку под IT и под DE. */
-  const sc=state.builder.standardChoice;
-  return (sc==="IT"||sc==="DE")?{...base,standard:sc}:base;
+     выборе: productsForRoom пускает «универсальную» накладку под IT и под DE. Подмену стандарта делает
+     ТА ЖЕ EPPostStandard.criteriaForChoice, что и подмена накладки при размещении/копировании
+     (postVariant.frameForRoomPlacement) — одно правило, у него нет краёв (§7.1). В vm-вырезке стенда
+     EPPostStandard может отсутствовать → пул по комнате, как прежде (standardChoice в тех тестах не задан). */
+  return (typeof EPPostStandard!=="undefined"&&EPPostStandard)?EPPostStandard.criteriaForChoice(base,state.builder.standardChoice):base;
 }
 /* Критерий отбора НАЧИНКИ (клавиш/розеток/механизмов) под комнату — ПРОДОЛЖЕНИЕ того же
    productsForRoom, что сужает накладки (§7.1: правило «что подходит комнате» одно). У начинки

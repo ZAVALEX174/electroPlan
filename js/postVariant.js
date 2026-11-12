@@ -116,9 +116,18 @@ function frameForRoomPlacement(template,room){
   if(!room)return {frameId:null};
   const frame=frameProduct(template.frameId);
   const variants=EPRoomVariants.list(room);
-  /* подходит ХОТЯ БЫ одному варианту отделки → накладку не трогаем. Критерий варианта —
-     roomCatalogFilter(вариант): вариант несёт те же 5 полей отделки, что читает roomCatalogFilter. */
-  const fits=(variant,f)=>placementFits(f,roomCatalogFilter(variant));
+  /* Б8-д: выбранный РУКАМИ стандарт поста (template.standardChoice "IT"/"DE") перебивает стандарт КОМНАТЫ
+     в критерии отбора накладок — ТЕМ ЖЕ EPPostStandard.criteriaForChoice, что и пул окна поста (§7.1, одно
+     правило). Пост получает накладку ВЫБРАННОГО стандарта в цвете/отделке комнаты, а не теряет стандарт под
+     стандарт комнаты (утверждённое правило: ручной стандарт главнее стандарта комнаты). Нет выбора (старый
+     пост/пост без поля) → критерий комнаты как прежде, поведение байт-в-байт. EPPostStandard — window-глобал
+     (сборщика нет, PLAN 2.2); в vm-вырезке стенда его может не быть → критерий не трогаем (как choice=null). */
+  const PS=(typeof EPPostStandard!=="undefined"&&EPPostStandard)||(typeof window!=="undefined"&&window.EPPostStandard);
+  const stdChoice=(template.standardChoice==="IT"||template.standardChoice==="DE")?template.standardChoice:null;
+  const critOf=variant=>PS?PS.criteriaForChoice(roomCatalogFilter(variant),stdChoice):roomCatalogFilter(variant);
+  /* подходит ХОТЯ БЫ одному варианту отделки → накладку не трогаем. Критерий варианта — critOf(вариант):
+     те же 5 полей отделки, что читает roomCatalogFilter, с подменой стандарта на выбранный руками (выше). */
+  const fits=(variant,f)=>placementFits(f,critOf(variant));
   if(EPRoomVariants.fitIndex(variants,frame,fits)!==-1)return {frameId:null};
   /* ни одному не подошла → перебор вариантов ПО ПОРЯДКУ, первый, под который подмена собирается. */
   const fitsSeries=frameFitsTemplateMechs(template);
@@ -135,7 +144,7 @@ function frameForRoomPlacement(template,room){
   const deps={frameProduct,frameSlotCount,frameFitsMechs:f=>fitsSeries(f)&&assembles(f)};
   const ownCriteria={collection:productSeries(frame)[0],frameColor:EPPosts.templateFrameColor(template,{frameProduct})};
   for(let i=0;i<variants.length;i++){
-    const pool=EPCatalog.productsForRoom(byKind("frame"),roomCatalogFilter(variants[i]));
+    const pool=EPCatalog.productsForRoom(byKind("frame"),critOf(variants[i]));
     const swap=preferOwnFrame(pool,ownCriteria,p=>EPPosts.pickRoomFrame(template.frameId,p,deps));
     if(swap){
       /* Б8: пост/копия с отметкой «Расположить вертикально» получает ВЕРТИКАЛЬНЫЙ двойник подменной
@@ -151,8 +160,9 @@ function frameForRoomPlacement(template,room){
       return {frameId:oriented.id};
     }
   }
-  /* не встаёт ни в один вариант → блок. Текст — от ПЕРВОГО варианта (как и раньше), не меняем. */
-  return {blocked:true,message:frameSwapEmptyText(template,room,roomCatalogFilter(variants[0]))};
+  /* не встаёт ни в один вариант → блок. Текст — от ПЕРВОГО варианта (как и раньше), с тем же стандартом,
+     по которому шёл подбор (critOf), чтобы сообщение называло реально искавшуюся отделку/стандарт. */
+  return {blocked:true,message:frameSwapEmptyText(template,room,critOf(variants[0]))};
 }
 
 return {frameForRoomPlacement};

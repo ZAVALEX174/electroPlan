@@ -88,7 +88,7 @@ test("openPostBuilder читает src.standardChoice в черновик (ин�
     "черновик обязан поднимать сохранённый standardChoice, иначе пул окна разойдётся с накладкой");
 });
 
-test("builderRoomFilter переопределяет пул стандартом только при явном выборе (IT/DE), иначе прежний", () => {
-  assert.match(PB, /const\s+sc\s*=\s*state\.builder\.standardChoice;\s*return\s*\(sc\s*===\s*"IT"\s*\|\|\s*sc\s*===\s*"DE"\)\s*\?\s*\{\s*\.\.\.base\s*,\s*standard\s*:\s*sc\s*\}\s*:\s*base/,
-    "без выбора стандарта пул строится по комнате, как прежде");
+test("builderRoomFilter переопределяет пул выбранным стандартом через ОБЩУЮ EPPostStandard.criteriaForChoice (то же правило, что подмена при размещении — §7.1)", () => {
+  assert.match(PB, /EPPostStandard\.criteriaForChoice\(\s*base\s*,\s*state\.builder\.standardChoice\s*\)/,
+    "пул окна и подмена накладки при размещении обязаны звать ОДНУ функцию подмены стандарта — иначе у правила край (§7.1)");
 });
