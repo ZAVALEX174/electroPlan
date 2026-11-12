@@ -284,7 +284,7 @@ const postComposition=p=>EPPosts.postComposition(p,postDeps());
    стандарт (DE/FR → деление окна на посты) и окно в % (EPCatalog.frameOpening). Нет фото —
    EPPostImage сам рисует схему-фолбэк. Одна функция кормит превью конструктора, карточку
    библиотеки, подсказку на плане, раскладку КП и лист монтажника (в т.ч. печать — инлайн-стили). */
-function assembledPostSpec(post,{size="md",articles=true}={},light){
+function assembledPostSpec(post,{size="md",articles=true,rotatable=false}={},light){
   const frame=frameProduct(post.frameId);
   /* ⚠️ ЦЕЛЬНОЕ ИЗДЕЛИЕ ПОКАЗЫВАЕМ ЗАМЕНОЙ, ТОЙ ЖЕ, ЧТО УХОДИТ В СМЕТУ. 09001 физически
      заменяется подобранным по числу мест управления (09005), и картинка собранного поста,
@@ -362,6 +362,13 @@ function assembledPostSpec(post,{size="md",articles=true}={},light){
      ИЗМЕРЕННЫЕ монтажные окна с фото (frameOpenings → mountRect/mountRects) и запасное окно-догадка
      (frameOpening) на случай, когда измерений нет. Нет фото — EPPostImage возьмёт цвет схемы-фолбэка
      из name (у рамок VIMAR цвет — в названии). */
+  /* Поворот картинки на 90° (Б8-д ч.2): РЕШАЕМ в одном месте — пост вертикален И накладка не вертикальная
+     (EPPostRotation.shouldRotate, зовёт правило ориентации EPFrameOrientation; второй копии нет, §7.1).
+     rotatable — гейт «можно ли тут поворачивать»: его ставят ТОЛЬКО окно поста и лист монтажника, значок
+     на плане/миниатюры/подсказка/КП остаются как есть (владелец их не утверждал). Флаг поста —
+     post.verticalLayout (savePostBuilder). spec.rotate уходит в EPPostImage.buildHtml и, через docs.js, во
+     взрыв-схему. */
+  const rotate=!!rotatable&&typeof EPPostRotation!=="undefined"&&EPPostRotation.shouldRotate(frame,post&&post.verticalLayout);
   const count=frameSlotCount(frame)||dist.totalCapacity;
   const frameSpec=frame?{
     name:articles?frame.name:EPOfferOptions.itemText(frame.name,false,frame.code),code:articles?frame.code:"",imageUrl:productImage(frame,{detail:true}),standard:frame.standard,
@@ -369,9 +376,17 @@ function assembledPostSpec(post,{size="md",articles=true}={},light){
        вниз), чтобы слоты ячеек ложились в прорези по порядку. У прочих накладок — окна как есть. */
     opening:frameOpening(frame,count),windows:btn?EPButtonFrame.orderWindows(frameOpenings(frame,count)):frameOpenings(frame,count)
   }:null;
-  return {size,frame:frameSpec,rows};
+  return {size,frame:frameSpec,rows,rotate};
 }
 const assembledPostHtml=(post,opts={},light)=>EPPostImage.buildHtml(assembledPostSpec(post,opts,light),{esc});
+/* Превью окна поста (Б8-д ч.2): та же EPPostImage, но С РАЗРЕШЁННЫМ поворотом (rotatable) и флагом
+   вертикальности ИЗ ЧЕРНОВИКА окна. Черновик (builderPostDraft) поля verticalLayout не несёт, а отметка
+   живёт в state.builder.verticalFrame — подставляем её, чтобы превью крутилось сразу, ещё до сохранения
+   поста (как и прочие черновиковые поля превью). postBuilder.js не трогаем — флаг идёт через эту обёртку,
+   которую app.js кладёт в ctx окна поста (единственный потребитель rotatable в окне). */
+const builderAssembledPostHtml=(post,opts={},light)=>assembledPostHtml(
+  Object.assign({},post,{verticalLayout:post&&post.verticalLayout!==undefined?post.verticalLayout:state.builder.verticalFrame}),
+  Object.assign({rotatable:true},opts),light);
 /* Размещённый пост опознаётся сквозным НОМЕРОМ (решение владельца 01.08): номер —
    основной идентификатор вместо имени. Номер закрепляется за постом при создании и не
    переиспользуется (удаление не сдвигает чужие номера), привести к 1..N — команда
@@ -4397,7 +4412,7 @@ $("pdfBtn").onclick=function(e){if(_generateOffer)_generateOffer.call(this,e);to
    в оставшийся здесь общий frameFacingHintText (тот же, что у «Подобрать накладку»), который обращается к
    builderRoomFilter; функция переехала в модуль, поэтому берём её обратно отсюда. */
 const {openPostBuilder,renderPostSlotCountSelect,requestClosePostBuilder,builderRoomFilter}=EPPostBuilder.attach({
-  $,STANDARD_GENITIVE,STANDARD_LABEL,WALL_STEP_LABEL,askWallScope,assembledPostHtml,
+  $,STANDARD_GENITIVE,STANDARD_LABEL,WALL_STEP_LABEL,askWallScope,assembledPostHtml:builderAssembledPostHtml,
   backlightCatalogOptions,backlightRowSummary,bindProductPictureFallbacks,buildPostSheet,byKind,canvas,
   compatibleMechanisms,defaultPostName,enhancePicker,esc,findByExactCode,frameFacingEmptyText,
   frameFacingHintText,frameFacingLabels,frameFacingList,frameFacingSelectionLabels,frameOptions,frameProduct,

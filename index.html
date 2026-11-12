@@ -935,8 +935,11 @@
      ПОСЛЕ packRound.js (зовёт его лениво) и используется estimate.js (тоже лениво) и docs.js. -->
 <script src="js/packTopUp.js?v=20261023.5"></script>
 <script src="js/specExcel.js?v=20261102.1"></script>
-<script src="js/postImage.js?v=20261101.1"></script>
-<script src="js/explodedView.js?v=20261028.1"></script>
+<!-- Поворот картинки поста на 90° при вертикальном расположении (Б8-д ч.2): правило «надо ли поворачивать»
+     (зовёт frameOrientation) и вёрстка поворота. До postImage/explodedView/docs/app — они его зовут. -->
+<script src="js/postRotation.js?v=20261112.1"></script>
+<script src="js/postImage.js?v=20261112.1"></script>
+<script src="js/explodedView.js?v=20261112.1"></script>
 <script src="js/planRotate.js?v=20261004.2"></script>
 <script src="js/planLabels.js?v=20261026.1"></script>
 <script src="js/rates.js?v=20261015.1"></script>
@@ -990,7 +993,7 @@
 <!-- Сборка и открытие документов (КП, лист монтажника): оркестраторы generateCommercialOffer,
      installSheetForProject, buildPostSheet и соседи. Вынесены из app.js (И1, кусок 3). Грузится ДО
      app.js, который поднимает их EPDocs.attach(ctx) до окна поста (тому нужны buildPostSheet/openInstallSheet). -->
-<script src="js/docs.js?v=20261106.1"></script>
+<script src="js/docs.js?v=20261112.1"></script>
 <!-- Ввод на холсте (клики, перенос объектов, панорама, зум колесом): trackDrag, makeDraggable,
      canvasEventPoint, placePendingAtEvent, диспетчер canvas.onclick. Вынесено из app.js (И1, кусок 4).
      Грузится ДО app.js, который зовёт EPCanvasInput.attach(ctx) ДО EPRooms.attach (тот берёт из него
@@ -1039,6 +1042,6 @@
 <!-- Левая панель (Редизайн, часть 4): сворачиваемые секции (память в EPPrefs), статус/автосворачивание
      «Исходного плана», горячие клавиши инструментов V/W/L/R/E. До app.js, который зовёт EPLeftPanel.attach(ctx). -->
 <script src="js/leftPanel.js?v=20261030.2"></script>
-<script src="js/app.js?v=20261111.1"></script>
+<script src="js/app.js?v=20261112.1"></script>
 </body>
 </html>

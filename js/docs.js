@@ -562,12 +562,18 @@ function buildPostSheet(post,light,options){
      (assembledPostHtml — это та же EPPostImage.buildHtml над тем же spec). Расчёт групп света
      листа (light) передаём в spec, чтобы цельное изделие в картинке и взрыв-схеме показывалось
      той же заменой (09001→09005), что уже стоит в таблице модулей и в смете. */
-  const spec=assembledPostSpec(post,{size:"md",articles},light);
+  /* rotatable:true (Б8-д ч.2) — лист монтажника вправе поворачивать картинку вертикального поста на 90°.
+     Решение «поворачивать ли» принимает сам assembledPostSpec (spec.rotate) по накладке поста; здесь лишь
+     РАЗРЕШАЕМ поворот в этом документе. spec.rotate переиспользуем для взрыв-схемы ниже — один ответ. */
+  /* rotatable:true (Б8-д ч.2) — лист монтажника вправе поворачивать картинку вертикального поста на 90°.
+     Решение «поворачивать ли» принимает сам assembledPostSpec (spec.rotate) по накладке поста; здесь лишь
+     РАЗРЕШАЕМ поворот в этом документе. spec.rotate переиспользуем для взрыв-схемы ниже — один ответ. */
+  const spec=assembledPostSpec(post,{size:"md",articles,rotatable:true},light);
   /* Крупная собранная картинка (size lg) для блока «Общая сборка» (К11-3б): ТА ЖЕ накладка, что
      «Иллюстрация», но во всю ширину карточки (решение владельца 27.10). Отдельный spec того же
      assembledPostSpec — расчёт групп света тот же (light), поэтому цельное изделие и здесь показано
      заменой 09001→09005, как в маленькой картинке, таблице и смете. */
-  const largeSpec=assembledPostSpec(post,{size:"lg",articles},light);
+  const largeSpec=assembledPostSpec(post,{size:"lg",articles,rotatable:true},light);
   return {
     number:post.number,
     room:room?room.name:"",
@@ -589,7 +595,9 @@ function buildPostSheet(post,light,options){
        код из имён деталей — тем же правилом, что таблицы листа. */
     explodedViewHtml:EPExplodedView.buildHtml(
       buildExplodedSpec(comp,box,explodedLayout,spec.frame,lightRows,moduleLabelOf),
-      {esc,pickIcon:EPPostImage.pickIcon,iconSvg:EPPostImage.iconSvg,articles,itemText}),
+      /* rotate — тот же ответ, что у картинки (spec.rotate): вертикальный пост с итальянской накладкой
+         поворачивает на 90° и взрыв-схему (Б8-д ч.2, владелец: «все виды поста в листе»). */
+      {esc,pickIcon:EPPostImage.pickIcon,iconSvg:EPPostImage.iconSvg,articles,itemText,rotate:spec.rotate}),
     /* немецко-французский: коробок и суппортов несколько (пост = 2 модуля) + импосты —
        важно монтажнику: по прежнему примечанию он вёз одну планку на всю сборку */
     german:(comp.model==="post"&&comp.postCount>1)?{postCount:comp.postCount,supportCount:comp.supportCount}:null,

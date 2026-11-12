@@ -89,6 +89,12 @@
 (() => {
 "use strict";
 
+/* EPPostRotation — из window (подключён до этого файла) либо require (node-тесты); тот же приём, что
+   EPFrameOrientation в postStandard.js. Правило/вёрстка поворота картинки поста — ОДНО место (Б8-д ч.2),
+   второй копии не заводим. */
+const EPPostRotation = (typeof module !== "undefined" && module.exports)
+  ? require("./postRotation.js") : (typeof window !== "undefined" ? window.EPPostRotation : undefined);
+
 /* Размеры под место применения. Режим ФОТО: base+per — ширина сцены (px) от числа модулей,
    высота выводится из аспекта окна накладки. Режим СХЕМЫ: cellW — ширина одного модуля (px),
    cellRatio — во сколько раз ячейка выше своей ширины. На миниатюре (sm) значки и номера
@@ -466,13 +472,23 @@ function buildHtml(spec, deps) {
 
   /* Подпись-артикул лежит на фоне приложения (вне сцены) — красим фиксированным тёмным, чтобы
      читалась и под тёмной накладкой, и на белом фоне. */
+  /* Поворот на 90° (Б8-д ч.2): включается ТОЛЬКО в окне поста и листе монтажника (spec.rotate ставит
+     оркестратор), и ТОЛЬКО если у сцены известна высота (режим фото с аспектом или схема). Поворачиваем
+     СЦЕНУ, не подпись-артикул: она лежит под картинкой и остаётся горизонтальной (требование владельца).
+     Повёрнутая сцена получает «высокий» контейнер (wrapRotated меняет ширину/высоту местами), поэтому не
+     налезает на соседние блоки. Без флага stageHtml === stage.html — разметка байт-в-байт как прежде. */
+  const rotate = !!(spec && spec.rotate) && Number(stage.height) > 0 && EPPostRotation;
+  const stageHtml = rotate ? EPPostRotation.wrapRotated(stage.html, stage.width, stage.height) : stage.html;
+  /* Подпись-артикул не поворачиваем; её max-width равняем по ВИДИМОЙ ширине сцены — у повёрнутой это
+     прежняя высота, иначе прежняя ширина. */
+  const capWidth = rotate ? stage.height : stage.width;
   const caption = s.caption && (frame.name || frame.code)
-    ? `<div style="margin-top:7px;font-family:Arial,sans-serif;font-size:${s.capFont}px;color:#48607a;text-align:center;max-width:${stage.width}px">${frame.code ? `[${esc(frame.code)}] ` : ""}${esc(frame.name || "")}</div>`
+    ? `<div style="margin-top:7px;font-family:Arial,sans-serif;font-size:${s.capFont}px;color:#48607a;text-align:center;max-width:${capWidth}px">${frame.code ? `[${esc(frame.code)}] ` : ""}${esc(frame.name || "")}</div>`
     : "";
 
   /* max-width:100% ИНЛАЙНОМ (а не только классом): в печати КП/листа монтажника экранного CSS
      нет, а сцена и там должна вписываться в колонку/карточку, не вылезая за неё. */
-  return `<span class="assembled-post" style="display:inline-flex;flex-direction:column;align-items:center;max-width:100%">${stage.html}${caption}</span>`;
+  return `<span class="assembled-post" style="display:inline-flex;flex-direction:column;align-items:center;max-width:100%">${stageHtml}${caption}</span>`;
 }
 
 /* Валидный прямоугольник окна {left,top,width,height} в % (aspect не нужен — высоту сцены даёт
@@ -732,7 +748,9 @@ function photoStage(frame, rows, s, sizeKey, modulesWide, esc) {
     + `<div style="${inner}">`
     + `<img src="${esc(frame.imageUrl)}" alt="${esc(frame.name || "Накладка")}" style="${imgStyle}">`
     + wins.join("") + `</div></div>`;
-  return { html, width: W };
+  /* height — пиксельная высота сцены для поворота (Б8-д ч.2): при известном аспекте W/aspect (та же
+     высота, что задаёт padding-top выше). Аспекта нет (теоретически) → 0: поворот тогда отключается. */
+  return { html, width: W, height: aspect > 0 ? Math.round(W / aspect) : 0 };
 }
 
 /* СХЕМА-ФОЛБЭК (фото накладки нет): накладка — прямоугольник цвета из названия, а КЛАВИШИ
@@ -772,7 +790,7 @@ function schemaStage(frame, rows, s, sizeKey, modulesWide, esc) {
   const plate = `<div data-ep="plate" style="position:absolute;inset:0;box-sizing:border-box;background:${pal.fill};border:${s.border}px solid ${pal.border};border-radius:${s.radius}px;padding:${s.pad}px;display:flex">${windowZone}</div>`;
   const html = `<div style="width:${W}px;max-width:100%">`
     + `<div style="position:relative;padding-top:${(100 * H / W).toFixed(3)}%;height:0">${plate}</div></div>`;
-  return { html, width: W };
+  return { html, width: W, height: H };   /* height — для поворота (Б8-д ч.2), схема знает её точно */
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для

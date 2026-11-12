@@ -37,6 +37,12 @@
 (() => {
 "use strict";
 
+/* EPPostRotation — из window (подключён до этого файла) либо require (node-тесты); тот же приём, что
+   EPFrameOrientation в postStandard.js. Вёрстка поворота на 90° (Б8-д ч.2) — ОДНО место (postRotation),
+   второй копии не заводим. */
+const EPPostRotation = (typeof module !== "undefined" && module.exports)
+  ? require("./postRotation.js") : (typeof window !== "undefined" ? window.EPPostRotation : undefined);
+
 /* Геометрия сцены в px «дизайна» (координаты SVG и % HTML считаются от неё). Детали идут ГОРИЗОНТАЛЬНЫМ
    рядом слева направо в порядке сборки, но не «одна деталь = один слот»: механизмы (role==="Модуль")
    сворачиваются в ОДНУ X-позицию и стекаются друг под другом по Y. Итог для типового поста — три-четыре
@@ -420,11 +426,16 @@ function buildHtml(spec, deps) {
       + `</div>`;
   }).join("");
 
-  return `<div style="position:relative;width:${sceneW}px;max-width:100%">`
+  const scene = `<div style="position:relative;width:${sceneW}px;max-width:100%">`
     + `<div style="position:relative;padding-top:${(H / sceneW * 100).toFixed(3)}%;height:0">`
     + `<svg viewBox="0 0 ${sceneW} ${H}" width="100%" height="100%" preserveAspectRatio="none" style="position:absolute;inset:0;overflow:visible" fill="none">${axis}${spines}${leaders}</svg>`
     + nodes + labels
     + `</div></div>`;
+  /* Поворот на 90° (Б8-д ч.2): лист монтажника включает deps.rotate для вертикального поста с итальянской
+     накладкой — взрыв-схема поворачивается тем же правилом/вёрсткой, что картинка (EPPostRotation.wrapRotated,
+     контейнер «высокий», не налезает на соседние блоки). Без флага scene возвращается байт-в-байт как прежде. */
+  return (deps && deps.rotate && EPPostRotation)
+    ? EPPostRotation.wrapRotated(scene, sceneW, H) : scene;
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для
