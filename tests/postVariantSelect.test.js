@@ -127,8 +127,13 @@ test("★ В6: накладка пропала (frame=null), комната [Pla
 
 test("★ В6: openPostBuilder зовёт ОБЩИЙ EPPostVariant.placementFits, без второй трактовки", () => {
   const src = stand.sourceOf("postBuilder.js");
-  assert.match(src, /EPPostVariant\.placementFits\(f,roomCatalogFilter\(v\)\)/,
+  assert.match(src, /EPPostVariant\.placementFits\(f,/,
     "предикат варианта в openPostBuilder — общий placementFits; мутация «вернуть inline !!f && productsForRoom» краснит здесь");
+  /* Б8-д: критерий варианта учитывает ВЫБРАННЫЙ стандарт поста той же EPPostStandard.criteriaForChoice,
+     что builderVariantSwitch, пул окна и подмена при размещении (§7.1 — одно правило «стандарт поста главнее
+     стандарта комнаты»). src.standardChoice, а не state (его тут ещё не присвоили). */
+  assert.match(src, /EPPostStandard\.criteriaForChoice\(roomCatalogFilter\(v\),src\.standardChoice\)/,
+    "начальный вариант судится по выбранному стандарту поста — тем же criteriaForChoice, иначе у правила край (§7.1)");
   assert.doesNotMatch(src, /\(v,f\)=>!!f&&EPCatalog\.productsForRoom\(\[f\]/, "старой inline-трактовки предиката в postBuilder нет");
 });
 

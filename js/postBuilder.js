@@ -435,7 +435,11 @@ function openPostBuilder({templateId=null,placedId=null}={}){
     :(newPostRoom()?.id??null);
   /* Вариант отделки окна (К8а): новый пост → 0; существующий/шаблон → первый вариант, которому годится
      накладка (EPRoomVariantsUi.builderInitialIndex), иначе 0; в проект НЕ пишется. ДО модульностей. */
-  state.builder.variantIndex=EPRoomVariantsUi.builderInitialIndex(state.rooms.find(r=>r.id===state.builder.roomId),frameProduct(src.frameId),!!(placedId||templateId),(v,f)=>EPPostVariant.placementFits(f,roomCatalogFilter(v)));
+  /* Б8-д: начальный вариант отделки существующего поста выбираем ПО ВЫБРАННОМУ руками стандарту поста
+     (src.standardChoice — state.builder.standardChoice ещё не присвоен, он читается ниже) — тем же
+     criteriaForChoice, что builderVariantSwitch/пул окна/подмена при размещении (§7.1). Пост без стандарта
+     (src.standardChoice пуст) → критерий комнаты как прежде, начальный вариант байт-в-байт. */
+  state.builder.variantIndex=EPRoomVariantsUi.builderInitialIndex(state.rooms.find(r=>r.id===state.builder.roomId),frameProduct(src.frameId),!!(placedId||templateId),(v,f)=>EPPostVariant.placementFits(f,(typeof EPPostStandard!=="undefined"&&EPPostStandard)?EPPostStandard.criteriaForChoice(roomCatalogFilter(v),src.standardChoice):roomCatalogFilter(v)));
   /* Наполняем селектор ДО присвоения value: варианты — модульности каталога плюс фактическая
      ёмкость этого поста. Иначе пост с исчезнувшей модульностью не нашёл бы своей опции и
      показал бы чужое значение (см. frameSlotOptions). Многорядные 14/21 теперь входят в
@@ -1565,7 +1569,14 @@ function changePostSlotCount(){
    варианту → подтверждение (сброс накладки к умолчанию и ВСЕХ механизмов). Развилку (ОК/Отмена/
    подходит) держит EPRoomVariantsUi.applyBuilderVariantChange (одно правило на оба селектора, §7.1). */
 function builderVariantSwitch(room,index,apply,restore){
-  const nv=EPRoomVariants.list(room||{})[EPRoomVariantsUi.builderIndex(room||{},index)]||{},frame=frameProduct($("postFrameSelect").value),crit=roomCatalogFilter(nv);
+  const nv=EPRoomVariants.list(room||{})[EPRoomVariantsUi.builderIndex(room||{},index)]||{},frame=frameProduct($("postFrameSelect").value);
+  /* Б8-д: «подходит ли накладка новому варианту» судим по ВЫБРАННОМУ руками стандарту (standardChoice
+     главнее стандарта комнаты) — ТЕМ ЖЕ EPPostStandard.criteriaForChoice, что и пул окна (builderRoomFilter)
+     и подмена накладки при размещении (§7.1, одно правило). Иначе DE-пост в IT-варианте ТОГО ЖЕ цвета
+     получал ложное подтверждение сброса механизмов. Без выбора (null) критерий комнаты как прежде → пост
+     без стандарта ведёт себя байт-в-байт. EPPostStandard — window-глобал; в vm-вырезке стенда его может не
+     быть → критерий комнаты, как раньше (у постов без стандарта это тождественно). */
+  const crit=(typeof EPPostStandard!=="undefined"&&EPPostStandard)?EPPostStandard.criteriaForChoice(roomCatalogFilter(nv),state.builder.standardChoice):roomCatalogFilter(nv);
   EPRoomVariantsUi.applyBuilderVariantChange({applicable:!state.builder.editingPlacedId&&!state.builder.editingTemplateId&&!state.builder.frameAuto&&!!frame,fits:EPPostVariant.placementFits(frame,crit),message:EPRoomVariantsUi.builderVariantResetMessage(frameFacingSelectionLabels(crit)),confirm:m=>confirm(m),reset:()=>{state.builder.frameAuto=true;state.builder.slots=EPBuilderSlots.fromPost({},keySlotKind)},apply,restore});
 }
 function changeBuilderRoom(roomId){

@@ -24,6 +24,9 @@ const EPRoomVariants = require("../js/roomVariants.js");
 const EPPostStandard = require("../js/postStandard.js");
 const EPPostCopy = require("../js/postCopy.js");
 const EPLightingGroups = require("../js/lightingGroups.js");
+const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
+const EPPostVariant = require("../js/postVariant.js");
+const EPBuilderSlots = require("../js/builderSlots.js");
 
 /* ============ 0. ЧИСТОЕ ПРАВИЛО: criteriaForChoice ============ */
 
@@ -199,4 +202,62 @@ test("★ buildCopies сохраняет standardChoice у копии (поле 
   assert.equal(copies[0].standardChoice, "DE", "standardChoice скопирован (deepClone) — не потерян при копировании");
   assert.equal(copies[0].verticalLayout, true, "verticalLayout тоже на месте (контроль)");
   assert.ok(!("id" in copies[0] && copies[0].id === "p1"), "служебные поля перевыданы");
+});
+
+/* ============ 4. ОКНО ПОСТА: смена варианта у поста с выбранным стандартом НЕ даёт лишнего сброса ======
+   Дефект (находка части 1б): builderVariantSwitch судил «подходит ли накладка новому варианту» по голому
+   roomCatalogFilter — по стандарту КОМНАТЫ. Для нового поста с выбранным руками DE и DE-накладкой это
+   давало ЛОЖНОЕ подтверждение «накладка не подходит — сбросить механизмы?» при переходе на IT-вариант
+   ТОГО ЖЕ цвета, хотя по утверждённому правилу выбранный стандарт главнее стандарта комнаты. Правка:
+   критерий через EPPostStandard.criteriaForChoice(roomCatalogFilter(nv), standardChoice) — тем же, что пул
+   окна и подмена при размещении (§7.1). Исполняем НАСТОЯЩУЮ builderVariantSwitch на реальном каталоге. */
+const byKindAll = kind => PRODUCTS.filter(p => p.kind === kind && p.active);
+const VSWITCH_CUT = ["frameCollectionList", "frameFacingList", "frameStandardList", "roomCatalogFilter",
+  "frameFacingLabels", "frameFacingSelectionLabels", "builderVariantSwitch"];
+function runVariantSwitch({ builder, frameCode, room, index }) {
+  const frame = frameCode ? byCode(frameCode) : null;
+  const state = { products: PRODUCTS, rooms: [room], builder };
+  const calls = { confirm: [], apply: 0, restore: 0 };
+  const apply = () => { calls.apply++; };
+  const restore = () => { calls.restore++; };
+  const confirm = m => { calls.confirm.push(m); return true; };
+  const ctx = {
+    state, byKind: byKindAll, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, EPBuilderSlots, EPPostStandard,
+    frameProduct: id => (frame && String(frame.id) === String(id) ? frame : null),
+    $: () => ({ value: frame ? String(frame.id) : "" }),
+    keySlotKind: () => null, confirm, apply, restore
+  };
+  stand.run(VSWITCH_CUT, ctx)(room, index, apply, restore);
+  return { calls, builder };
+}
+
+/* Комната с двумя вариантами ОДНОГО (итальянского) стандарта: Белая и Чёрная. Вариант 0 — Белая IT. */
+const ROOM_IT_2V = { id: "r2v", collection: "Linea", frameColor: "Белая", standard: "IT",
+  moreVariants: [{ collection: "Linea", frameColor: "Чёрная", standard: "IT" }] };
+
+test("★ builderVariantSwitch: новый пост 30643.00 (DE) standardChoice DE, переход на IT-вариант Белая (тот же цвет) → подтверждения НЕТ, механизмы целы", () => {
+  const builder = { editingPlacedId: null, editingTemplateId: null, frameAuto: false, slots: [{ k: "x" }],
+    standardChoice: "DE", roomId: ROOM_IT_2V.id, variantIndex: 1 };
+  const r = runVariantSwitch({ builder, frameCode: "30643.00", room: ROOM_IT_2V, index: 0 });
+  assert.equal(r.calls.confirm.length, 0,
+    "выбранный стандарт DE судит накладку → DE-накладка подходит DE-критерию Белой; лишнего сброса нет (мутация «голый roomCatalogFilter» спросила бы по стандарту IT и краснит здесь)");
+  assert.equal(r.calls.apply, 1, "вариант применён молча");
+  assert.equal(builder.frameAuto, false, "накладка не сброшена к авто");
+  assert.equal(builder.slots.length, 1, "механизмы поста целы (сброса не было)");
+});
+
+test("★ builderVariantSwitch (контроль, пост БЕЗ standardChoice): тот же DE-пост в IT-вариант → подтверждение КАК ПРЕЖДЕ", () => {
+  const builder = { editingPlacedId: null, editingTemplateId: null, frameAuto: false, slots: [{ k: "x" }],
+    roomId: ROOM_IT_2V.id, variantIndex: 1 };   /* standardChoice не задан → стандарт комнаты, прежнее поведение */
+  const r = runVariantSwitch({ builder, frameCode: "30643.00", room: ROOM_IT_2V, index: 0 });
+  assert.equal(r.calls.confirm.length, 1,
+    "без выбора DE-накладка не годится IT-варианту — подтверждение спрошено, байт-в-байт как до правки");
+});
+
+test("★ builderVariantSwitch: standardChoice DE, переход на вариант ДРУГОГО цвета (Чёрная) → подтверждение остаётся (цвет честно не совпал, не стандарт)", () => {
+  const builder = { editingPlacedId: null, editingTemplateId: null, frameAuto: false, slots: [{ k: "x" }],
+    standardChoice: "DE", roomId: ROOM_IT_2V.id, variantIndex: 0 };
+  const r = runVariantSwitch({ builder, frameCode: "30643.00", room: ROOM_IT_2V, index: 1 });
+  assert.equal(r.calls.confirm.length, 1,
+    "накладка Белая, вариант Чёрная — цвет не совпал, подтверждение законно (override стандарта не прячет цветовое несоответствие)");
 });
