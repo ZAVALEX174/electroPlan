@@ -451,3 +451,96 @@ test("взрыв-схема по умолчанию (articles не переда�
   assert.match(html, /20001/, "код механизма печатается");
   /* мутация п.4: если спрятать строку кода без флага — этот тест покраснеет */
 });
+
+/* ── Б8-д (решение владельца 13.11): deps.rotate=true — ДЕТАЛИ повёрнуты на 90°, подписи РОВНО ──
+   Вертикальный пост с итальянской накладкой: картинка поста поворачивается целиком (EPPostRotation),
+   а во взрыв-схеме поворачивается КАЖДАЯ ДЕТАЛЬ внутри своей X-позиции (вокруг центра), раскладка
+   ряда, выносные линии и подписи (имя — артикул) остаются горизонтальными. Сцену целиком (wrapRotated
+   вокруг scene) больше НЕ крутим — иначе подписи-артикулы вставали боком. */
+const rotatedDeps = Object.assign({ rotate: true }, deps);
+
+test("rotate=true: КАЖДАЯ деталь повёрнута на 90° вокруг центра, сцена целиком НЕ повёрнута", () => {
+  const html = buildHtml(post, rotatedDeps);
+  const turns = html.match(/translate\(-50%,-50%\) rotate\(90deg\)/g) || [];
+  assert.equal(turns.length, post.parts.length,
+    "поворот ровно у каждого узла-детали (накладка, механизмы, суппорт, коробка)");
+  assert.ok(!/assembled-rotated/.test(html),
+    "обёртки поворота всей сцены (wrapRotated) больше нет — иначе подписи встали бы боком");
+});
+
+test("rotate=true: подписи (имя — артикул) БЕЗ поворота — читаются горизонтально", () => {
+  const html = buildHtml(post, rotatedDeps);
+  /* Блок подписи начинается с text-align:center в стиле: поворота в нём быть не должно. Проверяем,
+     что каждая подпись-артикул (моноширинная строка кода) лежит в блоке без transform. */
+  post.parts.forEach(p => {
+    assert.ok(html.includes(`monospace;margin-top:1px;overflow-wrap:anywhere">${p.code}</div>`),
+      `артикул ${p.code} напечатан ровно, в подписи без поворота`);
+  });
+  assert.ok(!/text-align:center;[^"]*rotate/.test(html), "ни один блок подписи не повёрнут");
+  assert.ok(!/font-family:'Courier New',monospace[^"]*rotate/.test(html), "строка артикула не повёрнута");
+});
+
+test("rotate=true: layout считает ПОВЁРНУТЫЙ футпринт детали (ширина↔высота меняются местами)", () => {
+  const plain = layout(post.parts);
+  const rot = layout(post.parts, true);
+  /* накладка с широким фото 86×56 после поворота занимает 56×86 */
+  assert.deepEqual([plain.items[0].bw, plain.items[0].bh], [86, 56], "без rotate — прежние габариты");
+  assert.deepEqual([rot.items[0].bw, rot.items[0].bh], [56, 86], "с rotate — повёрнутые габариты");
+  /* подпись стоит под повёрнутым боксом с тем же тик-зазором, лидер сходится к подписи осмысленно */
+  rot.items.forEach((it, i) => {
+    assert.ok(Math.abs(it.labTop - (it.cy + it.bh / 2) - 10) < 0.001,
+      `деталь #${i}: подпись под ПОВЁРНУТЫМ низом бокса (тик-зазор 10px)`);
+  });
+});
+
+test("rotate=true: прямоугольники повёрнутой раскладки НЕ пересекаются (1–6 механизмов)", () => {
+  [1, 2, 3, 4, 6].forEach(nMech => {
+    const hits = overlapsIn(rectsOf(layout(partsWith(nMech), true)));
+    assert.deepEqual(hits, [], `${nMech} мех.: пересечения повёрнутой раскладки: ${hits.join("; ")}`);
+  });
+});
+
+test("rotate=true: лидер-линия идёт от низа ПОВЁРНУТОГО бокса к подписи", () => {
+  const html = buildHtml(post, rotatedDeps);
+  const L = layout(post.parts, true);
+  /* У накладки (parts[0], широкое фото) низ повёрнутого бокса = cy + 86/2; мутация «тик от старого
+     низа» (cy + 56/2) эту строку не воспроизведёт. */
+  const it = L.items[0];
+  assert.ok(html.includes(`<line x1="${it.cx.toFixed(1)}" y1="${(it.cy + it.bh / 2).toFixed(1)}" x2="${it.cx.toFixed(1)}" y2="${it.labTop.toFixed(1)}"`),
+    "тик-линия накладки от низа повёрнутого бокса (cy + 43) к верху подписи");
+});
+
+test("rotate=false/отсутствует: разметка БАЙТ-В-БАЙТ прежняя, поворота нет нигде", () => {
+  const plain = buildHtml(post, deps);
+  assert.equal(buildHtml(post, Object.assign({ rotate: false }, deps)), plain, "rotate:false ≡ без флага");
+  assert.ok(!/rotate\(90deg\)/.test(plain), "без флага поворота нет ни у деталей, ни у сцены");
+  assert.equal(buildHtml(post, deps), buildHtml(post, deps), "детерминизм сохранён");
+});
+
+/* Геометрия повёрнутой раскладки против мутации R11 («layout резервирует НЕповёрнутый футпринт»).
+   Ожидания считаем НЕЗАВИСИМО от внутренних bw/bh layout — прямо из spec детали (высота повёрнутого
+   бокса = ПРЕЖНЯЯ ШИРИНА: wide-фото 86, квадрат/глиф 64). Тест на непересечение прямоугольников выше
+   такую мутацию не ловит: layout остаётся самосогласованным (резерв == items), а здесь резерв сверяется
+   с физикой повёрнутого узла, который рисуется прежнего размера с rotate(90deg). */
+const rotatedBoxHof = p => (p.photo && p.photo.imageUrl) ? (p.photo.wide ? 86 : 64) : 64; // высота ПОВЁРНУТОГО бокса = прежняя ширина
+
+test("rotate=true: подпись НЕ пересекается с повёрнутым боксом по Y (резерв = повёрнутая высота, низ бокса + тик < верх подписи)", () => {
+  const L = layout(post.parts, true);
+  L.items.forEach((it, i) => {
+    const rotH = rotatedBoxHof(post.parts[i]);
+    assert.equal(it.bh, rotH,
+      `деталь #${i}: layout зарезервировал высоту ПОВЁРНУТОГО бокса (прежняя ширина ${rotH}), иначе подпись налезет на повёрнутый узел`);
+    const boxBottom = it.cy + it.bh / 2;              // низ ПОВЁРНУТОГО бокса (узел крутится вокруг центра)
+    assert.ok(boxBottom + 10 <= it.labTop + 0.001,
+      `деталь #${i}: подпись (top=${it.labTop.toFixed(1)}) налезает на повёрнутый бокс (низ=${boxBottom.toFixed(1)}) с тик-зазором 10px`);
+  });
+});
+
+test("rotate=true: высота сцены H учитывает повёрнутый футпринт (одна широкая накладка: ΔH = 86−56)", () => {
+  const oneFrame = [{ role: "Накладка", name: "Накладка 4М", code: "30654.00", photo: { imageUrl: "f", wide: true } }];
+  const plain = layout(oneFrame), rot = layout(oneFrame, true);
+  assert.equal(rot.H - plain.H, 86 - 56,
+    "H выросла ровно на разницу повёрнутой высоты (86) и прежней (56): мутация «резерв по неповёрнутым габаритам» даёт ΔH=0");
+  /* контроль предпосылки: без rotate одна деталь — ниже, с rotate — выше */
+  assert.ok(rot.H > plain.H, "повёрнутая сцена выше неповёрнутой");
+});

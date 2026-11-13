@@ -30,18 +30,14 @@
                                               //   (накладка), иначе квадратный (товар). Нет фото → глиф
      } ]
    }
-   deps = { esc(s), pickIcon(iconInput)→тип, iconSvg(тип, px, ink)→SVG, articles=true, itemText=name→name }.
+   deps = { esc(s), pickIcon(iconInput)→тип, iconSvg(тип, px, ink)→SVG, articles=true, itemText=name→name, rotate=false }.
      articles — печатать ли строку артикула под подписью (К11-3б, п.4); false убирает её и чистит код из имени.
      itemText(name, code) — как чистить имя от вкраплённого кода (тот же EPOfferOptions.itemText, что в КП).
+     rotate=true (Б8-д, владелец 13.11) — каждая ДЕТАЛЬ повёрнута на 90° по часовой вокруг центра, раскладка
+     и подписи горизонтальны; ставит только лист монтажника для вертикального поста с итальянской накладкой.
    Интерфейс приложению — window.EPExplodedView.buildHtml(spec, deps). */
 (() => {
 "use strict";
-
-/* EPPostRotation — из window (подключён до этого файла) либо require (node-тесты); тот же приём, что
-   EPFrameOrientation в postStandard.js. Вёрстка поворота на 90° (Б8-д ч.2) — ОДНО место (postRotation),
-   второй копии не заводим. */
-const EPPostRotation = (typeof module !== "undefined" && module.exports)
-  ? require("./postRotation.js") : (typeof window !== "undefined" ? window.EPPostRotation : undefined);
 
 /* Геометрия сцены в px «дизайна» (координаты SVG и % HTML считаются от неё). Детали идут ГОРИЗОНТАЛЬНЫМ
    рядом слева направо в порядке сборки, но не «одна деталь = один слот»: механизмы (role==="Модуль")
@@ -162,13 +158,22 @@ function layoutColumns(items, maxRows) {
 /* Размер бокса детали: настоящее фото → широкий (накладка) или квадратный (товар); нет фото → плашка глифа. */
 const boxWof = p => (p && p.photo && p.photo.imageUrl) ? (p.photo.wide ? PHOTO_W : PHOTO_SQ) : ICON;
 const boxHof = p => (p && p.photo && p.photo.imageUrl) ? (p.photo.wide ? PHOTO_H : PHOTO_SQ) : ICON;
+/* ПОВОРОТ ДЕТАЛЕЙ (Б8-д, решение владельца 13.11: «повернуть детали, подписи ровно»). При deps.rotate
+   каждая деталь рисуется повёрнутой на 90° ПО ЧАСОВОЙ вокруг центра (направление то же, что у картинки
+   поста — EPPostRotation), а раскладка ряда, лидер-линии и подписи остаются горизонтальными. Поворот
+   меняет ФУТПРИНТ бокса: ширина↔высота меняются местами. Поэтому layout при rotate считает всю геометрию
+   (ширины колонок, высоты ячеек, высоту сцены H) по ПОВЁРНУТЫМ габаритам — effWof/effHof, — а сам узел
+   рисуется прежнего размера с transform:rotate(90deg) от центра: его визуальный прямоугольник тогда ровно
+   совпадает с зарезервированным. rotate=false → eff ≡ box, раскладка байт-в-байт прежняя. */
+const effWof = (p, r) => r ? boxHof(p) : boxWof(p);
+const effHof = (p, r) => r ? boxWof(p) : boxHof(p);
 
 /* Горизонтальная геометрия колонок — ОДНА копия (её зовёт и поиск рядности, и сама layout): ширина каждой
    колонки (по самому широкому боксу), центры колонок накопительно (край к краю + GAP_X) и итоговая ширина
    сцены. По краям отступ берём по большему из бокса и подписи (LABEL_W может быть шире крайнего бокса),
    чтобы подпись не вылезла за сцену. */
-function colGeometryX(parts, columns) {
-  const colW = columns.map(col => Math.max.apply(null, col.map(i => boxWof(parts[i]))));
+function colGeometryX(parts, columns, rotate) {
+  const colW = columns.map(col => Math.max.apply(null, col.map(i => effWof(parts[i], rotate))));
   const colCenterX = [];
   columns.forEach((col, j) => {
     colCenterX[j] = j === 0
@@ -185,9 +190,12 @@ function colGeometryX(parts, columns) {
    переводит эти координаты в проценты и рисует. Схема печатается 1:1 (не масштабируется, см.
    installSheet .post-visuals), поэтому НЕПЕРЕСЕЧЕНИЕ в этих координатах = непересечение на бумаге.
    На вход parts (нужны role для колонок и photo для размера бокса), на выход sceneW/H, ось и по
-   каждой детали прямоугольники бокса и зарезервированной подписи (labW×labH).
+   каждой детали прямоугольники бокса и зарезервированной подписи (labW×labH). rotate=true → габариты
+   боксов в раскладке повёрнуты (ширина↔высота местами, см. effWof/effHof) — bw/bh в items это уже
+   ПОВЁРНУТЫЙ футпринт, под который зарезервировано место.
    Возвращает {sceneW,H,axisY,columns,colCenterX,items:[{cx,cy,bw,bh,labLeft,labTop,labW,labH}]}. */
-function layout(parts) {
+function layout(parts, rotate) {
+  rotate = !!rotate;
   const n = parts.length;
   /* Рядность стека ищем снизу вверх (K11 раунд 5, Д1): при двух рядах схема иногда шире карточки
      (много механизмов → много колонок). Пока натуральная ширина сцены > FIT_W, наращиваем maxRows —
@@ -196,11 +204,11 @@ function layout(parts) {
      это обеспечивает группировка в layoutColumns. */
   let maxRows = MAX_STACK_ROWS;
   let columns = layoutColumns(parts, maxRows);
-  while (colGeometryX(parts, columns).sceneW > FIT_W && maxRows < n) {
+  while (colGeometryX(parts, columns, rotate).sceneW > FIT_W && maxRows < n) {
     maxRows++;
     columns = layoutColumns(parts, maxRows);
   }
-  const gx = colGeometryX(parts, columns);
+  const gx = colGeometryX(parts, columns, rotate);
   const colCenterX = gx.colCenterX, sceneW = gx.sceneW;
   /* Раскладка КАЖДОЙ колонки по Y относительно её верха (relTop[0]=0). Ячейка карточки = бокс + тик + резерв
      подписи (cellH); между карточками стека — чистый просвет GAP_Y. Дальше берём вертикальный размах БОКСОВ
@@ -208,7 +216,7 @@ function layout(parts) {
      axisY. Так одиночные колонки садятся боксом ровно на ось (как в прежнем ряду), а стек раскрывается
      симметрично вверх-вниз от оси. topExtent/botExtent — насколько колонка торчит выше/ниже своей оси
      (низ = резерв подписи последней карточки), из их максимумов и складывается высота сцены. */
-  const cellH = i => boxHof(parts[i]) + TICK_GAP + LABEL_H;
+  const cellH = i => effHof(parts[i], rotate) + TICK_GAP + LABEL_H;
   const relTop = columns.map(col => {
     const r = [0];
     for (let k = 1; k < col.length; k++) r[k] = r[k - 1] + cellH(col[k - 1]) + GAP_Y;
@@ -216,7 +224,7 @@ function layout(parts) {
   });
   const boxSpanMid = columns.map((col, j) => {
     const lastK = col.length - 1;
-    return (relTop[j][0] + relTop[j][lastK] + boxHof(parts[col[lastK]])) / 2;
+    return (relTop[j][0] + relTop[j][lastK] + effHof(parts[col[lastK]], rotate)) / 2;
   });
   const topExtent = columns.map((col, j) => boxSpanMid[j] - relTop[j][0]);
   const botExtent = columns.map((col, j) => {
@@ -233,7 +241,7 @@ function layout(parts) {
     const offset = axisY - boxSpanMid[j];
     col.forEach((i, k) => {
       const cardTop = offset + relTop[j][k];
-      const bw = boxWof(parts[i]), bh = boxHof(parts[i]);
+      const bw = effWof(parts[i], rotate), bh = effHof(parts[i], rotate);
       items[i] = { cx: colCenterX[j], cy: cardTop + bh / 2, bw, bh,
         labLeft: colCenterX[j] - LABEL_W / 2, labTop: cardTop + bh + TICK_GAP, labW: LABEL_W, labH: LABEL_H };
     });
@@ -350,9 +358,13 @@ function buildHtml(spec, deps) {
   const n = parts.length;
   if (!n) return "";   /* нет деталей (пост без наполнения) — блок не рисуем, лист не падает */
 
-  const L = layout(parts);
+  /* Поворот ДЕТАЛЕЙ на 90° (Б8-д, решение владельца 13.11: «повернуть детали, подписи ровно»). Флаг
+     ставит ТОЛЬКО docs.js для вертикального поста с итальянской накладкой (rotate:spec.rotate — тот же
+     ответ, что у картинки поста). Раскладка сразу считается по повёрнутым габаритам: ряд, лидеры и
+     подписи остаются горизонтальными, сцена ЦЕЛИКОМ не поворачивается. */
+  const rotate = !!(deps && deps.rotate);
+  const L = layout(parts, rotate);
   const columns = L.columns, colCenterX = L.colCenterX, axisY = L.axisY, sceneW = L.sceneW, H = L.H;
-  const boxH = p => boxHof(p);
   const cx = L.items.map(it => it.cx), cy = L.items.map(it => it.cy), labTop = L.items.map(it => it.labTop);
 
   const px = x => (x / sceneW * 100).toFixed(3);   // px дизайна → % ширины сцены
@@ -373,16 +385,20 @@ function buildHtml(spec, deps) {
     return `<line x1="${x}" y1="${cy[col[0]].toFixed(1)}" x2="${x}" y2="${cy[col[col.length - 1]].toFixed(1)}" stroke="#c4d3e3" stroke-width="1.3" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
   }).join("");
   const leaders = parts.map((p, i) => {
-    const yBox = (cy[i] + boxH(p) / 2).toFixed(1);  // низ бокса детали
+    const yBox = (cy[i] + L.items[i].bh / 2).toFixed(1);  // низ бокса детали (при rotate — повёрнутого)
     const x = cx[i].toFixed(1);
     return `<line x1="${x}" y1="${yBox}" x2="${x}" y2="${labTop[i].toFixed(1)}" stroke="#8aa4bf" stroke-width="1" stroke-dasharray="1.5 3" vector-effect="non-scaling-stroke"/>`;
   }).join("");
 
   /* Детали — абсолютные HTML-блоки по центру своей позиции в ряду. Деталь с настоящим фото → <img>
      (широкий бокс у накладки — wide, квадратный у товара), без фото → каталожный глиф в плашке.
-     object-fit:contain не режет кадр: квадратное превью товара впишется в квадратный бокс без полей. */
+     object-fit:contain не режет кадр: квадратное превью товара впишется в квадратный бокс без полей.
+     При rotate узел рисуется ПРЕЖНЕГО размера, но повёрнут на 90° по часовой ВОКРУГ ЦЕНТРА (transform
+     после translate — поворот в собственных координатах блока): его визуальный прямоугольник совпадает
+     с повёрнутым футпринтом, который layout зарезервировал, — соседей и подпись деталь не задевает.
+     Направление то же, что у картинки поста (EPPostRotation.wrapRotated — по часовой). */
   const nodes = parts.map((p, i) => {
-    const style = `position:absolute;left:${px(cx[i])}%;top:${py(cy[i])}%;transform:translate(-50%,-50%);box-sizing:border-box`;
+    const style = `position:absolute;left:${px(cx[i])}%;top:${py(cy[i])}%;transform:translate(-50%,-50%)${rotate ? " rotate(90deg)" : ""};box-sizing:border-box`;
     if (p.photo && p.photo.imageUrl) {
       const bw = p.photo.wide ? PHOTO_W : PHOTO_SQ;
       const bh = p.photo.wide ? PHOTO_H : PHOTO_SQ;
@@ -431,11 +447,10 @@ function buildHtml(spec, deps) {
     + `<svg viewBox="0 0 ${sceneW} ${H}" width="100%" height="100%" preserveAspectRatio="none" style="position:absolute;inset:0;overflow:visible" fill="none">${axis}${spines}${leaders}</svg>`
     + nodes + labels
     + `</div></div>`;
-  /* Поворот на 90° (Б8-д ч.2): лист монтажника включает deps.rotate для вертикального поста с итальянской
-     накладкой — взрыв-схема поворачивается тем же правилом/вёрсткой, что картинка (EPPostRotation.wrapRotated,
-     контейнер «высокий», не налезает на соседние блоки). Без флага scene возвращается байт-в-байт как прежде. */
-  return (deps && deps.rotate && EPPostRotation)
-    ? EPPostRotation.wrapRotated(scene, sceneW, H) : scene;
+  /* Сцену ЦЕЛИКОМ не поворачиваем ни при каком флаге (решение владельца 13.11): rotate выше повернул
+     каждую деталь внутри её позиции, а подписи-артикулы остались горизонтальными. Без флага rotate
+     сцена байт-в-байт как прежде. */
+  return scene;
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для
