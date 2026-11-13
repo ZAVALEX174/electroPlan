@@ -14,5 +14,21 @@
   { "name": "V4: postBuilder — обработчик отметки не зовёт правило (30654 остаётся свободным флагом)",
     "file": "js/postBuilder.js",
     "from": "if(checked&&typeof EPPostStandard!==\"undefined\"&&EPPostStandard){",
-    "to": "if(false&&typeof EPPostStandard!==\"undefined\"&&EPPostStandard){" }
+    "to": "if(false&&typeof EPPostStandard!==\"undefined\"&&EPPostStandard){" },
+  { "name": "G1 (Д2): гарда no-op снята — повторный клик по активной позиции снова конвертирует пост",
+    "file": "js/postBuilder.js",
+    "from": "  if(checked===state.builder.verticalFrame)return;\n",
+    "to": "" },
+  { "name": "G2 (Д2): гарда инвертирована — no-op на реальном переключении, конверсия на повторном клике",
+    "file": "js/postBuilder.js",
+    "from": "if(checked===state.builder.verticalFrame)return;",
+    "to": "if(checked!==state.builder.verticalFrame)return;" },
+  { "name": "G3 (Д1): сброс standardChoice снят — BOTH + выбор = залипший стандарт и суженный пул",
+    "file": "js/postBuilder.js",
+    "from": "  }else{\n    state.builder.standardChoice=null;\n  }",
+    "to": "  }" },
+  { "name": "G4 (Д1): сброс только для явного BOTH — неопределённый стандарт остаётся залипшим",
+    "file": "js/postBuilder.js",
+    "from": "  }else{\n    state.builder.standardChoice=null;\n  }",
+    "to": "  }else if(cur===\"BOTH\"){\n    state.builder.standardChoice=null;\n  }" }
 ]

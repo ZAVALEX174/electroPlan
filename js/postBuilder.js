@@ -202,6 +202,12 @@ function renderFrameOrientation(frame,frames){
    frameAuto=false) переставала бы давать вертикальный двойник ЦВЕТА НОВОЙ комнаты. Ручной выбор в поле
    «Накладка» (postFrameSelect.onchange) frameAuto по-прежнему снимает — там действительно выбор изделия. */
 function toggleFrameOrientation(checked){
+  /* Д2 (состязательная проверка Б8-д): клик по УЖЕ АКТИВНОЙ позиции — no-op. Иначе повторный клик по
+     подсвеченной «Вертикально» на старом посте {30654, verticalLayout:true} молча конвертировал
+     накладку в 30645 и выставлял standardChoice="DE" — изменение состава и цены размещённого поста на
+     контроле, который выглядит «уже выбран». Реальное переключение (checked ≠ текущий флаг) идёт
+     ниже как прежде; no-op не трогает ни накладку, ни standardChoice, ни dirty-снимок. */
+  if(checked===state.builder.verticalFrame)return;
   state.builder.verticalFrame=checked;
   const cur=frameProduct($("postFrameSelect").value);
   /* Б8-д ч.3 (ответ заказчика — вариант «а», владелец 13.11): при ВКЛЮЧЕНИИ отметки правило «добыть
@@ -253,8 +259,18 @@ function renderPostStandard(frame,frames){
   const cur=EPPostStandard.currentStandard(frame,frames);
   /* Связь в обе стороны, как у расположения: если человек УЖЕ в режиме выбранного стандарта
      (standardChoice задан) и выбрал накладку руками — переключатель следует её стандарту, и пул
-     остаётся согласован с ней. Пока не нажимал (null) — НЕ трогаем: старый пост поля не получает. */
-  if(state.builder.standardChoice!=null&&(cur==="IT"||cur==="DE"))state.builder.standardChoice=cur;
+     остаётся согласован с ней. Пока не нажимал (null) — НЕ трогаем: старый пост поля не получает.
+     Д1 (состязательная проверка): накладка БЕЗ стандарта IT/DE (универсальная BOTH, напр. Plana
+     09661.01, или стандарт не определён) — выбор стандарта ей не нужен, черновик СБРАСЫВАЕМ в null.
+     Иначе выбор залипал (синхронизация шла только под IT/DE): обе позиции переключателя disabled
+     (frameForStandard для BOTH → null), пул окна оставался сужен criteriaForChoice — необратимый
+     тупик. Сброс открывает пул до критериев комнаты тем же renderBuilder; dirty-снимок видит сброс
+     как правку; при сохранении поле не пишется (savePostBuilder пишет standardChoice условно). */
+  if(cur==="IT"||cur==="DE"){
+    if(state.builder.standardChoice!=null)state.builder.standardChoice=cur;
+  }else{
+    state.builder.standardChoice=null;
+  }
   let reason="";
   document.querySelectorAll("#postStandardMode .wall-type-option").forEach(b=>{
     const std=b.dataset.standard;
