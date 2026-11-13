@@ -9,10 +9,28 @@ const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
 const EPPosts = require("../js/posts.js");
 const EPFrameOrientation = require("../js/frameOrientation.js");
+const EPPostStandard = require("../js/postStandard.js");
 
 const FRAMES = stand.loadVimarCatalog().products.filter(p => p.kind === "frame");
 const byCode = c => FRAMES.find(f => f.code === c);
 const frameProduct = id => FRAMES.find(f => Number(f.id) === Number(id));
+
+/* Обогащённый каталог (standard/frameColor дописывает data.js из attrs) — для связки №3: с Б8-д ч.3
+   обработчик отметки спрашивает ещё и EPPostStandard.frameForVerticalOn (отметка на итальянской
+   накладке переводит пост на немецкий стандарт), а правилу стандарта нужны поля standard/frameColor,
+   которых нет в сыром catalog-vimar.js. Тот же загрузчик, что в postStandard.test.js. */
+function loadEnrichedFrames() {
+  const fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
+  const win = {};
+  const context = vm.createContext({ window: win, structuredClone });
+  for (const file of ["catalog-vimar.js", "catalog-vimar-attrs.js", "data.js"]) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context, { filename: file });
+  }
+  return win.EP_DATA.products.filter(p => p.kind === "frame" && p.active !== false);
+}
+const FRAMES_E = loadEnrichedFrames();
+const byCodeE = c => FRAMES_E.find(f => f.code === c);
+const frameProductE = id => FRAMES_E.find(f => Number(f.id) === Number(id));
 
 /* --- 1. placementFields: шаблон → пост ------------------------------------------------------- */
 test("placementFields переносит verticalLayout=true из шаблона в пост", () => {
@@ -49,15 +67,19 @@ test("renderFrameOrientation: у накладки БЕЗ пары отметка
   assert.equal(runRender(byCode("30654.00"), false).box.checked, false, "без пары флаг false сохраняется");
 });
 
-/* --- 3. toggleFrameOrientation: отметка → поле «Накладка» ------------------------------------- */
+/* --- 3. toggleFrameOrientation: отметка → поле «Накладка» -------------------------------------
+   С Б8-д ч.3 обработчик зовёт ещё EPPostStandard.frameForVerticalOn — поэтому ctx дополнен
+   EPPostStandard и кадры ОБОГАЩЁННЫЕ (standard/frameColor), как в приложении. Само правило ч.3
+   (30654.* → 30645.* + standardChoice="DE") покрыто в postStandardVerticalSwitch.test.js; здесь —
+   прежний контракт пары и свободного флага. */
 function runToggle(startFrame, checked) {
   const dom = stand.makeDom();
   dom.$("postFrameSelect").value = String(startFrame.id);
-  const state = { builder: { verticalFrame: !checked, frameAuto: true } };
+  const state = { builder: { verticalFrame: !checked, frameAuto: true, standardChoice: null } };
   let rendered = 0;
   const ctx = {
-    state, $: dom.$, EPFrameOrientation, frameProduct,
-    byKind: () => FRAMES,
+    state, $: dom.$, EPFrameOrientation, EPPostStandard, frameProduct: frameProductE,
+    byKind: () => FRAMES_E,
     renderBuilder: () => { rendered++; }
   };
   const toggle = stand.run("toggleFrameOrientation", ctx);
@@ -65,20 +87,24 @@ function runToggle(startFrame, checked) {
   return { dom, state, rendered };
 }
 test("toggleFrameOrientation: отметка на LINEA 30643.01 переписывает frameId на вертикальный 30645.01", () => {
-  const { dom, state, rendered } = runToggle(byCode("30643.01"), true);
-  assert.equal(dom.$("postFrameSelect").dataset.preferredFrameId, String(byCode("30645.01").id),
+  const { dom, state, rendered } = runToggle(byCodeE("30643.01"), true);
+  assert.equal(dom.$("postFrameSelect").dataset.preferredFrameId, String(byCodeE("30645.01").id),
     "renderBuilder получит вертикальный двойник через preferredFrameId — это ПЕРЕЗАПИСЬ frameId, а не вычисление на лету");
+  assert.equal(state.builder.standardChoice, null, "немецкая пара — тот же стандарт, standardChoice не трогаем");
   assert.equal(state.builder.frameAuto, true, "отметка меняет ТОЛЬКО ориентацию той же накладки — НЕ ручной выбор, frameAuto не трогаем (владелец 09.11: иначе смена комнаты у нового поста теряла бы вертикальный двойник нового цвета)");
   assert.equal(rendered, 1, "renderBuilder перерисован");
 });
 test("toggleFrameOrientation: снятие отметки на 30645.01 возвращает горизонтальный 30643.01", () => {
-  const { dom } = runToggle(byCode("30645.01"), false);
-  assert.equal(dom.$("postFrameSelect").dataset.preferredFrameId, String(byCode("30643.01").id),
+  const { dom } = runToggle(byCodeE("30645.01"), false);
+  assert.equal(dom.$("postFrameSelect").dataset.preferredFrameId, String(byCodeE("30643.01").id),
     "снятие отметки переписывает frameId на горизонтальный двойник");
 });
-test("toggleFrameOrientation: у накладки БЕЗ пары frameId не трогаем — флаг просто хранится", () => {
-  const { dom, state } = runToggle(byCode("30654.00"), true);
-  assert.equal("preferredFrameId" in dom.$("postFrameSelect").dataset, false, "без пары накладку не переписываем");
+test("toggleFrameOrientation: без пары И без немецкого двойника (Reflex) frameId не трогаем — флаг просто хранится", () => {
+  /* Б8-д ч.3: у 30654.00 появился немецкий вертикальный двойник через смену стандарта, поэтому
+     «свободный флаг» проверяем на Reflex 30654.40 — у неё ни пары, ни DE-двойника. */
+  const { dom, state } = runToggle(byCodeE("30654.40"), true);
+  assert.equal("preferredFrameId" in dom.$("postFrameSelect").dataset, false, "без пары и без DE-двойника накладку не переписываем");
+  assert.equal(state.builder.standardChoice, null, "стандарт не тронут");
   assert.equal(state.builder.verticalFrame, true, "флаг сохранён у поста (на состав не влияет)");
   assert.equal(state.builder.frameAuto, true, "без смены накладки frameAuto не трогаем");
 });

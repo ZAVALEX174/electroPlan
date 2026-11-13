@@ -204,7 +204,22 @@ function renderFrameOrientation(frame,frames){
 function toggleFrameOrientation(checked){
   state.builder.verticalFrame=checked;
   const cur=frameProduct($("postFrameSelect").value);
-  const target=EPFrameOrientation.oriented(cur,byKind("frame"),checked);
+  /* Б8-д ч.3 (ответ заказчика — вариант «а», владелец 13.11): при ВКЛЮЧЕНИИ отметки правило «добыть
+     вертикальную накладку» живёт в ЕДИНОМ чистом месте — EPPostStandard.frameForVerticalOn: сначала
+     пара ориентации (30643→30645), при её отсутствии у итальянской накладки — смена стандарта
+     (30654.*→30645.* + standardChoice="DE": пост переходит на немецкий стандарт, с двумя коробками и
+     двумя суппортами; состав/цена пересчитаются из новой накладки сами). Ни пары, ни DE-двойника
+     (Reflex, 7М 30657, не-LINEA) → null → прежнее поведение: отметка просто хранится, накладку и
+     стандарт не трогаем. СНЯТИЕ отметки — прежний путь pairOf (30645→30643), обратно на 30654
+     сознательно НЕ возвращаем. frameAuto по-прежнему НЕ трогаем (владелец 09.11, см. выше). */
+  let target;
+  if(checked&&typeof EPPostStandard!=="undefined"&&EPPostStandard){
+    const sw=EPPostStandard.frameForVerticalOn(cur,byKind("frame"));
+    target=sw?sw.frame:EPFrameOrientation.oriented(cur,byKind("frame"),true);
+    if(sw&&sw.standardChoice)state.builder.standardChoice=sw.standardChoice;
+  }else{
+    target=EPFrameOrientation.oriented(cur,byKind("frame"),checked);
+  }
   if(target&&cur&&Number(target.id)!==Number(cur.id)){
     $("postFrameSelect").dataset.preferredFrameId=String(target.id);
   }

@@ -1,0 +1,18 @@
+[
+  { "name": "V1: frameForVerticalOn — IT-ветка отключена (отметка никогда не переводит на немецкий)",
+    "file": "js/postStandard.js",
+    "from": "if (standardOf(frame) !== \"IT\") return null;",
+    "to": "if (true) return null;" },
+  { "name": "V2: frameForVerticalOn — забыта вертикальная ориентация (30643.00 вместо 30645.00)",
+    "file": "js/postStandard.js",
+    "from": "const de = frameForStandard(frame, \"DE\", frames, true);",
+    "to": "const de = frameForStandard(frame, \"DE\", frames, false);" },
+  { "name": "V3: frameForVerticalOn — standardChoice='DE' не выставляется (переключатель не покажет «Немецкий»)",
+    "file": "js/postStandard.js",
+    "from": "return (de && de !== frame) ? { frame: de, standardChoice: \"DE\" } : null;",
+    "to": "return (de && de !== frame) ? { frame: de, standardChoice: null } : null;" },
+  { "name": "V4: postBuilder — обработчик отметки не зовёт правило (30654 остаётся свободным флагом)",
+    "file": "js/postBuilder.js",
+    "from": "if(checked&&typeof EPPostStandard!==\"undefined\"&&EPPostStandard){",
+    "to": "if(false&&typeof EPPostStandard!==\"undefined\"&&EPPostStandard){" }
+]

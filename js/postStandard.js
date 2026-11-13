@@ -125,6 +125,28 @@ function frameForStandard(frame, standard, frames, vertical) {
   return (EPFrameOrientation ? EPFrameOrientation.oriented(target, frames, !!vertical) : null) || target;
 }
 
+/* Отметка «Расположить вертикально» ВКЛЮЧЕНА (Б8-д ч.3, ответ заказчика — вариант «а», подтверждён
+   владельцем 13.11): «отметка на посту с 30654 сама меняет накладку на 30645 (2+2 вертикально) — пост
+   переходит на немецкий стандарт, с двумя коробками и двумя суппортами». Это ОДНО место правила
+   «отметка включена → вертикальная накладка, добытая хоть сменой стандарта»; зовёт его обработчик
+   отметки в окне поста (postBuilder.toggleFrameOrientation), второй копии нет (§7.1).
+   Порядок: 1) обычный вертикальный двойник пары (30643→30645, 30644→30646 — EPFrameOrientation.oriented,
+   прежний путь; standardChoice не трогаем — пост и так немецкий); 2) пары нет и накладка ИТАЛЬЯНСКОГО
+   стандарта → немецкий двойник с применённой вертикальной ориентацией (frameForStandard(frame,"DE",…,
+   true): 30654.* → 30645.*) — просим выставить standardChoice="DE". Ни того ни другого (Reflex
+   30654.40-.42, 7М 30657, не-LINEA без DE-двойника, BOTH/неопределённый стандарт) → null: отметка
+   остаётся свободным флагом, накладка и стандарт не меняются (поведение ровно как прежде).
+   СНЯТИЕ отметки сюда не приходит: оно идёт прежним путём pairOf (30645→30643), обратно на 30654
+   сознательно НЕ возвращаем (связь пары с 09.11). */
+function frameForVerticalOn(frame, frames) {
+  if (!frame || !EPFrameOrientation) return null;
+  const direct = EPFrameOrientation.oriented(frame, frames, true);
+  if (direct && direct !== frame) return { frame: direct, standardChoice: null };   // есть пара ориентации
+  if (standardOf(frame) !== "IT") return null;   // уже DE/BOTH/неопределённый — стандарт не меняем
+  const de = frameForStandard(frame, "DE", frames, true);
+  return (de && de !== frame) ? { frame: de, standardChoice: "DE" } : null;
+}
+
 /* Критерий отбора накладок КОМНАТЫ с учётом выбранного РУКАМИ стандарта (Б8-д). Если у поста задан
    standardChoice ("IT"/"DE"), он ПЕРЕБИВАЕТ поле standard в критерии комнаты — ручной выбор стандарта
    главнее стандарта комнаты (утверждённое владельцем правило: стандарт комнаты — лишь умолчание). Нет
@@ -139,7 +161,7 @@ function criteriaForChoice(criteria, choice) {
 }
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2), Node — module.exports для тестов. */
-const api = { standardOf, currentStandard, twinOf, hasStandard, frameForStandard, criteriaForChoice };
+const api = { standardOf, currentStandard, twinOf, hasStandard, frameForStandard, frameForVerticalOn, criteriaForChoice };
 if (typeof window !== "undefined") window.EPPostStandard = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();
