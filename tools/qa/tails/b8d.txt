@@ -1,0 +1,76 @@
+// --- Б8-д: вертикальный пост LINEA (ч.2 поворот картинки, ч.3 автоперевод 30654→30645) ---
+// Механизмы — серии Linea (30000/30000.2): Neve Up 09001 к накладке Linea несовместим (проверено кадром).
+n = 300;
+await makeRoom(0.62, 0.62);
+await nameRoom("Кабинет LINEA");
+const addLinea = async () => {
+  await setVal($("builderSearch"), "30000"); await sleep(500);
+  await click(`Array.from(document.querySelectorAll("#builderCatalog button")).find(b=>b.textContent.includes("30000")&&!b.textContent.includes("30000."))`);
+  await click(`Array.from(document.querySelectorAll("#builderCatalog button")).find(b=>b.textContent.includes("30000")&&!b.textContent.includes("30000."))`);
+  await click(`Array.from(document.querySelectorAll("#builderCatalog button")).find(b=>b.textContent.includes("30000.2"))`);
+  await sleep(500);
+};
+
+// Пост 1: итальянская 30654.00 → отметка «Вертикально» → сама стала 30645.00 (немецкий стандарт)
+await click($("newPostBtn")); await sleep(800);
+const cabId = await ev(`return Array.from(document.getElementById("builderRoomSelect").options).find(o=>o.textContent.includes("Кабинет")).value`);
+await setVal($("builderRoomSelect"), cabId); await sleep(400);
+await setVal($("postSlotCount"), "4"); await sleep(700);
+const opt54 = await ev(`const o=Array.from(document.getElementById("postFrameSelect").options).find(o=>o.textContent.includes("30654.00"));return o?o.value:null`);
+log.push("30654.00 в пуле: " + opt54);
+await setVal($("postFrameSelect"), opt54); await sleep(700);
+log.push("пост1 до отметки: " + await ev(`return document.getElementById("postFrameSelect").selectedOptions[0]?.textContent`));
+await shot("b8d-post1-italian", [`document.getElementById("postFrameSelect").parentElement`, `document.getElementById("postOrientMode")`, `document.getElementById("postStandardMode")`]);
+await click(`document.querySelector('#postOrientMode button[data-orient="vertical"]')`); await sleep(800);
+log.push("пост1 после «Вертикально»: " + await ev(`return document.getElementById("postFrameSelect").selectedOptions[0]?.textContent`));
+log.push("пост1 DE aria-checked: " + await ev(`return document.querySelector('#postStandardMode button[data-standard="DE"]').getAttribute("aria-checked")`));
+await shot("b8d-post1-vertical-30645", [`document.getElementById("postFrameSelect").parentElement`, `document.getElementById("postOrientMode")`, `document.getElementById("postStandardMode")`]);
+await addLinea();
+await click($("savePost")); await sleep(700);
+log.push("пост1 сохранён: " + await ev(`return !document.getElementById("postModal").classList.contains("open")`));
+
+// Пост 2: 30654.40 Reflex (немецкого двойника нет) + «Вертикально» → накладка прежняя, картинка повёрнута
+await click($("newPostBtn")); await sleep(800);
+await setVal($("builderRoomSelect"), cabId); await sleep(400);
+await setVal($("postSlotCount"), "4"); await sleep(700);
+const optR = await ev(`const o=Array.from(document.getElementById("postFrameSelect").options).find(o=>o.textContent.includes("30654.40"));return o?o.value:null`);
+log.push("30654.40 в пуле: " + optR);
+await setVal($("postFrameSelect"), optR); await sleep(700);
+await click(`document.querySelector('#postOrientMode button[data-orient="vertical"]')`); await sleep(800);
+log.push("пост2 после «Вертикально»: " + await ev(`return document.getElementById("postFrameSelect").selectedOptions[0]?.textContent`));
+log.push("пост2 превью повёрнуто (.assembled-rotated): " + await ev(`return !!document.querySelector("#postPreview .assembled-rotated")`));
+await shot("b8d-post2-reflex-rotated", [`document.getElementById("postPreview")`, `document.getElementById("postOrientMode")`]);
+await addLinea();
+await click($("savePost")); await sleep(700);
+log.push("пост2 сохранён: " + await ev(`return !document.getElementById("postModal").classList.contains("open")`));
+await shot("b8d-library");
+
+// Размещаем оба поста в кабинете
+const cabLab = await rect(`Array.from(document.querySelectorAll(".room-label")).find(e=>e.textContent.includes("Кабинет"))`);
+await click(`Array.from(document.querySelectorAll("[data-place-template]")).at(-2)`);
+await clickAt(cabLab.x + cabLab.w / 2 - 40, cabLab.y + cabLab.h + 50); await sleep(400);
+await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(300);
+await click(`Array.from(document.querySelectorAll("[data-place-template]")).at(-1)`);
+await clickAt(cabLab.x + cabLab.w / 2 + 60, cabLab.y + cabLab.h + 50); await sleep(400);
+await ev(`document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true}));return 1;`); await sleep(300);
+await shot("b8d-plan");
+
+// Лист монтажника: окно галочек → «Открыть лист»; у поста 2 детали взрыв-схемы повёрнуты, подписи ровно
+await ev('window.__kp="";window.open=()=>({closed:false,document:{open(){},write(h){window.__kp+=h},close(){},title:""},focus(){},print(){},close(){},addEventListener(){},location:{}});return 1;');
+await click($("docsBtn")); await sleep(400);
+await click($("installSheetBtn")); await sleep(600);
+await click($("installSheetWindowOpen")); await sleep(1200);
+const ish = await ev("return window.__kp");
+fs.writeFileSync(path.join(DIR, "b8d-install.html"), ish);
+log.push("лист: len=" + ish.length + " rotate90=" + (ish.match(/rotate\(90deg\)/g) || []).length + " assembled-rotated=" + (ish.match(/assembled-rotated/g) || []).length);
+const nt2 = await json("/json/new?about:blank", "PUT");
+const k2 = connect(nt2.webSocketDebuggerUrl); await k2.ready; await k2.send("Page.enable");
+await k2.send("Emulation.setDeviceMetricsOverride", { width: 1100, height: 1400, deviceScaleFactor: 1, mobile: false });
+const ft2 = await k2.send("Page.getFrameTree");
+await k2.send("Page.setDocumentContent", { frameId: ft2.frameTree.frame.id, html: ish }); await sleep(1800);
+let r2 = await k2.send("Page.captureScreenshot", { format: "png" });
+fs.writeFileSync(path.join(SHOTS, `${++n}-b8d-sheet-top.png`), Buffer.from(r2.data, "base64"));
+await k2.send("Runtime.evaluate", { expression: "window.scrollTo(0,document.body.scrollHeight)" }); await sleep(600);
+r2 = await k2.send("Page.captureScreenshot", { format: "png" });
+fs.writeFileSync(path.join(SHOTS, `${++n}-b8d-sheet-bottom.png`), Buffer.from(r2.data, "base64"));
+k2.close();
