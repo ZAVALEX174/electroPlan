@@ -42,6 +42,28 @@ test("лист «Прайс»: заголовки == COLUMNS в их поряд�
   assert.deepEqual(header, T.COLUMNS.map((c) => c.name));
 });
 
+test("К9: шаблон покрывает все смысловые поля обеих номенклатур", (t) => {
+  const sources = ["Номенклатура новая.xls", "Номенклатура 2026-10-10.xls"]
+    .map(name => path.join(__dirname, "..", "..", name));
+  if (sources.some(file => !fs.existsSync(file))) { t.skip("исходные прайсы недоступны"); return; }
+  const aliases = {
+    "Серия": "Коллекция", "Размер в модулях": "Количество модулей",
+    "цена, евро": "Прайс розница РФ, Евро", "Цвет элемента": "Цвет механизма"
+  };
+  const covered = new Set(T.COLUMNS.map(c => c.name));
+  for (const file of sources) {
+    const source = XLSX.readFile(file, { sheetRows: 5 });
+    const rows = XLSX.utils.sheet_to_json(source.Sheets[source.SheetNames.at(-1)],
+      { header: 1, defval: "" });
+    const header = rows.find(r => r.some(value => String(value).trim() === "Артикул"));
+    assert.ok(header, file + ": не найдена шапка");
+    const missing = header.map(value => String(value).trim()).filter(Boolean)
+      .filter(name => !covered.has(aliases[name] || name));
+    assert.deepEqual(missing, [], file + ": поля без места в шаблоне");
+  }
+  assert.equal(covered.size, 28);
+});
+
 test("check() на собственном шаблоне (читан обратно xlsx) — 0 ошибок", () => {
   const res = T.check(grid("Прайс"));
   assert.equal(res.errors.length, 0, "ошибок нет: " + res.errors.map((e) => e.key).join(", "));

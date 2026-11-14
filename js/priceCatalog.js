@@ -103,12 +103,21 @@ function convert(rows, options) {
       series, compatibility: series.join(", ") };
     const pack = positiveInt(at(row, "Кол-во в упаковке"));
     assignIf(product, "packQty", pack);
+    assignIf(product, "brand", str(at(row, "Бренд")));
     const color = str(at(row, "Цвет механизма"));
     assignIf(product, "color", color);
     assignIf(product, "elementColor", color);
     assignIf(product, "functionalGroup", group);
     assignIf(product, "functionalSubgroup", str(at(row, "Подгруппы")));
     assignIf(product, "note", str(at(row, "Примечание")));
+    assignIf(product, "description", str(at(row, "Описание особенностей элемента")));
+    assignIf(product, "imageCaption", str(at(row, "Подпись для картинки")));
+    assignIf(product, "frameColorCode", str(at(row, "Кодировка цвета накладки")));
+    const imageUrl = str(at(row, "Изображение"));
+    if (imageUrl && imageUrl !== product.imageUrl) {
+      product.imageUrl = imageUrl;
+      delete product.previewImageUrl;
+    }
     assignIf(product, "principle", str(at(row, "Принцип обработки")));
     assignIf(product, "boxModularity", positiveInt(at(row, "Модульность для коробки")));
     assignIf(product, "accessGroup", positiveInt(at(row, "Группа доступа")));

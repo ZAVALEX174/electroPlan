@@ -126,3 +126,31 @@ test("К9: шаблон без товаров не считается приго
   assert.equal(result.ok, false);
   assert.match(result.errors[0].message, /нет товаров/);
 });
+
+test("К9: дополнительные поля двух номенклатур и ссылка на фото попадают в товар", () => {
+  const rows = [header, row(base("M-3", "Кнопка", "Механизм", {
+    "Бренд": "VIMAR", "Описание особенностей элемента": "Без суппорта",
+    "Подпись для картинки": "Клавиша", "Кодировка цвета накладки": "01",
+    "Изображение": "https://example.com/photo.jpg"
+  }))];
+  const old = [{ id: 22, code: "M-3", kind: "mechanism", imageUrl: "img/old.jpg",
+    previewImageUrl: "img/old.webp" }];
+  const result = Catalog.convert(rows, { existingProducts: old });
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  const product = result.products[0];
+  assert.equal(product.brand, "VIMAR");
+  assert.equal(product.description, "Без суппорта");
+  assert.equal(product.imageCaption, "Клавиша");
+  assert.equal(product.frameColorCode, "01");
+  assert.equal(product.imageUrl, "https://example.com/photo.jpg");
+  assert.equal(product.previewImageUrl, undefined, "превью старого фото сброшено");
+});
+
+test("К9: опасный адрес изображения останавливает импорт", () => {
+  const result = Catalog.convert([header, row(base("M-4", "Кнопка", "Механизм", {
+    "Изображение": "javascript:alert(1)"
+  }))]);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.products, []);
+  assert.ok(result.errors.some(e => e.key === "imageBad"));
+});
