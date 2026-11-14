@@ -1,0 +1,23 @@
+[
+  { "name": "B8G-P1 pairOf без суффикса отделки", "file": "js/frameOrientation.js",
+    "from": "baseName(f) === key && facingSuffix(f.code) === suf &&",
+    "to": "baseName(f) === key &&" },
+  { "name": "B8G-P2 pairOf без числа модулей", "file": "js/frameOrientation.js",
+    "from": "slotCountOf(f) === sc && seriesKey(f) === sk);",
+    "to": "seriesKey(f) === sk);" },
+  { "name": "B8G-P3 pairOf без серии", "file": "js/frameOrientation.js",
+    "from": "slotCountOf(f) === sc && seriesKey(f) === sk);",
+    "to": "slotCountOf(f) === sc);" },
+  { "name": "B8G-P4 pairOf берёт первый при неоднозначности", "file": "js/frameOrientation.js",
+    "from": "slotCountOf(f) === sc && seriesKey(f) === sk);\n  return hits.length === 1 ? hits[0] : null;",
+    "to": "slotCountOf(f) === sc && seriesKey(f) === sk);\n  return hits[0] || null;" },
+  { "name": "B8G-C1 sameFacingAtCount без серии", "file": "js/frameOrientation.js",
+    "from": "isVertical(f) === vert && facingSuffix(f.code) === suf && seriesKey(f) === sk &&",
+    "to": "isVertical(f) === vert && facingSuffix(f.code) === suf &&" },
+  { "name": "B8G-C2 sameFacingAtCount без числа модулей", "file": "js/frameOrientation.js",
+    "from": "slotCountOf(f) === want);",
+    "to": "true);" },
+  { "name": "B8G-C3 sameFacingAtCount берёт первый при неоднозначности", "file": "js/frameOrientation.js",
+    "from": "slotCountOf(f) === want);\n  return hits.length === 1 ? hits[0] : null;",
+    "to": "slotCountOf(f) === want);\n  return hits[0] || null;" }
+]
