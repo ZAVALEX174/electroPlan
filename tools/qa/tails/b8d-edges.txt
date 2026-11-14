@@ -1,0 +1,135 @@
+// Б8-д: узкая ручная приёмка краёв. Запуск владельцем: node tools/qa/run.mjs b8d-edges
+// Общий префикс shoot.mjs уже создал «Гостиную (итальянский)»: Neve Up / Белая / IT.
+// Выбор накладок и переключателей ниже — мышью по настоящим видимым элементам окна поста.
+n = 400;
+const edgeMarks = [
+  `document.getElementById("postFrameSelect").closest(".epk")`,
+  `document.getElementById("postOrientMode")`,
+  `document.getElementById("postStandardMode")`,
+  `document.getElementById("postPreview")`
+];
+const edgeCode = async () => await ev(`return document.getElementById("postFrameSelect").selectedOptions[0]?.textContent.match(/\\[([^\\]]+)\\]/)?.[1]||null`);
+const edgeState = async label => {
+  const state = await ev(`const q=s=>{const b=document.querySelector(s);return {checked:b?.getAttribute("aria-checked"),disabled:b?.disabled}};
+    return {article:document.getElementById("postFrameSelect").selectedOptions[0]?.textContent,
+      count:document.getElementById("postSlotCount").value,
+      IT:q('#postStandardMode [data-standard="IT"]'),DE:q('#postStandardMode [data-standard="DE"]'),
+      vertical:q('#postOrientMode [data-orient="vertical"]'),rotated:!!document.querySelector('#postPreview .assembled-rotated')};`);
+  log.push(label + ": " + JSON.stringify(state));
+  return state;
+};
+const edgeExpectCode = async (code,label) => {
+  const actual = await edgeCode();
+  if(actual !== code) throw new Error(`${label}: ожидался артикул ${code}, показан ${actual}`);
+};
+const edgeOptionId = async code => {
+  const matches = await ev(`return Array.from(document.querySelectorAll('#postFrameSelect option'))
+    .filter(o=>o.textContent.includes(${JSON.stringify("[" + code + "]")})).map(o=>({id:o.value,text:o.textContent}))`);
+  if(matches.length !== 1) throw new Error(`Накладка ${code}: ожидалась одна опция в окне, найдено ${matches.length}`);
+  return matches[0].id;
+};
+const edgePickerButton = `document.querySelector('#postFrameSelect')?.closest('.epk')?.querySelector('.epk-button')`;
+const edgePick = async code => {
+  const id = await edgeOptionId(code);
+  await click(edgePickerButton);
+  await click(`document.querySelector('.epk-pop .epk-option[data-value=${JSON.stringify(id)}]')`);
+  await sleep(350);
+  await edgeExpectCode(code,"Клик по накладке");
+};
+const edgeOpen = async (roomId,count) => {
+  await click($("newPostBtn")); await sleep(700);
+  await setVal($("builderRoomSelect"),roomId); await sleep(350);
+  await setVal($("postSlotCount"),String(count)); await sleep(450);
+};
+const edgeCancel = async () => { await click($("cancelPost")); await sleep(350); };
+const edgeItRoom = await ev(`return Array.from(document.getElementById('builderRoomSelect').options)
+  .find(o=>o.textContent.includes('Гостиная (итальянский)'))?.value||null`);
+if(!edgeItRoom) throw new Error("Нет IT-комнаты из общего префикса shoot.mjs");
+
+// 1. Не-LINEA Neve Up без вертикальной DE-пары: артикул и стандарт остаются IT, картинка повернута.
+await edgeOpen(edgeItRoom,4);
+await edgePick("09674.01");
+const edgeBeforeVertical = await edgeState("Neve Up до «Вертикально»");
+if(edgeBeforeVertical.IT.checked !== "true") throw new Error("09674.01 должна показывать IT до поворота");
+await click(`document.querySelector('#postOrientMode [data-orient="vertical"]')`); await sleep(650);
+const edgeAfterVertical = await edgeState("Neve Up после «Вертикально»");
+await edgeExpectCode("09674.01","Neve Up после «Вертикально»");
+if(edgeAfterVertical.IT.checked !== "true" || edgeAfterVertical.DE.checked !== "false"
+   || edgeAfterVertical.vertical.checked !== "true" || !edgeAfterVertical.rotated)
+  throw new Error("Neve Up: IT/вертикальное положение/повёрнутое превью расходятся с ожиданием");
+await shot("b8d-edges-neve-vertical",edgeMarks);
+await edgeCancel();
+
+// Для Plana создаём обычную комнату без отбора отделки: обе белые и металлическая накладки доступны.
+await makeRoom(0.62,0.62);
+await nameRoom("Комната Plana QA");
+const edgeRoomFilters = await ev(`return {standard:document.getElementById('roomStandardSelect')?.value,
+  collection:document.getElementById('roomCollectionSelect')?.value,
+  color:document.getElementById('room_frameColorSelect')?.value}`);
+log.push("Plana QA фильтры комнаты: " + JSON.stringify(edgeRoomFilters));
+if(edgeRoomFilters.standard || edgeRoomFilters.collection || edgeRoomFilters.color)
+  throw new Error("Новая комната Plana QA должна быть без отбора стандарта/коллекции/цвета");
+await click($("newPostBtn")); await sleep(700);
+const edgePlanaRoom = await ev(`return Array.from(document.getElementById('builderRoomSelect').options)
+  .find(o=>o.textContent.includes('Комната Plana QA'))?.value||null`);
+if(!edgePlanaRoom) throw new Error("Не создана комната Plana QA");
+
+// 2. Белая Plana: IT → DE с реальным двойником → IT в той же отделке.
+await setVal($("builderRoomSelect"),edgePlanaRoom); await sleep(350);
+await setVal($("postSlotCount"),"4"); await sleep(450);
+await edgePick("14654.01");
+const edgePlanaIt = await edgeState("Plana белая IT");
+if(edgePlanaIt.IT.checked !== "true" || edgePlanaIt.DE.disabled)
+  throw new Error("Белая Plana 14654.01: немецкий переключатель должен быть доступен");
+await shot("b8d-edges-plana-it",edgeMarks);
+await click(`document.querySelector('#postStandardMode [data-standard="DE"]')`); await sleep(550);
+const edgePlanaDe = await edgeState("Plana белая DE");
+await edgeExpectCode("14643.01","Белая Plana после клика DE");
+if(edgePlanaDe.DE.checked !== "true" || edgePlanaDe.IT.disabled)
+  throw new Error("Белая Plana 14643.01: DE должен быть выбран, IT доступен");
+await shot("b8d-edges-plana-de",edgeMarks);
+await click(`document.querySelector('#postStandardMode [data-standard="IT"]')`); await sleep(550);
+const edgePlanaBack = await edgeState("Plana белая обратно IT");
+await edgeExpectCode("14654.01","Белая Plana после возврата IT");
+if(edgePlanaBack.IT.checked !== "true" || edgePlanaBack.DE.disabled)
+  throw new Error("Белая Plana: обратный переход в IT не завершился");
+await shot("b8d-edges-plana-it-return",edgeMarks);
+await edgeCancel();
+
+// 3. Металлизированная Plana .71 не должна притворяться DE-двойником отделки .27.
+await edgeOpen(edgePlanaRoom,4);
+await edgePick("14654.71");
+const edgeMetal = await edgeState("Plana металл IT");
+if(edgeMetal.IT.checked !== "true" || !edgeMetal.DE.disabled || edgeMetal.DE.checked !== "false")
+  throw new Error("Plana 14654.71: «Немецкий» должен быть недоступен");
+await shot("b8d-edges-plana-metal-de-disabled",edgeMarks);
+await click(`document.querySelector('#postStandardMode [data-standard="DE"]')`); await sleep(350);
+await edgeExpectCode("14654.71","Plana металл после клика по disabled DE");
+await edgeState("Plana металл после клика по disabled DE");
+await edgeCancel();
+
+// 4. В IT-комнате ручной DE сужает список; клик по BOTH обязан раскрыть IT 09671.01 сразу.
+await edgeOpen(edgeItRoom,4);
+await edgePick("09674.01");
+await click(`document.querySelector('#postStandardMode [data-standard="DE"]')`); await sleep(550);
+await edgeExpectCode("09664.01","Neve Up после ручного DE");
+const edgeManualDe = await edgeState("Neve Up ручной DE");
+if(edgeManualDe.DE.checked !== "true") throw new Error("Ручной DE не активировался");
+await setVal($("postSlotCount"),"1"); await sleep(450);
+const edgeBeforeBoth = await edgeState("Neve Up DE при выборе 1М");
+if(edgeBeforeBoth.DE.checked !== "true" || edgeBeforeBoth.count !== "1")
+  throw new Error("Ручной DE должен сохраняться до выбора универсальной 1М накладки");
+if(await ev(`return Array.from(document.querySelectorAll('#postFrameSelect option')).some(o=>o.textContent.includes('[09671.01]'))`))
+  throw new Error("IT 09671.01 уже видна до снятия ручного DE: проверка суженного списка недействительна");
+await edgePick("09661.01");
+const edgeBoth = await edgeState("Neve Up BOTH после ручного DE");
+if(edgeBoth.IT.checked !== "false" || edgeBoth.DE.checked !== "false"
+   || !edgeBoth.IT.disabled || !edgeBoth.DE.disabled)
+  throw new Error("Универсальная 09661.01 должна погасить обе позиции стандарта");
+const edgeItOption = await edgeOptionId("09671.01");
+await click(edgePickerButton);
+const edgeItRow = await ev(`return !!document.querySelector('.epk-pop .epk-option[data-value=${JSON.stringify(edgeItOption)}]')`);
+if(!edgeItRow) throw new Error("IT 09671.01 нет в видимом списке того же кадра после BOTH");
+log.push("Neve Up после BOTH: IT 09671.01 в раскрытом списке=" + edgeItRow);
+await shot("b8d-edges-both-it-list",edgeMarks);
+await edgeCancel();

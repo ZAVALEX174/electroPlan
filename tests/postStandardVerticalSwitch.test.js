@@ -73,6 +73,18 @@ test("Reflex 30654.40/.41/.42: ни пары, ни DE-двойника → null 
       `${c}: выдуманного двойника не подставляем — поведение ровно как прежде`));
 });
 
+test("Neve Up 09674.01: без вертикальной DE-пары отметка не меняет стандарт, состав и цену", () => {
+  const it = byCode("09674.01");
+  const horizontalDe = byCode("09664.01");
+  assert.equal(it.standard, "IT");
+  assert.equal(horizontalDe.standard, "DE");
+  assert.equal(EPFrameOrientation.isVertical(horizontalDe), false);
+  assert.equal(EPPostStandard.twinOf(it, FRAMES).code, horizontalDe.code,
+    "горизонтальный немецкий двойник существует — тест проверяет именно отсутствие вертикального");
+  assert.equal(EPPostStandard.frameForVerticalOn(it, FRAMES), null,
+    "автопереход не должен менять артикул и монтажную обвязку, если нет вертикальной DE-накладки");
+});
+
 test("уже DE 30643.00 + отметка → 30645.00 тем же путём, что pairOf, БЕЗ смены standardChoice", () => {
   const r = EPPostStandard.frameForVerticalOn(byCode("30643.00"), FRAMES);
   assert.ok(r && r.frame, "вертикальный двойник пары найден");
@@ -129,6 +141,14 @@ test("wiring: отметка на 30654.40 Reflex ничего не меняет
   assert.equal("preferredFrameId" in dom.$("postFrameSelect").dataset, false, "без двойника накладку не переписываем");
   assert.equal(state.builder.standardChoice, null, "стандарт не тронут");
   assert.equal(state.builder.verticalFrame, true, "отметка хранится свободным флагом, как прежде");
+});
+
+test("wiring: Neve Up без вертикальной DE-пары сохраняет IT-накладку при отметке", () => {
+  const { dom, state } = runToggle(byCode("09674.01"), true);
+  assert.equal("preferredFrameId" in dom.$("postFrameSelect").dataset, false,
+    "горизонтальная 09664.01 не должна стать заменой");
+  assert.equal(state.builder.standardChoice, null);
+  assert.equal(state.builder.verticalFrame, true, "признак для поворота картинки сохраняется");
 });
 
 test("wiring: снятие отметки на 30645.00 возвращает 30643.00 (прежний путь, без возврата на 30654)", () => {

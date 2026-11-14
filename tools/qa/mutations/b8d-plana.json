@@ -1,0 +1,20 @@
+[
+  {
+    "name": "P1: Plana Up считается обычной Plana при поиске пары",
+    "file": "js/postStandard.js",
+    "from": "planaUpOf(f) === planaUpOf(base) && ",
+    "to": ""
+  },
+  {
+    "name": "P2: материал игнорируется при разных суффиксах",
+    "file": "js/postStandard.js",
+    "from": " && sameFacingMaterial(base, f)",
+    "to": ""
+  },
+  {
+    "name": "P3: горизонтальная DE принимается за вертикальную",
+    "file": "js/postStandard.js",
+    "from": "de !== frame && EPFrameOrientation.isVertical(de)",
+    "to": "de !== frame && true"
+  }
+]

@@ -6,6 +6,9 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
 const EPPostRotation = require("../js/postRotation.js");
 const EPPostImage = require("../js/postImage.js");
@@ -79,4 +82,31 @@ test("buildHtml: со spec.rotate=true сцена обёрнута поворо�
   assert.match(rotated, /rotate\(90deg\)/, "картинка повёрнута на 90°");
   assert.match(rotated, /class="assembled-rotated"/, "есть контейнер с поменянными размерами");
   assert.match(rotated, /class="assembled-post"/, "внешняя обёртка-подпись сохранена");
+});
+
+test("Reflex 30654.40: подпись помещается в видимую ширину повёрнутого фото", () => {
+  const source = byCode("30654.40");
+  assert.ok(source && source.imageUrl, "используем настоящую накладку Reflex с фото");
+  const win = {};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "js", "catalog-vimar-openings.js"), "utf8"), { window: win });
+  const measured = win.EP_VIMAR_OPENINGS["30654"];
+  assert.ok(measured && measured.aspect > 1 && measured.rects.length === 1,
+    "берём измеренное широкое фото и его окно из каталога");
+  const windows = measured.rects.map(([left, top, width, height]) =>
+    ({ left, top, width, height, aspect: measured.aspect }));
+  const frame = { ...source, opening: windows[0], windows };
+  const post = {
+    size: "lg", frame,
+    rows: [{ posts: [{ capacity: 4, cells: [1, 2, 3, 4].map(num => ({ span: 1, empty: true, num })) }] }]
+  };
+  const deps = { esc: s => String(s == null ? "" : s) };
+  const plain = EPPostImage.buildHtml(post, deps);
+  const rotated = EPPostImage.buildHtml({ ...post, rotate: true }, deps);
+  const captionWidth = html => Number(html.match(/text-align:center;max-width:(\d+)px/)[1]);
+  const box = rotated.match(/class="assembled-rotated" style="[^"]*width:(\d+)px;height:(\d+)px/);
+  assert.ok(box, "фото действительно повёрнуто в контейнере с измеримыми габаритами");
+  const visibleWidth = Number(box[1]), visibleHeight = Number(box[2]);
+  assert.ok(visibleWidth < visibleHeight, "широкое фото после поворота становится узким и высоким");
+  assert.equal(captionWidth(rotated), visibleWidth, "подпись ограничена ВИДИМОЙ шириной фото");
+  assert.equal(captionWidth(plain), visibleHeight, "без поворота подпись ограничена исходной шириной фото");
 });

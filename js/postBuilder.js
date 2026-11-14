@@ -714,6 +714,15 @@ function collectionFramePool(allFrames){
 function renderBuilder(){
   const count=Number($("postSlotCount").value),allMechanisms=byKind("mechanism");
   const frameSelect=$("postFrameSelect"),allFrames=byKind("frame");
+  /* Выбор BOTH-накладки снимает прежний ручной IT/DE-стандарт в renderPostStandard. Делаем
+     эту синхронизацию ДО отбора пула, иначе текущий кадр выпадающего списка ещё сужен старым
+     стандартом. Приоритет явного preferredFrameId тот же, что ниже у выбора накладки;
+     нет ручного выбора — обычный render не получает дополнительной работы. */
+  if(state.builder.standardChoice!=null&&typeof renderPostStandard==="function"){
+    const pendingId="preferredFrameId" in frameSelect.dataset?frameSelect.dataset.preferredFrameId:frameSelect.value;
+    const pendingFrame=pendingId?frameProduct(pendingId):null;
+    if(pendingFrame)renderPostStandard(pendingFrame,allFrames);
+  }
   /* Селектор «Вариант отделки» (К8а): виден при >1 варианте; смена варианта идёт через
      builderVariantSwitch (К8г(2): подтверждение, если накладка не подходит новому варианту). */
   EPRoomVariantsUi.renderBuilderVariantSelect({$,room:(state.rooms||[]).find(r=>r.id===state.builder.roomId),index:state.builder.variantIndex,onChange:i=>builderVariantSwitch((state.rooms||[]).find(r=>r.id===state.builder.roomId),i,()=>{state.builder.variantIndex=i;changeBuilderRoom(state.builder.roomId)},renderBuilder),variantHasNoFrames:v=>!EPCatalog.productsForRoom(allFrames,roomCatalogFilter(v)).length});
@@ -1688,6 +1697,11 @@ async function savePostBuilder(){
       }
     }
     Object.assign(post,base);
+    /* При переходе с IT/DE на универсальную накладку renderPostStandard снимает ручной выбор.
+       Object.assign не удаляет старое поле: без этой строки размещённый пост продолжит
+       фильтровать комнату по прежнему стандарту после сохранения. У нового/нетронутого
+       поста поле по-прежнему отсутствует; явный IT/DE уже записан в base. */
+    if(!Object.prototype.hasOwnProperty.call(base,"standardChoice"))delete post.standardChoice;
     /* Тип стены записываем ЯВНО каждому адресату, даже если он совпал с настройкой проекта:
        «я выбрал для этого поста бетон» — это решение о посте, и оно не должно потом уехать
        вслед за изменившимся значением проекта. Посты, у которых поля нет, продолжают читать

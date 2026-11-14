@@ -40,16 +40,22 @@ const MECH_2M = 200040;
 const activeFrames = PRODUCTS.filter(x => x.kind === "frame" && x.active);
 const FRAME_2 = activeFrames.find(f =>
   (f.series || []).includes("Eikon Tactil") && EPCatalog.frameSlotCount(f) === 2);
+const LINEA_BOTH_2 = activeFrames.find(f => f.code === "30642.00");
+const LINEA_DE_4 = activeFrames.find(f => f.code === "30643.00");
+const MECH_LINEA_1 = PRODUCTS.find(p => p.code === "30000");
 assert.ok(FRAME_2, "разведка: у Eikon Tactil есть 2-модульная накладка — с ней собираем валидный пост");
 assert.equal(EPCatalog.mechanismSpan(product(MECH_2M)), 2, "разведка: механизм 200040 — 2 модуля (заполняет накладку целиком)");
+assert.equal(EPCatalog.frameSlotCount(LINEA_BOTH_2), 2, "LINEA 30642.00 — универсальная накладка на 2 модуля");
+assert.equal(EPCatalog.frameSlotCount(LINEA_DE_4), 4, "LINEA 30643.00 — немецкая накладка на 4 модуля");
+assert.equal(EPCatalog.mechanismSpan(MECH_LINEA_1), 1, "LINEA 30000 заполняет один модуль");
 
 /* Сборка стенда для savePostBuilder. Возвращает управляющие каналы: сохранённый шаблон (аргумент
    DataService.savePost), список тостов, флаг закрытия окна. НЕ стабим сборку base и адресацию —
    именно их проверяют находки. */
-function runSave({ slots, wallType = null, backlight = null, editingPlacedId = null, editingTemplateId = null, posts = [], templates = [], socketBoxId = "sb1", restrictInnardsColor = false, verticalFrame = false }) {
+function runSave({ slots, wallType = null, backlight = null, editingPlacedId = null, editingTemplateId = null, posts = [], templates = [], socketBoxId = "sb1", restrictInnardsColor = false, verticalFrame = false, frameId = FRAME_2.id, standardChoice = null, selectedWallType = "solid", askScope = "self" }) {
   const dom = stand.makeDom();
   dom.$("postName").value = "Пост";
-  dom.$("postFrameSelect").value = String(FRAME_2.id);
+  dom.$("postFrameSelect").value = String(frameId);
 
   const state = {
     products: PRODUCTS,
@@ -59,7 +65,7 @@ function runSave({ slots, wallType = null, backlight = null, editingPlacedId = n
     // savePostBuilder переносит его в post.backlight поимённо, как keyGroups.
     // verticalFrame — ЧЕРНОВИК отметки «Расположить вертикально» (Б8): savePostBuilder кладёт его в
     // base как verticalLayout (белый список), поэтому доезжает и до поста, и до шаблона.
-    builder: { slots, wallType, backlight, editingPlacedId, editingTemplateId, restrictInnardsColor, verticalFrame }
+    builder: { slots, wallType, backlight, editingPlacedId, editingTemplateId, restrictInnardsColor, verticalFrame, standardChoice }
   };
   const toasts = [];
   let savedTemplate; // аргумент DataService.savePost — по нему видно id (обновление vs дубль)
@@ -74,9 +80,9 @@ function runSave({ slots, wallType = null, backlight = null, editingPlacedId = n
     toast: msg => toasts.push(msg),
     // builderWallType стабим: тип стены здесь посторонний (его сторожат open-12 и finding 5),
     // а «solid == проект» гасит диалог охвата и оставляет обе ветки на прямом пути записи
-    builderWallType: () => "solid",
+    builderWallType: () => selectedWallType,
     EP_DATA: { settings: { wallType: "solid" } },
-    askWallScope: () => Promise.resolve("self"),
+    askWallScope: () => Promise.resolve(askScope),
     DataService: {
       savePost: t => { savedTemplate = t; return Promise.resolve(); },
       getSavedPosts: () => Promise.resolve(state.templates)
@@ -240,4 +246,39 @@ test("Б8-save-b: отметка доезжает и до ШАБЛОНА (base �
     verticalFrame: true, editingTemplateId: null
   });
   assert.equal(savedTemplate().verticalLayout, true, "флаг вертикальности сохранён в шаблоне — тот же base");
+});
+
+test("Б8-д Д1: сохранение размещённого поста с универсальной 30642.00 удаляет прежний ручной DE-стандарт", async () => {
+  const post = { id: "p1", roomId: "r1", frameId: LINEA_DE_4.id, standardChoice: "DE" };
+  const slots = [EPBuilderSlots.slot(MECH_LINEA_1.id, ""), EPBuilderSlots.slot(MECH_LINEA_1.id, "")];
+  const { state } = await runSave({
+    slots, frameId: LINEA_BOTH_2.id, standardChoice: null, editingPlacedId: "p1", posts: [post]
+  });
+  assert.equal(state.posts[0].frameId, LINEA_BOTH_2.id, "выбор универсальной накладки сохранён");
+  assert.equal("standardChoice" in state.posts[0], false,
+    "бывший DE-выбор не должен сужать пул комнаты после перехода на BOTH-накладку");
+});
+
+test("Б8-д Д1 контроль: явный выбор DE сохраняется, а пост без выбора не получает поле", async () => {
+  const slots = [EPBuilderSlots.slot(MECH_LINEA_1.id, ""), EPBuilderSlots.slot(MECH_LINEA_1.id, "")];
+  const chosen = { id: "p1", roomId: "r1", frameId: LINEA_BOTH_2.id };
+  await runSave({ slots, frameId: LINEA_BOTH_2.id, standardChoice: "DE", editingPlacedId: "p1", posts: [chosen] });
+  assert.equal(chosen.standardChoice, "DE", "явно выбранный стандарт остаётся у поста");
+  const untouched = { id: "p2", roomId: "r1", frameId: LINEA_BOTH_2.id };
+  await runSave({ slots, frameId: LINEA_BOTH_2.id, standardChoice: null, editingPlacedId: "p2", posts: [untouched] });
+  assert.equal("standardChoice" in untouched, false, "нетронутый пост по-прежнему без этого поля");
+});
+
+test("Б8-д Д1: отказ от вопроса о типе стены не удаляет standardChoice и не сохраняет новую накладку", async () => {
+  const ids = [MECH_LINEA_1.id, MECH_LINEA_1.id];
+  const slots = ids.map(id => EPBuilderSlots.slot(id, ""));
+  const post = { id: "p1", roomId: "r1", frameId: LINEA_DE_4.id, mechanismIds: ids,
+    standardChoice: "DE", wallType: "solid" };
+  const twin = { id: "p2", roomId: "r2", frameId: LINEA_BOTH_2.id, mechanismIds: ids,
+    wallType: "solid" };
+  const { state } = await runSave({ slots, frameId: LINEA_BOTH_2.id, standardChoice: null,
+    editingPlacedId: "p1", posts: [post, twin], selectedWallType: "hollow", askScope: null });
+  assert.equal(state.posts[0].frameId, LINEA_DE_4.id, "отказ оставляет прежнюю накладку");
+  assert.equal(state.posts[0].standardChoice, "DE", "отказ оставляет прежний ручной стандарт");
+  assert.equal(state.posts[0].wallType, "solid", "отказ не меняет тип стены");
 });

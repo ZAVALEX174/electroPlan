@@ -62,6 +62,73 @@ test("LINEA 4М Reflex (.40/.41/.42): немецкого двойника НЕТ
   assert.equal(twinCode("30654.42"), null, "30654.42 Reflex чёрная — DE-двойника нет");
 });
 
+test("Arke Reflex слоновая кость не подменяется обычной накладкой того же цвета", () => {
+  const reflex4 = byCode("19654.67"), ordinary4 = byCode("19643.73");
+  const reflex8 = byCode("19668.67"), ordinary8 = byCode("19669.73");
+  assert.match(reflex4.name, /рефлекс/i);
+  assert.doesNotMatch(ordinary4.name, /рефлекс/i);
+  assert.equal(reflex4.frameColor, ordinary4.frameColor, "цветовая метка совпадает, отделка — нет");
+  assert.equal(reflex4.price, 23.33);
+  assert.equal(ordinary4.price, 11.9);
+  assert.equal(twinCode("19654.67"), null, "4М Reflex не становится обычной DE за другую цену");
+  assert.equal(twinCode("19668.67"), null, "8М Reflex тоже не становится обычной DE");
+  assert.equal(twinCode("19643.73"), "19654.73", "обычная DE находит обычную IT, а не Reflex");
+  assert.equal(reflex8.frameColor, ordinary8.frameColor);
+});
+
+test("Plana и Plana Up белые: немецкая 14643 выбирает обычную IT, Up не подменяется", () => {
+  const ordinary = byCode("14654.01"), up = byCode("14654U.01"), de = byCode("14643.01");
+  assert.match(up.name, /Plana Up/i, "отдельная модель отмечена в номенклатуре");
+  assert.doesNotMatch(ordinary.name, /Plana Up/i);
+  assert.equal(up.frameColor, ordinary.frameColor);
+  assert.equal(up.frameMaterial, ordinary.frameMaterial);
+  assert.equal(twinCode(ordinary.code), de.code);
+  assert.equal(twinCode(de.code), ordinary.code, "обратный щелчок возвращает исходную модель");
+  assert.equal(twinCode(up.code), null, "у Plana Up нет немецкой пары в каталоге");
+  assert.equal(EPPostStandard.frameForStandard(up, "DE", FRAMES, false), null);
+  assert.equal(EPPostStandard.frameForStandard(de, "IT", FRAMES, false).code, ordinary.code);
+  assert.equal(twinCode("14654.AB.01"), "14643.AB.01");
+  assert.equal(twinCode("14643.AB.01"), "14654.AB.01");
+  assert.equal(twinCode("14654U.AB.01"), null);
+});
+
+test("Plana: металлическая .71 не подменяется технополимерной .27 при том же цвете", () => {
+  for (const [metal, de, plastic] of [
+    ["14654.71", "14643.27", "14654.27"],
+    ["14668.71", "14669.27", "14668.27"]
+  ]) {
+    const m = byCode(metal), d = byCode(de), p = byCode(plastic);
+    assert.equal(m.frameColor, d.frameColor);
+    assert.equal(m.frameMaterial, "Металл");
+    assert.equal(d.frameMaterial, "Технополимер");
+    assert.equal(p.frameMaterial, "Технополимер");
+    assert.equal(twinCode(metal), null, `${metal}: немецкой металлической пары нет`);
+    assert.equal(EPPostStandard.frameForStandard(m, "DE", FRAMES, false), null,
+      `${metal}: кнопка немецкого стандарта недоступна`);
+    assert.equal(twinCode(de), plastic, `${de}: обратный выбор ведёт к технополимерной .27`);
+    assert.equal(twinCode(plastic), de, `${plastic}: двусторонняя пара .27`);
+  }
+  assert.equal(twinCode("14654.70"), null, "металлическая бронза не становится технополимерной .26");
+  assert.equal(twinCode("14668.70"), null, "8М металлическая бронза не становится технополимерной .26");
+  assert.equal(twinCode("30654.70"), "30643.70.01", "законная пара с разным суффиксом и тем же материалом сохраняется");
+});
+
+test("весь каталог: каждая найденная IT/DE-пара обратима, чужая модель и материал не подменяются", () => {
+  const horizontal = FRAMES.filter(f => (f.standard === "IT" || f.standard === "DE") &&
+    !EPFrameOrientation.isVertical(f));
+  const pairs = horizontal.map(f => [f, EPPostStandard.twinOf(f, FRAMES)]).filter(([, twin]) => twin);
+  assert.equal(pairs.length, 380, "190 пар считаются в обе стороны");
+  for (const [frame, twin] of pairs) {
+    assert.equal(EPPostStandard.twinOf(twin, FRAMES), frame, `${frame.code} ↔ ${twin.code}`);
+    assert.equal(/Plana Up/i.test(frame.name), /Plana Up/i.test(twin.name), `${frame.code}: модель`);
+    assert.equal(/рефлекс|reflex/i.test(frame.name), /рефлекс|reflex/i.test(twin.name), `${frame.code}: фактура`);
+    const suffix = code => code.slice(code.indexOf(".") + 1);
+    if (suffix(frame.code) !== suffix(twin.code)) {
+      assert.equal(frame.frameMaterial, twin.frameMaterial, `${frame.code}: материал при разных суффиксах`);
+    }
+  }
+});
+
 /* --- 2. ОБРАТНОЕ НАПРАВЛЕНИЕ: DE 30643 → IT 30654 ---------------------------------------------- */
 test("обратно: 30643 → 30654, симметрично (включая 30643.70.01 → 30654.70)", () => {
   assert.equal(twinCode("30643.00"), "30654.00");
