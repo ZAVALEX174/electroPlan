@@ -1,0 +1,26 @@
+[
+  {
+    "name": "З-К2-1: findSupport потерял запас снятых",
+    "file": "js/app.js",
+    "from": "byKind(\"support\"),byKindOff(\"support\"),s=>supportFound",
+    "to": "byKind(\"support\"),[],s=>supportFound"
+  },
+  {
+    "name": "З-К2-1: resolveSupport потерял запас снятых",
+    "file": "js/app.js",
+    "from": "byKind(\"support\"),byKindOff(\"support\"),r=>supportFound",
+    "to": "byKind(\"support\"),[],r=>supportFound"
+  },
+  {
+    "name": "З-К2-1: findBacklight потерял запас снятых",
+    "file": "js/app.js",
+    "from": "byKind(\"accessory\"),byKindOff(\"accessory\"),a=>!!a);",
+    "to": "byKind(\"accessory\"),[],a=>!!a);"
+  },
+  {
+    "name": "З-К2-1: lightingFor потерял запас снятых механизмов",
+    "file": "js/app.js",
+    "from": "const mechsOff=byKindOff(\"mechanism\");",
+    "to": "const mechsOff=[];"
+  }
+]
