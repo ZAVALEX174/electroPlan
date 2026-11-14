@@ -627,8 +627,9 @@ function templateFitsRoomColors(template, roomColors, deps) {
 /* Подбор накладки СЕРИИ КОМНАТЫ той же модульности, что у шаблона (замена при размещении, п.5). pool —
    УЖЕ суженный под комнату список накладок (EPCatalog.productsForRoom по серии+отделке комнаты, тот же
    collectionFramePool): цвет и серию задаёт он, здесь остаётся выбрать РАЗМЕР и проверить, что в накладку
-   ВСТАЮТ клавиши шаблона. Модульность шаблона — frameSlotCount его накладки; берём первую накладку пула
-   той же модульности, В КОТОРУЮ по правилу конструктора встают ВСЕ механизмы шаблона (frameFitsMechs).
+   ВСТАЮТ клавиши шаблона. Модульность шаблона — frameSlotCount его накладки. Если первая
+   совместимая накладка меняет раскладку поста, ищем ту же модель и раскладку в новой отделке;
+   иначе берём прежнюю первую накладку пула.
    Одной модульности мало: у комнаты той же серии клавиши совместимы, но у комнаты ДРУГОЙ серии (или у
    комнаты, заданной лишь цветом, где пул — накладки любой серии этого цвета) чужая накладка приняла бы
    клавиши по размеру, а конструктор выкинул бы их по серии — вышел бы несобираемый пост «Занято 0 из N».
@@ -639,9 +640,22 @@ function templateFitsRoomColors(template, roomColors, deps) {
 function pickRoomFrame(templateFrameId, pool, deps) {
   const frameProduct = deps.frameProduct, frameSlotCount = deps.frameSlotCount;
   const fitsMechs = deps.frameFitsMechs || (() => true);
-  const wanted = frameSlotCount(frameProduct(templateFrameId));
+  const source = frameProduct(templateFrameId);
+  const wanted = frameSlotCount(source);
   if (!(wanted > 0)) return null;
-  return (pool || []).find(f => frameSlotCount(f) === wanted && fitsMechs(f)) || null;
+  const eligible = (pool || []).filter(f => frameSlotCount(f) === wanted && fitsMechs(f));
+  /* Пул уже ограничен комнатой. Предпочитаем ту же модель лишь когда первая совместимая
+     накладка меняет явную раскладку (LINEA 30654.00 → 30643.01 с 2+2), а в пуле есть
+     30654.01 с прежней раскладкой. Иные старые подмены, в том числе снятых, остаются как были. */
+  const sourceCode = source && String(source.code || "");
+  const model = sourceCode && sourceCode.includes(".") && sourceCode.split(".")[0];
+  const layout = f => JSON.stringify((f && f.layoutRows) || []);
+  const first = eligible[0];
+  if (model && first && layout(first) !== layout(source)) {
+    const sameModel = eligible.find(f => String(f.code || "").startsWith(model + ".") && layout(f) === layout(source));
+    if (sameModel) return sameModel;
+  }
+  return first || null;
 }
 
 /* Отбирает из ids столько механизмов (по порядку), сколько влезает в capacity

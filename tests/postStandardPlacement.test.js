@@ -147,6 +147,32 @@ test("★ пример 3: пост 30654.00 (IT) standardChoice IT в комна
   assert.equal(got.standard.toUpperCase(), "IT");
 });
 
+test("Б8-з: 30654.00 без ручного стандарта в комнате «Конопляная» сохраняет 4М в ряд и цену", () => {
+  const original = byCode("30654.00"), expected = byCode("30654.01"), wrong = byCode("30643.01");
+  assert.ok(original && expected && wrong);
+  assert.notEqual(expected.price, wrong.price, "предпосылка: неверная раскладка меняет цену");
+  const template = { id: "b8z", name: "LINEA 4М", frameId: original.id,
+    frameColor: "Белая", mechanismIds: [...FILL4] };
+  const room = { id: "b8zRoom", name: "Кухня", collection: "Linea",
+    frameColor: "Конопляная" };
+  const { state, toasts } = placeTemplate({ template, room });
+  assert.equal(state.posts.length, 1, "пост размещён: " + JSON.stringify(toasts));
+  const got = PRODUCTS.find(p => p.id === state.posts[0].frameId);
+  assert.equal(got.code, "30654.01", "тот же артикул модели в цвете комнаты, а не DE 2+2");
+  assert.equal(got.price, expected.price, "цена соответствует 4М в ряд выбранной отделки");
+});
+
+test("Б8-з контроль: явный DE комнаты ограничивает пул, поэтому 30654.00 переходит в 30643.01", () => {
+  const template = { id: "b8zDe", name: "LINEA 4М", frameId: byCode("30654.00").id,
+    frameColor: "Белая", mechanismIds: [...FILL4] };
+  const room = { id: "b8zDeRoom", name: "Кухня", collection: "Linea",
+    frameColor: "Конопляная", standard: "DE" };
+  const { state, toasts } = placeTemplate({ template, room });
+  assert.equal(state.posts.length, 1, "пост размещён: " + JSON.stringify(toasts));
+  assert.equal(PRODUCTS.find(p => p.id === state.posts[0].frameId).code, "30643.01",
+    "стандарт комнаты соблюдён; правило модели действует только внутри допустимого пула");
+});
+
 /* КОНТРОЛЬ: пост БЕЗ standardChoice — поведение строго как прежде (стандарт комнаты). Та же накладка,
    что и до правки: DE-пост в IT-комнату того же цвета теряет стандарт под комнату (IT-двойник). */
 test("★ контроль: пост 30643.01 (DE) БЕЗ standardChoice в IT-комнату «Конопляная» → IT 30654.01 (стандарт комнаты, как раньше)", () => {
