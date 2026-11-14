@@ -24,6 +24,7 @@ const EPRoomVariantsUi = require("../js/roomVariantsUi.js");
 const EPPostVariant = require("../js/postVariant.js");
 const EPPosts = require("../js/posts.js");
 const EPFrameOrientation = require("../js/frameOrientation.js");
+const EPPostStandard = require("../js/postStandard.js");
 
 /* Обогащённый каталог — те же три файла и порядок, что index.html (у LINEA цвет/серию дописывает
    DataService из номенклатуры: в сыром catalog-vimar.js frameColor нет). */
@@ -57,7 +58,7 @@ const FILL4 = [LINEA_MECH, LINEA_MECH, LINEA_MECH, LINEA_MECH];   // 4 моду�
    1. БУ́ДЕР: смена числа модулей.
    applyAutoDefaultFrame — для нетронутого поста (frameAuto). Прогоняем НАСТОЯЩИЙ changePostSlotCount.
    ───────────────────────────────────────────────────────────────────────────────────────────── */
-function runChangeSlot({ frameAuto, verticalFrame, count, currentFrameId, name = "Пост на 4 модуля" }) {
+function runChangeSlot({ frameAuto, verticalFrame, count, currentFrameId, name = "Пост на 4 модуля", standardChoice = null, room = LINEA_HEMP(), returnCount = false }) {
   const dom = stand.makeDom({ selects: ["postFrameSelect", "postSlotCount"] });
   dom.$("postName").value = name;
   dom.$("postSlotCount").innerHTML = `<option value="${count}">${count}</option>`;
@@ -66,19 +67,22 @@ function runChangeSlot({ frameAuto, verticalFrame, count, currentFrameId, name =
     dom.$("postFrameSelect").innerHTML = `<option value="${currentFrameId}">f</option>`;
     dom.$("postFrameSelect").value = String(currentFrameId);
   }
-  const room = LINEA_HEMP();
   const state = { products: PRODUCTS, posts: [], rooms: [room],
-    builder: { roomId: room.id, variantIndex: 0, editingPlacedId: null, frameAuto, verticalFrame } };
+    builder: { roomId: room.id, variantIndex: 0, editingPlacedId: null, frameAuto, verticalFrame, standardChoice } };
   const ctx = {
     state, $: dom.$, byKind,
-    frameSlotCount: EPCatalog.frameSlotCount, frameProduct: product, productSeries: EPCatalog.productSeries,
-    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, EPFrameOrientation,
+    frameSlotCount: EPCatalog.frameSlotCount, frameSlotOptions: EPCatalog.frameSlotOptions,
+    frameProduct: product, productSeries: EPCatalog.productSeries,
+    EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi, EPPostVariant, EPFrameOrientation, EPPostStandard,
     esc: s => String(s == null ? "" : s), defaultPostName: EPCatalog.defaultPostName, renderBuilder: () => {}
   };
-  stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter",
+  stand.run(["frameCollectionList", "frameFacingList", "frameStandardList", "builderFilterRoom", "roomCatalogFilter", "builderRoomFilter", "collectionFramePool", "renderPostSlotCountSelect",
     "ordinaryFrame", "nearestToThreeFrame", "pickDefaultFrame", "preferOwnFrame", "ownFrameCriteria",
     "defaultFrameForRoom", "applyAutoDefaultFrame", "isAutoPostName", "syncAutoPostName", "changePostSlotCount"], ctx)();
-  return dom.$("postFrameSelect").dataset.preferredFrameId;
+  return returnCount
+    ? { preferred: dom.$("postFrameSelect").dataset.preferredFrameId,
+      count: dom.$("postSlotCount").value, name: dom.$("postName").value }
+    : dom.$("postFrameSelect").dataset.preferredFrameId;
 }
 
 test("★ место 1 (applyAutoDefaultFrame): нетронутый пост С ОТМЕТКОЙ, 4→6 → вертикальная 30646.01", () => {
@@ -104,6 +108,51 @@ test("★ место 2 (changePostSlotCount, РУЧНАЯ накладка frame
 test("★ место 2: 6→4 у поста с отметкой → 30645.01 (симметрично)", () => {
   const chosen = runChangeSlot({ frameAuto: false, verticalFrame: true, count: 4, currentFrameId: V6.id, name: "Пост на 6 модулей" });
   assert.equal(chosen, String(V4.id), "6→4 у вертикального поста даёт вертикальную 4М (30645.01)");
+});
+
+test("Б8-к: после ручного DE переключателя смена 4→6 берёт LINEA 30644.01 того же стандарта и отделки", () => {
+  const chosen = runChangeSlot({ frameAuto: false, verticalFrame: false, standardChoice: "DE",
+    count: 6, currentFrameId: H4.id });
+  assert.equal(chosen, String(H6.id));
+});
+
+test("Б8-к: ручной DE и вертикальный LINEA 4→6 сохраняет вертикальную 30646.01", () => {
+  const chosen = runChangeSlot({ frameAuto: false, verticalFrame: true, standardChoice: "DE",
+    count: 6, currentFrameId: V4.id });
+  assert.equal(chosen, String(V6.id));
+});
+
+test("Б8-к: ручная накладка без выбора стандарта при смене модулей остаётся нетронутой", () => {
+  const chosen = runChangeSlot({ frameAuto: false, verticalFrame: false,
+    count: 6, currentFrameId: H4.id });
+  assert.equal(chosen, undefined);
+});
+
+test("Б8-к: чужая серия комнаты не подменяет ручной стандарт на произвольную накладку", () => {
+  const room = { id: "rArke", name: "Кухня", collection: "Arke", standard: "DE" };
+  const chosen = runChangeSlot({ frameAuto: false, verticalFrame: false, standardChoice: "DE",
+    count: 6, currentFrameId: H4.id, room, returnCount: true });
+  assert.equal(chosen.preferred, undefined, "нет точной LINEA в пуле комнаты — старый выбор не переписан");
+  assert.equal(chosen.count, "4", "селектор возвращён к модульности прежней рамки");
+  assert.equal(chosen.name, "Пост на 4 модуля", "автоимя тоже возвращено к прежней модульности");
+});
+
+test("Б8-к: при ручном DE на 1 модуль не берём BOTH-накладку и не сбрасываем выбор стандарта", () => {
+  const de4 = byCode("09664.01"), both1 = byCode("09661.01");
+  assert.ok(de4 && both1);
+  assert.equal(de4.standard, "DE");
+  assert.equal(both1.standard, "BOTH");
+  const room = { id: "rNeve", name: "Кухня", collection: EPCatalog.productSeries(de4)[0],
+    frameColor: de4.frameColor, standard: "DE" };
+  const pool = EPCatalog.productsForRoom(frames, { collection: room.collection,
+    frameColor: room.frameColor, frameMaterial: de4.frameMaterial || null,
+    frameShape: de4.frameShape || null, standard: "DE" });
+  assert.ok(pool.some(f => f.id === both1.id), "предпосылка: BOTH-кандидат реально находится в пуле ручного DE");
+  const chosen = runChangeSlot({ frameAuto: false, verticalFrame: false, standardChoice: "DE",
+    count: 1, currentFrameId: de4.id, room, returnCount: true });
+  assert.equal(chosen.preferred, undefined, "BOTH нельзя подставлять вместо выбранного вручную DE");
+  assert.equal(chosen.count, "4", "нет точной 1М DE — селектор возвращается к модульности прежней рамки");
+  assert.equal(chosen.name, "Пост на 4 модуля");
 });
 
 test("место 2: ручная накладка БЕЗ пары (не-LINEA) смену числа модулей не трогает (прежнее поведение)", () => {

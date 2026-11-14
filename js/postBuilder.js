@@ -1583,6 +1583,32 @@ function changePostSlotCount(){
      и пост на плане/шаблон не трогаются — applyAutoDefaultFrame на них no-op. */
   const cur=frameProduct($("postFrameSelect").value);
   const auto=applyAutoDefaultFrame(count,cur);
+  /* Б8-к: нажатие переключателя IT/DE сняло frameAuto, но ручной СТАНДАРТ должен пережить
+     смену числа модулей. Ищем только ту же серию/отделку в допустимом пуле комнаты и
+     выбранном стандарте; произвольную накладку другой серии/цены не подставляем. Для
+     обычной ручной накладки без standardChoice прежнее правило остаётся ниже. */
+  if(!auto&&cur&&(state.builder.standardChoice==="IT"||state.builder.standardChoice==="DE")
+      &&!(state.builder.verticalFrame&&typeof EPFrameOrientation!=="undefined"&&EPFrameOrientation.hasPair(cur,byKind("frame")))){
+    const pool=EPCatalog.productsForRoom(byKind("frame"),builderRoomFilter());
+    const same=EPCatalog.productsForRoom(pool,{
+      collection:productSeries(cur)[0],frameColor:cur.frameColor||null,
+      frameMaterial:cur.frameMaterial||null,frameShape:cur.frameShape||null,
+      standard:state.builder.standardChoice
+    });
+    /* productsForRoom включает BOTH при IT/DE; универсальная накладка сбросила бы ручной
+       standardChoice при renderPostStandard. Здесь нужен именно выбранный стандарт. */
+    const target=same.find(f=>frameSlotCount(f)===count&&f.standard===state.builder.standardChoice);
+    if(target)$("postFrameSelect").dataset.preferredFrameId=String(target.id);
+    else {
+      /* Нет точной накладки — возвращаем весь видимый выбор к прежней ёмкости, включая
+         автоимя; extra держит её в селекторе даже при чужой серии комнаты. */
+      renderPostSlotCountSelect(frameSlotCount(cur));
+      $("postSlotCount").value=String(frameSlotCount(cur));
+      syncAutoPostName(frameSlotCount(cur));
+    }
+    renderBuilder();
+    return;
+  }
   /* Б8: пост С ОТМЕТКОЙ «Расположить вертикально», где накладка выбрана РУКАМИ (отметка не трогает frameAuto,
      но ручной выбор поля его снял → applyAutoDefaultFrame выше no-op, auto==null), держит ориентацию и при
      смене числа модулей: под новый count берём накладку ТОЙ ЖЕ СЕРИИ и ОТДЕЛКИ, что текущая, той же
