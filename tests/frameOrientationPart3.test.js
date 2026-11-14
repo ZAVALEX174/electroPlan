@@ -7,7 +7,8 @@
         при 4→6 держит СВОЮ серию/отделку (sameFacingAtCount по всему каталогу), а не 6М комнаты;
      D3 changeBuilderRoom (postBuilder.js) — пост на 6М переносят в комнату без 6М-накладок → поле не
         остаётся пустым: обычный дефолт комнаты (ближайший к 3);
-     T(а) накладка БЕЗ пары — сохранённая у поста отметка переживает повторное открытие окна.
+     T(а) накладка БЕЗ пары — отображение сохранённой отметки; чтение флага настоящим
+        openPostBuilder отдельно проверяет openPostBuilderCollectionWiring.test.js (Б8-ж).
    Запуск: node --test tests/ */
 "use strict";
 const test = require("node:test");
@@ -77,6 +78,18 @@ test("★ D1: старый пост с вертикальной 30645.00 БЕЗ 
   const swap = placeFrame(tpl, LINEA_HEMP());
   assert.equal(swap.frameId, V4.id,
     "вертикальность взята из самой накладки (isVerticalPost) → 30645.01; мутация «вернуть template.verticalLayout===true» дала бы 30643.01");
+});
+
+test("Б8-ж: горизонтальная LINEA с сохранённым verticalLayout при размещении становится вертикальной", () => {
+  const hWhite = byCode("30643.00"), hHemp = byCode("30643.01");
+  assert.ok(hWhite && hHemp);
+  assert.equal(EPFrameOrientation.isVertical(hWhite), false);
+  const template = { id: "flagOnly", name: "LINEA", frameId: hWhite.id,
+    frameColor: "Белая", mechanismIds: FILL4, verticalLayout: true };
+  const withFlag = placeFrame(template, LINEA_HEMP());
+  const withoutFlag = placeFrame({ ...template, verticalLayout: false }, LINEA_HEMP());
+  assert.equal(withFlag.frameId, V4.id, "вертикальность взята из флага поста");
+  assert.equal(withoutFlag.frameId, hHemp.id, "без флага осталась горизонтальная пара");
 });
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -151,8 +164,8 @@ test("★ T(а): отметка на накладке БЕЗ пары (Arke 0966
   /* «Сохранили пост с отметкой» — savePostBuilder кладёт verticalLayout:!!verticalFrame. */
   const savedPost = { frameId: arke.id, verticalLayout: true };
   const dom = stand.makeDom();
-  /* «Открыли окно заново» — openPostBuilder читает флаг у поста, renderBuilder зовёт renderFrameOrientation,
-     которая решает состояние отметки (checkboxChecked). Прогоняем обе НАСТОЯЩИЕ строки. */
+  /* Здесь проверяем renderFrameOrientation/checkboxChecked после загрузки флага; само чтение
+     src.verticalLayout настоящим openPostBuilder проверено отдельным тестом Б8-ж. */
   const state = { products: PRODUCTS, posts: [], rooms: [],
     builder: { roomId: null, verticalFrame: !!savedPost.verticalLayout } };
   const ctx = { state, $: dom.$, byKind, EPFrameOrientation };

@@ -1,0 +1,8 @@
+[
+  {
+    "name": "Б8-ж: openPostBuilder не читает сохранённый verticalLayout",
+    "file": "js/postBuilder.js",
+    "from": "state.builder.verticalFrame=!!src.verticalLayout;",
+    "to": "state.builder.verticalFrame=false;"
+  }
+]

@@ -229,6 +229,17 @@ test("E13-open-1: openPostBuilder записывает editingPlacedId откр�
     "editingPlacedId обязан указывать на открываемый пост — от него зависит и фильтр накладок, и адресация сохранения");
 });
 
+test("Б8-ж: openPostBuilder читает verticalLayout сохранённого поста, а не прежний черновик", () => {
+  const frame = byCode("19641.01"); // Arke без вертикальной пары: рамка сама не включает отметку
+  assert.ok(frame);
+  const vertical = openPost({ collection: "Arke", frameId: frame.id,
+    postExtra: { verticalLayout: true }, builderPre: { verticalFrame: false } });
+  assert.equal(vertical.state.builder.verticalFrame, true, "флаг прочитан из открываемого поста");
+  const plain = openPost({ collection: "Arke", frameId: frame.id,
+    postExtra: { verticalLayout: false }, builderPre: { verticalFrame: true } });
+  assert.equal(plain.state.builder.verticalFrame, false, "предыдущий черновик не прилипает к другому посту");
+});
+
 test("E13-open-2: селектор модульностей после openPostBuilder сужен коллекцией комнаты поста", () => {
   const { dom } = openPost({ collection: "Eikon Tactil", frameId: ET_FRAME_2.id });
   const opts = optionValues(dom.$("postSlotCount").innerHTML).map(Number);

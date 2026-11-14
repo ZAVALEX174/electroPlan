@@ -1,0 +1,8 @@
+[
+  {
+    "name": "Б8-ж: isVerticalPost игнорирует флаг",
+    "file": "js/frameOrientation.js",
+    "from": "return flag === true || isVertical(frame);",
+    "to": "return isVertical(frame);"
+  }
+]
