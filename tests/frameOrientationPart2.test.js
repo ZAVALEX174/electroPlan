@@ -272,6 +272,32 @@ test("★ владелец 09.11: новый пост С ОТМЕТКОЙ, см�
     "смена комнаты у отмеченного поста дала вертикальную КОНОПЛЯНУЮ 30645.01 (мутация «вернуть frameAuto=false в toggleFrameOrientation» оставила бы белую 30645.00)");
 });
 
+test("Б8-б: вертикальный LINEA 4М → Neve Up 4М без пары → LINEA возвращает вертикальную 30645, не 3М", () => {
+  const { dom, state } = freshLineaBuilder({});
+  const neve = byCode("09664.01");
+  assert.ok(neve && EPCatalog.frameSlotCount(neve) === 4);
+  assert.equal(EPFrameOrientation.hasPair(neve, frames), false,
+    "промежуточная накладка 4М не имеет вертикальной пары");
+  state.rooms.push({ id: "rN", name: "Neve", collection: "Neve Up", frameColor: neve.frameColor, standard: "DE" });
+  const ctx = makeBuilderCtx(state, dom);
+  const acceptPreferred = () => {
+    const id = dom.$("postFrameSelect").dataset.preferredFrameId;
+    dom.$("postFrameSelect").innerHTML = `<option value="${id}">f</option>`;
+    dom.$("postFrameSelect").value = id;
+    delete dom.$("postFrameSelect").dataset.preferredFrameId;
+  };
+  stand.run("toggleFrameOrientation", ctx)(true);
+  acceptPreferred();
+  const change = stand.run(CBR_CUT, ctx);
+  change("rN");
+  assert.equal(product(Number(dom.$("postFrameSelect").dataset.preferredFrameId)).code, neve.code);
+  acceptPreferred();
+  change("rW");
+  assert.equal(dom.$("postFrameSelect").dataset.preferredFrameId, String(byCode("30645.00").id));
+  assert.equal(dom.$("postSlotCount").value, "4");
+  assert.equal(state.builder.verticalFrame, true);
+});
+
 test("★ владелец 09.11: новый пост БЕЗ отметки, смена комнаты → прежний дефолт п.2 (ближайшая к 3, НЕ вертикальная)", () => {
   /* Пост без отметки — поведение п.2 НЕ меняем: смена комнаты даёт дефолт новой комнаты, ближайший к 3
      (у LINEA конопляной это 3М 30653.01), а НЕ сохраняет модульность. Ориентация не навязана. Отличие от

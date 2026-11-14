@@ -1647,19 +1647,15 @@ function builderVariantSwitch(room,index,apply,restore){
 }
 function changeBuilderRoom(roomId){
   state.builder.roomId=roomId;
-  /* Б8 (владелец 09.11): пост С ОТМЕТКОЙ «Расположить вертикально» держит вертикальность И число модулей
-     при смене комнаты — в новой комнате вертикальная накладка ЕЁ цвета той же модульности. Образцом даём
-     текущую накладку: она задаёт МОДУЛЬНОСТЬ (у LINEA вертикальный двойник есть лишь на 4/6М — сбросься
-     модульность к ближайшей к 3, отметка потерялась бы), цвет берётся из новой комнаты (preferOwnFrame
-     откатится на её пул), ориентацию наводит applyAutoDefaultFrame (место 1). Пост БЕЗ отметки — прежнее
-     поведение (null,null): дефолт новой комнаты, ближайший к 3 (п.2). Сужено до накладок С ПАРОЙ, обычные
-     посты модульность по-прежнему не «запоминают». */
+  /* Б8-б: пост С ОТМЕТКОЙ держит число модулей при последовательной смене комнат, даже если
+     текущая накладка промежуточной комнаты не имеет вертикальной пары (например Neve Up 4М).
+     При возврате в LINEA applyAutoDefaultFrame снова найдёт вертикальную пару нужной ёмкости.
+     Без отметки сохраняем прежний дефолт новой комнаты — ближайшую к 3. */
   const cur=state.builder.verticalFrame&&typeof EPFrameOrientation!=="undefined"?frameProduct($("postFrameSelect").value):null;
-  const keepOrient=cur&&EPFrameOrientation.hasPair(cur,byKind("frame"));
   /* Б8 D3: если у новой комнаты накладки ТОЙ ЖЕ модульности нет (пост на 6М переносят в Eikon Tactil, где
      только 2/3/4М), подбор с сохранением модульности даёт null и поле «Накладка» осталось бы пустым. Тогда
      идём обычным путём поста БЕЗ отметки — дефолт комнаты, ближайший к 3 (applyAutoDefaultFrame(null,null)). */
-  const auto=(keepOrient&&applyAutoDefaultFrame(frameSlotCount(cur),cur))||applyAutoDefaultFrame(null,null);
+  const auto=(cur&&applyAutoDefaultFrame(frameSlotCount(cur),cur))||applyAutoDefaultFrame(null,null);
   const capacity=auto?frameSlotCount(auto):builderCapacity();
   renderPostSlotCountSelect(capacity);
   $("postSlotCount").value=String(capacity);
