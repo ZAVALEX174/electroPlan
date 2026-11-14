@@ -35,6 +35,7 @@ const stand = require("./helpers/appStand.js");
 
 const EPBuilderSlots = require("../js/builderSlots.js");
 const EPConfirmRepeat = require("../js/confirmRepeat.js"); // НАСТОЯЩИЙ механизм подтверждения
+const EPFrameOrientation = require("../js/frameOrientation.js");
 
 /* НАСТОЯЩИЕ функции конструктора одной программой в общем лексическом блоке. После И1 они живут в
    js/postBuilder.js — стенд ищет их по SOURCE_FILES, а вид объявления (функция/const) определяет
@@ -49,9 +50,9 @@ function cutClose(ctx) {
   /* ESC_CONFIRM_MS отдельно НЕ режем: `const ESC_CONFIRM_MS=4000;` лежит между closePostBuilder и
      requestClosePostBuilder, и functionSource(closePostBuilder) прихватывает его в свой текст (как
      builderDirty приезжает в builderSignature). Так константа настоящая, а не продублирована. */
-  const names = ["builderWallType", "builderSignature", "closePostBuilder", "requestClosePostBuilder"];
+  const names = ["builderWallType", "builderSignature", "toggleFrameOrientation", "closePostBuilder", "requestClosePostBuilder"];
   const code = names.map(name => stand.isFunction(name) ? stand.functionSource(name) : stand.constSource(name))
-    .join("\n") + "\n;({request:requestClosePostBuilder, sig:builderSignature, dirty:builderDirty});";
+    .join("\n") + "\n;({request:requestClosePostBuilder, sig:builderSignature, dirty:builderDirty, toggle:toggleFrameOrientation});";
   vm.createContext(ctx);
   return vm.runInContext(code, ctx);
 }
@@ -83,6 +84,30 @@ function makeStand({ name = "Пост", frame = "202011", wallType = "solid", sl
     isOpen() { return dom.$("postModal").classList.contains("open"); }
   };
 }
+
+test("Б8-в: переключение только вертикальности у накладки без пары требует подтверждения Esc", () => {
+  const frame = { id: 202011, code: "X.1", kind: "frame", slotCount: 2 };
+  const dom = stand.makeDom();
+  dom.$("postName").value = "Пост";
+  dom.$("postFrameSelect").value = String(frame.id);
+  dom.$("postModal").classList.add("open");
+  const state = { builder: { slots: [], wallType: "solid", verticalFrame: false,
+    snapshot: null, escArmed: null } };
+  const toasts = [];
+  const ctx = { state, $: dom.$, EPBuilderSlots, EPConfirmRepeat, EPFrameOrientation,
+    EPPostStandard: { frameForVerticalOn: () => null }, frameProduct: id => Number(id) === frame.id ? frame : null,
+    byKind: () => [frame], renderBuilder: () => {}, toast: m => toasts.push(m),
+    Date: { now: () => 1000 }, Set };
+  const api = cutClose(ctx);
+  state.builder.snapshot = api.sig();
+  api.toggle(true);
+  assert.equal(state.builder.verticalFrame, true);
+  assert.equal(dom.$("postFrameSelect").value, String(frame.id), "накладка без пары не изменилась");
+  assert.equal(api.dirty(), true, "флаг сам по себе считается правкой");
+  assert.equal(api.request(), false, "первый Esc предупреждает, а не закрывает");
+  assert.equal(dom.$("postModal").classList.contains("open"), true);
+  assert.match(toasts[0], /несохранённые изменения/);
+});
 
 test("E13-close-clean: незагрязнённый конструктор закрывается СРАЗУ, без подтверждения", () => {
   /* Нетронутый пост: builderDirty() === false → первое же нажатие закрывает окно, лишнего вопроса
