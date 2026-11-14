@@ -725,7 +725,7 @@ function renderBuilder(){
   }
   /* Селектор «Вариант отделки» (К8а): виден при >1 варианте; смена варианта идёт через
      builderVariantSwitch (К8г(2): подтверждение, если накладка не подходит новому варианту). */
-  EPRoomVariantsUi.renderBuilderVariantSelect({$,room:(state.rooms||[]).find(r=>r.id===state.builder.roomId),index:state.builder.variantIndex,onChange:i=>builderVariantSwitch((state.rooms||[]).find(r=>r.id===state.builder.roomId),i,()=>{state.builder.variantIndex=i;changeBuilderRoom(state.builder.roomId)},renderBuilder),variantHasNoFrames:v=>!EPCatalog.productsForRoom(allFrames,roomCatalogFilter(v)).length});
+  EPRoomVariantsUi.renderBuilderVariantSelect({$,room:(state.rooms||[]).find(r=>r.id===state.builder.roomId),index:state.builder.variantIndex,onChange:i=>builderVariantSwitch((state.rooms||[]).find(r=>r.id===state.builder.roomId),i,()=>{state.builder.variantIndex=i;changeBuilderRoom(state.builder.roomId)},renderBuilder),variantHasNoFrames:v=>!EPCatalog.productsForRoom(allFrames,(typeof EPPostStandard!=="undefined"&&EPPostStandard)?EPPostStandard.criteriaForChoice(roomCatalogFilter(v),state.builder.standardChoice):roomCatalogFilter(v)).length});
   /* ⚠️ ОТДЕЛКА КОМНАТЫ СУЖАЕТ СПИСОК НАКЛАДОК ПЕРВЫМ ШАГОМ (E13/E14, collectionFramePool); фильтр по
      числу модулей идёт уже по этому пулу. Стоящая в посте накладка добавляется в frameList отдельно
      (requestedFrame) — даже чужой коллекции из поста не пропадёт, состав/цена не изменятся молча. */

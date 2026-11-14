@@ -39,6 +39,7 @@ const EPLightingGroups = require("../js/lightingGroups.js");
 const EPPosts = require("../js/posts.js");
 const EPBuilderSlots = require("../js/builderSlots.js");
 const EPPostVariant = require("../js/postVariant.js");
+const EPPostStandard = require("../js/postStandard.js");
 
 /* Обогащённый каталог — как в браузере: стандарт (поле standard) подмешивает data.js. */
 const JS_DIR = path.join(__dirname, "..", "js");
@@ -240,6 +241,43 @@ test("§B-postwire: renderBuilder помечает « — нет накладо�
   assert.equal(opts.length, 2, "селектор варианта показал обе вкладки");
   assert.doesNotMatch(opts[0], /нет накладок/, "вариант 1 (Plana) — накладки есть");
   assert.match(opts[1], /— нет накладок/, "вариант 2 (Eikon Flat под DE) помечен — предикат postBuilder подключён");
+});
+
+test("Б8-и: ручной DE помечает IT-вариант без немецких накладок как «нет накладок»", () => {
+  const product = id => PRODUCTS.find(p => Number(p.id) === Number(id));
+  const dom = stand.makeDom({ selects: ["postFrameSelect", "postSlotCount", "builderVariantSelect"] });
+  dom.$("postFrameSelect").dataset.preferredFrameId = "";
+  dom.$("postSlotCount").value = "2";
+  const room = { id: "r1", name: "Гостиная", standard: "DE", collection: "Plana",
+    moreVariants: [{ standard: "IT", collection: "Eikon Flat" }] };
+  const state = { products: PRODUCTS, rooms: [room], posts: [],
+    builder: { slots: [], target: { mode: "add" }, roomId: "r1", variantIndex: 0,
+      standardChoice: "DE" } };
+  const ctx = { state, $: dom.$, esc: s => String(s == null ? "" : s),
+    byKind: kind => state.products.filter(x => x.kind === kind && x.active),
+    frameProduct: product, product, EPCatalog, EPRoom, EPRoomVariants, EPRoomVariantsUi,
+    EPPostVariant, EPPostStandard, EPPosts, EPBuilderSlots,
+    frameSlotCount: EPCatalog.frameSlotCount, frameSlotOptions: EPCatalog.frameSlotOptions,
+    compatibleMechanisms: EPCatalog.compatibleMechanisms, mechanismSpan: EPCatalog.mechanismSpan,
+    productSeries: EPCatalog.productSeries, moduleWord: EPCatalog.moduleWord,
+    frameOptions: (items, selId) => (items || []).map(i => `<option value="${i.id}">${i.id}</option>`).join(""),
+    enhancePicker: () => {}, resolveMissingFrame: () => null,
+    lightingFor: () => ({}), projectPostsWithBuilder: () => [], builderPostDraft: () => ({ mechanismIds: [] }),
+    moduleLayout: () => [], lightingRowsFor: () => [], retargetBuilderSlot: () => {},
+    renderBuilderSlots: () => {}, renderBuilderCatalog: () => {}, renderBuilderComposition: () => {},
+    builderInnardsFilter: () => ({}), builderCtx: {} };
+  const render = stand.run(RB_CUT, ctx);
+  render();
+  const opts = [...dom.$("builderVariantSelect").innerHTML.matchAll(/<option value="(\d+)"[^>]*>([\s\S]*?)<\/option>/g)].map(o => o[2]);
+  assert.equal(opts.length, 2);
+  assert.doesNotMatch(opts[0], /нет накладок/);
+  assert.match(opts[1], /нет накладок/, "Eikon Flat имеет IT-накладки, но ни одной DE");
+  state.builder.standardChoice = "IT";
+  room.moreVariants[0].standard = "DE";
+  render();
+  const optsIt = [...dom.$("builderVariantSelect").innerHTML.matchAll(/<option value="(\d+)"[^>]*>([\s\S]*?)<\/option>/g)].map(o => o[2]);
+  assert.doesNotMatch(optsIt[1], /нет накладок/,
+    "ручной IT не показывает ложную пометку у варианта комнаты DE с доступными IT-накладками");
 });
 
 /* --- Развилка смены варианта/комнаты у нового поста (п.2): applyBuilderVariantChange + текст --- */
