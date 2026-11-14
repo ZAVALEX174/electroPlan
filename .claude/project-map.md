@@ -1,10 +1,10 @@
-<!-- mapped-at-commit: 108cd08 -->
-<!-- mapped-at: 2026-11-10 (дополнено с d6becb1: Б8, А7, Б7; номера строк в 3.2/3.3 для затронутых файлов актуальны на 108cd08, в остальных могли сдвинуться) -->
+<!-- mapped-at-commit: fd3c694 -->
+<!-- mapped-at: 2026-11-14 (Б8-д: postStandard/postRotation и потребители; номера строк обновлены для этих точек, остальные исторические номера сверять перед правкой) -->
 
 # Карта кода ElectroPlan Pro
 
 Навигатор для исполнителей: сначала сюда, потом читать ТОЛЬКО указанные файлы/строки.
-Номера строк — фактические на HEAD 5c5939e (ветка redesign). Строка из grep без пометки
+Номера строк для Б8-д — на кодовом коммите fd3c694; остальные части карты могли сдвинуться. Строка из grep без пометки
 «(комм.)» — код; номера в разделе 4 сверены вызовом `Имя(`, но строки внутри больших
 комментариев могли просочиться — при правке открывай место и проверяй.
 
@@ -17,7 +17,7 @@
 
 ## 1. Запуск и проверка
 
-- Тесты: `npm test` (= `node --test "tests/*.test.js"`). На HEAD: **222 тестовых файла, 2829 тестов, 0 падений, ~12 с**.
+- Тесты: `npm test` (= `node --test "tests/*.test.js"`). На fd3c694: **3085 тестов, 0 падений**.
 - Локальный сервер: `.claude/launch.json` → `python -m http.server --directory . 8420` (конфигурация `electroplan`, порт 8420).
   Для QA-скриншотов tools/qa поднимает свой node-сервер на 8431 (python не выдерживает десятков js).
 - Пересборка каталога (нужен `npm install`, devDeps: xlsx, jimp, heic-to):
@@ -26,7 +26,7 @@
 - Тестов app.js: сам app.js в node не грузится; поведенческие тесты вырезают функции app.js/docs.js/postBuilder.js… в vm через `tests/helpers/appStand.js`
   (`stand.run(["имя1","имя2"], ctx)`, `SOURCE_FILES`); комментарии срезает `tests/helpers/stripComments.js`.
 
-## 2. Точка входа — порядок `<script>` в index.html (строки 827–1001)
+## 2. Точка входа — порядок `<script>` в index.html (таблица ниже историческая; новые Б8-д строки отмечены фактическими номерами)
 
 Все модули — IIFE с двойным экспортом: `window.EPXxx = api` и `module.exports = api` (для node-тестов). Порядок важен.
 Сам index.html: 1003 строки, разметка окон (`#postModal` конструктор поста, `#kpSetupModal`, `#installSheetWindowModal`, `#wallScopeModal`, тосты `#toast`, `#notices`), скрипты в конце.
@@ -73,6 +73,8 @@
 | 899 | specExcel.js | EPSpecExcel |
 | 900 | postImage.js | EPPostImage |
 | 901 | explodedView.js | EPExplodedView |
+| 894, 896 | frameOrientation.js, postStandard.js | EPFrameOrientation, EPPostStandard; правило двойника после ориентации |
+| 940–942 | postRotation.js, postImage.js, explodedView.js | EPPostRotation до двух потребителей |
 | 902 | planRotate.js | EPPlanRotate |
 | 903 | planLabels.js | EPPlanLabels |
 | 904 | rates.js | EPRates |
@@ -112,6 +114,7 @@
 | 976 | projectSetup.js | EPProjectSetup (attach) |
 | 980 | packMultipleUi.js | EPPackMultiple (attach) |
 | 983 | postVariant.js | EPPostVariant (attach) |
+| 991, 1027, 1045 | postBuilder.js, postVariant.js, app.js | фактические позиции потребителей Б8-д на fd3c694 |
 | 984–987 | priceSheet.js, priceTemplate.js, priceTemplateFile.js, priceCheckUi.js | EPPriceSheet, EPPriceTemplate, EPPriceTemplateFile, EPPriceCheckUi (attach) |
 | 992 | planDrop.js | EPPlanDrop (attach) |
 | 993 | topbar.js | EPTopbar (attach) |
@@ -167,11 +170,13 @@
   `requestClosePostBuilder` 1556, `installSheetForBuilder` 1570; подбор накладки по умолчанию `pickDefaultFrame` 220, `defaultFrameForRoom` 246, `applyAutoDefaultFrame` 292 (pickDefaultFrame 250, defaultFrameForRoom 276 — после Б8 сдвиг);
   **Б8 «Расположить вертикально»** (чекбокс `#verticalFrameCheck`, `state.builder.verticalFrame`): `renderFrameOrientation` 189 (галка по `EPFrameOrientation.checkboxChecked`), `toggleFrameOrientation` 204 (переписывает frameId на двойника через `oriented`), `applyAutoDefaultFrame` 292 (держит ориентацию), `changePostSlotCount` 1455 (`sameFacingAtCount` — та же накладка на другое число мест), `changeBuilderRoom` 1494, `savePostBuilder` 1515 (пишет `verticalLayout`, ~1542), загрузка флага из `src.verticalLayout` ~420;
   `resolveMissingFrame` 58 / `resolveMissingMechanism` 94 (пропавший артикул); подсветка/термодатчик в окне `renderPostBacklight` 124, `renderPostThermoSensor` 165.
+- **Б8-д на fd3c694:** `postBuilder.js` — `toggleFrameOrientation` 204 (через `EPPostStandard.frameForVerticalOn`), `renderPostStandard` 251, `toggleStandard` 293 (ручной выбор), `builderRoomFilter` 657 (критерий ручного стандарта), `renderBuilder` 714 (доступность вариантов), `changePostSlotCount` 1576, `changeBuilderRoom` 1622, `savePostBuilder` 1643 (`standardChoice`), переключатели подключены около 1863. `variantHasNoFrames` 728 пока смотрит только критерий комнаты: отдельный хвост Б8-и.
 - `js/docs.js` (777) — сборка документов. `attach` 35; `postPricedItems` 51, `buildPostLayout` 60, `planLabelsSpec` 151, `planBlockHtml` 194, `supplierSpecData` 213,
   `supplierSpecHtml` 301, `buildExplodedSpec` 326, **`buildPostSheet` 439**, `openInstallSheet` 594, `installSheetForProject` 612, **`generateCommercialOffer` 658**, `exportSpecExcel` 731.
 - `js/rooms.js` (293) — слой комнат на плане, правка вершин (`attach` 34). `js/roomDetect.js` (465) — «Определить помещения»: линии → грани, ML, сегментация (`attach` 57).
 - `js/canvasInput.js` (527) — клики/жесты/панорама/зум (`attach` 52). `js/postCopyUi.js` (129) — Ctrl+C/V постов (`attach` 28).
 - `js/postVariant.js` (165) — готовый пост ↔ варианты отделки комнаты: `placementFits` 35, `attach` 45 (`frameForRoomPlacement` 115; Б8: вертикальность поста (`template.verticalLayout` или сама накладка) → `EPFrameOrientation.isVerticalPost` + `oriented`, ~142–149).
+- **Б8-д на fd3c694:** `postVariant.js` — `frameForRoomPlacement` 115 применяет `EPPostStandard.criteriaForChoice` к критерию комнаты при ручном стандарте; `posts.js:placementFields` 533 переносит `standardChoice` только для `IT`/`DE` (около 573). `app.js:assembledPostSpec` 287 выставляет `rotate` через `EPPostRotation.shouldRotate` только для разрешённых потребителей.
 - `js/projectFile.js` (259) — файл проекта: `build` 50, `parse` 64, `signature` 89, `mergePrefs` 125, `attach` 146 (скачать/открыть/новый). `js/projectSetup.js` (58) — окно «Данные проекта и КП».
 - `js/topbar.js` (116) шапка, `js/rightPanel.js` (82) правая панель (`kpLine` 21), `js/leftPanel.js` (122) левая панель (`planStatusText` 22), `js/canvasBar.js` (42) строка под холстом (Орто/Сетка/шаг, F8/F9).
 - `js/installSheetWindow.js` (151) — окно состава листа монтажника (`create` 24; ключ prefs `installSheetPresets`). `js/wallScope.js` (63) — промис-модалка «этот пост / все однотипные».
@@ -196,7 +201,9 @@
 - `js/buttonFrame.js` (156) — кнопочные накладки Flat и двойная клавиша 22751 (К12 ч.4): `BUTTON_FRAME_BASES` 33, `isButtonFrame` 51, `buttonsOf` 59, `appliesTo` 66, **`spanIn` 78**, `orderWindows` 91, `faceParts` 110, `cellSlots` 141.
 
 Посты и конструктор
-- `js/frameOrientation.js` (146, Б8, window.EPFrameOrientation; script index.html:879) — правило пары накладки «горизонтальная ↔ вертикальная» (LINEA 30643↔30645, 30644↔30646; двойник ищется по базовому имени/серии/числу мест, нет двойника → null). `isVertical` 34, `pairOf` 69, `hasPair` 82, `verticalOf` 88, `horizontalOf` 94, `oriented(frame,frames,vertical)` 102, `isVerticalPost(frame,flag)` 112 (флаг поста ИЛИ сама накладка вертикальная), `sameFacingAtCount(frame,count,frames)` 124, `checkboxChecked(frame,flag,frames)` 138. Потребители: postBuilder.js (renderFrameOrientation 189, toggleFrameOrientation 204, applyAutoDefaultFrame 292, changePostSlotCount 1455, changeBuilderRoom 1494, savePostBuilder 1515 → поле `verticalLayout`), postVariant.js `frameForRoomPlacement` 115, posts.js `placementFields` 533 (перенос флага). Тесты: frameOrientation, frameOrientationPart2, frameOrientationPart3, frameOrientationWiring (.test.js).
+- `js/frameOrientation.js` (146, Б8, window.EPFrameOrientation; script index.html:894) — правило пары накладки «горизонтальная ↔ вертикальная» (LINEA 30643↔30645, 30644↔30646; двойник ищется по базовому имени/серии/числу мест, нет двойника → null). `isVertical` 34, `pairOf` 69, `hasPair` 82, `verticalOf` 88, `horizontalOf` 94, `oriented(frame,frames,vertical)` 102, `isVerticalPost(frame,flag)` 112 (флаг поста ИЛИ сама накладка вертикальная), `sameFacingAtCount(frame,count,frames)` 124, `checkboxChecked(frame,flag,frames)` 138. Потребители: postBuilder.js (`toggleFrameOrientation` 204, `changePostSlotCount` 1576, `changeBuilderRoom` 1622, `savePostBuilder` 1643 → поле `verticalLayout`), postVariant.js `frameForRoomPlacement` 115, posts.js `placementFields` 533 (перенос флага). Тесты: frameOrientation, frameOrientationPart2, frameOrientationPart3, frameOrientationWiring (.test.js).
+- `js/postStandard.js` (Б8-д, `EPPostStandard`; index.html:896) — чистое правило IT↔DE: `currentStandard` 96, `twinOf` 107 (серия/места/цвет/фактура/материал; единственный активный двойник), `frameForStandard` 143 (сохраняет ориентацию), `frameForVerticalOn` 166 (LINEA 30654→30645/DE, только при реальной вертикальной паре), `criteriaForChoice` 188 (ручной стандарт перебивает критерий комнаты). Потребители: `postBuilder.js`, `postVariant.js`; тесты `postStandard*`, `b8dStandardPoolSync`.
+- `js/postRotation.js` (Б8-д, `EPPostRotation`; index.html:940) — `shouldRotate` 31 (пост вертикален, накладка не вертикальная), `wrapRotated` 45 (90° по часовой с обменом размеров). Потребители: `app.js:assembledPostSpec` 287, `postImage.js:buildHtml` 457/481, `explodedView.js:buildHtml` 347/399, `docs.js:buildPostSheet` 448/600. Тесты `postRotation*`, `postImage`, `explodedView`; поворот включают окно поста и лист монтажника, значок на плане и картинки КП не поворачиваются.
 - `js/clientBook.js` (195, А7, EPClientBook; index.html:956) — книга клиентов (подсказки ФИО в окне «Данные проекта и КП»): чистые `normFio` 29, `normalizeList` 36, `find` 42, `suggest` 51, `remember` 72 (+`LIST_KEY`, `LIMIT`); `attach(ctx)` 96 — datalist, подстановка реквизитов клиента (`trySubstitute` 157, `rememberCurrent` 119). Тесты clientBook, clientBookWiring.
 - `js/docTotals.js` (119, Б7, EPDocTotals; index.html:901) — ОДИН блок денежных итогов для КП и экспликации: `footerHtml` 41, `topUpSectionHtml` 78 (поверх EPEstimate.totalsShown/discountShown). Потребители offerPdf.js, roomSheet.js.
 - `js/roomSheet.js` (155, Б7, EPRoomSheet; index.html:913) — «Экспликация по комнатам» (чистая сборка HTML, `buildHtml(data,deps)` 68); данные собирает `roomSheetForProject` в docs.js, кнопка `#roomSheetBtn`. Тесты roomSheet, roomSheetTotals.
