@@ -60,6 +60,19 @@ function reportHtml(report) {
   return html;
 }
 
+/* Показать, что файл действительно разобран в поля каталога, не меняя действующий каталог. */
+function catalogPreviewHtml(decoded, esc) {
+  if (!decoded || !decoded.ok || !Array.isArray(decoded.products)) return "";
+  const e = typeof esc === "function" ? esc : escConst;
+  const kind = { frame: "Накладка", mechanism: "Механизм", support: "Суппорт",
+    socket_box: "Коробка", accessory: "Аксессуар" };
+  const rows = decoded.products.slice(0, 5).map(p =>
+    "<li>" + e(p.code) + " — " + e(p.name) + " · " + e(kind[p.kind] || p.kind) +
+    " · " + e(String(p.price)) + " EUR</li>").join("");
+  return "<div class=\"pc-group\"><h3 class=\"pc-group-title\">Расшифровано товаров: " +
+    decoded.products.length + "</h3><ul class=\"pc-list\">" + rows + "</ul></div>";
+}
+
 /* Итог buildReport собрали мы сами (не из файла), но страхуемся встроенным экранированием: случайная
    скобка/амперсанд в нашей же фразе не должна попасть в разметку сырой. Пользовательского ввода тут нет. */
 function escConst(s) {
@@ -180,8 +193,19 @@ function attach(ctx) {
     }
     const T = (typeof window !== "undefined") ? window.EPPriceTemplate : null;
     if (!T) { setReport(info("Не удалось проверить файл: модуль проверки недоступен.")); return; }
-    const report = buildReport(T.check(picked.rows, { startRow: picked.startRow }), esc);
-    setReport(reportHtml(report));
+    const checked = T.check(picked.rows, { startRow: picked.startRow });
+    const catalog = (typeof window !== "undefined") ? window.EPPriceCatalog : null;
+    let decoded = null;
+    if (checked.ok && catalog) {
+      try {
+        decoded = catalog.convert(picked.rows, { startRow: picked.startRow });
+      } catch (e) {
+        setReport(info("Не удалось расшифровать файл прайса. Проверьте файл и попробуйте снова."));
+        return;
+      }
+    }
+    const report = buildReport(decoded || checked, esc);
+    setReport(reportHtml(report) + catalogPreviewHtml(decoded, esc));
   }
 
   // Открыть окно — кнопка в шапке по id из ctx (её разметка в index.html) и возвращаемый open().
@@ -201,7 +225,7 @@ function attach(ctx) {
   return { open, close };
 }
 
-const api = { buildReport, reportHtml, attach };
+const api = { buildReport, reportHtml, catalogPreviewHtml, attach };
 if (typeof window !== "undefined") window.EPPriceCheckUi = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

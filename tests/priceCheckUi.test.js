@@ -107,3 +107,14 @@ test("reportHtml: экранированный текст доходит до р
   const html = UI.reportHtml(rep);
   assert.ok(html.includes("a&lt;b"), "экранированный текст в разметке");
 });
+
+test("К9: предпросмотр расшифрованных товаров экранирует данные из Excel", () => {
+  const html = UI.catalogPreviewHtml({ ok: true, products: [
+    { code: "A<1", name: "<img src=x onerror=1>", kind: "frame", price: 12.5 }
+  ] }, esc);
+  assert.match(html, /Расшифровано товаров: 1/);
+  assert.match(html, /A&lt;1/);
+  assert.match(html, /&lt;img src=x onerror=1&gt;/);
+  assert.doesNotMatch(html, /<img src=x/);
+  assert.equal(UI.catalogPreviewHtml({ ok: false, products: [] }, esc), "");
+});
