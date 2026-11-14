@@ -8,7 +8,7 @@ const state={
      пикселях экрана. Мировые координаты объектов = прежние координаты холста, поэтому
      старые проекты открываются без пересчёта. Экран↔мир — через EPViewport. */
   tool:"select",scale:1,panX:0,panY:0,pending:null,selected:null,
-  products:[],templates:[],devices:[],posts:[],rooms:[],walls:[],autoWalls:[],wallPoints:[],planLoaded:false,
+  products:[],baseProducts:[],catalogSnapshot:null,templates:[],devices:[],posts:[],rooms:[],walls:[],autoWalls:[],wallPoints:[],planLoaded:false,
   /* «поколение подложки»: счётчик меняется при КАЖДОЙ смене фона — загрузке нового
      чертежа (applyImportedPlan) и сбросе (clearPlan). Долгая операция запоминает его
      до первого await и сверяется после — так гонка «убрал/сменил план во время
@@ -474,7 +474,8 @@ async function loadProjectIntoUi(){
 }
 
 async function init(){
-  state.products=await DataService.getProducts();
+  state.baseProducts=await DataService.getProducts();
+  state.products=state.baseProducts;
   const restored=await loadProjectIntoUi();
   /* Чистый старт (проекта в браузере нет) считаем «скачанным»: терять нечего, «Новый проект» не должен
      переспрашивать на пустом холсте. Непустой восстановленный проект опорную подпись НЕ трогает — её
@@ -2008,7 +2009,7 @@ function buildEstimate(light){
     /* Добор упаковок (К6б) включаем ТОЛЬКО здесь — явным входом; build на ОДНОМ посте
        (postPriceShown) его не получает, поэтому цена поста добора не содержит (риск 1 разведки). */
     packMultiple:!!EP_DATA.settings.packMultiple,
-    packs:EPPackTopUp.buildPackMap(EP_DATA.products)
+    packs:EPPackTopUp.buildPackMap(state.products)
   });
 }
 /* Явное предупреждение «часть объектов вне помещений» в строке статуса ПОД ПЛАНОМ.
@@ -2817,7 +2818,13 @@ function cyclePlanVisibility(){
 
 function projectSnapshot(){
   const img=$("planImage");
+  /* Снимаем версию каталога при первом товаре проекта и дальше не заменяем её при автосохранениях.
+     Ключи/значения упакованы EPProjectCatalog; снимок входит и в файл проекта. */
+  if(((state.devices&&state.devices.length)||(state.posts&&state.posts.length))
+    &&!state.catalogSnapshot&&Array.isArray(state.products)&&typeof EPProjectCatalog!=="undefined")
+    state.catalogSnapshot=EPProjectCatalog.pack(state.products);
   return{name:"Проект электроснабжения",savedAt:new Date().toISOString(),
+    catalogSnapshot:state.catalogSnapshot||undefined,
     devices:state.devices,posts:state.posts,rooms:state.rooms,walls:state.walls,autoWalls:state.autoWalls,
     roomLines:state.roomLines,planVisibility:state.planVisibility,
     /* угол поворота подложки (Б3, ч.1) — часть проекта: переживает автосейв/перезагрузку.
@@ -3074,6 +3081,22 @@ async function restoreProject(){
   let p=null;
   try{p=ProjectStore.load()}catch(e){return null}
   if(!p)return null;
+  /* Для проекта с сохранённой версией ВСЕ расчёты и автоподбор читают тот же каталог.
+     Старые проекты без версии получают текущий каталог и закрепят его при следующем сохранении. */
+  state.catalogSnapshot=null;
+  state.products=state.baseProducts&&state.baseProducts.length?state.baseProducts:state.products;
+  if(p.catalogSnapshot){
+    try{
+      if(typeof EPProjectCatalog==="undefined")throw new Error("Модуль каталога недоступен");
+      state.products=EPProjectCatalog.unpack(p.catalogSnapshot);
+      state.catalogSnapshot=p.catalogSnapshot;
+    }catch(e){
+      /* Не подменяем повреждённую историческую версию текущими ценами молча. */
+      state.products=[];state.catalogSnapshot=p.catalogSnapshot;
+      console.error("Не удалось восстановить версию каталога проекта",e);
+      if(typeof toast==="function")toast("Версия каталога проекта повреждена — цены не восстановлены");
+    }
+  }
   state.devices=p.devices||[];state.posts=p.posts||[];state.rooms=p.rooms||[];
   relabelContourRooms(state.rooms);   /* В10: у старых проектов подпись Г/П-комнаты могла лежать вне контура — вернуть внутрь */
   /* миграция старых проектов: они сохранялись без номеров постов — проставляем

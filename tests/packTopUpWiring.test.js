@@ -23,6 +23,8 @@ const comp = { box: BOX, boxCount: 1, support: SUP, supportCount: 1, supportAssu
 function renderPanel(packMultiple) {
   const dom = stand.makeDom();
   const state = { rooms: [], devices: [{ id: "d1", productId: 10, roomId: null, discount: 0 }],
+    products: [{ ...MECH, packQty: 10 }, { ...FRAME, packQty: 1 },
+      { ...BOX, packQty: 100 }, { ...SUP, packQty: 50 }],
     posts: [{ id: "p1", frameId: 20, mechanismIds: [10, 10], name: "Пост 1", discount: 0 },
             { id: "p2", frameId: 20, mechanismIds: [10, 10], name: "Пост 2", discount: 0 }] };
   const ctx = {

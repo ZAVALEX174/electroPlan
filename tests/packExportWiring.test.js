@@ -1,6 +1,6 @@
 /* Проводка выгрузки Excel (К6): оркестратор exportSpecExcel (js/docs.js) обязан передать в
    EPSpecExcel.build ДВЕ вещи листа «По артикулам»:
-     · packByCode — карту артикул→упаковка, собранную ИЗ КАТАЛОГА (EP_DATA.products[].packQty);
+     · packByCode — карту артикул→упаковка, собранную ИЗ КАТАЛОГА ПРОЕКТА (state.products[].packQty);
      · packMultiple — состояние галки проекта (EP_DATA.settings.packMultiple), НЕ константу.
 
    Исполняем НАСТОЯЩИЙ текст exportSpecExcel из docs.js через общий стенд (appStand), подменив
@@ -20,6 +20,9 @@ const stand = require("./helpers/appStand.js");
 function runExport(packMultiple) {
   let captured = null;
   const ctx = {
+    state: { products: [
+      { code: "A1", packQty: 10 }, { code: "B1", packQty: 50 }, { code: "C1" }
+    ] },
     projectLighting: () => ({}),
     buildEstimate: () => ({ groups: [{ items: [{ code: "A1", price: 1, count: 1 }] }] }),
     supplierSpecData: () => ({}),
@@ -31,11 +34,7 @@ function runExport(packMultiple) {
     EPOfferOptions: { normalize: o => o || {} },
     EP_DATA: {
       settings: { offerOptions: {}, packMultiple },
-      products: [
-        { code: "A1", packQty: 10 },
-        { code: "B1", packQty: 50 },
-        { code: "C1" }            // без упаковки — в карту не попадёт
-      ]
+      products: [{ code: "A1", packQty: 99 }]  // общий каталог обновился, проектный остаётся прежним
     },
     displayCurrency: () => "EUR",
     displayRate: () => 1,

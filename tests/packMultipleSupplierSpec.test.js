@@ -191,11 +191,11 @@ test("docs.js: supplierSpecHtml проводит карту упаковок и 
      `packMultiple:!!packMultiple`→`false` ловятся ПОВЕДЕНЧЕСКИ, а не сверкой текста. state пустой —
      supplierSpecData не ходит в каталог (posts/devices пусты), нам важны только проброшенные deps. */
   const seenDeps = [];
-  const products = { P1: { packQty: 7 } };   /* маркерный объект — EP_DATA.products */
+  const products = { P1: { packQty: 7 } };   /* маркерный объект — каталог проекта */
   const ctx = {
-    state: { posts: [], devices: [] },
+    state: { posts: [], devices: [], products },
     esc: String,
-    EP_DATA: { products },
+    EP_DATA: { products: { current: { packQty: 99 } } },
     EPSupplierSpec: {
       buildHtml: (spec, deps) => { seenDeps.push(deps); return "<section></section>"; },
       kindFromCatalog: () => "other"
@@ -206,11 +206,11 @@ test("docs.js: supplierSpecHtml проводит карту упаковок и 
   const supplierSpecHtml = stand.run(["supplierSpecData", "supplierSpecHtml"], ctx);
   const light = { plan: { relayTotal: 0 } };
 
-  /* Галка включена: packMultiple=true уходит в deps, packs — ровно карта buildPackMap(EP_DATA.products). */
+  /* Галка включена: packMultiple=true уходит в deps, packs — карта закреплённого каталога проекта. */
   supplierSpecHtml({}, light, { articles: true }, true);
   assert.equal(seenDeps[0].packMultiple, true, "packMultiple проводится как есть (мутация →false краснит)");
   assert.deepEqual(seenDeps[0].packs, { _fromProducts: products },
-    "packs = buildPackMap(EP_DATA.products) (мутации packs:null и packs:{} краснят здесь)");
+    "packs = buildPackMap(state.products) (новый общий каталог не меняет старый проект)");
 
   /* Галка снята: packMultiple=false, карту упаковок не строим (packs=null) — EPPackTopUp не трогаем. */
   supplierSpecHtml({}, light, { articles: true }, false);

@@ -312,7 +312,7 @@ function supplierSpecHtml(opts,light,options,packMultiple){
     showArticles:options?.articles!==false,
     itemText:(name,code)=>options?.articles===false?EPOfferOptions.itemText(name,false,code):name,
     packMultiple:!!packMultiple,
-    packs:packMultiple?EPPackTopUp.buildPackMap(EP_DATA.products):null});
+    packs:packMultiple?EPPackTopUp.buildPackMap(state.products):null});
 }
 
 /* Детали поста для взрыв-схемы листа монтажника (EPExplodedView). Собираем ИЗ УЖЕ ПОСЧИТАННОГО:
@@ -865,7 +865,7 @@ function exportSpecExcel(){
      (packQty подмешан в js/data.js из признаков автосостава) — ту же карту берёт смета в buildEstimate,
      второй копии построения быть не должно (§7.1, К6б). Галка «кратно упаковке» — свойство проекта
      (EP_DATA.settings.packMultiple). Лист «По артикулам» округляет по этой карте сам (specExcel). */
-  const packByCode=EPPackTopUp.buildPackMap(EP_DATA.products);
+  const packByCode=EPPackTopUp.buildPackMap(state.products);
   const bytes=EPSpecExcel.build(est,supplier,
     {options,currency:displayCurrency(),rate:displayRate(),
      packByCode,packMultiple:!!EP_DATA.settings.packMultiple});
