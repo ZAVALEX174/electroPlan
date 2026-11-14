@@ -345,12 +345,14 @@ function pickDefaultFrame(pool,count){
 }
 /* Признаки текущей накладки, которые пере-подбор нетронутого поста сохраняет при смене числа
    модулей: серия, цвет и монтажный стандарт (только IT/DE — «универсальную» BOTH отбор не сужает).
+   При смене комнаты цвет задаёт НОВАЯ комната: preserveColor=false оставляет серию и стандарт,
+   чтобы комната «только цвет» не подменила LINEA на первую белую Neve Up (Б8-е).
    productsForRoom по стандарту "IT"/"DE" пропускает и BOTH-накладки, поэтому доужение по стандарту
    образца не теряет универсальные. */
-function ownFrameCriteria(frame){
+function ownFrameCriteria(frame,preserveColor=true){
   return {
     collection:productSeries(frame)[0],
-    frameColor:frame.frameColor||null,
+    frameColor:preserveColor?frame.frameColor||null:null,
     standard:frame.standard==="IT"||frame.standard==="DE"?frame.standard:null
   };
 }
@@ -359,14 +361,15 @@ function ownFrameCriteria(frame){
    count задан — ровно эта модульность, иначе ближайшая к 3 (pickDefaultFrame). sample — текущая
    накладка: при смене ЧИСЛА МОДУЛЕЙ у нетронутого поста сохраняем её серию/цвет/стандарт
    (preferOwnFrame), чтобы 3→4 у белой итальянской Neve Up дало 09674.01 (IT), а не 09664.01 (DE).
-   Открытие и смена комнаты образца не передают — там подбор «с чистого листа». Комнаты нет →
+   Открытие образца не передаёт. Смена комнаты у вертикального поста передаёт образец без старого
+   цвета: сохраняются серия/стандарт и модульность, а цвет берётся из нового пула. Комнаты нет →
    roomCatalogFilter(null) даёт пустой критерий → пул = весь каталог → прежнее умолчание. Пул ПУСТ
    (сочетания стандарт/серия/цвет в каталоге нет) → null: чужую накладку НЕ подставляем — пост
    откроется без накладки (frameUnset), renderBuilder объяснит словами, чего не хватает. */
-function defaultFrameForRoom(room,count,sample){
+function defaultFrameForRoom(room,count,sample,preserveSampleColor=true){
   const pool=EPCatalog.productsForRoom(byKind("frame"),roomCatalogFilter(room));
   const pick=p=>pickDefaultFrame(p,count);
-  return sample?preferOwnFrame(pool,ownFrameCriteria(sample),pick):pick(pool);
+  return sample?preferOwnFrame(pool,ownFrameCriteria(sample,preserveSampleColor),pick):pick(pool);
 }
 /* Проставить НОВОМУ посту накладку по умолчанию из пула ЕГО комнаты — ЕДИНАЯ точка для мест, где новый
    пост получает накладку, не спросив комнату: смена «Комнаты поста» и смена числа модулей (открытие
@@ -376,12 +379,13 @@ function defaultFrameForRoom(room,count,sample){
    добавление механизма в рамку) снимает флаг навсегда для этого открытия, и дальше конструктор ведёт
    себя как раньше. Пост на плане и шаблон сюда не заходят — у них frameAuto=false, своя накладка. sample
    — текущая накладка для сохранения её серии/цвета/стандарта при смене числа модулей (см.
-   defaultFrameForRoom); открытие/смена комнаты его не передают. Накладку отдаём renderBuilder через
+   defaultFrameForRoom); при смене комнаты у вертикального поста сохраняем серию и стандарт
+   образца, но берём цвет новой комнаты (Б8-б/е). Накладку отдаём renderBuilder через
    dataset.preferredFrameId (он главнее остатка value), поэтому саму отрисовку не трогаем. Возвращает
    выбранную накладку или null (пустой пул) — вызывающему для пересчёта ёмкости. */
-function applyAutoDefaultFrame(count,sample){
+function applyAutoDefaultFrame(count,sample,preserveSampleColor=true){
   if(!state.builder.frameAuto)return null;
-  const frame=defaultFrameForRoom(builderFilterRoom(),count,sample);
+  const frame=defaultFrameForRoom(builderFilterRoom(),count,sample,preserveSampleColor);
   /* Б8: пост с отметкой «Расположить вертикально» получает ВЕРТИКАЛЬНЫЙ двойник подобранной накладки —
      то же единственное правило ориентации EPFrameOrientation.oriented; двойника нет → та же накладка.
      typeof-страховка, как у spanForFrame: стенд без модуля ориентации сохраняет прежнее поведение. */
@@ -1655,7 +1659,7 @@ function changeBuilderRoom(roomId){
   /* Б8 D3: если у новой комнаты накладки ТОЙ ЖЕ модульности нет (пост на 6М переносят в Eikon Tactil, где
      только 2/3/4М), подбор с сохранением модульности даёт null и поле «Накладка» осталось бы пустым. Тогда
      идём обычным путём поста БЕЗ отметки — дефолт комнаты, ближайший к 3 (applyAutoDefaultFrame(null,null)). */
-  const auto=(cur&&applyAutoDefaultFrame(frameSlotCount(cur),cur))||applyAutoDefaultFrame(null,null);
+  const auto=(cur&&applyAutoDefaultFrame(frameSlotCount(cur),cur,false))||applyAutoDefaultFrame(null,null);
   const capacity=auto?frameSlotCount(auto):builderCapacity();
   renderPostSlotCountSelect(capacity);
   $("postSlotCount").value=String(capacity);

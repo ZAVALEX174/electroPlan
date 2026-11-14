@@ -298,6 +298,24 @@ test("Б8-б: вертикальный LINEA 4М → Neve Up 4М без пары
   assert.equal(state.builder.verticalFrame, true);
 });
 
+test("Б8-е: вертикальная конопляная LINEA 4М → комната только с белым цветом сохраняет LINEA 30645.00", () => {
+  const { dom, state } = freshLineaBuilder({ startFrameCode: "30643.01" });
+  state.builder.roomId = "rH";
+  const colorOnly = { id: "rColor", name: "Белая без серии", frameColor: "Белая" };
+  state.rooms.push(colorOnly);
+  const ctx = makeBuilderCtx(state, dom);
+  stand.run("toggleFrameOrientation", ctx)(true);
+  const verticalId = dom.$("postFrameSelect").dataset.preferredFrameId;
+  assert.equal(product(Number(verticalId)).code, "30645.01");
+  dom.$("postFrameSelect").innerHTML = `<option value="${verticalId}">f</option>`;
+  dom.$("postFrameSelect").value = verticalId;
+  delete dom.$("postFrameSelect").dataset.preferredFrameId;
+  stand.run(CBR_CUT, ctx)(colorOnly.id);
+  const selected = product(Number(dom.$("postFrameSelect").dataset.preferredFrameId));
+  assert.equal(selected.code, "30645.00", "цвет новой комнаты, прежняя серия и вертикальная раскладка");
+  assert.equal(dom.$("postSlotCount").value, "4");
+});
+
 test("★ владелец 09.11: новый пост БЕЗ отметки, смена комнаты → прежний дефолт п.2 (ближайшая к 3, НЕ вертикальная)", () => {
   /* Пост без отметки — поведение п.2 НЕ меняем: смена комнаты даёт дефолт новой комнаты, ближайший к 3
      (у LINEA конопляной это 3М 30653.01), а НЕ сохраняет модульность. Ориентация не навязана. Отличие от
