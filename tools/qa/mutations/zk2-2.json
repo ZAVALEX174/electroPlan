@@ -1,0 +1,8 @@
+[
+  {
+    "name": "З-К2-2: осевые пары снова требуют одинаковую подгруппу",
+    "file": "js/lightingPlan.js",
+    "from": "&& (srcAxial || groupKey(fsgOf(item)) === fsg)",
+    "to": "&& groupKey(fsgOf(item)) === fsg"
+  }
+]

@@ -16,6 +16,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 const LP = require("../js/lightingPlan.js");
 const CAT = require("../js/catalog.js");
+const MechColor = require("../js/mechColor.js");
 
 function loadRuntime() {
   const jsDir = path.join(__dirname, "..", "js");
@@ -51,6 +52,24 @@ test("снятый осевой выключатель Arke 19101 (группа 
   assert.equal(rep("19101", "inverter"), "19113");
   assert.equal(rep("19101", "button"), "19108");
   assert.equal(rep("19101", "switch"), "19101"); // роль уже совпадает — само изделие
+});
+
+test("З-К2-2: снятые осевые Arke в проходной получают активный 19104 своего цвета и его цену", () => {
+  const appDeps = { ...DEPS,
+    colorKeyOf: item => MechColor.colorKey(item, { keyOf: CAT.facingColorKey }) };
+  for (const [oldCode, newCode] of [
+    ["19101", "19104"], ["19101.B", "19104.B"],
+    ["19105", "19104"], ["19105.B", "19104.B"]
+  ]) {
+    const source = byCode(oldCode);
+    const expected = byCode(newCode);
+    assert.ok(source && source.active === false, `${oldCode} сохранён как снятый`);
+    assert.ok(expected && expected.active === true, `${newCode} доступен`);
+    const result = LP.resolveReplacement({ role: "changeover", source }, CANDS, appDeps);
+    assert.equal(result.product && result.product.code, newCode, `${oldCode} заменяется в проходной`);
+    assert.equal(result.ambiguous, false);
+    assert.equal(result.product.price, expected.price, "расчёт использует цену активной замены");
+  }
 });
 
 test("активные изделия регистром группы не задеты (их группа и так с заглавной)", () => {
