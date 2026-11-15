@@ -1,6 +1,8 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
 const Catalog = require("../js/projectCatalog.js");
@@ -8,6 +10,7 @@ const ProjectFile = require("../js/projectFile.js");
 const EPEstimate = require("../js/estimate.js");
 const EPPosts = require("../js/posts.js");
 const EPOfferOptions = require("../js/offerOptions.js");
+const PlanShrink = require("../js/planShrink.js");
 
 test("К9: снимок сохраняет все поля товаров и не меняется после смены общего каталога", () => {
   const old = [
@@ -69,4 +72,24 @@ test("К9: файл проекта возвращает прежние цены 
     product: id => state.products.find(p => p.id === id), settings: ctx.EP_DATA.settings });
   assert.equal(est.equipment, 10);
   assert.deepEqual(JSON.parse(JSON.stringify(api.snapshot().catalogSnapshot)), before.catalogSnapshot);
+});
+
+test("К9: полный каталог и предельный чертёж оставляют запас localStorage", () => {
+  const context = { window: {} };
+  vm.createContext(context);
+  for (const file of ["catalog-vimar.js", "catalog-vimar-attrs.js",
+    "catalog-vimar-discontinued.js", "data.js"]) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
+  }
+  const products = context.window.EP_DATA.products;
+  const catalogSnapshot = Catalog.pack(products);
+  assert.equal(Catalog.unpack(catalogSnapshot).length, products.length);
+  const rawLength = JSON.stringify(products).length;
+  const packedLength = JSON.stringify(catalogSnapshot).length;
+  assert.ok(packedLength < rawLength, "упаковка действительно уменьшает каталог");
+  const project = { devices: [{ id: "d1", productId: products[0].id }],
+    catalogSnapshot, plan: "data:image/jpeg;base64," + "A".repeat(PlanShrink.PLAN_DATAURL_MAX_CHARS - 23),
+    extraProjectData: "X".repeat(500000) };
+  const size = JSON.stringify(project).length;
+  assert.ok(size < 5000000, `сохранение ${size} символов должно оставить запас до квоты 5,2 млн`);
 });

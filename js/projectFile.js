@@ -173,11 +173,14 @@ function attach(ctx) {
 
   /* --- Открыть проект из файла --- */
   async function openParsed(parsed) {
+    /* Запись может не влезть в localStorage (особенно файл с большим планом и версией каталога).
+       В этом случае текущий проект остаётся на месте; не меняем бланк и шаблоны попутно. */
+    try { ProjectStore.save(parsed.project); }
+    catch (e) { toast("Проект не поместился в память браузера. Файл остался без изменений."); return; }
     /* бланк: своё главнее (mergePrefs вернёт только недостающие на этом компьютере ключи) */
     api.mergePrefs(parsed.prefs, api.pickPrefs(k => EPPrefs.get(k))).forEach(([k, v]) => EPPrefs.set(k, v));
     const mergedTemplates = api.mergeTemplates(parsed.postTemplates, readTemplates());
     if (mergedTemplates) writeTemplates(mergedTemplates);
-    ProjectStore.save(parsed.project);                 // кладём объект, дальше — общий путь загрузки
     await loadProject();                               // рендер, курс, шапка, вид, сброс истории — как init
     setCleanBaseline(projectSnapshot());               // открытый проект равен файлу на диске → «скачан»
     toast(parsed.newer
