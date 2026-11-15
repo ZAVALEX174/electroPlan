@@ -1,0 +1,34 @@
+# Project hooks are loaded only after this project and each hook are trusted in Codex.
+# On Windows, command_windows invokes PowerShell explicitly and resolves the script
+# from the Git root, so starting Codex in a subdirectory still works.
+[features]
+hooks = true
+
+[[hooks.PreToolUse]]
+matcher = "^apply_patch$"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = 'python3 "$(git rev-parse --show-toplevel)/.codex/hooks/project_hooks.py" pre-tool'
+command_windows = '''powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& python (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/project_hooks.py') pre-tool"'''
+timeout = 10
+statusMessage = "Checking protected paths"
+
+[[hooks.PostToolUse]]
+matcher = "^apply_patch$"
+
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = 'python3 "$(git rev-parse --show-toplevel)/.codex/hooks/project_hooks.py" post-tool'
+command_windows = '''powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& python (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/project_hooks.py') post-tool"'''
+timeout = 30
+statusMessage = "Checking PHP syntax"
+
+[[hooks.Stop]]
+
+[[hooks.Stop.hooks]]
+type = "command"
+command = 'python3 "$(git rev-parse --show-toplevel)/.codex/hooks/project_hooks.py" stop'
+command_windows = '''powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& python (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/project_hooks.py') stop"'''
+timeout = 60
+statusMessage = "Checking changed PHP files"
