@@ -32,7 +32,9 @@ def patch_paths(data: dict) -> list[str]:
     command = tool_input.get("command")
     if not isinstance(command, str):
         return []
-    return PATCH_PATH.findall(command)
+    # PowerShell/Windows events may contain CRLF; strip the trailing CR before
+    # extension checks and path resolution.
+    return [path.strip() for path in PATCH_PATH.findall(command)]
 
 
 def protected(path: str) -> bool:
