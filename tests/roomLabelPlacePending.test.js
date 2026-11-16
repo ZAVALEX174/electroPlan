@@ -14,6 +14,7 @@ const assert = require("node:assert/strict");
 const vm = require("node:vm");
 const stand = require("./helpers/appStand.js");
 const EPViewport = require("../js/viewport.js");
+const EPRooms = require("../js/rooms.js");
 /* ВАЖНО (§7.1): clientToWorld НЕ копируем в тест — исполняем НАСТОЯЩИЙ view()+clientToWorld() из app.js
    вместе с canvasEventPoint/placePendingAtEvent из canvasInput.js в одном vm-контексте. Раньше тут жила
    рукописная копия формулы (makeClientToWorld), и она разошлась бы с продакшеном молча: ослабление
@@ -151,7 +152,7 @@ function renderLabels() {
   };
   const appended = [];
   const canvas = { querySelectorAll: () => [], appendChild: el => appended.push(el) };
-  const spies = { place: [], sel: [], rm: [] };
+  const spies = { place: [], sel: [], rm: [], draggable: [] };
   /* ч.4: renderRooms зовёт computeOverlaps/overlapNoteText — режем их вместе (renderRooms последним,
      его и возвращает stand.run); EPRoomOverlap в ctx нет → computeOverlaps даёт пустой отчёт (no-op). */
   const render = stand.run(["vertexSelectionValid", "computeOverlaps", "overlapOpts", "joinRoomNames", "overlapNoteText", "overlapHatchDefs", "renderRooms"], {
@@ -165,7 +166,7 @@ function renderLabels() {
     selectEntity: (k, id) => spies.sel.push([k, id]),
     removeEntity: (k, id) => spies.rm.push([k, id]),
     placePendingAtEvent: e => spies.place.push(e),
-    makeDraggable: () => {}                           // beginPress проверяем отдельным тестом
+    makeDraggable: (el, room, kind) => spies.draggable.push([room.id, kind])
   });
   render();
   return {
@@ -200,6 +201,24 @@ test("вне размещения: клик по контурной таблич
   r.poly.onclick(makeEvent());
   assert.deepEqual(r.spies.sel, [["room", "P1"]], "обычный режим — выделение комнаты сохраняется");
   assert.equal(r.spies.place.length, 0, "без размещения placePendingAtEvent не зовётся");
+});
+
+test("подписи контурной и обычной комнаты подключены к перетаскиванию", () => {
+  const r = renderLabels();
+  assert.deepEqual(r.spies.draggable, [["P1", "room"], ["G1", "room"]]);
+});
+
+test("открытие проекта сохраняет вручную перенесённую подпись, но обновляет якорь комнаты", () => {
+  const polygon = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }];
+  const manual = { polygon, x: 240, y: 180, seedX: 1, seedY: 2, labelManual: true };
+  const legacy = { polygon, x: 1, y: 2, seedX: 1, seedY: 2 };
+  const { relabelContourRooms } = EPRooms.attach({
+    roomLabelPoint: () => ({ x: 50, y: 50 }),
+    roomNamePoint: () => ({ x: 40, y: 40 })
+  });
+  relabelContourRooms([manual, legacy]);
+  assert.deepEqual([manual.x, manual.y, manual.seedX, manual.seedY], [240, 180, 40, 40]);
+  assert.deepEqual([legacy.x, legacy.y, legacy.seedX, legacy.seedY], [5, 34, 40, 40]);
 });
 
 /* --- makeDraggable/beginPress: комната без контура выделяется, а в размещении не гасит pending -- */

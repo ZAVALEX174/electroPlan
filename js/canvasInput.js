@@ -237,8 +237,15 @@ function makeDraggable(el,obj,kind){
   }
   function finishDrag(){
     if(kind==="room"){
-      obj.seedX=obj.x+55;obj.seedY=obj.y+18;
-      refreshAfterRoomAssignments(renderRooms);
+      if(obj.polygon&&obj.polygon.length>2){
+        /* Контурная комната: переместилась только экранная подпись, якорь привязки постов не меняем. */
+        obj.labelManual=true;
+        renderRooms();
+        updateStatus("Подпись помещения перемещена");
+      }else{
+        obj.seedX=obj.x+55;obj.seedY=obj.y+18;
+        refreshAfterRoomAssignments(renderRooms);
+      }
     }else if(group){
       /* Перенос ГРУППЫ (Б5 ч.3): ОДНА карта на всех — привязку всех членов к комнатам, связи, карточку,
          смету и сохранение пересчитываем ЕДИНОЙ точкой контракта (не цикл updateObjectRoom), поэтому

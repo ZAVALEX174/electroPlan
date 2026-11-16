@@ -141,6 +141,25 @@ test("перенос сдвигает объект на экранную дел�
   assert.equal(spies.scheduleSave, 1, "завершённый перенос сохраняет новую позицию (scheduleSave)");
 });
 
+test("перенос подписи контурной комнаты сохраняет её позицию, но не меняет якорь и состав", () => {
+  const room = { id: "r1", x: 100, y: 100, seedX: 55, seedY: 60,
+    polygon: [{ x: 0, y: 0 }, { x: 200, y: 0 }, { x: 200, y: 200 }] };
+  const beforePolygon = JSON.stringify(room.polygon);
+  const { api, spies } = buildDrag(makeState({ rooms: [room], scale: 2 }));
+  const el = makeNode();
+  api.makeDraggable(el, room, "room");
+  el.fire("pointerdown", pointer({ clientX: 500, clientY: 500 }));
+  el.fire("pointermove", pointer({ clientX: 560, clientY: 540 }));
+  el.fire("pointerup", pointer({ clientX: 560, clientY: 540 }));
+  assert.equal(room.x, 130);
+  assert.equal(room.y, 120);
+  assert.equal(room.labelManual, true);
+  assert.equal(room.seedX, 55);
+  assert.equal(room.seedY, 60);
+  assert.equal(JSON.stringify(room.polygon), beforePolygon);
+  assert.equal(spies.scheduleSave, 1);
+});
+
 /* --- Перенос при повёрнутом холсте: экранная дельта → мировая обратной матрицей R(−угол) -------- */
 /* Б3, ч.2а. makeDraggable передаёт state.worldAngle в EPDrag.worldPosition; при угле 90° экранное
    «вправо-вниз» становится другим направлением в мире. МУТАЦИЯ M1 (canvasInput.js): убрать

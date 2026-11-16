@@ -102,6 +102,26 @@ svg.i{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-
    жёстким пикселем; нижний предел 220px держит минимум пару карточек даже на совсем низких. */
 .left-panel>.library-section[open]{flex:1 1 auto;min-height:clamp(220px,36vh,420px);display:flex;flex-direction:column;overflow:hidden}
 .left-panel>.library-section[open]>.pane-body{flex:1 1 auto;min-height:0;overflow:auto}
+/* ПОЧЕМУ ЭТО ПРАВИЛО ЕСТЬ (заказчик 16.11: «не листается список постов… он уходит вниз, а листать
+   ползунка нет»). Chrome ≥131 и Safari ≥18 кладут содержимое <details> в анонимную коробку
+   ::details-content. Из-за неё .pane-body перестал быть флекс-ЭЛЕМЕНТОМ секции: `flex:1 1 auto` и
+   `min-height:0` выше применялись к коробке, которой нет в старых браузерах, высота списка ничем не
+   ограничивалась (замер: секция 546px, список 1184px), overflow:auto не включался, и секция просто
+   обрезала список своим overflow:hidden — полосы прокрутки не было нигде. Делаем саму ::details-content
+   и флекс-элементом секции, и флекс-контейнером для .pane-body — высота снова приходит от секции, скролл
+   включается. ОТДЕЛЬНЫМ правилом, а не добавлением селектора в строку выше: браузер, не знающий
+   ::details-content, бракует ВЕСЬ селектор целиком, и общая строка перестала бы работать и у него
+   (там details — сам флекс-контейнер, и прежние правила верны). */
+.left-panel>.library-section[open]::details-content{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+/* Полоса прокрутки списка постов — ВСЕГДА ВИДНА. На macOS системные полосы «наплывающие»: они
+   появляются только во время прокрутки, поэтому заказчик её и не нашёл. Явная ширина у
+   ::-webkit-scrollbar переводит WebKit/Blink на классическую постоянную полосу, scrollbar-width/-color —
+   то же для Firefox. Правило узкое (только этот список), остальные панели не трогаем. */
+.left-panel>.library-section[open] .pane-body{scrollbar-width:thin;scrollbar-color:#b7c3cf transparent}
+.left-panel>.library-section[open] .pane-body::-webkit-scrollbar{width:10px}
+.left-panel>.library-section[open] .pane-body::-webkit-scrollbar-track{background:transparent}
+.left-panel>.library-section[open] .pane-body::-webkit-scrollbar-thumb{border:3px solid transparent;border-radius:999px;background:#b7c3cf;background-clip:content-box}
+.left-panel>.library-section[open] .pane-body::-webkit-scrollbar-thumb:hover{background:#8ea2b3;background-clip:content-box}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}.section-head h3{margin:0;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#52616f}
 .count-pill{min-width:24px;padding:4px 7px;border-radius:999px;text-align:center;font-size:var(--fs-xs);font-weight:900;color:var(--blue-dark);background:var(--blue-soft)}
 .upload-btn{display:block;text-align:center;padding:11px;border:1px dashed #8fc2ef;border-radius:12px;color:var(--blue-dark);font-weight:800;background:#f4faff;cursor:pointer}
