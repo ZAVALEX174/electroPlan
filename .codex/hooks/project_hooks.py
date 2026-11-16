@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PATCH_PATH = re.compile(r"^\*\*\* (?:Add|Update|Delete|Move to) File: (.+)$", re.MULTILINE)
+MAP_COMMIT = re.compile(r"mapped-at-commit:\s*([a-f0-9]+)")
 
 
 def emit(value: dict) -> None:
@@ -61,6 +62,38 @@ def pre_tool(data: dict) -> None:
             })
             return
     emit({})
+
+
+def session_start(data: dict) -> None:
+    if data.get("source") != "startup":
+        emit({})
+        return
+    map_file = ROOT / ".claude" / "project-map.md"
+    if not map_file.is_file():
+        message = "Карта проекта не найдена. При задаче на навигацию по коду обнови карту через project_mapper."
+    else:
+        marker = MAP_COMMIT.search(map_file.read_text(encoding="utf-8-sig"))
+        try:
+            head = subprocess.run(
+                ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
+                capture_output=True, timeout=5, check=True,
+            ).stdout.strip()
+        except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            head = ""
+        if not marker or not head or head.startswith(marker.group(1)):
+            emit({})
+            return
+        message = "Карта .claude/project-map.md построена на старом коммите; сверяй пути с текущим кодом и обнови её через project_mapper, если задача затрагивает изменённые области."
+    emit({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": message}})
+
+
+def prompt_submit(data: dict) -> None:
+    message = (
+        "Напоминание проекта: следуй AGENTS.md; сверяй слова заказчика с исходными материалами, "
+        "показывай наблюдаемый результат и проверяй расчёты и сохранённые проекты. "
+        "Не считай будущий сервер Битрикс действующей инфраструктурой."
+    )
+    emit({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": message}})
 
 
 def php_lint(path: Path) -> str | None:
@@ -143,10 +176,19 @@ def stop(data: dict) -> None:
         emit({})
         return
     errors = [error for path in changed_php_files() if (error := php_lint(path))]
+    rules_file = ROOT / "AGENTS.md"
+    line_count = len(rules_file.read_text(encoding="utf-8-sig").splitlines()) if rules_file.is_file() else 0
+    warning = (
+        f"AGENTS.md содержит {line_count} строк; проверь краткость проектных правил (ориентир до 200)."
+        if line_count > 200 else None
+    )
     if errors:
-        emit({"decision": "block", "reason": "Fix PHP syntax errors in changed files before finishing:\n" + "\n".join(errors)})
+        output = {"decision": "block", "reason": "Fix PHP syntax errors in changed files before finishing:\n" + "\n".join(errors)}
+        if warning:
+            output["systemMessage"] = warning
+        emit(output)
     else:
-        emit({})
+        emit({"systemMessage": warning} if warning else {})
 
 
 def main() -> None:
@@ -154,6 +196,10 @@ def main() -> None:
     action = sys.argv[1] if len(sys.argv) > 1 else ""
     if action == "pre-tool":
         pre_tool(data)
+    elif action == "session-start":
+        session_start(data)
+    elif action == "prompt-submit":
+        prompt_submit(data)
     elif action == "post-tool":
         post_tool(data)
     elif action == "stop":

@@ -4,6 +4,25 @@
 [features]
 hooks = true
 
+[[hooks.SessionStart]]
+matcher = "^startup$"
+
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = 'python3 "$(git rev-parse --show-toplevel)/.codex/hooks/project_hooks.py" session-start'
+command_windows = '''powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& python (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/project_hooks.py') session-start"'''
+timeout = 10
+statusMessage = "Checking project map"
+
+[[hooks.UserPromptSubmit]]
+
+[[hooks.UserPromptSubmit.hooks]]
+type = "command"
+command = 'python3 "$(git rev-parse --show-toplevel)/.codex/hooks/project_hooks.py" prompt-submit'
+command_windows = '''powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& python (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/project_hooks.py') prompt-submit"'''
+timeout = 10
+statusMessage = "Reminding project rules"
+
 [[hooks.PreToolUse]]
 matcher = "^apply_patch$"
 
@@ -31,4 +50,4 @@ type = "command"
 command = 'python3 "$(git rev-parse --show-toplevel)/.codex/hooks/project_hooks.py" stop'
 command_windows = '''powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& python (Join-Path (git rev-parse --show-toplevel) '.codex/hooks/project_hooks.py') stop"'''
 timeout = 60
-statusMessage = "Checking changed PHP files"
+statusMessage = "Checking PHP and AGENTS.md"
