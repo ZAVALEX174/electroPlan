@@ -84,14 +84,14 @@ function renderRooms(){
     el.style.left=r.x+"px";el.style.top=r.y+"px";
     el.dataset.kind="room";el.dataset.id=r.id;   /* для точечного выделения и подсветки drop-цели */
     el.innerHTML=`<span class="room-title">${esc(r.name)}</span>${areaText?`<small>${esc(areaText)}</small>`:""}<span class="room-object-count">${count} объект.</span>${noteText?`<span class="room-overlap-note">${esc(noteText)}</span>`:""}`;
-    /* полигональную комнату подпись не двигает (контур отдельно) — только выделяет/удаляет
-       кликом; подпись комнаты без контура тащится и выделяется единым обработчиком makeDraggable */
+    /* Подпись любой комнаты можно перетащить; у контурной комнаты движется только подпись. */
     if(isPoly)el.onclick=e=>{
       e.stopPropagation();   /* клик по подписи не всплывает к canvas.onclick — иначе пост поставился бы дважды */
       if(state.pending){placePendingAtEvent(e);return}   /* режим размещения: пост встаёт в точку клика по табличке — тем же правилом, что клик по пустому месту */
       state.tool==="delete"?removeEntity("room",r.id):selectEntity("room",r.id);
     };
-    else{el.onclick=e=>{e.stopPropagation();if(state.pending)placePendingAtEvent(e)};makeDraggable(el,r,"room")}   /* клик не доходит до canvas.onclick; в размещении — пост в точку клика тем же правилом */
+    else el.onclick=e=>{e.stopPropagation();if(state.pending)placePendingAtEvent(e)};
+    makeDraggable(el,r,"room");   /* в размещении пост в точку клика, вне его — выбор и перенос подписи */
     canvas.appendChild(el);
   });
   /* Закраска областей наложения — ПОВЕРХ контуров комнат (добавляем последними), штриховкой. Если
@@ -211,7 +211,8 @@ function refreshRoomAfterEdit(room){
      привязки постов/поиска комнаты) — roomNamePoint, точка ВНУТРИ контура: у Г/П-комнаты якорь
      сдвинут на −(10,2) и сам может лежать за стеной, seed'ом он быть не должен (В10 И5). */
   const c=roomLabelPoint(room.polygon),nm=roomNamePoint(room.polygon);
-  room.seedX=nm.x;room.seedY=nm.y;room.x=c.x-45;room.y=c.y-16;
+  room.seedX=nm.x;room.seedY=nm.y;
+  if(!room.labelManual){room.x=c.x-45;room.y=c.y-16}
   refreshAfterRoomAssignments(renderRooms, persistProject);
 }
 /* К13 ч.1: удаление ОДНОЙ вершины контура — ЕДИНСТВЕННОЕ место правила (§7.1). Зовут и Alt+клик по
@@ -272,7 +273,8 @@ function relabelContourRooms(rooms){
   (rooms||[]).forEach(r=>{
     if(r.polygon&&r.polygon.length>2){
       const c=roomLabelPoint(r.polygon),nm=roomNamePoint(r.polygon);
-      r.seedX=nm.x;r.seedY=nm.y;r.x=c.x-45;r.y=c.y-16;
+      r.seedX=nm.x;r.seedY=nm.y;
+      if(!r.labelManual){r.x=c.x-45;r.y=c.y-16}
     }
   });
 }
