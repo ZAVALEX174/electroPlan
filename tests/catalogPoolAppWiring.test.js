@@ -41,6 +41,20 @@ test("З-К2-1: app.js сохраняет снятый суппорт 19913 дл
   assert.equal(wrappers("support").resolveSupport(opts).support.code, "19913");
 });
 
+test("З-К2-4: в составе панельных постов стоит суппорт по примечанию заказчика со своей ценой", () => {
+  const pick = wrappers("support").resolveSupport;
+  for (const [prefix, variants, code, price] of [
+    ["14666", ["01", "02", "05", "20", "21", "27"], "14626", 3.97],
+    ["19666", ["71", "72", "73", "74"], "19626", 4.39]
+  ]) {
+    for (const variant of variants) {
+      const frame = byCode(prefix + "." + variant);
+      const {support} = pick({frame, standard: frame.standard, modules: 1});
+      assert.deepEqual([support?.code, support?.price], [code, price], frame.code);
+    }
+  }
+});
+
 test("З-К2-1: app.js сохраняет снятую подсветку 120 В", () => {
   const mechanism = products.find(p => p.kind === "mechanism" && p.active && Backlight.classify(p) === "ordinary");
   assert.ok(mechanism);

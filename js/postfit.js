@@ -221,6 +221,8 @@ const CONFIRMED_GENERIC_SUPPORT = [
    (базовый артикул суппорта, split по точке как в supportTypeCode). why хранит источник решения
    рядом с правилом (§7.1): одно место, без россыпи проверок префиксов по документам. */
 const FRAME_SUPPORT_OVERRIDE = [
+  { frameRoot: "14666", supportCode: "14626", why: "Номенклатура 10.10, строки 981–986: Супорт 14626", required: true },
+  { frameRoot: "19666", supportCode: "19626", why: "Номенклатура 10.10, строки 1555–1558: В суппорт 19626", required: true },
   { frameRoot: "22673", supportCode: "21613", why: "заказчик 20.10: для всех типов рамок 22673 и 22683 суппорт всегда 21613, вне зависимости от количества отверстий" },
   { frameRoot: "22683", supportCode: "21613", why: "заказчик 20.10: для всех типов рамок 22673 и 22683 суппорт всегда 21613, вне зависимости от количества отверстий" }
 ];
@@ -321,6 +323,7 @@ function resolveSupport(opts) {
   if (override) {
     const forced = pool.find(s => baseCodeOf(s.code) === override.supportCode);
     if (forced) return { support: forced, assumed: false };
+    if (override.required) return NONE;
   }
   /* Шаг 1 — ВЫДЕЛЕННЫЙ СУППОРТ «В ПАРУ» НАКЛАДКЕ: тот же принцип монтажа И та же модульность
      коробки. Это адресная разметка заказчика («только с супортом 14601»), она сильнее общего
