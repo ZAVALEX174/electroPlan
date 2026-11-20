@@ -2,7 +2,8 @@
    Replace DataService.mode with "api" and set apiBase when backend is ready. */
 window.EP_DATA = {
   settings: {
-    dataMode: "mock",
+    dataMode: "static",
+    catalogManifest: "catalog/current.json",
     apiBase: "/api",
     currency: window.EP_VIMAR_CATALOG?.meta?.currency || "EUR",
     workPercent: 18,
@@ -300,6 +301,16 @@ window.DataService = {
       if(!response.ok) throw new Error("Ошибка загрузки каталога");
       return response.json();
     }
+    if(this.mode === "static" && window.EPCatalogRemote){
+      const loaded = await window.EPCatalogRemote.load({
+        manifestUrl: window.EP_DATA.settings.catalogManifest,
+        baseUrl: window.location && window.location.href,
+        fallback: window.EP_DATA.products
+      });
+      this.catalogStatus = loaded.status;
+      return loaded.products;
+    }
+    this.catalogStatus = { source: "embedded" };
     return structuredClone(window.EP_DATA.products);
   },
   async getSavedPosts(){

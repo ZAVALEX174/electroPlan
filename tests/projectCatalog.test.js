@@ -78,6 +78,7 @@ test("К9: полный каталог и предельный чертёж ос
   const context = { window: {} };
   vm.createContext(context);
   for (const file of ["catalog-vimar.js", "catalog-vimar-attrs.js",
+    "catalog-vimar-openings.js", "catalog-vimar-faces.js",
     "catalog-vimar-discontinued.js", "data.js"]) {
     vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", file), "utf8"), context);
   }

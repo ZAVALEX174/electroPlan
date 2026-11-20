@@ -477,6 +477,10 @@ async function init(){
   state.baseProducts=await DataService.getProducts();
   state.products=state.baseProducts;
   const restored=await loadProjectIntoUi();
+  /* Если статический выпуск недоступен, новый/старый без снимка проект считает по встроенному
+     каталогу. Проект со своим снимком не затронут, поэтому предупреждение ему не нужно. */
+  if(DataService.catalogStatus?.source==="embedded"&&DataService.catalogStatus.error&&!restored?.catalogSnapshot)
+    setTimeout(()=>toast("Общий прайс недоступен — используется встроенный каталог"),250);
   /* Чистый старт (проекта в браузере нет) считаем «скачанным»: терять нечего, «Новый проект» не должен
      переспрашивать на пустом холсте. Непустой восстановленный проект опорную подпись НЕ трогает — её
      держит localStorage с прошлого скачивания; не скачан ни разу → подписи нет → «Новый проект»
@@ -2876,6 +2880,10 @@ function persistProject(){
   captureHistory(snap);   /* прямые сохранения (перенос, правка поста, поворот, очистка) — тоже шаги */
   try{ProjectStore.save(snap);return "full"}
   catch(e){
+    if(snap.catalogSnapshot && snap.plan){
+      toast("Не хватает места для сохранения проекта с чертежом и прайсом. Скачайте проект в файл.");
+      return null;
+    }
     try{ProjectStore.save(Object.assign({},snap,{plan:null,planTooBig:true}));return "noplan"}
     catch(e2){console.error(e2);return null}
   }

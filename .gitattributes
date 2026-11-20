@@ -3,3 +3,4 @@
 # не сможет разобрать shebang-строку (#!/bin/bash) и хук будет молча падать
 # с ошибкой вида "bad interpreter".
 .claude/hooks/*.sh text eol=lf
+catalog/versions/*.json -text
