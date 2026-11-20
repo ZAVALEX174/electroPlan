@@ -12,6 +12,28 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
 
+test("З-К2-3: снятые 120V видны у поста с таким напряжением, но не у обычного поста", () => {
+  const dom = stand.makeDom({ selects: ["postBacklightColor", "postBacklightVoltage"] });
+  const project = { enabled: true, color: "Белая", voltage: "110-250V" };
+  const own = { ...project, voltage: "120V" };
+  const state = { builder: { editingPlacedId: "p1", backlight: own } };
+  const led = code => ({ code, askBacklight: true, backlightColor: "Белая" });
+  const render = stand.run(["backlightCatalogOptions", "renderPostBacklight"], {
+    state, $: dom.$, esc: String, document: { querySelectorAll: () => [] },
+    EP_DATA: { settings: { backlight: project } }, EPPostFit: require("../js/postfit.js"),
+    byKind: () => [led("00936.250.W")], byKindOff: () => [led("00936.120.W")]
+  });
+  render();
+  const select = dom.$("postBacklightVoltage");
+  assert.match(select.innerHTML, /value="120V"/);
+  assert.equal(select.value, "120V");
+  assert.equal(own.voltage, "120V");
+  assert.equal(project.voltage, "110-250V");
+  state.builder.backlight = { ...project };
+  render();
+  assert.doesNotMatch(select.innerHTML, /120V/);
+});
+
 /* Стенд под renderPostBacklight. backlightCatalogOptions СТАБИМ сентинелами: если варианты
    приедут в селекторы — они пришли из каталога, а не из хардкода (мутацию «хардкод» это краснит).
    document.querySelectorAll возвращает переданные кнопки режима (или []). */

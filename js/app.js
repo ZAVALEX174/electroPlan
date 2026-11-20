@@ -2165,7 +2165,7 @@ function renderLightingSchemeSelect(){
    Доступность селекторов при выключенной галочке ведёт ЭТА функция (одна точка синхронизации):
    выключено → цвет/напряжение недоступны, чтобы человек не крутил настройку, которая ни на что
    не влияет. */
-function backlightCatalogOptions(){
+function backlightCatalogOptions(setting=EP_DATA.settings.backlight||{}){
   const colors=[],volts=[];
   byKind("accessory").forEach(a=>{
     if(!a||!a.askBacklight)return;
@@ -2173,10 +2173,9 @@ function backlightCatalogOptions(){
     const v=EPPostFit.backlightVoltage(a.code);
     if(v&&!volts.includes(v))volts.push(v);
   });
-  /* Вариант, которого среди активных уже нет, показываем ТОЛЬКО если он выбран в проекте (Д2):
+  /* Вариант, которого среди активных уже нет, показываем только для текущей настройки поста или проекта:
      сохранённый проект на снятой подсветке 120 В обязан видеть свой вариант в списке (иначе он
      молча слетел бы на соседний), а новым проектам снятое не предлагаем. Запас — снятые аксессуары. */
-  const setting=EP_DATA.settings.backlight||{};
   byKindOff("accessory").forEach(a=>{
     if(!a||!a.askBacklight)return;
     if(a.backlightColor&&a.backlightColor===setting.color&&!colors.includes(a.backlightColor))colors.push(a.backlightColor);

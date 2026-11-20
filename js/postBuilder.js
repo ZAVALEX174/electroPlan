@@ -136,7 +136,7 @@ function renderPostBacklight(){
     b.classList.toggle("active",on);
     b.setAttribute("aria-checked",on?"true":"false");
   });
-  const {colors,volts}=backlightCatalogOptions();
+  const {colors,volts}=backlightCatalogOptions(draft||undefined);
   const own=mode==="on";
   const fill=(sel,values,current)=>{
     if(!sel)return;
