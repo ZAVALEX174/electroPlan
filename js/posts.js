@@ -540,6 +540,10 @@ function placementFields(template) {
     keyGroups: mechanismIds.map(() => ""),
     socketBoxProductId: t.socketBoxProductId
   };
+  // Изображение клавиши переходит из шаблона в каждое размещение своей копией массива.
+  if (Array.isArray(t.flatHalves) && t.flatHalves.some(half => half === "bottom")) {
+    fields.flatHalves = mechanismIds.map((_, i) => t.flatHalves[i] === "bottom" ? "bottom" : "");
+  }
   /* Тип стены переносим в пост ТОЛЬКО когда шаблон несёт валидный собственный (solid/hollow).
      ⚠️ ОТСУТСТВИЕ/МУСОР — ОСТАВЛЯЕМ ПОЛЕ ОТСУТСТВУЮЩИМ, а не кладём undefined/пустую строку
      как значение: для postWallType «нет поля» = «как в проекте», и старые шаблоны (сохранённые

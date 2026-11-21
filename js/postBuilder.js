@@ -598,7 +598,7 @@ function builderPostDraft(frame){
     mechanismIds:fields.mechanismIds,keyGroups:fields.keyGroups,
     /* Номер проходной и ручной механизм — из ЧЕРНОВИКА окна, как keyGroups: расчёт связи и цены
        в конструкторе обязан учитывать номер/выбор, которые человек ввёл прямо сейчас. */
-    keyCrossNumbers:fields.keyCrossNumbers,keyMechanisms:fields.keyMechanisms,
+    keyCrossNumbers:fields.keyCrossNumbers,keyMechanisms:fields.keyMechanisms,flatHalves:fields.flatHalves,
     /* Тип стены — из ЧЕРНОВИКА окна: состав и цена в конструкторе обязаны показывать ту
        коробку, которую человек только что выбрал кнопкой, а не ту, что записана в проекте. */
     wallType:builderWallType(),
@@ -1058,7 +1058,7 @@ function renderBuilder(){
      функция EPPosts.moduleLayout: тот же код считает позиции для листа монтажника,
      чтобы номера в конструкторе и в документе не разошлись. */
   const layout=EPPosts.moduleLayout(mechanismIds,{product,mechanismSpan:frameSpan});
-  renderBuilderSlots(layout,remaining,lightingRowsFor(draft,light));
+  renderBuilderSlots(layout,remaining,lightingRowsFor(draft,light),selectedFrame);
   /* errorHtml лежит в контексте, чтобы точечное обновление групп света (refreshBuilderLighting)
      могло перерисовать состав, не потеряв причину несовместимости: набор механизмов оно не
      меняет, значит и ошибка раскладки та же самая. Состояние «накладки нет» сюда не доходит —
@@ -1117,13 +1117,18 @@ function renderBuilder(){
    показывает выбранное, действия («заменить» / «убрать»), поле группы света у клавиши и
    подставленный расчётом механизм. lightRows — строки групп света ЭТОГО поста (по keyIndex). */
 const GROUP_NAME_MAX=40;   /* предел длины имени группы света в поле ввода (см. groupField ниже) */
-function renderBuilderSlots(layout,remaining,lightRows){
+function renderBuilderSlots(layout,remaining,lightRows,frame){
   const byKey=new Map((lightRows||[]).map(r=>[Number(r.keyIndex),r]));
   const target=state.builder.target;
+  const allowsFlatHalf=frame&&EPButtonFrame.appliesTo(frame);
   const rows=layout.map((slot,index)=>{
     const item=slot.item;
     const isTarget=target.mode==="replace"&&Number(target.index)===index;
     const row=byKey.get(index);
+    const flatHalfField=allowsFlatHalf&&EPButtonFrame.buttonsOf(item)===2
+      ? `<div class="slot-keyfields"><label class="slot-mech">Половина клавиши<select data-slot-flat-half="${index}">
+          <option value="top">Верхняя</option><option value="bottom"${state.builder.slots[index]?.flatHalf==="bottom"?" selected":""}>Нижняя</option>
+        </select></label></div>` : "";
     /* Голый механизм в посте руками — законно (пост, собранный до появления расчёта), но
        предупреждаем: расчёт по группе света подставит механизм САМ, и второй такой же в
        соседнем слоте оплатится дважды. */
@@ -1160,7 +1165,7 @@ function renderBuilderSlots(layout,remaining,lightRows){
           <button type="button" data-slot-replace="${index}">${isTarget?"Отменить":"Заменить"}</button>
           <button type="button" data-slot-remove="${index}" aria-label="Убрать элемент из модуля ${esc(slot.label)}">×</button>
         </span>
-      </div>${groupField}<div data-light-host="${index}">${lightSlotHtml(row)}</div>${bareNote}
+      </div>${flatHalfField}${groupField}<div data-light-host="${index}">${lightSlotHtml(row)}</div>${bareNote}
     </div>`;
   }).join("");
   const addRow=remaining
@@ -1210,6 +1215,12 @@ function renderBuilderSlots(layout,remaining,lightRows){
   host.querySelectorAll("[data-slot-mech]").forEach(sel=>{
     const index=Number(sel.dataset.slotMech);
     sel.onchange=()=>{state.builder.slots=EPBuilderSlots.setMech(state.builder.slots,index,sel.value);refreshBuilderLighting()};
+  });
+  host.querySelectorAll("[data-slot-flat-half]").forEach(select=>select.onchange=()=>{
+    state.builder.slots=EPBuilderSlots.setFlatHalf(state.builder.slots,Number(select.dataset.slotFlatHalf),select.value);
+    const draft=builderPostDraft(frame);
+    const light=lightingFor(projectPostsWithBuilder(frame));
+    $("postPreview").innerHTML=assembledPostHtml(draft,{size:"lg"},light);
   });
 }
 /* Опции селектора ВАРИАНТА C. Значения — те же строки-роли, что принимает EPLightingGroups.roleOverrideOf
@@ -1682,7 +1693,8 @@ async function savePostBuilder(){
      контракта модуля групп света. */
   const base={name:$("postName").value.trim()||"Пост",frameId:Number($("postFrameSelect").value),
     mechanismIds:[...fields.mechanismIds],keyGroups:[...fields.keyGroups],
-    keyCrossNumbers:[...fields.keyCrossNumbers],keyMechanisms:[...fields.keyMechanisms],socketBoxProductId:socketBox()?.id,
+    keyCrossNumbers:[...fields.keyCrossNumbers],keyMechanisms:[...fields.keyMechanisms],
+    socketBoxProductId:socketBox()?.id,
     /* Галочка «ограничить начинку цветом накладки» — свойство поста (решение владельца: именно у
        поста). В белом списке base, поэтому переживает сохранение и у поста на плане
        (Object.assign(post,base)), и у шаблона (template={...base}). Старый пост без поля читается
@@ -1694,6 +1706,7 @@ async function savePostBuilder(){
        флаг хранится для ЧАСТИ 2 (перевыбор пары при смене модульности/комнаты/копировании). Старый
        пост без поля читается как «не отмечено». */
     verticalLayout:!!state.builder.verticalFrame};
+  if(fields.flatHalves)base.flatHalves=fields.flatHalves;
   /* Выбранный РУКАМИ монтажный стандарт (Б8-д) — в белый список ТОЛЬКО если человек нажимал переключатель
      (standardChoice "IT"/"DE"). У старого поста и у поста, где стандарт не трогали, поля нет → пул и
      поведение по стандарту КОМНАТЫ, как прежде (openPostBuilder читает его обратно). Пишем условно, чтобы
@@ -1723,6 +1736,7 @@ async function savePostBuilder(){
       }
     }
     Object.assign(post,base);
+    if(!base.flatHalves)delete post.flatHalves;
     /* При переходе с IT/DE на универсальную накладку renderPostStandard снимает ручной выбор.
        Object.assign не удаляет старое поле: без этой строки размещённый пост продолжит
        фильтровать комнату по прежнему стандарту после сохранения. У нового/нетронутого
@@ -1834,7 +1848,7 @@ function installSheetForBuilder(){
   const post={id:placed?placed.id:"builder-draft",number:placed?placed.number:"—",
     frameId:Number(selectedFrameId),
     mechanismIds:[...fields.mechanismIds],keyGroups:[...fields.keyGroups],
-    keyCrossNumbers:[...fields.keyCrossNumbers],keyMechanisms:[...fields.keyMechanisms],
+    keyCrossNumbers:[...fields.keyCrossNumbers],keyMechanisms:[...fields.keyMechanisms],flatHalves:fields.flatHalves,
     roomId:placed?placed.roomId:null,height:placed?.height,purpose:placed?.purpose,
     /* Тип стены — из черновика окна: лист монтажника обязан назвать ту коробку, что видна
        в составе поста рядом, а не ту, что записана в проекте (правка ещё не сохранена). */

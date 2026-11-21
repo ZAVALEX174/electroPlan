@@ -308,10 +308,17 @@ function assembledPostSpec(post,{size="md",articles=true,rotatable=false}={},lig
      извлекающие эту функцию в песочницу без spanForFrame, падают на mechanismSpan — поведение прежнее. */
   const frameSpan=(typeof spanForFrame==="function"?spanForFrame:(()=>mechanismSpan))(frame);
   /* Кнопочная накладка Flat с ≥2 прорезями — только тогда у ячеек появляется раскладка по прорезям
-     (cell.slots): у клавиши 22751 одна прорезь, но в ней не всё лицо, а одна (верхняя) кнопка; у
+     (cell.slots): у клавиши 22751 одна прорезь, но в ней не всё лицо, а выбранная кнопка; у
      остального по одной прорези на модуль. EPButtonFrame.appliesTo — тот же гейт, что в spanIn, второй
      копии нет (§7.1). Вне кнопочных накладок slots не ставим — postImage идёт прежним путём. */
   const btn=typeof EPButtonFrame!=="undefined"&&EPButtonFrame.appliesTo(frame);
+  /* Половина относится к отдельному вхождению клавиши в исходный состав. distributePosts может
+     переупорядочить изделия при упаковке — очереди по effective id сохраняют выбор у повторов. */
+  const flatHalvesById=new Map();
+  if(btn)effIds.forEach((id,index)=>{
+    if(!flatHalvesById.has(id))flatHalvesById.set(id,[]);
+    flatHalvesById.get(id).push(post.flatHalves&&post.flatHalves[index]);
+  });
   const dist=EPPosts.distributePosts(effIds,frame,{product,mechanismSpan:frameSpan});
   const rowsMap=new Map();   /* группируем посты по физическому ряду накладки */
   dist.posts.forEach(p=>{
@@ -319,6 +326,7 @@ function assembledPostSpec(post,{size="md",articles=true,rotatable=false}={},lig
     let occ=0;const cells=[];
     p.mechanismIds.forEach(id=>{
       const item=product(id);
+      const flatHalf=btn?flatHalvesById.get(id)?.shift():undefined;
       /* Артикул механизма пропал из каталога — рисуем ЯВНЫЙ пробел в 1 модуль (та же оценка
          ширины, что у distributePosts/moduleLayout), помеченный missing, чтобы не слиться со
          свободным модулем: место занято, но чем — неизвестно. Ноль-модульная ячейка (span у
@@ -340,10 +348,10 @@ function assembledPostSpec(post,{size="md",articles=true,rotatable=false}={},lig
          с серебр. клавишами). */
       const face=moduleFace(item);
       const cell={span,imageUrl:productImage(item,{detail:true}),face,color:item?.properties?.color||item?.color||"",categoryId:item?.categoryId,icon:item?.icon,name:item?.name||"",num:start===end?String(start):`${start}–${end}`};
-      /* Раскладка по прорезям (у клавиши 22751 — одна прорезь, в ней верхняя кнопка лица) — правило в
+      /* Раскладка по прорезям (у клавиши 22751 — одна прорезь с выбранной половиной лица) — правило в
          EPButtonFrame.cellSlots, здесь только вызов. baseSpan берём «голый» mechanismSpan: число и доли
          прорезей внутри решает cellSlots. */
-      if(btn)cell.slots=EPButtonFrame.cellSlots(item,frame,mechanismSpan(item),face);
+      if(btn)cell.slots=EPButtonFrame.cellSlots(item,frame,mechanismSpan(item),face,flatHalf);
       if(!articles)cell.name=EPOfferOptions.itemText(item.name,false,item.code);
       cells.push(cell);
       occ+=span;

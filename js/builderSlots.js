@@ -37,7 +37,11 @@ const mechText = v => (v === null || v === undefined) ? "" : String(v);
    в параллельных массивах: перестановка/фильтрация слотов (упаковка по постам, отсев чужой серии)
    иначе указала бы номером и выбором НЕ НА ТУ клавишу — и модуль групп посчитал бы связь и деньги по
    чужим местам, ничего не сообщив. В этом вся суть модуля, и она распространяется на все три поля. */
-const slot = (id, group, cross, mech) => ({ id: Number(id), group: groupText(group), cross: crossText(cross), mech: mechText(mech) });
+function slot(id, group, cross, mech, flatHalf) {
+  const value = { id: Number(id), group: groupText(group), cross: crossText(cross), mech: mechText(mech) };
+  if (flatHalf === "bottom") value.flatHalf = "bottom";
+  return value;
+}
 
 /* ОСТАВЛЯТЬ ЛИ ГРУППУ НА ЭТОМ МЕХАНИЗМЕ — ОДНО ПРАВИЛО НА ЧТЕНИЕ И НА ЗАМЕНУ.
    Группу назначают КЛАВИШЕ (место управления — только она, см. EPLightingPlan.collect), и поле
@@ -75,11 +79,12 @@ function fromPost(post, isKey) {
   const groups = Array.isArray(p.keyGroups) ? p.keyGroups : [];
   const crosses = Array.isArray(p.keyCrossNumbers) ? p.keyCrossNumbers : [];
   const mechs = Array.isArray(p.keyMechanisms) ? p.keyMechanisms : [];
+  const halves = Array.isArray(p.flatHalves) ? p.flatHalves : [];
   /* keepsGroup решает судьбу ВСЕХ полей клавиши разом: заменили клавишу на не-клавишу — и группа, и
      номер проходной, и ручной механизм снимаются вместе (стоять им не на чем, см. keepsGroup). */
   return ids.map((id, i) => {
     const keep = keepsGroup(id, isKey);
-    return slot(id, keep ? groups[i] : "", keep ? crosses[i] : "", keep ? mechs[i] : "");
+    return slot(id, keep ? groups[i] : "", keep ? crosses[i] : "", keep ? mechs[i] : "", keep ? halves[i] : "");
   });
 }
 
@@ -88,8 +93,11 @@ function fromPost(post, isKey) {
    индексу при первой же правке середины поста. */
 function toPost(slots) {
   const list = Array.isArray(slots) ? slots : [];
-  return { mechanismIds: list.map(s => Number(s.id)), keyGroups: list.map(s => groupText(s.group)),
+  const fields = { mechanismIds: list.map(s => Number(s.id)), keyGroups: list.map(s => groupText(s.group)),
     keyCrossNumbers: list.map(s => crossText(s.cross)), keyMechanisms: list.map(s => mechText(s.mech)) };
+  // Отсутствие поля у прежних проектов означает верхнюю половину.
+  if (list.some(s => s.flatHalf === "bottom")) fields.flatHalves = list.map(s => s.flatHalf === "bottom" ? "bottom" : "");
+  return fields;
 }
 
 /* Есть ли в посте хоть одна заполненная группа — по этому признаку интерфейс и документы
@@ -153,7 +161,7 @@ function pick(slots, tokenList) {
   return (Array.isArray(tokenList) ? tokenList : [])
     .map(t => list[Number(t)])
     .filter(Boolean)
-    .map(s => slot(s.id, s.group, s.cross, s.mech));
+    .map(s => slot(s.id, s.group, s.cross, s.mech, s.flatHalf));
 }
 
 /* ─────────────────────── правки слотов ─────────────────────── */
@@ -186,24 +194,29 @@ function replaceAt(slots, index, id, isKey) {
   const i = Number(index);
   const keepGroup = keepsGroup(id, isKey);
   return list.map((s, j) => j === i
-    ? slot(id, keepGroup ? s.group : "", keepGroup ? s.cross : "", keepGroup ? s.mech : "")
-    : slot(s.id, s.group, s.cross, s.mech));
+    ? slot(id, keepGroup ? s.group : "", keepGroup ? s.cross : "", keepGroup ? s.mech : "", Number(id) === Number(s.id) ? s.flatHalf : "")
+    : slot(s.id, s.group, s.cross, s.mech, s.flatHalf));
 }
 function setGroup(slots, index, group) {
   const list = Array.isArray(slots) ? slots : [];
   const i = Number(index);
-  return list.map((s, j) => j === i ? slot(s.id, group, s.cross, s.mech) : slot(s.id, s.group, s.cross, s.mech));
+  return list.map((s, j) => j === i ? slot(s.id, group, s.cross, s.mech, s.flatHalf) : slot(s.id, s.group, s.cross, s.mech, s.flatHalf));
 }
 /* Номер проходной и ручной механизм правятся так же точечно, сохраняя остальные поля слота. */
 function setCross(slots, index, cross) {
   const list = Array.isArray(slots) ? slots : [];
   const i = Number(index);
-  return list.map((s, j) => j === i ? slot(s.id, s.group, cross, s.mech) : slot(s.id, s.group, s.cross, s.mech));
+  return list.map((s, j) => j === i ? slot(s.id, s.group, cross, s.mech, s.flatHalf) : slot(s.id, s.group, s.cross, s.mech, s.flatHalf));
 }
 function setMech(slots, index, mech) {
   const list = Array.isArray(slots) ? slots : [];
   const i = Number(index);
-  return list.map((s, j) => j === i ? slot(s.id, s.group, s.cross, mech) : slot(s.id, s.group, s.cross, s.mech));
+  return list.map((s, j) => j === i ? slot(s.id, s.group, s.cross, mech, s.flatHalf) : slot(s.id, s.group, s.cross, s.mech, s.flatHalf));
+}
+
+function setFlatHalf(slots, index, half) {
+  return (Array.isArray(slots) ? slots : []).map((s, i) =>
+    slot(s.id, s.group, s.cross, s.mech, i === Number(index) ? half : s.flatHalf));
 }
 
 /* Снять группы со всего набора, сохранив сами механизмы.
@@ -216,7 +229,7 @@ function setMech(slots, index, mech) {
 /* Снимаем и номер проходной, и ручной механизм вместе с группой: всё это — свойства ПОСТА НА ПЛАНЕ,
    не шаблона. Один шаблон в трёх комнатах — три разных проходных и три разных выбора механизма, а не
    один на всех (см. требование владельца: механизм — свойство клавиши размещённого поста). */
-const clearGroups = slots => (Array.isArray(slots) ? slots : []).map(s => slot(s && s.id, "", "", ""));
+const clearGroups = slots => (Array.isArray(slots) ? slots : []).map(s => slot(s && s.id, "", "", "", s && s.flatHalf));
 
 /* Новая позиция слота после перестановки/фильтрации, выполненной через pick(): tokenList —
    ответ EPPosts (старые индексы в новом порядке), index — старый индекс. Слот выброшен → -1.
@@ -242,12 +255,16 @@ function reindex(tokenList, index) {
    и в нём законно бывают и запятые, и двоеточия («Кухня, рабочая зона»), — склеенная подпись
    объявила бы два разных набора одинаковыми и потеряла бы правки без предупреждения. */
 const signature = slots => JSON.stringify((Array.isArray(slots) ? slots : [])
-  .map(s => [Number(s && s.id), groupText(s && s.group), crossText(s && s.cross), mechText(s && s.mech)]));
+  .map(s => {
+    const values = [Number(s && s.id), groupText(s && s.group), crossText(s && s.cross), mechText(s && s.mech)];
+    if (s && s.flatHalf === "bottom") values.push("bottom");
+    return values;
+  }));
 
 /* Двойной экспорт: браузеру — namespace (сборщика нет, PLAN 2.2),
    Node — module.exports для автотестов (PLAN 7.1). */
 const api = { slot, fromPost, toPost, hasGroups, tokens, tokenDeps, allowedTokens, pick,
-  add, removeAt, replaceAt, setGroup, setCross, setMech, clearGroups, reindex, signature };
+  add, removeAt, replaceAt, setGroup, setCross, setMech, setFlatHalf, clearGroups, reindex, signature };
 if (typeof window !== "undefined") window.EPBuilderSlots = api;
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

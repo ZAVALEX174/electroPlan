@@ -117,6 +117,34 @@ test("cellSlots: клавиша 22751 в 22684.4 — ОДИН слот (fill), �
 
 /* ───────── ПРОВОДКА: assembledPostSpec + postWindows ───────── */
 
+test("выбор нижней половины показывает OFF у каждого повторного вхождения 22751.1", async () => {
+  const P = await loadRuntimeProducts();
+  const F4 = P.find(p => p.code === "22684.4.11");
+  const KEY = P.find(p => p.code === "22751.1.11");
+  const face = EPCatalog.moduleFace(KEY);
+  const build = makeSpecBuilder(P);
+  const post = { frameId: F4.id, mechanismIds: [KEY.id, KEY.id, KEY.id], flatHalves: ["bottom", "top", "bottom"] };
+  const cells = flatCells(build(post).rows);
+  assert.equal(cells.length, 4, "три клавиши и одна свободная прорезь");
+  assert.deepEqual(Array.from(cells.slice(0, 3), c => c.slots[0].face.top),
+    [face.top + face.height / 2, face.top, face.top + face.height / 2].map(n => Math.round(n * 100) / 100));
+  assert.ok(cells.slice(0, 3).every(c => c.slots.length === 1 && c.slots[0].fill));
+  const html = EPPostImage.buildHtml(build(post), { esc: s => String(s) });
+  const oldHtml = EPPostImage.buildHtml(build({ frameId: F4.id, mechanismIds: post.mechanismIds }), { esc: s => String(s) });
+  assert.notEqual(html, oldHtml, "выбор половины доходит до общего HTML для окна поста и документов");
+});
+
+test("половина без сохранённого значения и мусор показывают прежнюю верхнюю кнопку", () => {
+  const key = { code: "22751.1.01" }, frame = { kind: "frame", code: "22684.4.01", slotCount: 4 };
+  const face = { left: 10, top: 10, width: 80, height: 80 };
+  for (const half of [undefined, null, "", "wrong", "top"]) {
+    assert.deepEqual(EPButtonFrame.cellSlots(key, frame, 1, face, half)[0].face,
+      { left: 10, top: 10, width: 80, height: 40 });
+  }
+  assert.deepEqual(EPButtonFrame.cellSlots(key, frame, 1, null, "bottom"), [{ face: null, fill: true }],
+    "нет лица в каталоге — штатный fallback рендера");
+});
+
 test("окно поста 22684.4 + одна 22751: ячейка-клавиша занимает ОКНО 0 одной прорезью, доля лица верхняя половина", async () => {
   const P = await loadRuntimeProducts();
   const byCode = c => P.find(p => p.code === c);
