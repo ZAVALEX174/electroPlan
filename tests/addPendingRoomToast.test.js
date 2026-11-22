@@ -8,10 +8,9 @@ const assert = require("node:assert/strict");
 const stand = require("./helpers/appStand.js");
 const EPRoomAssign = require("../js/roomAssign.js");
 
-function place({ rooms, assignedRoomId = null, roomRule = EPRoomAssign }) {
+function place({ rooms, assignedRoomId = null, roomRule = EPRoomAssign, pending = { type: "post", templateId: "t1" } }) {
   const state = {
-    pending: { type: "device", productId: "socket" },
-    devices: [], posts: [], templates: [], rooms
+    pending, devices: [], posts: [], templates: [{ id: "t1", mechanismIds: ["socket"] }], rooms
   };
   const messages = [];
   const addPending = stand.run("addPending", {
@@ -20,7 +19,10 @@ function place({ rooms, assignedRoomId = null, roomRule = EPRoomAssign }) {
        в изолированной вырезке их нет — кладём в контекст, как top-level let app.js. */
     _placeOnPostIcon: null, _lastIconPlacement: null,
     markCanvasUsed: () => {},
-    uid: () => "dev-1",
+    uid: () => "post-1",
+    EPPosts: require("../js/posts.js"),
+    getRoomForPoint: () => null,
+    frameForRoomPlacement: () => ({}),
     updateObjectRoom: created => { created.roomId = assignedRoomId; },
     setTool: () => {}, renderAll: () => {}, renderSummary: () => {},
     toast: message => messages.push(message),
@@ -32,8 +34,16 @@ function place({ rooms, assignedRoomId = null, roomRule = EPRoomAssign }) {
 
 test("комнат нет: размещение объекта не шумит предупреждением", () => {
   const result = place({ rooms: [] });
-  assert.equal(result.state.devices.length, 1, "сам объект по-прежнему размещается");
+  assert.equal(result.state.posts.length, 1);
+  assert.deepEqual(Array.from(result.state.posts[0].mechanismIds), ["socket"]);
+  assert.equal(result.state.devices.length, 0);
   assert.deepEqual(result.messages, [], "без комнат состояние roomId=null нормально и toast не нужен");
+});
+
+test("старая команда размещения изделия не добавляет объектов на план", () => {
+  const { state } = place({ rooms: [], pending: { type: "device", productId: "socket" } });
+  assert.equal(state.devices.length, 0);
+  assert.equal(state.posts.length, 0);
 });
 
 test("комната есть, объект снаружи: предупреждение остаётся", () => {

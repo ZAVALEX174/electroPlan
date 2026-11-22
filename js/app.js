@@ -2532,42 +2532,36 @@ function finishWallScope(scope){return wallScope().finishWallScope(scope)}
 let _placeOnPostIcon=null;
 let _lastIconPlacement=null;
 function addPending(x,y){
-  if(!state.pending)return;
+  if(state.pending?.type!=="post")return;
   /* Снимаем «клик пришёлся на иконку поста» в локальную ДО любых выходов (блокировка накладки
      ниже делает return) и сбрасываем прошлую постановку: валидной её сделает только успешная
      постановка кликом по иконке. */
   const overPostIcon=_placeOnPostIcon;_placeOnPostIcon=null;_lastIconPlacement=null;
   markCanvasUsed();
-  let created;
-  if(state.pending.type==="device"){
-    created={id:uid("dev_"),productId:state.pending.productId,x:x-12,y:y-12,height:"300 мм",roomId:null};
-    state.devices.push(created);
-  }else{
-    const t=state.templates.find(v=>v.id===state.pending.templateId);
-    if(!t){toast("Шаблон не найден");return}
-    /* номер закрепляется за постом при создании = максимум существующих + 1 (стабилен,
-       удаление не сдвигает чужие номера) */
-    /* Поля копируются ПОИМЁННО чистой EPPosts.placementFields — там же под автотестом живёт
-       правило «группы света из шаблона не копируются»: шаблон с заполненной группой,
-       размещённый трижды, дал бы вместо трёх выключателей проходную схему из переключателей
-       и инвертора (см. комментарий у самой функции). Каждое размещение начинает с пустых
-       групп — честный пробел «группа не указана», а не молчаливое размножение чужой группы. */
-    created=Object.assign({id:uid("post_"),x:x-12,y:y-12,number:EPPosts.nextPostNumber(state.posts),roomId:null},
-      EPPosts.placementFields(t));
-    /* ⚠️ НАКЛАДКА МЕНЯЕТСЯ НА СЕРИЮ КОМНАТЫ РАЗМЕЩЕНИЯ (ОТДЕЛКА-ПОРЯДОК, п.5) — ДО добавления поста
-       в проект. Комнату берём ту, куда реально ложится центр поста: тот же getRoomForPoint(x,y), что
-       ниже определит roomId (created.x+12===x). Подмена честно доезжает до денег: цена накладки во
-       всех документах читается из frameId (postComposition), отдельной копии цены нет — меняем id,
-       и смета/свод/лист монтажника/КП берут новую. Замены нет (в серии комнаты накладки нужной
-       модульности не оказалось) — пост НЕ ставим с чужой накладкой, говорим человеку почему. */
-    const swap=frameForRoomPlacement(t,getRoomForPoint(x,y));
-    if(swap.blocked){toast(swap.message);return}
-    if(swap.frameId!=null)created.frameId=swap.frameId;
-    state.posts.push(created);
-    /* В19: постановка пришлась на иконку СТОЯЩЕГО поста — запоминаем её, чтобы двойной клик
-       (второй клик + dblclick по этому новому посту) откатил её и открыл старый. */
-    if(overPostIcon!=null)_lastIconPlacement={newId:created.id,overId:overPostIcon,t:Date.now()};
-  }
+  const t=state.templates.find(v=>v.id===state.pending.templateId);
+  if(!t){toast("Шаблон не найден");return}
+  /* номер закрепляется за постом при создании = максимум существующих + 1 (стабилен,
+     удаление не сдвигает чужие номера) */
+  /* Поля копируются ПОИМЁННО чистой EPPosts.placementFields — там же под автотестом живёт
+     правило «группы света из шаблона не копируются»: шаблон с заполненной группой,
+     размещённый трижды, дал бы вместо трёх выключателей проходную схему из переключателей
+     и инвертора (см. комментарий у самой функции). Каждое размещение начинает с пустых
+     групп — честный пробел «группа не указана», а не молчаливое размножение чужой группы. */
+  const created=Object.assign({id:uid("post_"),x:x-12,y:y-12,number:EPPosts.nextPostNumber(state.posts),roomId:null},
+    EPPosts.placementFields(t));
+  /* ⚠️ НАКЛАДКА МЕНЯЕТСЯ НА СЕРИЮ КОМНАТЫ РАЗМЕЩЕНИЯ (ОТДЕЛКА-ПОРЯДОК, п.5) — ДО добавления поста
+     в проект. Комнату берём ту, куда реально ложится центр поста: тот же getRoomForPoint(x,y), что
+     ниже определит roomId (created.x+12===x). Подмена честно доезжает до денег: цена накладки во
+     всех документах читается из frameId (postComposition), отдельной копии цены нет — меняем id,
+     и смета/свод/лист монтажника/КП берут новую. Замены нет (в серии комнаты накладки нужной
+     модульности не оказалось) — пост НЕ ставим с чужой накладкой, говорим человеку почему. */
+  const swap=frameForRoomPlacement(t,getRoomForPoint(x,y));
+  if(swap.blocked){toast(swap.message);return}
+  if(swap.frameId!=null)created.frameId=swap.frameId;
+  state.posts.push(created);
+  /* В19: постановка пришлась на иконку СТОЯЩЕГО поста — запоминаем её, чтобы двойной клик
+     (второй клик + dblclick по этому новому посту) откатил её и открыл старый. */
+  if(overPostIcon!=null)_lastIconPlacement={newId:created.id,overId:overPostIcon,t:Date.now()};
   updateObjectRoom(created);
   const room=state.rooms.find(r=>r.id===created.roomId);
   /* Toast обязан судить тем же правилом, что метка на плане и счётчик: без единой
@@ -2577,7 +2571,7 @@ function addPending(x,y){
   setTool("select");renderAll();renderSummary();
   if(room)toast(`Объект добавлен в комнату «${room.name}»`);
   else if(outside)toast("Объект размещён вне комнаты");
-  if(created.roomId!=null&&state.posts.indexOf(created)>=0&&typeof warnWallMismatch==="function")warnWallMismatch([created]);   /* К4в: пост в комнату с чужой стеной → предупреждение (только пост; typeof-гейт — для поведенческого стенда) */
+  if(created.roomId!=null&&typeof warnWallMismatch==="function")warnWallMismatch([created]);   /* К4в: пост в комнату с чужой стеной → предупреждение (только пост; typeof-гейт — для поведенческого стенда) */
 }
 /* Шаг сетки теперь настройка проекта (state.gridStep), а не константа: владелец
    просил уметь менять его. Фолбэк на дефолт — для устойчивости, если поле пустое. */
