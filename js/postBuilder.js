@@ -1117,6 +1117,18 @@ function renderBuilder(){
    показывает выбранное, действия («заменить» / «убрать»), поле группы света у клавиши и
    подставленный расчётом механизм. lightRows — строки групп света ЭТОГО поста (по keyIndex). */
 const GROUP_NAME_MAX=40;   /* предел длины имени группы света в поле ввода (см. groupField ниже) */
+function flatHalfPicker(item,frame,index,current){
+  const photo=EPCatalog.productImage(item,{detail:true});
+  const face=EPCatalog.moduleFace(item);
+  const options=[["top","Верхняя"],["bottom","Нижняя"]].map(([value,label])=>{
+    const [part]=EPButtonFrame.cellSlots(item,frame,1,face,value);
+    const crop=photo&&EPPostImage.faceSprite(part.face);
+    const thumb=crop?`<span class="slot-flat-photo" aria-hidden="true"><img src="${esc(photo)}" alt="" style="width:${crop.width}%;height:${crop.height}%;left:${crop.left}%;top:${crop.top}%"></span>`:"";
+    const checked=value===(current==="bottom"?"bottom":"top");
+    return `<label class="slot-flat-option"><input type="radio" name="flat-half-${index}" data-slot-flat-half="${index}" value="${value}"${checked?" checked":""}>${thumb}<span>${label}</span></label>`;
+  }).join("");
+  return `<fieldset class="slot-flat-picker"><legend>Половина клавиши</legend>${options}</fieldset>`;
+}
 function renderBuilderSlots(layout,remaining,lightRows,frame){
   const byKey=new Map((lightRows||[]).map(r=>[Number(r.keyIndex),r]));
   const target=state.builder.target;
@@ -1126,9 +1138,7 @@ function renderBuilderSlots(layout,remaining,lightRows,frame){
     const isTarget=target.mode==="replace"&&Number(target.index)===index;
     const row=byKey.get(index);
     const flatHalfField=allowsFlatHalf&&EPButtonFrame.buttonsOf(item)===2
-      ? `<div class="slot-keyfields"><label class="slot-mech">Половина клавиши<select data-slot-flat-half="${index}">
-          <option value="top">Верхняя</option><option value="bottom"${state.builder.slots[index]?.flatHalf==="bottom"?" selected":""}>Нижняя</option>
-        </select></label></div>` : "";
+      ? flatHalfPicker(item,frame,index,state.builder.slots[index]?.flatHalf) : "";
     /* Голый механизм в посте руками — законно (пост, собранный до появления расчёта), но
        предупреждаем: расчёт по группе света подставит механизм САМ, и второй такой же в
        соседнем слоте оплатится дважды. */
@@ -1216,8 +1226,9 @@ function renderBuilderSlots(layout,remaining,lightRows,frame){
     const index=Number(sel.dataset.slotMech);
     sel.onchange=()=>{state.builder.slots=EPBuilderSlots.setMech(state.builder.slots,index,sel.value);refreshBuilderLighting()};
   });
-  host.querySelectorAll("[data-slot-flat-half]").forEach(select=>select.onchange=()=>{
-    state.builder.slots=EPBuilderSlots.setFlatHalf(state.builder.slots,Number(select.dataset.slotFlatHalf),select.value);
+  host.querySelectorAll("[data-slot-flat-half]").forEach(input=>input.onchange=()=>{
+    if(!input.checked)return;
+    state.builder.slots=EPBuilderSlots.setFlatHalf(state.builder.slots,Number(input.dataset.slotFlatHalf),input.value);
     const draft=builderPostDraft(frame);
     const light=lightingFor(projectPostsWithBuilder(frame));
     $("postPreview").innerHTML=assembledPostHtml(draft,{size:"lg"},light);
